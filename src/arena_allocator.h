@@ -68,11 +68,6 @@ typedef struct b3Arena
 // 16-byte alignment for SSE2 + typical struct alignment.
 #define B3_ARENA_ALIGNMENT 16
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 b3Stack b3CreateStack( int capacity );
 void b3DestroyStack( b3Stack* stack );
 
@@ -117,7 +112,3 @@ static inline void* b3Bump( b3Arena* arena, int size )
 	}
 	return arena->memory + aligned;
 }
-
-#ifdef __cplusplus
-}
-#endif
