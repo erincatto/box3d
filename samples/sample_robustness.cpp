@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 #include "camera.h"
+#include "overflow_color.h"
 #include "sample.h"
 #include "scene.h"
 
 #include "box3d/box3d.h"
+#include "box3d/constants.h"
 
 #include <imgui.h>
 #include <stdlib.h>
@@ -402,3 +404,45 @@ public:
 };
 
 static int sampleCart = SampleManager::Register( "Robustness", "Cart", Cart::Create );
+
+// Drives the b3*_Overflow solver path. A heavy hub touches more dynamic
+// neighbors than B3_DYNAMIC_COLOR_COUNT (= 20), so several contacts land in
+// the overflow color. The HUD reports the per-step overflow contact count
+// because the scene is visually unremarkable when working correctly — the
+// point is that it stays unremarkable.
+class OverflowColorPile : public Sample
+{
+public:
+	explicit OverflowColorPile( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 5.0f, 3.0f, 6.0f, b3Vec3_zero );
+			EnableGrid( m_scene, true );
+		}
+
+		m_data = CreateOverflowColorPile( m_worldId );
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		b3Counters counters = b3World_GetCounters( m_worldId );
+		int overflowContacts = counters.colorCounts[B3_GRAPH_COLOR_COUNT - 1];
+
+		DrawTextLine( "neighbors = %d", m_data.neighborCount );
+		DrawTextLine( "overflow contacts = %d", overflowContacts );
+		DrawTextLine( "total contacts = %d", counters.contactCount );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new OverflowColorPile( context );
+	}
+
+	OverflowColorPileData m_data;
+};
+
+static int sampleOverflowColorPile = SampleManager::Register( "Robustness", "Overflow Color Pile", OverflowColorPile::Create );

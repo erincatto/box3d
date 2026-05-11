@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "benchmarks.h"
+#include "overflow_color.h"
 #include "stability.h"
 #include "test_macros.h"
 
@@ -701,6 +702,44 @@ static int TestMeshDrop( void )
 	return 0;
 }
 
+// Verifies the b3*_Overflow solver path. The scene puts >B3_DYNAMIC_COLOR_COUNT
+// dyn-dyn contacts on a single hub body so several land in the overflow color.
+// The new Prepare/Store contactId-pairing asserts in contact_solver.c fire here
+// if Store reads constraints from the wrong (base, spans) pair, so the test
+// catches the bug even though world state ends up plausible (memory layout is
+// stable within a build, so determinism alone is not a witness).
+static int TestOverflowColorPile( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.workerCount = 1;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	OverflowColorPileData data = CreateOverflowColorPile( worldId );
+	(void)data;
+
+	float timeStep = 1.0f / 60.0f;
+	int subStepCount = 4;
+
+	// One step would be enough to trip the asserts, but several steps also
+	// exercise the warm-start path (Store -> manifold impulse -> Prepare).
+	int stepCount = 10;
+	for ( int i = 0; i < stepCount; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	// Confirm the scene actually populated the overflow color. Without this,
+	// a future change to graph coloring could silently turn the test into a
+	// no-op.
+	b3Counters counters = b3World_GetCounters( worldId );
+	int overflowContacts = counters.colorCounts[B3_GRAPH_COLOR_COUNT - 1];
+
+	b3DestroyWorld( worldId );
+
+	ENSURE( overflowContacts > 0 );
+	return 0;
+}
+
 int WorldTest( void )
 {
 	RUN_SUBTEST( HelloWorld );
@@ -714,6 +753,7 @@ int WorldTest( void )
 	RUN_SUBTEST( TestHitEvents );
 	RUN_SUBTEST( TestCompoundHitEvents );
 	RUN_SUBTEST( TestMeshDrop );
+	RUN_SUBTEST( TestOverflowColorPile );
 	// RUN_SUBTEST( TestSetWorkerCount );
 
 	return 0;
