@@ -1182,7 +1182,6 @@ static bool b3BuildFaceAContact( b3LocalManifold* manifold, int capacity, const 
 		// Old way of pushing onto the reference face.
 		// b3Vec3 point = clipPoint->position - clipPoint->separation * refPlane.normal;
 
-		pt->normal = manifold->normal;
 		pt->point = point;
 		pt->separation = clipPoint->separation;
 		pt->pair = clipPoint->pair;

@@ -292,12 +292,14 @@ void Sample::CreateWorld( b3Capacity* capacity )
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	worldDef.workerCount = m_context->workerCount;
-	worldDef.userTaskContext = this;
 	worldDef.enableSleep = m_context->enableSleep;
 	worldDef.createDebugShape = CreateDebugShape;
 	worldDef.destroyDebugShape = DestroyDebugShape;
 	worldDef.userDebugShapeContext = m_context;
-	worldDef.capacity = *capacity;
+	if (capacity != nullptr)
+	{
+		worldDef.capacity = *capacity;
+	}
 	m_worldId = b3CreateWorld( &worldDef );
 
 	b3World_SetContactRecycleDistance( m_worldId, m_context->recycleDistance );
@@ -1052,7 +1054,7 @@ void SampleManager::Startup( GLFWwindow* window, int width, int height, int buff
 	// todo_erin testing
 	// m_context.settings.workerCount = 1;
 
-	m_context.arena.Create( 100 * 1024 * 1024 );
+	m_context.arena.Create( 400 * 1024 * 1024 );
 	m_context.window = window;
 	m_context.camera.Resize( width, height );
 

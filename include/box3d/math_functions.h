@@ -805,53 +805,6 @@ B3_FORCE_INLINE b3Matrix3 b3MakeMatrixFromQuat( b3Quat q )
 // https://en.wikipedia.org/wiki/Parallel_axis_theorem
 B3_API b3Matrix3 b3Steiner( float mass, b3Vec3 origin );
 
-B3_INLINE b3Plane b3MakePlaneFromNormalAndPoint( b3Vec3 normal, b3Vec3 point )
-{
-	return B3_LITERAL( b3Plane ){ normal, b3Dot( normal, point ) };
-}
-
-B3_INLINE b3Plane b3MakePlaneFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 point3 )
-{
-	b3Plane plane;
-	plane.normal = b3Cross( b3Sub( point2, point1 ), b3Sub( point3, point1 ) );
-	plane.normal = b3Normalize( plane.normal );
-	plane.offset = b3Dot( plane.normal, point1 );
-	return plane;
-}
-
-B3_INLINE b3Plane b3NegatePlane( b3Plane plane )
-{
-	return B3_LITERAL( b3Plane ){ { -plane.normal.x, -plane.normal.y, -plane.normal.z }, -plane.offset };
-}
-
-// normal2 = q * normal1
-// offset2 = dot(normal2, p) + offset1
-B3_INLINE b3Plane b3TransformPlane( b3Transform transform, b3Plane plane )
-{
-	b3Vec3 normal = b3RotateVector( transform.q, plane.normal );
-	return B3_LITERAL( b3Plane ){ normal, plane.offset + b3Dot( normal, transform.p ) };
-}
-
-// offset1 = offset2 - dot(normal2, p)
-// normal1 = qc * normal2
-B3_INLINE b3Plane b3InvTransformPlane( b3Transform transform, b3Plane plane )
-{
-	float offset = plane.offset - b3Dot( plane.normal, transform.p );
-	b3Vec3 normal = b3InvRotateVector( transform.q, plane.normal );
-	return B3_LITERAL( b3Plane ){ normal, offset };
-}
-
-/// Signed separation of a point from a plane
-B3_INLINE float b3PlaneSeparation( b3Plane plane, b3Vec3 point )
-{
-	return b3Dot( plane.normal, point ) - plane.offset;
-}
-
-B3_INLINE b3Plane b3ScalePlane( float scale, b3Plane plane )
-{
-	return B3_LITERAL( b3Plane ){ plane.normal, scale * plane.offset };
-}
-
 B3_INLINE b3AABB b3MakeAABB( const b3Vec3* points, int count, float radius )
 {
 	B3_ASSERT( count > 0 );

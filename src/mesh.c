@@ -1316,8 +1316,8 @@ b3MeshData* b3CreateWaveMesh( int xCount, int zCount, float cellWidth, float amp
 	float xWidth = cellWidth * xCount;
 	float zWidth = cellWidth * zCount;
 
-	float omegaZ = 2.0f * B3_PI * rowFrequency;
-	float omegaX = 2.0f * B3_PI * columnFrequency;
+	float omegaZ = 2.0f * B3_PI * rowFrequency * cellWidth;
+	float omegaX = 2.0f * B3_PI * columnFrequency * cellWidth;
 
 	float x = -0.5f * xWidth;
 	for ( int ix = 0; ix <= xCount; ++ix )

@@ -77,15 +77,15 @@ int main( int argc, char** argv )
 #endif
 
 	Benchmark benchmarks[] = {
-		{ "compound_capsules", NULL, CreateCompoundCapsules, DestroyCompoundCapsules, NULL, 500 },
-		{ "compound_hulls", NULL, CreateCompoundHulls, DestroyCompoundHulls, NULL, 500 },
+		{ "trees100", NULL, CreateTrees100, DestroyTrees, NULL, 500 },
+		{ "trees50", NULL, CreateTrees50, DestroyTrees, NULL, 500 },
+		{ "trees25", NULL, CreateTrees25, DestroyTrees, NULL, 500 },
 		{ "joint_grid", NULL, CreateJointGrid, NULL, NULL, 100 },
 		{ "junkyard", NULL, CreateJunkyard, NULL, StepJunkyard, 500 },
 		{ "large_pyramid", NULL, CreateLargePyramid, NULL, NULL, 200 },
 		{ "many_pyramids", NULL, CreateManyPyramids, NULL, NULL, 100 },
 		{ "rain", GetRainCapacity, CreateRain, DestroyRain, StepRain, 400 },
 		{ "washer", GetWasherCapacity, CreateWasher, NULL, NULL, 1000 },
-		{ "welded_hulls", NULL, CreateWeldedHulls, DestroyWeldedHulls, NULL, 500 },
 		//{ "smash", CreateSmash, NULL, 300 },
 		//{ "spinner", CreateSpinner, StepSpinner, 1400 },
 		//{ "tumbler", CreateTumbler, NULL, 750 },

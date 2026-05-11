@@ -117,7 +117,9 @@ static void b3CreateWorkerContexts( b3World* world )
 
 	for ( int i = 0; i < world->workerCount; ++i )
 	{
-		world->taskContexts.data[i].arena = b3CreateArena( 32 * 1024 );
+		// This needs to be ~400KB to support complex meshes
+		world->taskContexts.data[i].arena = b3CreateArena( 128 * 1024 );
+		//world->taskContexts.data[i].arena = b3CreateArena( 400 * 1024 );
 		b3Array_Reserve( world->taskContexts.data[i].sensorHits, 8 );
 		world->taskContexts.data[i].contactStateBitSet = b3CreateBitSet( 1024 );
 		world->taskContexts.data[i].hitEventBitSet = b3CreateBitSet( 1024 );

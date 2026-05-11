@@ -4,10 +4,10 @@
 #include "benchmarks.h"
 #include "camera.h"
 #include "imgui.h"
-#include "utils.h"
 #include "renderer.h"
 #include "sample.h"
 #include "scene.h"
+#include "utils.h"
 
 #include "box3d/box3d.h"
 
@@ -26,7 +26,7 @@ public:
 	explicit BenchmarkLargePyramid( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
 			EnableGrid( m_scene, true );
@@ -49,7 +49,7 @@ public:
 	explicit BenchmarkWidePyramid( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
 			EnableGrid( m_scene, true );
@@ -72,7 +72,7 @@ public:
 	explicit BenchmarkManyPyramids( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
 			EnableGrid( m_scene, true );
@@ -111,7 +111,7 @@ public:
 	explicit BenchmarkRain( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Vec3_zero );
 			context->debugDraw.drawJoints = false;
@@ -214,7 +214,7 @@ public:
 	explicit BenchmarkJointGrid( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			m_camera->SetView( -25.0f, 25.0f, 94.0f, { 30.0f, -30.0f, 30.0f } );
 		}
@@ -258,7 +258,7 @@ public:
 	explicit FallingBoxes( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 45.0f, 250.0f, b3Vec3_zero );
 			EnableGrid( m_scene, true );
@@ -282,11 +282,11 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			b3BoxHull box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
 
-			for (int i = 0; i < n; ++i)
+			for ( int i = 0; i < n; ++i )
 			{
-				for (int j = 0; j < 8; ++j)
+				for ( int j = 0; j < 8; ++j )
 				{
-					for (int k = 0; k < 8; ++k)
+					for ( int k = 0; k < 8; ++k )
 					{
 						bodyDef.position = { -16.0f + 4.0f * j, 4.0f * i + 5.0f, -16.0f + 4.0f * k };
 						b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
@@ -311,7 +311,7 @@ public:
 	explicit CandyCups( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 35.0f, 40.0f, b3Vec3_zero );
 			EnableGrid( m_scene, true );
@@ -335,11 +335,11 @@ public:
 			bodyDef.type = b3_dynamicBody;
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			m_convex = CreateConvex( 0.6f, 0.0f, 0.95f, 1.0f, context->arena );
-			for (int i = 0; i < n; ++i)
+			for ( int i = 0; i < n; ++i )
 			{
-				for (int j = 0; j < m; ++j)
+				for ( int j = 0; j < m; ++j )
 				{
-					for (int k = 0; k < m; ++k)
+					for ( int k = 0; k < m; ++k )
 					{
 						bodyDef.position = { -10.0f + 2.5f * j, 1.0f * i, -10.0f + 2.5f * k };
 						b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
@@ -364,7 +364,7 @@ public:
 		b3Vec3* vertexBase = static_cast<b3Vec3*>( arena.Allocate( vertexCount * sizeof( b3Vec3 ) ) );
 
 		float alpha = 0.0f;
-		for (int sideIndex = 0; sideIndex < sideCount; ++sideIndex)
+		for ( int sideIndex = 0; sideIndex < sideCount; ++sideIndex )
 		{
 			b3CosSin cs = b3ComputeCosSin( alpha );
 
@@ -397,7 +397,7 @@ public:
 	explicit BenchmarkExplosion( SampleContext* context )
 		: Sample( context )
 	{
-		if (m_context->restart == false)
+		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 40.0f, 10.0f, { 0.0f, 0.0f, 0.0f } );
 		}
@@ -454,9 +454,9 @@ public:
 		bodyDef.type = b3_dynamicBody;
 		shapeDef.explosionScale = 2.0f;
 
-		for (int i = -n; i <= n; ++i)
+		for ( int i = -n; i <= n; ++i )
 		{
-			for (int k = -n; k <= n; ++k)
+			for ( int k = -n; k <= n; ++k )
 			{
 				bodyDef.position = { 1.0f * i, 0.0f, 1.0f * k };
 
@@ -499,7 +499,7 @@ public:
 
 		ImGui::SliderFloat( "impulse", &m_impulse, 0.0f, 2000.0f, "%.0f" );
 
-		if (ImGui::Button( "explode" ))
+		if ( ImGui::Button( "explode" ) )
 		{
 			Explode();
 		}
@@ -556,7 +556,7 @@ public:
 	explicit BenchmarkHeightField( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 20.0f );
 		}
@@ -616,14 +616,14 @@ public:
 		b3Sphere sphere = { b3Vec3_zero, m_radius };
 		int castCount = 0;
 
-		for (float x = -spanX; x <= spanX; x += delta)
+		for ( float x = -spanX; x <= spanX; x += delta )
 		{
-			for (float z = -spanZ; z <= spanZ; z += delta)
+			for ( float z = -spanZ; z <= spanZ; z += delta )
 			{
 				b3Vec3 rayOrigin = { x, 2.0f, z };
 
 				b3RayResult result = {};
-				if (m_radius == 0.0f)
+				if ( m_radius == 0.0f )
 				{
 					result = b3World_CastRayClosest( m_worldId, rayOrigin, rayTranslation, b3DefaultQueryFilter() );
 				}
@@ -633,7 +633,7 @@ public:
 					b3ShapeProxy proxy = { &rayOrigin, 1, m_radius };
 					b3World_CastShape( m_worldId, &proxy, rayTranslation, b3DefaultQueryFilter(), CastCallback, &context );
 
-					if (context.hit)
+					if ( context.hit )
 					{
 						result.point = context.point;
 						result.normal = context.normal;
@@ -644,16 +644,16 @@ public:
 
 				castCount += 1;
 
-				if (result.hit)
+				if ( result.hit )
 				{
 					hitCount += 1;
-					if (m_isDebug)
+					if ( m_isDebug )
 					{
 						b3Vec3 point = result.point;
 						DrawLine( m_scene, point, point + 0.5f * result.normal, b3_colorGreen );
 						DrawPoint( m_scene, point, 10.0f, b3_colorGreen );
 
-						if (m_radius > 0.0f)
+						if ( m_radius > 0.0f )
 						{
 							b3Transform transform = b3Transform_identity;
 							transform.p = rayOrigin + result.fraction * rayTranslation;
@@ -666,7 +666,7 @@ public:
 						DrawPoint( m_scene, rayEnd, 2.0f, b3_colorRed );
 					}
 				}
-				else if (m_isDebug)
+				else if ( m_isDebug )
 				{
 					b3Vec3 rayEnd = rayOrigin + rayTranslation;
 					DrawLine( m_scene, rayOrigin, rayEnd, b3_colorYellow );
@@ -708,7 +708,7 @@ public:
 	explicit BenchmarkCompoundCapsules( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			float distance = 220.0f;
 			float height = 20.0f;
@@ -739,34 +739,88 @@ public:
 static int sampleCompoundCapsules =
 	SampleManager::Register( "Benchmark", "Compounds Capsules", BenchmarkCompoundCapsules::Create );
 
-class BenchmarkCompoundHulls : public Sample
+class BenchmarkFallingTrees : public Sample
 {
 public:
-	explicit BenchmarkCompoundHulls( SampleContext* context )
+	explicit BenchmarkFallingTrees( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			float distance = 220.0f;
 			float height = 20.0f;
 			m_camera->SetView( 25.0f, 10.0f, distance, { 0.0f, height, 0.0f } );
 		}
 
-		CreateCompoundHulls( m_worldId );
+		m_gridSize = 100;
+		CreateTrees100( m_worldId );
 	}
 
-	~BenchmarkCompoundHulls() override
+	~BenchmarkFallingTrees() override
 	{
-		DestroyCompoundHulls();
+		DestroyTrees();
+	}
+
+	void Generate()
+	{
+		ResetProfile();
+
+		CreateWorld( nullptr );
+
+		DestroyTrees();
+
+		if ( m_gridSize == 100 )
+		{
+			CreateTrees100( m_worldId );
+		}
+		else if ( m_gridSize == 50 )
+		{
+			CreateTrees50( m_worldId );
+		}
+		else
+		{
+			CreateTrees25( m_worldId );
+		}
+	}
+
+	void UpdateUI() override
+	{
+		Sample::UpdateUI();
+
+		float fontSize = ImGui::GetFontSize();
+		float height = 10.0f * fontSize;
+		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
+		ImGui::SetNextWindowSize( { 20.0f * fontSize, height } );
+
+		ImGui::Begin( "Falling Trees", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
+
+		if ( ImGui::RadioButton( "100cm", &m_gridSize, 100 ) )
+		{
+			Generate();
+		}
+
+		if ( ImGui::RadioButton( "50cm", &m_gridSize, 50 ) )
+		{
+			Generate();
+		}
+
+		if ( ImGui::RadioButton( "25cm", &m_gridSize, 25 ) )
+		{
+			Generate();
+		}
+
+		ImGui::End();
 	}
 
 	static Sample* Create( SampleContext* context )
 	{
-		return new BenchmarkCompoundHulls( context );
+		return new BenchmarkFallingTrees( context );
 	}
+
+	int m_gridSize;
 };
 
-static int sampleCompoundHulls = SampleManager::Register( "Benchmark", "Compounds Hulls", BenchmarkCompoundHulls::Create );
+static int sampleCompoundHulls = SampleManager::Register( "Benchmark", "Falling Trees", BenchmarkFallingTrees::Create );
 
 class WeldedHulls : public Sample
 {
@@ -809,7 +863,7 @@ public:
 	explicit BenchmarkSensor( SampleContext* context )
 		: Sample( context )
 	{
-		if (m_context->restart == false)
+		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 5.0f, 18.0f, 180.0f, { 0.0f, 5.0f, 0.0f } );
 		}
@@ -832,7 +886,7 @@ public:
 
 			float y = 0.0f;
 			float x = -40.0f * gridSize;
-			for (int i = 0; i < 81; ++i)
+			for ( int i = 0; i < 81; ++i )
 			{
 				b3Vec3 extents = { 0.5f * gridSize, 0.5f * gridSize, 0.5f * gridSize };
 				b3Transform transform = { { x, y, 0.0f }, b3Quat_identity };
@@ -853,14 +907,14 @@ public:
 
 		float yStart = 10.0f;
 
-		for (int j = 0; j < m_rowCount; ++j)
+		for ( int j = 0; j < m_rowCount; ++j )
 		{
 			m_passiveSensors[j].row = j;
 			m_passiveSensors[j].active = false;
 			shapeDef.userData = m_passiveSensors + j;
 
 			float y = j * shift + yStart;
-			for (int i = 0; i < m_columnCount; ++i)
+			for ( int i = 0; i < m_columnCount; ++i )
 			{
 				float x = i * shift - xCenter;
 				b3Vec3 extents = { 0.5f, 0.5f, 0.5f };
@@ -890,7 +944,7 @@ public:
 		shapeDef.enableSensorEvents = true;
 
 		b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
-		for (int i = 0; i < m_columnCount; ++i)
+		for ( int i = 0; i < m_columnCount; ++i )
 		{
 			// stagger bodies to avoid bunching up events into a single update
 			float yOffset = RandomFloatRange( -1.0f, 1.0f );
@@ -905,7 +959,7 @@ public:
 	{
 		Sample::Step();
 
-		if (m_stepCount == m_lastStepCount)
+		if ( m_stepCount == m_lastStepCount )
 		{
 			return;
 		}
@@ -913,14 +967,14 @@ public:
 		std::set<b3BodyId> zombies;
 
 		b3SensorEvents events = b3World_GetSensorEvents( m_worldId );
-		for (int i = 0; i < events.beginCount; ++i)
+		for ( int i = 0; i < events.beginCount; ++i )
 		{
 			b3SensorBeginTouchEvent* event = events.beginEvents + i;
 
 			// shapes on begin touch are always valid
 
 			ShapeUserData* userData = static_cast<ShapeUserData*>( b3Shape_GetUserData( event->sensorShapeId ) );
-			if (userData->active)
+			if ( userData->active )
 			{
 				zombies.emplace( b3Shape_GetBody( event->visitorShapeId ) );
 			}
@@ -936,11 +990,11 @@ public:
 			}
 		}
 
-		for (int i = 0; i < events.endCount; ++i)
+		for ( int i = 0; i < events.endCount; ++i )
 		{
 			b3SensorEndTouchEvent* event = events.endEvents + i;
 
-			if (b3Shape_IsValid( event->visitorShapeId ) == false)
+			if ( b3Shape_IsValid( event->visitorShapeId ) == false )
 			{
 				continue;
 			}
@@ -951,14 +1005,14 @@ public:
 			b3Shape_SetSurfaceMaterial( event->visitorShapeId, surfaceMaterial );
 		}
 
-		for (b3BodyId bodyId : zombies)
+		for ( b3BodyId bodyId : zombies )
 		{
 			b3DestroyBody( bodyId );
 		}
 
 		int delay = 0x1F;
 
-		if (( m_stepCount & delay ) == 0)
+		if ( ( m_stepCount & delay ) == 0 )
 		{
 			CreateRow( 10.0f + m_rowCount * 5.0f );
 		}
@@ -974,16 +1028,16 @@ public:
 	bool Filter( b3ShapeId idA, b3ShapeId idB )
 	{
 		ShapeUserData* userData = nullptr;
-		if (b3Shape_IsSensor( idA ))
+		if ( b3Shape_IsSensor( idA ) )
 		{
 			userData = (ShapeUserData*)b3Shape_GetUserData( idA );
 		}
-		else if (b3Shape_IsSensor( idB ))
+		else if ( b3Shape_IsSensor( idB ) )
 		{
 			userData = (ShapeUserData*)b3Shape_GetUserData( idB );
 		}
 
-		if (userData != nullptr)
+		if ( userData != nullptr )
 		{
 			return userData->active == true || userData->row != m_filterRow;
 		}
@@ -1020,7 +1074,7 @@ public:
 	explicit BenchmarkWasher( SampleContext* context )
 		: Sample( context )
 	{
-		if (m_context->restart == false)
+		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 20.0f, 60.0, { 0.0f, 15.0f, 0.0f } );
 			EnableGrid( m_scene, true );
@@ -1047,7 +1101,7 @@ public:
 	explicit BenchmarkHull( SampleContext* context )
 		: Sample( context )
 	{
-		if (m_context->restart == false)
+		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Vec3_zero );
 		}
@@ -1055,7 +1109,7 @@ public:
 		g_randomSeed = 42;
 
 		m_count = 64;
-		for (int i = 0; i < m_count; ++i)
+		for ( int i = 0; i < m_count; ++i )
 		{
 			m_points[i] = RandomVec3( { -1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f, 1.0f } );
 		}
@@ -1088,7 +1142,7 @@ public:
 		float area = 0.0f;
 		int trials = m_isDebug ? 200 : 2000;
 
-		for (int i = 0; i < trials; ++i)
+		for ( int i = 0; i < trials; ++i )
 		{
 			b3Hull* hull = b3CreateHull( m_points, m_count, m_count );
 			area += hull->surfaceArea;
@@ -1098,7 +1152,7 @@ public:
 		float createTime = b3GetMillisecondsAndReset( &startTick );
 
 		float scaledArea = 0.0f;
-		for (int i = 0; i < trials; ++i)
+		for ( int i = 0; i < trials; ++i )
 		{
 			b3Hull* hull = b3CloneAndTransformHull( m_hull, b3Transform_identity, m_scale );
 			scaledArea += hull->surfaceArea;
@@ -1135,7 +1189,7 @@ public:
 	explicit BenchmarkChains( SampleContext* context )
 		: Sample( context )
 	{
-		if (context->restart == false)
+		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 50.0f, { 0.0f, 5.0f, 0.0f } );
 			EnableGrid( context->scene, false );
@@ -1168,12 +1222,12 @@ public:
 		int shapeIndex = 0;
 
 		float x = -1.0f * m_gridCount;
-		for (int rowIndex = 0; rowIndex < m_gridCount; ++rowIndex)
+		for ( int rowIndex = 0; rowIndex < m_gridCount; ++rowIndex )
 		{
 			float z = -1.0f * m_gridCount;
-			for (int columnIndex = 0; columnIndex < m_gridCount; ++columnIndex)
+			for ( int columnIndex = 0; columnIndex < m_gridCount; ++columnIndex )
 			{
-				for (int i = 0; i < linkCount; ++i)
+				for ( int i = 0; i < linkCount; ++i )
 				{
 					bodyDef.position = { x, ( 1.0f - 2.0f * i ) * linkExtent + 3.0f, z };
 
@@ -1182,13 +1236,13 @@ public:
 					b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 					b3ShapeId shapeId = b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
-					if (i == linkCount - 1)
+					if ( i == linkCount - 1 )
 					{
 						m_shapeIds[shapeIndex] = shapeId;
 						shapeIndex += 1;
 					}
 
-					if (i > 0)
+					if ( i > 0 )
 					{
 						jointDef.base.bodyIdB = bodyId;
 						b3CreateSphericalJoint( m_worldId, &jointDef );
@@ -1218,7 +1272,7 @@ public:
 		b3Vec3 direction = b3GetLengthAndNormalize( &speed, baseWind );
 		b3Vec3 wind = b3MulSV( speed, b3Add( direction, m_noise ) );
 
-		for (int i = 0; i < m_gridCount * m_gridCount; ++i)
+		for ( int i = 0; i < m_gridCount * m_gridCount; ++i )
 		{
 			b3Shape_ApplyWind( m_shapeIds[i], wind, 1.0f, 1.0f, 20.0f, false );
 		}
@@ -1248,9 +1302,9 @@ public:
 	explicit BenchmarkDestruction( SampleContext* context )
 		: Sample( context )
 	{
-		if (m_context->restart == false)
+		if ( m_context->restart == false )
 		{
-			if (m_small)
+			if ( m_small )
 			{
 				m_camera->SetView( 0.0f, 40.0f, 10.0f, { 0.0f, 0.0f, 0.0f } );
 			}
@@ -1339,7 +1393,7 @@ public:
 	{
 		uint64_t ticks = b3GetTicks();
 
-		for (int i = 0; i < m_bodyCount; ++i)
+		for ( int i = 0; i < m_bodyCount; ++i )
 		{
 			b3DestroyBody( m_bodyIds[i] );
 		}
@@ -1361,13 +1415,13 @@ public:
 
 		int randomRange = m_small ? 3 : 2;
 		m_bodyCount = 0;
-		for (int i = 0; i < m_gridCount; ++i)
+		for ( int i = 0; i < m_gridCount; ++i )
 		{
-			for (int j = 0; j < m_gridCount; ++j)
+			for ( int j = 0; j < m_gridCount; ++j )
 			{
-				for (int k = 0; k < m_gridCount; ++k)
+				for ( int k = 0; k < m_gridCount; ++k )
 				{
-					if (RandomIntRange( 1, randomRange ) == 1)
+					if ( RandomIntRange( 1, randomRange ) == 1 )
 					{
 						continue;
 					}
@@ -1411,7 +1465,7 @@ public:
 		Sample::Step();
 
 		int spawnStep = m_small ? 80 : 140;
-		if (m_stepCount % spawnStep == 0)
+		if ( m_stepCount % spawnStep == 0 )
 		{
 			DestroyBodies();
 			Spawn();

@@ -1430,7 +1430,6 @@ typedef struct b3FeaturePair
 typedef struct b3LocalManifoldPoint
 {
 	b3Vec3 point;
-	b3Vec3 normal;
 	float separation;
 	b3FeaturePair pair;
 	int triangleIndex;
@@ -1440,7 +1439,7 @@ typedef struct b3LocalManifoldPoint
 typedef struct b3LocalManifold
 {
 	b3Vec3 normal;
-	b3Plane trianglePlane;
+	b3Vec3 triangleNormal;
 	b3LocalManifoldPoint* points;
 	int pointCount;
 	int triangleIndex;

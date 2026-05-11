@@ -388,6 +388,40 @@ B3_INLINE b3Plane b3NormalizePlane( b3Plane plane )
 	return B3_LITERAL( b3Plane ){ b3MulSV( invLength, plane.normal ), invLength * plane.offset };
 }
 
+B3_INLINE b3Plane b3MakePlaneFromNormalAndPoint( b3Vec3 normal, b3Vec3 point )
+{
+	return B3_LITERAL( b3Plane ){ normal, b3Dot( normal, point ) };
+}
+
+B3_INLINE b3Plane b3MakePlaneFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 point3 )
+{
+	b3Plane plane;
+	plane.normal = b3Cross( b3Sub( point2, point1 ), b3Sub( point3, point1 ) );
+	plane.normal = b3Normalize( plane.normal );
+	plane.offset = b3Dot( plane.normal, point1 );
+	return plane;
+}
+
+B3_INLINE b3Vec3 b3MakeNormalFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 point3 )
+{
+	b3Vec3 normal = b3Cross( b3Sub( point2, point1 ), b3Sub( point3, point1 ) );
+	return b3Normalize( normal );
+}
+
+// normal2 = q * normal1
+// offset2 = dot(normal2, p) + offset1
+B3_INLINE b3Plane b3TransformPlane( b3Transform transform, b3Plane plane )
+{
+	b3Vec3 normal = b3RotateVector( transform.q, plane.normal );
+	return B3_LITERAL( b3Plane ){ normal, plane.offset + b3Dot( normal, transform.p ) };
+}
+
+/// Signed separation of a point from a plane
+B3_INLINE float b3PlaneSeparation( b3Plane plane, b3Vec3 point )
+{
+	return b3Dot( plane.normal, point ) - plane.offset;
+}
+
 // Negative if p is below the triangle v1-v2-v3
 B3_INLINE float b3SignedVolume( b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, b3Vec3 p )
 {

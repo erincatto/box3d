@@ -17,8 +17,10 @@ extern "C"
 
 void CreateCompoundCapsules( b3WorldId worldId );
 void DestroyCompoundCapsules( void );
-void CreateCompoundHulls( b3WorldId worldId );
-void DestroyCompoundHulls( void );
+void CreateTrees25( b3WorldId worldId );
+void CreateTrees50( b3WorldId worldId );
+void CreateTrees100( b3WorldId worldId );
+void DestroyTrees( void );
 void CreateJointGrid( b3WorldId worldId );
 void CreateJunkyard( b3WorldId worldId );
 void StepJunkyard( b3WorldId worldId, int stepCount );

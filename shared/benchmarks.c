@@ -597,7 +597,7 @@ void CreateCompoundCapsules( b3WorldId worldId )
 	float z = BENCHMARK_DEBUG ? -15.0f : -140.0f;
 	b3CosSin cs = b3ComputeCosSin( tilt );
 	float yTilt = cs.sine / cs.cosine;
-	//b3CosSin stubCS = b3ComputeCosSin( 50.0f * B3_PI / 180.0f );
+	// b3CosSin stubCS = b3ComputeCosSin( 50.0f * B3_PI / 180.0f );
 	for ( int bodyIndex = 0; bodyIndex < bodyCount; ++bodyIndex )
 	{
 		bodyDef.position = (b3Vec3){ 0.0, 0.5f - z * yTilt, z };
@@ -607,8 +607,8 @@ void CreateCompoundCapsules( b3WorldId worldId )
 		float r = 0.75f;
 		float l = 1.5f;
 		float offset = 0.05f;
-		//float stubX = 1.4f;
-		//float stubZ = 0.0f;
+		// float stubX = 1.4f;
+		// float stubZ = 0.0f;
 		for ( int shapeIndex = 0; shapeIndex < 22; ++shapeIndex )
 		{
 			b3Capsule capsule = { { offset, y, 0.0f }, { 0.0f, y + l, -offset }, r };
@@ -659,11 +659,11 @@ void DestroyCompoundCapsules( void )
 struct
 {
 	b3MeshData* meshData;
-} g_compoundHullsData;
+} g_treeData;
 
-void CreateCompoundHulls( b3WorldId worldId )
+static void CreateTrees( b3WorldId worldId, int scale )
 {
-	memset( &g_compoundHullsData, 0, sizeof( g_compoundHullsData ) );
+	memset( &g_treeData, 0, sizeof( g_treeData ) );
 
 	// float tilt = 0.15f * B3_PI;
 	float tilt = 0.0f * B3_PI;
@@ -672,24 +672,24 @@ void CreateCompoundHulls( b3WorldId worldId )
 	bodyDef.rotation = b3MakeQuatFromAxisAngle( (b3Vec3){ 1.0f, 0.0f, 0.0 }, tilt );
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
-	int xCount = 200;
+	int xCount = scale * 150;
 	// int zCount = BENCHMARK_DEBUG ? 100 : 400;
-	int zCount = 400;
+	int zCount = scale * 200;
 
-	float cellWidth = 1.0f;
+	float cellWidth = 1.0f / scale;
 	float amplitude = 0.4f;
 	float rowHz = 0.05f;
 	float columnHz = 0.1f;
 
-	g_compoundHullsData.meshData = b3CreateWaveMesh( xCount, zCount, cellWidth, amplitude, rowHz, columnHz );
+	g_treeData.meshData = b3CreateWaveMesh( xCount, zCount, cellWidth, amplitude, rowHz, columnHz );
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	b3CreateMeshShape( groundId, &shapeDef, g_compoundHullsData.meshData, b3Vec3_one );
+	b3CreateMeshShape( groundId, &shapeDef, g_treeData.meshData, b3Vec3_one );
 
 	bodyDef.type = b3_dynamicBody;
 	bodyDef.sleepThreshold = 0.2f;
 	bodyDef.rotation = b3Quat_identity;
 
-	int bodyCount = BENCHMARK_DEBUG ? 10 : 90;
+	int bodyCount = BENCHMARK_DEBUG ? 10 : 50;
 
 	shapeDef.baseMaterial.friction = 0.9f;
 	shapeDef.baseMaterial.rollingResistance = 0.05f;
@@ -710,7 +710,7 @@ void CreateCompoundHulls( b3WorldId worldId )
 	}
 
 	float angularVelocity = -0.5f;
-	float z = BENCHMARK_DEBUG ? -15.0f : -140.0f;
+	float z = BENCHMARK_DEBUG ? -15.0f : -70.0f;
 	b3CosSin cs = b3ComputeCosSin( tilt );
 	float yTilt = cs.sine / cs.cosine;
 	for ( int bodyIndex = 0; bodyIndex < bodyCount; ++bodyIndex )
@@ -748,10 +748,25 @@ void CreateCompoundHulls( b3WorldId worldId )
 	}
 }
 
-void DestroyCompoundHulls( void )
+void CreateTrees25( b3WorldId worldId )
 {
-	b3DestroyMesh( g_compoundHullsData.meshData );
-	memset( &g_compoundHullsData, 0, sizeof( g_compoundHullsData ) );
+	CreateTrees( worldId, 4 );
+}
+
+void CreateTrees50( b3WorldId worldId )
+{
+	CreateTrees( worldId, 2 );
+}
+
+void CreateTrees100( b3WorldId worldId )
+{
+	CreateTrees( worldId, 1 );
+}
+
+void DestroyTrees( void )
+{
+	b3DestroyMesh( g_treeData.meshData );
+	memset( &g_treeData, 0, sizeof( g_treeData ) );
 }
 
 struct
