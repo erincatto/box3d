@@ -928,6 +928,8 @@ static int b3BuildRecursive( b3ArrayC( b3MeshNode ) * nodes, int count, b3Primit
 		node->data.asNode.childOffset = rightIndex - index;
 		node->lowerBound = aabb.lowerBound;
 		node->upperBound = aabb.upperBound;
+		// triangleOffset is leaf-only, but lives outside the union — zero it so mesh->hash is deterministic
+		node->triangleOffset = 0;
 
 		return index;
 	}
