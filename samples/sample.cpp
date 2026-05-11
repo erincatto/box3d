@@ -720,6 +720,7 @@ void Sample::UpdateUI()
 		ImGui::Text( "tree height static/movable = %d/%d", s.staticTreeHeight, s.treeHeight );
 		ImGui::Text( "sat call/hit = %d/%d", s.satCallCount, s.satCacheHitCount );
 		ImGui::Text( "stack allocator size = %d K", s.stackUsed / 1024 );
+		ImGui::Text( "arena capacity = %d K", s.arenaCapacity / 1024 );
 		ImGui::Text( "total allocation = %d K", s.byteCount / 1024 );
 
 		ImGui::Separator();

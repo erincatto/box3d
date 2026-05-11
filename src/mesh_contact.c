@@ -74,8 +74,7 @@ static int b3QueryHeightFieldTriangles( int* indices, int capacity, const b3Heig
 	return context.count;
 }
 
-// arena local MAX_TRI * 20
-static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3Transform xfA, const b3AABB* bounds, b3Arena arena )
+static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3Transform xfA, const b3AABB* bounds )
 {
 	B3_ASSERT( shapeA->type == b3_meshShape || shapeA->type == b3_heightShape );
 
@@ -105,8 +104,7 @@ static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3Transfo
 	// Query triangles
 	int triangleCapacity = B3_MAX_MESH_CONTACT_TRIANGLES;
 
-	// bump MAX_TRI * 4
-	int* triangleIndices = b3Bump( &arena, triangleCapacity * sizeof( int ) );
+	int triangleIndices[B3_MAX_MESH_CONTACT_TRIANGLES];
 
 	// Bounds are in world space. Convert to the local mesh frame.
 	b3AABB localBounds = b3AABB_Transform( b3InvertTransform( xfA ), meshContact->queryBounds );
@@ -135,8 +133,7 @@ static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3Transfo
 	B3_VALIDATE( b3IsSorted( triangleIndices, triangleCount ) );
 
 	// Create new contact cache and match with old one
-	// bump MAX_TRI * 16
-	b3ContactCache* contactCache = b3Bump( &arena, triangleCount * sizeof( b3ContactCache ) );
+	b3ContactCache contactCache[B3_MAX_MESH_CONTACT_TRIANGLES];
 
 	int index2 = 0;
 	for ( int index1 = 0; index1 < triangleCount; ++index1 )
@@ -492,19 +489,16 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 
 	b3TaskContext* context = b3Array_Get( world->taskContexts, workerIndex );
 
-	b3RefreshCache( contact, shapeA, xfA, &shapeB->aabb, arena );
+	b3RefreshCache( contact, shapeA, xfA, &shapeB->aabb );
 
 	// Collide with triangles and build manifolds
 	b3MeshContact* meshContact = &contact->meshContact;
 	int triangleCount = meshContact->triangleCache.count;
 
-	// bump MAX_TRI * 8
 	b3LocalManifold** acceptedManifolds = b3Bump( &arena, triangleCount * sizeof( b3LocalManifold* ) );
 	int acceptedManifoldCount = 0;
-	// bump MAX_TRI * 8
 	b3LocalManifold** tentativeManifolds = b3Bump( &arena, triangleCount * sizeof( b3LocalManifold* ) );
 	int tentativeManifoldCount = 0;
-	// bump MAX_TRI * 8
 	b3TentativeTriangle* tentativeTriangles = b3Bump( &arena, triangleCount * sizeof( b3TentativeTriangle ) );
 	int tentativeTriangleCount = 0;
 
@@ -521,11 +515,9 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	// Make room for clip points
 	int pointBufferCapacity = B3_MAX_POINTS_PER_TRIANGLE * triangleCount;
 
-	// bump MAX_POINTS * MAX_TRI * 24
 	b3LocalManifoldPoint* pointBuffer = b3Bump( &arena, pointBufferCapacity * sizeof( b3LocalManifoldPoint ) );
 	int totalPointCount = 0;
 
-	// bump MAX_TRI * 64
 	b3LocalManifold* manifoldBuffer = b3Bump( &arena, triangleCount * sizeof( b3LocalManifold ) );
 	int manifoldCount = 0;
 
@@ -806,7 +798,6 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	// seems appropriate in this case.
 	float restOffset = linearSlop;
 
-	// bump MAX_TRI * 40
 	b3Cluster* clusters = b3Bump( &arena, acceptedManifoldCount * sizeof( b3Cluster ) );
 	int* clusterMemberships = b3Bump( &arena, acceptedManifoldCount * sizeof( int ) );
 
@@ -894,8 +885,6 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	}
 
 	// Setup clusters
-
-	// 
 	b3LocalManifoldPoint* clusterPoints = b3Bump( &arena, clusterPointCount * sizeof( b3LocalManifoldPoint ) );
 	int pointOffset = 0;
 
@@ -968,7 +957,6 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	bool* consumed = NULL;
 	if ( oldManifoldCount > 0 )
 	{
-		// bump MAX_TRI * 1
 		consumed = b3Bump( &arena, oldManifoldCount * sizeof( bool ) );
 		memset( consumed, 0, oldManifoldCount * sizeof( bool ) );
 	}

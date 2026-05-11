@@ -117,9 +117,7 @@ static void b3CreateWorkerContexts( b3World* world )
 
 	for ( int i = 0; i < world->workerCount; ++i )
 	{
-		// This needs to be ~400KB to support complex meshes
 		world->taskContexts.data[i].arena = b3CreateArena( 128 * 1024 );
-		//world->taskContexts.data[i].arena = b3CreateArena( 400 * 1024 );
 		b3Array_Reserve( world->taskContexts.data[i].sensorHits, 8 );
 		world->taskContexts.data[i].contactStateBitSet = b3CreateBitSet( 1024 );
 		world->taskContexts.data[i].hitEventBitSet = b3CreateBitSet( 1024 );
@@ -836,6 +834,14 @@ static void b3Collide( b3StepContext* context )
 		{
 			world->manifoldCounts[j] += world->taskContexts.data[i].manifoldCounts[j];
 		}
+	}
+
+	// Release per-step overflow blocks and grow the backing capacity if last
+	// step's demand exceeded it. Contact processing is the only consumer of
+	// these arenas and is finished by this point.
+	for ( int i = 0; i < world->workerCount; ++i )
+	{
+		b3ArenaSync( &world->taskContexts.data[i].arena );
 	}
 
 	int endEventArrayIndex = world->endEventArrayIndex;
@@ -1983,9 +1989,16 @@ b3Counters b3World_GetCounters( b3WorldId worldId )
 	s.awakeContactCount += world->solverSets.data[b3_awakeSet].contactIndices.count;
 
 	s.recycledContactCount = 0;
+	s.arenaCapacity = 0;
 	for ( int i = 0; i < world->workerCount; ++i )
 	{
 		s.recycledContactCount += world->taskContexts.data[i].recycledContactCount;
+
+		int peak = world->taskContexts.data[i].arena.shared->peakDemand;
+		if ( peak > s.arenaCapacity )
+		{
+			s.arenaCapacity = peak;
+		}
 	}
 
 	return s;

@@ -92,9 +92,9 @@ struct b3QHFace
 typedef struct b3HorizonFrame
 {
 	b3QHFace* face;
-	b3QHHalfEdge* startEdge;	// ring termination sentinel
-	b3QHHalfEdge* edge;			// next edge to process
-	bool started;				// false until the first edge of this ring has been processed
+	b3QHHalfEdge* startEdge; // ring termination sentinel
+	b3QHHalfEdge* edge;		 // next edge to process
+	bool started;			 // false until the first edge of this ring has been processed
 } b3HorizonFrame;
 
 // All working memory for one hull build, carved from a single b3Alloc block.
@@ -194,7 +194,7 @@ static inline void b3QHList_PushBack( b3QHListNode* head, b3QHListNode* node )
 	b3QHList_Insert( node, head->prev );
 }
 
-static b3QHVertex* b3HullBuilder_NewVertex( b3HullBuilder* b, b3Vec3 position)
+static b3QHVertex* b3HullBuilder_NewVertex( b3HullBuilder* b, b3Vec3 position )
 {
 	B3_ASSERT( b->vertexCount < b->vertexCapacity );
 	b3QHVertex* vertex = b->vertexBase + b->vertexCount++;
@@ -813,8 +813,7 @@ static void b3HullBuilder_DrainConflictList( b3HullBuilder* b, b3QHFace* face )
 // `entryEdge` is the half-edge in `face` whose twin lies in the just-deleted parent face, or
 // NULL for the seed. The frame skips `entryEdge` on recursive entries (it would be ignored
 // anyway since the parent's mark is now DELETE, but skipping saves one iteration).
-static void b3HullBuilder_EnterHorizonFace( b3HullBuilder* b, b3QHFace* face, b3QHHalfEdge* entryEdge,
-											b3HorizonFrame* frameOut )
+static void b3HullBuilder_EnterHorizonFace( b3HullBuilder* b, b3QHFace* face, b3QHHalfEdge* entryEdge, b3HorizonFrame* frameOut )
 {
 	face->mark = B3_MARK_DELETE;
 	b3HullBuilder_DrainConflictList( b, face );
@@ -930,9 +929,9 @@ static void b3HullBuilder_ConnectEdges( b3HullBuilder* b, b3QHHalfEdge* prev, b3
 		if ( b3VertexCountOfFace( prev->twin->face ) == 3 )
 		{
 			// Capture all 3 half-edges of the dead triangle before the rewire overwrites prev->twin.
-			b3QHHalfEdge* deadEdge0 = prev->twin;          // prev->twin (will be rewired below)
-			b3QHHalfEdge* deadEdge1 = next->twin;          // next->twin
-			b3QHHalfEdge* deadEdge2 = next->twin->prev;    // third edge of the dead triangle
+			b3QHHalfEdge* deadEdge0 = prev->twin;		// prev->twin (will be rewired below)
+			b3QHHalfEdge* deadEdge1 = next->twin;		// next->twin
+			b3QHHalfEdge* deadEdge2 = next->twin->prev; // third edge of the dead triangle
 
 			twin = deadEdge2->twin;
 			B3_ASSERT( twin->face->mark != B3_MARK_DELETE );
@@ -990,7 +989,6 @@ static void b3HullBuilder_ConnectEdges( b3HullBuilder* b, b3QHHalfEdge* prev, b3
 		next->prev = prev;
 	}
 }
-
 
 static void b3HullBuilder_AbsorbFaces( b3HullBuilder* b, b3QHFace* face )
 {
@@ -1449,15 +1447,10 @@ static bool b3HullBuilder_Construct( b3HullBuilder* b, const b3Vec3* points, int
 	return b3HullBuilder_HasHull( b );
 }
 
-static inline size_t b3AlignUp8( size_t x )
-{
-	return ( x + 7u ) & ~(size_t)7u;
-}
-
 typedef struct b3HullWorkSizes
 {
-	int N;	  // pointCount
-	int M;	  // clamped maxVertexCount, in [4, B3_HULL_LIMIT]
+	int N; // pointCount
+	int M; // clamped maxVertexCount, in [4, B3_HULL_LIMIT]
 	int vertexCapacity;
 	int edgeCapacity;
 	int faceCapacity;
@@ -2020,21 +2013,21 @@ b3Hull* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount )
 		return NULL;
 	}
 
-	if (builder.finalVertexCount >= B3_HULL_LIMIT)
+	if ( builder.finalVertexCount >= B3_HULL_LIMIT )
 	{
 		b3Log( "hull final vertex count of %d exceeds limit of %d", builder.finalVertexCount, B3_HULL_LIMIT );
 		b3Free( work, sizes.totalBytes );
 		return NULL;
 	}
 
-	if (builder.finalFaceCount >= B3_HULL_LIMIT)
+	if ( builder.finalFaceCount >= B3_HULL_LIMIT )
 	{
 		b3Log( "hull final face count of %d exceeds limit of %d", builder.finalFaceCount, B3_HULL_LIMIT );
 		b3Free( work, sizes.totalBytes );
 		return NULL;
 	}
 
-	if (builder.finalHalfEdgeCount >= B3_HULL_LIMIT)
+	if ( builder.finalHalfEdgeCount >= B3_HULL_LIMIT )
 	{
 		b3Log( "hull final half edge count of %d exceeds limit of %d", builder.finalHalfEdgeCount, B3_HULL_LIMIT );
 		b3Free( work, sizes.totalBytes );
@@ -2087,17 +2080,17 @@ b3Hull* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount )
 	}
 
 	// Allocate the hull. Arrays hang off the end.
-	int byteCount = (int)sizeof( b3Hull );
-	int vertexOffset = byteCount;
-	byteCount += vertexCount * (int)sizeof( b3HullVertex );
-	int pointOffset = byteCount;
-	byteCount += vertexCount * (int)sizeof( b3Vec3 );
-	int edgeOffset = byteCount;
-	byteCount += edgeCount * (int)sizeof( b3HullHalfEdge );
-	int faceOffset = byteCount;
-	byteCount += faceCount * (int)sizeof( b3HullFace );
-	int planeOffset = byteCount;
-	byteCount += faceCount * (int)sizeof( b3Plane );
+	size_t byteCount = b3AlignUp8( sizeof( b3Hull ) );
+	int vertexOffset = (int)byteCount;
+	byteCount += b3AlignUp8( vertexCount * (int)sizeof( b3HullVertex ) );
+	int pointOffset = (int)byteCount;
+	byteCount += b3AlignUp8( vertexCount * (int)sizeof( b3Vec3 ) );
+	int edgeOffset = (int)byteCount;
+	byteCount += b3AlignUp8( edgeCount * (int)sizeof( b3HullHalfEdge ) );
+	int faceOffset = (int)byteCount;
+	byteCount += b3AlignUp8( faceCount * (int)sizeof( b3HullFace ) );
+	int planeOffset = (int)byteCount;
+	byteCount += b3AlignUp8( faceCount * (int)sizeof( b3Plane ) );
 
 	b3Hull* hull = b3Alloc( byteCount );
 	memset( hull, 0, byteCount );
@@ -2113,7 +2106,7 @@ b3Hull* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount )
 	hull->edgeCount = edgeCount;
 	hull->faceCount = faceCount;
 
-	hull->byteCount = byteCount;
+	hull->byteCount = (int)byteCount;
 
 	b3HullVertex* vertices = b3GetHullVerticesWrite( hull );
 	b3HullHalfEdge* edges = b3GetHullEdgesWrite( hull );
@@ -2550,63 +2543,49 @@ float b3ComputeHullProjectedArea( const b3Hull* hull, b3Vec3 direction )
 // Constant template box (vertex/edge/face/topology). b3MakeTransformedBoxHull copies and
 // fills in the runtime-dependent fields (boxPoints, boxPlanes, aabb, mass properties, hash).
 static const b3BoxHull s_boxHull = {
-	.base = {
-		.version = B3_HULL_VERSION,
-		.byteCount = sizeof( b3BoxHull ),
-		.hash = 0,
-		.vertexCount = 8,
-		.edgeCount = 24,
-		.faceCount = 6,
-		.vertexOffset = offsetof( b3BoxHull, boxVertices ),
-		.pointOffset = offsetof( b3BoxHull, boxPoints ),
-		.edgeOffset = offsetof( b3BoxHull, boxEdges ),
-		.faceOffset = offsetof( b3BoxHull, boxFaces ),
-		.planeOffset = offsetof( b3BoxHull, boxPlanes ),
-	},
-	.boxVertices = {
-		[0] = { .edge = 8 },
-		[1] = { .edge = 1 },
-		[2] = { .edge = 0 },
-		[3] = { .edge = 9 },
-		[4] = { .edge = 13 },
-		[5] = { .edge = 3 },
-		[6] = { .edge = 5 },
-		[7] = { .edge = 11 },
-	},
-	.boxEdges = {
-		[0]  = { 2,  1,  2, 0 },
-		[1]  = { 17, 0,  1, 5 },
-		[2]  = { 4,  3,  1, 0 },
-		[3]  = { 20, 2,  5, 3 },
-		[4]  = { 6,  5,  5, 0 },
-		[5]  = { 23, 4,  6, 4 },
-		[6]  = { 0,  7,  6, 0 },
-		[7]  = { 18, 6,  2, 2 },
-		[8]  = { 10, 9,  0, 1 },
-		[9]  = { 21, 8,  3, 5 },
-		[10] = { 12, 11, 3, 1 },
-		[11] = { 16, 10, 7, 2 },
-		[12] = { 14, 13, 7, 1 },
-		[13] = { 19, 12, 4, 4 },
-		[14] = { 8,  15, 4, 1 },
-		[15] = { 22, 14, 0, 3 },
-		[16] = { 7,  17, 3, 2 },
-		[17] = { 9,  16, 2, 5 },
-		[18] = { 11, 19, 6, 2 },
-		[19] = { 5,  18, 7, 4 },
-		[20] = { 15, 21, 1, 3 },
-		[21] = { 1,  20, 0, 5 },
-		[22] = { 3,  23, 4, 3 },
-		[23] = { 13, 22, 5, 4 },
-	},
-	.boxFaces = {
-		[0] = { .edge = 0 },
-		[1] = { .edge = 8 },
-		[2] = { .edge = 16 },
-		[3] = { .edge = 20 },
-		[4] = { .edge = 19 },
-		[5] = { .edge = 21 },
-	},
+	.base =
+		{
+			.version = B3_HULL_VERSION,
+			.byteCount = sizeof( b3BoxHull ),
+			.hash = 0,
+			.vertexCount = 8,
+			.edgeCount = 24,
+			.faceCount = 6,
+			.vertexOffset = offsetof( b3BoxHull, boxVertices ),
+			.pointOffset = offsetof( b3BoxHull, boxPoints ),
+			.edgeOffset = offsetof( b3BoxHull, boxEdges ),
+			.faceOffset = offsetof( b3BoxHull, boxFaces ),
+			.planeOffset = offsetof( b3BoxHull, boxPlanes ),
+		},
+	.boxVertices =
+		{
+			[0] = { .edge = 8 },
+			[1] = { .edge = 1 },
+			[2] = { .edge = 0 },
+			[3] = { .edge = 9 },
+			[4] = { .edge = 13 },
+			[5] = { .edge = 3 },
+			[6] = { .edge = 5 },
+			[7] = { .edge = 11 },
+		},
+	.boxEdges =
+		{
+			[0] = { 2, 1, 2, 0 },	 [1] = { 17, 0, 1, 5 },	  [2] = { 4, 3, 1, 0 },	   [3] = { 20, 2, 5, 3 },
+			[4] = { 6, 5, 5, 0 },	 [5] = { 23, 4, 6, 4 },	  [6] = { 0, 7, 6, 0 },	   [7] = { 18, 6, 2, 2 },
+			[8] = { 10, 9, 0, 1 },	 [9] = { 21, 8, 3, 5 },	  [10] = { 12, 11, 3, 1 }, [11] = { 16, 10, 7, 2 },
+			[12] = { 14, 13, 7, 1 }, [13] = { 19, 12, 4, 4 }, [14] = { 8, 15, 4, 1 },  [15] = { 22, 14, 0, 3 },
+			[16] = { 7, 17, 3, 2 },	 [17] = { 9, 16, 2, 5 },  [18] = { 11, 19, 6, 2 }, [19] = { 5, 18, 7, 4 },
+			[20] = { 15, 21, 1, 3 }, [21] = { 1, 20, 0, 5 },  [22] = { 3, 23, 4, 3 },  [23] = { 13, 22, 5, 4 },
+		},
+	.boxFaces =
+		{
+			[0] = { .edge = 0 },
+			[1] = { .edge = 8 },
+			[2] = { .edge = 16 },
+			[3] = { .edge = 20 },
+			[4] = { .edge = 19 },
+			[5] = { .edge = 21 },
+		},
 };
 
 b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform transform )

@@ -5,11 +5,7 @@
 
 #include <stddef.h>
 
-#ifdef __cplusplus
-#define B3_TYPE_OF( A ) decltype( A )
-#else
 #define B3_TYPE_OF( A ) __typeof__( A )
-#endif
 
 #define B3_SWAP( x, y )                                                                                                          \
 	do                                                                                                                           \

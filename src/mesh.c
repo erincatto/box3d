@@ -423,8 +423,7 @@ static int32_t b3SpatialHash_FindDuplicate( b3SpatialHash* h, int32_t currentInd
 						b3Vec3 other = h->vertices[existingIndex];
 
 						// IsEqual inlined: check if vertices are within tolerance
-						if ( fabsf( vertex.x - other.x ) <= tolerance &&
-							 fabsf( vertex.y - other.y ) <= tolerance &&
+						if ( fabsf( vertex.x - other.x ) <= tolerance && fabsf( vertex.y - other.y ) <= tolerance &&
 							 fabsf( vertex.z - other.z ) <= tolerance )
 						{
 							// Found duplicate
@@ -1605,25 +1604,25 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	b3BuildRecursive( &tempNodes, triangleCount, primitives.data, primitives.data, def->useMedianSplit, &treeHeight );
 
 	// Allocate the mesh
-	int byteCount = sizeof( b3MeshData );
-	int nodeOffset = byteCount;
-	byteCount += tempNodes.count * sizeof( b3MeshNode );
-	int vertexOffset = byteCount;
-	byteCount += vertexCount * sizeof( b3Vec3 );
-	int triangleOffset = byteCount;
-	byteCount += triangleCount * sizeof( b3MeshTriangle );
-	int materialIndicesOffset = byteCount;
-	byteCount += triangleCount * sizeof( uint8_t );
-	int flagsOffset = byteCount;
-	byteCount += triangleCount * sizeof( uint8_t );
+	size_t byteCount = b3AlignUp8( sizeof( b3MeshData ) );
+	int nodeOffset = (int)byteCount;
+	byteCount += b3AlignUp8( tempNodes.count * sizeof( b3MeshNode ) );
+	int vertexOffset = (int)byteCount;
+	byteCount += b3AlignUp8( vertexCount * sizeof( b3Vec3 ) );
+	int triangleOffset = (int)byteCount;
+	byteCount += b3AlignUp8( triangleCount * sizeof( b3MeshTriangle ) );
+	int materialIndicesOffset = (int)byteCount;
+	byteCount += b3AlignUp8( triangleCount * sizeof( uint8_t ) );
+	int flagsOffset = (int)byteCount;
+	byteCount += b3AlignUp8( triangleCount * sizeof( uint8_t ) );
 
-	b3MeshData* mesh = (b3MeshData*)b3Alloc( byteCount );
+	b3MeshData* mesh = b3Alloc( byteCount );
 
 	// zero initialize for determinism
 	memset( mesh, 0, byteCount );
 
 	mesh->version = B3_MESH_VERSION;
-	mesh->byteCount = byteCount;
+	mesh->byteCount = (int)byteCount;
 	mesh->bounds = meshBounds;
 	mesh->surfaceArea = surfaceArea;
 	mesh->nodeCount = tempNodes.count;
@@ -1759,7 +1758,8 @@ bool b3OverlapMesh( const b3Mesh* shape, b3Transform shapeTransform, const b3Sha
 					if ( b3TestBoundsTriangleOverlap( invScaledBoundsCenter, invScaledBoundsExtent, v1, v2, v3 ) )
 					{
 						// Shape-triangle overlap test in scaled space. Winding order doesn't matter.
-						b3Vec3 triangleVertices[] = { b3Mul( meshScale, vertex1 ), b3Mul( meshScale, vertex2 ), b3Mul( meshScale, vertex3 ) };
+						b3Vec3 triangleVertices[] = { b3Mul( meshScale, vertex1 ), b3Mul( meshScale, vertex2 ),
+													  b3Mul( meshScale, vertex3 ) };
 						input.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
 
 						// reset the cache
@@ -2201,7 +2201,8 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 					{
 						// Compute shape distance in scaled space. Winding order doesn't matter.
 						// todo implement one-sided collision?
-						b3Vec3 triangleVertices[] = { b3Mul( meshScale, vertex1 ), b3Mul( meshScale, vertex2 ), b3Mul( meshScale, vertex3 ) };
+						b3Vec3 triangleVertices[] = { b3Mul( meshScale, vertex1 ), b3Mul( meshScale, vertex2 ),
+													  b3Mul( meshScale, vertex3 ) };
 						distanceInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
 
 						// reset the cache

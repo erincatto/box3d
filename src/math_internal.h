@@ -43,11 +43,6 @@ typedef struct b3ShapeExtent
 	b3Vec3 maxExtent;
 } b3ShapeExtent;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 b3TrianglePoint b3ClosestPointOnTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, b3Vec3 q );
 
 float b3IntersectSegmentTriangle( b3Vec3 p, b3Vec3 q, b3Vec3 a, b3Vec3 b, b3Vec3 c );
@@ -69,19 +64,20 @@ int b3GetPointSupport( const b3Vec3* points, int count, b3Vec3 axis );
 
 bool b3IntersectRayAndAABB( b3Vec3 lowerBound, b3Vec3 upperBound, b3Vec3 p1, b3Vec3 p2, float* minFraction, float* maxFraction );
 
-#ifdef __cplusplus
+static inline size_t b3AlignUp8( size_t x )
+{
+	return ( x + 7u ) & ~(size_t)7u;
 }
-#endif
 
 // https://en.wikipedia.org/wiki/Floor_and_ceiling_functions
-B3_INLINE int b3CeilingInt( int numerator, int denominator )
+static inline int b3CeilingInt( int numerator, int denominator )
 {
 	B3_VALIDATE( denominator > 0 );
 	return ( numerator + denominator - 1 ) / denominator;
 }
 
 // Assumes denominator == 2^exponent
-B3_INLINE int b3CeilingPow2( int numerator, int denominator, int exponent )
+static inline int b3CeilingPow2( int numerator, int denominator, int exponent )
 {
 	B3_VALIDATE( exponent > 0 && ( denominator == 1 << exponent ) );
 	return ( numerator + denominator - 1 ) >> exponent;
@@ -89,22 +85,22 @@ B3_INLINE int b3CeilingPow2( int numerator, int denominator, int exponent )
 
 bool b3IsSweepNormalized( b3Sweep* sweep );
 
-B3_INLINE float b3Dot2( b3Vec2 v1, b3Vec2 v2 )
+static inline float b3Dot2( b3Vec2 v1, b3Vec2 v2 )
 {
 	return v1.x * v2.x + v1.y * v2.y;
 }
 
-B3_INLINE float b3Length2( b3Vec2 v )
+static inline float b3Length2( b3Vec2 v )
 {
 	return sqrtf( b3Dot2( v, v ) );
 }
 
-B3_INLINE float b3LengthSquared2( b3Vec2 v )
+static inline float b3LengthSquared2( b3Vec2 v )
 {
 	return b3Dot2( v, v );
 }
 
-B3_INLINE b3Vec2 b3MinVec2( b3Vec2 v1, b3Vec2 v2 )
+static inline b3Vec2 b3MinVec2( b3Vec2 v1, b3Vec2 v2 )
 {
 	b3Vec2 v;
 	v.x = b3MinFloat( v1.x, v2.x );
@@ -112,7 +108,7 @@ B3_INLINE b3Vec2 b3MinVec2( b3Vec2 v1, b3Vec2 v2 )
 	return v;
 }
 
-B3_INLINE b3Vec2 b3MaxVec2( b3Vec2 v1, b3Vec2 v2 )
+static inline b3Vec2 b3MaxVec2( b3Vec2 v1, b3Vec2 v2 )
 {
 	b3Vec2 v;
 	v.x = b3MaxFloat( v1.x, v2.x );
@@ -120,14 +116,14 @@ B3_INLINE b3Vec2 b3MaxVec2( b3Vec2 v1, b3Vec2 v2 )
 	return v;
 }
 
-B3_INLINE void b3Store( float* dst, b3Vec3 src )
+static inline void b3Store( float* dst, b3Vec3 src )
 {
 	dst[0] = src.x;
 	dst[1] = src.y;
 	dst[2] = src.z;
 }
 
-B3_INLINE b3Vec3 b3ClampLength( b3Vec3 v, float maxLength )
+static inline b3Vec3 b3ClampLength( b3Vec3 v, float maxLength )
 {
 	float lengthSq = b3LengthSquared( v );
 	if ( lengthSq <= maxLength * maxLength )
@@ -140,7 +136,7 @@ B3_INLINE b3Vec3 b3ClampLength( b3Vec3 v, float maxLength )
 }
 
 // Assume v is a unit vector
-B3_INLINE b3Vec3 b3ArbitraryPerp( b3Vec3 v )
+static inline b3Vec3 b3ArbitraryPerp( b3Vec3 v )
 {
 	// Suppose vector a has all equal components and is a unit vector: a = (s, s, s)
 	// Then 3*s*s = 1, s = sqrt(1/3) = 0.57735. This means that at least one component
@@ -185,7 +181,7 @@ B3_INLINE b3Vec3 b3ArbitraryPerp( b3Vec3 v )
 	return b3Normalize( p );
 }
 
-B3_INLINE b3Quat b3QuatFromExponentialMap( b3Vec3 v )
+static inline b3Quat b3QuatFromExponentialMap( b3Vec3 v )
 {
 	// Exponential map (Grassia)
 	float threshold = 0.018581361f;
@@ -208,7 +204,7 @@ B3_INLINE b3Quat b3QuatFromExponentialMap( b3Vec3 v )
 /// @param q1 initial rotation
 /// @param deltaRotation the angular displacement vector in radians (angular velocity multiplied by the time step)
 /// q2 = q1 + 0.5 * omega * q1
-B3_INLINE b3Quat b3IntegrateRotation( b3Quat q1, b3Vec3 deltaRotation )
+static inline b3Quat b3IntegrateRotation( b3Quat q1, b3Vec3 deltaRotation )
 {
 	// https://fgiesen.wordpress.com/2012/08/24/quaternion-differentiation/
 	b3Quat qd = { b3MulSV( 0.5f, deltaRotation ), 0.0f };
@@ -222,7 +218,7 @@ B3_INLINE b3Quat b3IntegrateRotation( b3Quat q1, b3Vec3 deltaRotation )
 
 // Pseudo angular velocity from a quaternion target
 // w = 2 * (target - q) * conj(q)
-B3_INLINE b3Vec3 b3DeltaQuatToRotation(b3Quat q, b3Quat target)
+static inline b3Vec3 b3DeltaQuatToRotation(b3Quat q, b3Quat target)
 {
 	b3Quat s = q;
 	if (b3DotQuat(q, target) < 0.0f)
@@ -236,7 +232,7 @@ B3_INLINE b3Vec3 b3DeltaQuatToRotation(b3Quat q, b3Quat target)
 	return b3MulSV( 2.0f, product.v );
 }
 
-B3_INLINE float b3ScalarTripleProduct( b3Vec3 a, b3Vec3 b, b3Vec3 c )
+static inline float b3ScalarTripleProduct( b3Vec3 a, b3Vec3 b, b3Vec3 c )
 {
 	b3Vec3 d;
 	d.x = b.y * c.z - b.z * c.y;
@@ -246,90 +242,90 @@ B3_INLINE float b3ScalarTripleProduct( b3Vec3 a, b3Vec3 b, b3Vec3 c )
 }
 
 // Get a value by index. Avoid undefined behavior of code like (&v.x)[2].
-B3_INLINE float b3GetByIndex( b3Vec3 v, int index )
+static inline float b3GetByIndex( b3Vec3 v, int index )
 {
 	B3_ASSERT( 0 <= index && index < 3 );
 	float temp[3] = { v.x, v.y, v.z };
 	return temp[index];
 }
 
-B3_INLINE int b3MajorAxis( b3Vec3 v )
+static inline int b3MajorAxis( b3Vec3 v )
 {
 	return v.x < v.y ? ( v.y < v.z ? 2 : 1 ) : ( v.x < v.z ? 2 : 0 );
 }
 
-B3_INLINE float b3MinElement( b3Vec3 v )
+static inline float b3MinElement( b3Vec3 v )
 {
 	return b3MinFloat( v.x, b3MinFloat( v.y, v.z ) );
 }
 
-B3_INLINE float b3MaxElement( b3Vec3 v )
+static inline float b3MaxElement( b3Vec3 v )
 {
 	return b3MaxFloat( v.x, b3MaxFloat( v.y, v.z ) );
 }
 
-B3_INLINE int b3MaxElementIndex( b3Vec3 v )
+static inline int b3MaxElementIndex( b3Vec3 v )
 {
 	return v.x < v.y ? ( v.y < v.z ? 2 : 1 ) : ( v.x < v.z ? 2 : 0 );
 }
 
-B3_INLINE b3Vec2 b3Add2( b3Vec2 a, b3Vec2 b )
+static inline b3Vec2 b3Add2( b3Vec2 a, b3Vec2 b )
 {
 	b3Vec2 c = { a.x + b.x, a.y + b.y };
 	return c;
 }
 
-B3_INLINE b3Vec2 b3Sub2( b3Vec2 a, b3Vec2 b )
+static inline b3Vec2 b3Sub2( b3Vec2 a, b3Vec2 b )
 {
 	b3Vec2 c = { a.x - b.x, a.y - b.y };
 	return c;
 }
 
-B3_INLINE b3Vec2 b3Neg2( b3Vec2 v )
+static inline b3Vec2 b3Neg2( b3Vec2 v )
 {
 	b3Vec2 c = { -v.x, -v.y };
 	return c;
 }
 
-B3_INLINE b3Vec2 b3MulSV2( float s, b3Vec2 v )
+static inline b3Vec2 b3MulSV2( float s, b3Vec2 v )
 {
 	b3Vec2 c = { s * v.x, s * v.y };
 	return c;
 }
 
 // a + s * b
-B3_INLINE b3Vec2 b3MulAdd2( b3Vec2 a, float s, b3Vec2 b )
+static inline b3Vec2 b3MulAdd2( b3Vec2 a, float s, b3Vec2 b )
 {
 	b3Vec2 c = { a.x + s * b.x, a.y + s * b.y };
 	return c;
 }
 
 // a - s * b
-B3_INLINE b3Vec2 b3MulSub2( b3Vec2 a, float s, b3Vec2 b )
+static inline b3Vec2 b3MulSub2( b3Vec2 a, float s, b3Vec2 b )
 {
 	b3Vec2 c = { a.x - s * b.x, a.y - s * b.y };
 	return c;
 }
 
-B3_INLINE float b3Cross2( b3Vec2 a, b3Vec2 b )
+static inline float b3Cross2( b3Vec2 a, b3Vec2 b )
 {
 	return a.x * b.y - a.y * b.x;
 }
 
-B3_INLINE float b3DistanceSquared2( b3Vec2 a, b3Vec2 b )
+static inline float b3DistanceSquared2( b3Vec2 a, b3Vec2 b )
 {
 	float dx = b.x - a.x;
 	float dy = b.y - a.y;
 	return dx * dx + dy * dy;
 }
 
-B3_INLINE b3Vec2 b3MulMV2( b3Matrix2 m, b3Vec2 a )
+static inline b3Vec2 b3MulMV2( b3Matrix2 m, b3Vec2 a )
 {
 	b3Vec2 b = { m.cx.x * a.x + m.cy.x * a.y, m.cx.y * a.x + m.cy.y * a.y };
 	return b;
 }
 
-B3_INLINE b3Matrix2 b3MulMM2( b3Matrix2 m1, b3Matrix2 m2 )
+static inline b3Matrix2 b3MulMM2( b3Matrix2 m1, b3Matrix2 m2 )
 {
 	b3Matrix2 out;
 	out.cx = b3MulMV2( m1, m2.cx );
@@ -337,12 +333,12 @@ B3_INLINE b3Matrix2 b3MulMM2( b3Matrix2 m1, b3Matrix2 m2 )
 	return out;
 }
 
-B3_INLINE float b3Det2( b3Matrix2 m )
+static inline float b3Det2( b3Matrix2 m )
 {
 	return m.cx.x * m.cy.y - m.cx.y * m.cy.x;
 }
 
-B3_INLINE b3Matrix2 b3Invert2( b3Matrix2 m )
+static inline b3Matrix2 b3Invert2( b3Matrix2 m )
 {
 	float det = b3Det2( m );
 	if ( b3AbsFloat( det ) > 1000.0f * FLT_MIN )
@@ -358,7 +354,7 @@ B3_INLINE b3Matrix2 b3Invert2( b3Matrix2 m )
 }
 
 // Assumes positive semi-definite
-B3_INLINE b3Vec2 b3Solve2( b3Matrix2 m, b3Vec2 b )
+static inline b3Vec2 b3Solve2( b3Matrix2 m, b3Vec2 b )
 {
 	float det = b3Det2( m );
 	if ( det > 1000.0f * FLT_MIN )
@@ -373,7 +369,7 @@ B3_INLINE b3Vec2 b3Solve2( b3Matrix2 m, b3Vec2 b )
 	return B3_LITERAL( b3Vec2 ){ 0.0f, 0.0f };
 }
 
-B3_INLINE b3Vec3 b3ModifiedCross(b3Vec3 a, b3Vec3 b)
+static inline b3Vec3 b3ModifiedCross(b3Vec3 a, b3Vec3 b)
 {
 	b3Vec3 c;
 	c.x = a.y * b.z + a.z * b.y;
@@ -382,18 +378,18 @@ B3_INLINE b3Vec3 b3ModifiedCross(b3Vec3 a, b3Vec3 b)
 	return c;
 }
 
-B3_INLINE b3Plane b3NormalizePlane( b3Plane plane )
+static inline b3Plane b3NormalizePlane( b3Plane plane )
 {
 	float invLength = 1.0f / b3Length( plane.normal );
 	return B3_LITERAL( b3Plane ){ b3MulSV( invLength, plane.normal ), invLength * plane.offset };
 }
 
-B3_INLINE b3Plane b3MakePlaneFromNormalAndPoint( b3Vec3 normal, b3Vec3 point )
+static inline b3Plane b3MakePlaneFromNormalAndPoint( b3Vec3 normal, b3Vec3 point )
 {
 	return B3_LITERAL( b3Plane ){ normal, b3Dot( normal, point ) };
 }
 
-B3_INLINE b3Plane b3MakePlaneFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 point3 )
+static inline b3Plane b3MakePlaneFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 point3 )
 {
 	b3Plane plane;
 	plane.normal = b3Cross( b3Sub( point2, point1 ), b3Sub( point3, point1 ) );
@@ -402,7 +398,7 @@ B3_INLINE b3Plane b3MakePlaneFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 po
 	return plane;
 }
 
-B3_INLINE b3Vec3 b3MakeNormalFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 point3 )
+static inline b3Vec3 b3MakeNormalFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 point3 )
 {
 	b3Vec3 normal = b3Cross( b3Sub( point2, point1 ), b3Sub( point3, point1 ) );
 	return b3Normalize( normal );
@@ -410,20 +406,20 @@ B3_INLINE b3Vec3 b3MakeNormalFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 po
 
 // normal2 = q * normal1
 // offset2 = dot(normal2, p) + offset1
-B3_INLINE b3Plane b3TransformPlane( b3Transform transform, b3Plane plane )
+static inline b3Plane b3TransformPlane( b3Transform transform, b3Plane plane )
 {
 	b3Vec3 normal = b3RotateVector( transform.q, plane.normal );
 	return B3_LITERAL( b3Plane ){ normal, plane.offset + b3Dot( normal, transform.p ) };
 }
 
 /// Signed separation of a point from a plane
-B3_INLINE float b3PlaneSeparation( b3Plane plane, b3Vec3 point )
+static inline float b3PlaneSeparation( b3Plane plane, b3Vec3 point )
 {
 	return b3Dot( plane.normal, point ) - plane.offset;
 }
 
 // Negative if p is below the triangle v1-v2-v3
-B3_INLINE float b3SignedVolume( b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, b3Vec3 p )
+static inline float b3SignedVolume( b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, b3Vec3 p )
 {
 	b3Vec3 e1 = b3Sub( v2, v1 );
 	b3Vec3 e2 = b3Sub( v3, v1 );
@@ -432,116 +428,21 @@ B3_INLINE float b3SignedVolume( b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, b3Vec3 p )
 }
 
 // todo eliminate this
-B3_INLINE bool b3IsWithinSegments( const b3ClosestApproachResult* result )
+static inline bool b3IsWithinSegments( const b3ClosestApproachResult* result )
 {
 	return ( 0.0f <= result->lambda1 && result->lambda1 <= 1.0f ) && ( 0.0f <= result->lambda2 && result->lambda2 <= 1.0f );
 }
 
-B3_INLINE b3Matrix3 b3RotateInertia( b3Quat q, b3Matrix3 centralInertia )
+static inline b3Matrix3 b3RotateInertia( b3Quat q, b3Matrix3 centralInertia )
 {
 	b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( q );
 	b3Matrix3 inertia = b3MulMM( rotationMatrix, b3MulMM( centralInertia, b3Transpose( rotationMatrix ) ) );
 	return inertia;
 }
 
-B3_INLINE b3Matrix3 b3TransformInertia( b3Transform transform, b3Matrix3 centralInertia, float mass )
+static inline b3Matrix3 b3TransformInertia( b3Transform transform, b3Matrix3 centralInertia, float mass )
 {
 	b3Matrix3 inertia = b3RotateInertia( transform.q, centralInertia );
 	inertia = b3AddMM( inertia, b3Steiner( mass, transform.p ) );
 	return inertia;
 }
-
-#ifdef __cplusplus
-
-B3_INLINE b3Vec2& operator+=( b3Vec2& a, b3Vec2 b )
-{
-	a.x += b.x;
-	a.y += b.y;
-	return a;
-}
-
-B3_INLINE b3Vec2& operator*=( b3Vec2& a, float s )
-{
-	a.x *= s;
-	a.y *= s;
-	return a;
-}
-
-B3_INLINE b3Vec2 operator-( b3Vec2 v )
-{
-	return { -v.x, -v.y };
-}
-
-B3_INLINE b3Vec2 operator+( b3Vec2 v1, b3Vec2 v2 )
-{
-	b3Vec2 out;
-	out.x = v1.x + v2.x;
-	out.y = v1.y + v2.y;
-
-	return out;
-}
-
-B3_INLINE b3Vec2 operator-( b3Vec2 v1, b3Vec2 v2 )
-{
-	b3Vec2 out;
-	out.x = v1.x - v2.x;
-	out.y = v1.y - v2.y;
-
-	return out;
-}
-
-B3_INLINE b3Vec2 operator*( float f, b3Vec2 v )
-{
-	b3Vec2 out;
-	out.x = f * v.x;
-	out.y = f * v.y;
-
-	return out;
-}
-
-B3_INLINE b3Vec2 operator*( b3Vec2 v, float f )
-{
-	b3Vec2 out;
-	out.x = v.x * f;
-	out.y = v.y * f;
-
-	return out;
-}
-
-B3_INLINE b3Matrix2 operator+( b3Matrix2 m1, b3Matrix2 m2 )
-{
-	b3Matrix2 out;
-	out.cx = m1.cx + m2.cx;
-	out.cy = m1.cy + m2.cy;
-
-	return out;
-}
-
-B3_INLINE b3Matrix2 operator-( b3Matrix2 m1, b3Matrix2 m2 )
-{
-	b3Matrix2 out;
-	out.cx = m1.cx - m2.cx;
-	out.cy = m1.cy - m2.cy;
-
-	return out;
-}
-
-B3_INLINE b3Matrix2 operator*( float f, b3Matrix2 m )
-{
-	b3Matrix2 out;
-	out.cx = f * m.cx;
-	out.cy = f * m.cy;
-
-	return out;
-}
-
-B3_INLINE b3Matrix2 operator*( b3Matrix2 m, float f )
-{
-	b3Matrix2 out;
-	out.cx = m.cx * f;
-	out.cy = m.cy * f;
-
-	return out;
-}
-
-#endif

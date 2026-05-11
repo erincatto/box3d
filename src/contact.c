@@ -823,8 +823,6 @@ bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Sha
 			contact->flags &= ~b3_simEnableHitEvent;
 		}
 
-		// B3_ASSERT( ( touching == true && contact->manifoldCount > 0 ) || ( touching == false && contact->manifoldCount == 0 )
-		// );
 		B3_ASSERT( ( touching == true && contact->manifoldCount > 0 ) || ( touching == false && contact->manifoldCount == 0 ) );
 	}
 	else

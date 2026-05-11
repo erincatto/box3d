@@ -915,7 +915,6 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 	b3Plane trianglePlane = b3MakePlaneFromPoints( v1, v2, v3 );
 	float linearSlop = B3_LINEAR_SLOP;
 
-#if 1
 	float offset = b3PlaneSeparation( trianglePlane, hullA->center );
 	if ( cache->type == b3_backsideAxis )
 	{
@@ -935,7 +934,6 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 		cache->separation = offset;
 		return;
 	}
-#endif
 
 	b3Vec3 triangleCenter = b3MulSV( 1.0f / 3.0f, b3Add( v1, b3Add( v2, v3 ) ) );
 	b3Vec3 trianglePoints[] = { v1, v2, v3 };

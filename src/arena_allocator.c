@@ -113,15 +113,67 @@ int b3GetMaxStackAllocation( b3Stack* stack )
 b3Arena b3CreateArena( int capacity )
 {
 	int c = capacity > 8 ? capacity : 8;
+	b3ArenaSharedState* shared = (b3ArenaSharedState*)b3Alloc( sizeof( b3ArenaSharedState ) );
+	*shared = (b3ArenaSharedState){ 0 };
+
 	return (b3Arena){
-		.memory = b3Alloc( c ),
+		.memory = (char*)b3Alloc( c ),
 		.capacity = c,
 		.index = 0,
+		.shared = shared,
 	};
 }
 
-void b3DestroyArena(b3Arena* arena)
+void b3DestroyArena( b3Arena* arena )
 {
+	b3ArenaSharedState* shared = arena->shared;
+	if ( shared != NULL )
+	{
+		for ( int i = 0; i < shared->overflows.count; ++i )
+		{
+			b3Free( shared->overflows.data[i].data, shared->overflows.data[i].size );
+		}
+		b3Array_Destroy( shared->overflows );
+		b3Free( shared, sizeof( b3ArenaSharedState ) );
+	}
 	b3Free( arena->memory, arena->capacity );
 	*arena = (b3Arena){ 0 };
+}
+
+void* b3ArenaOverflowAlloc( b3Arena* arena, int size )
+{
+	b3ArenaSharedState* shared = arena->shared;
+	char* data = (char*)b3Alloc( size );
+	b3OverflowBlock block = { data, size };
+	b3Array_Push( shared->overflows, block );
+	shared->overflowBytes += size;
+	return data;
+}
+
+void b3ArenaSync( b3Arena* arena )
+{
+	b3ArenaSharedState* shared = arena->shared;
+
+	for ( int i = 0; i < shared->overflows.count; ++i )
+	{
+		b3Free( shared->overflows.data[i].data, shared->overflows.data[i].size );
+	}
+	b3Array_Clear( shared->overflows );
+
+	int demand = shared->maxIndex + shared->overflowBytes;
+	if ( demand > shared->peakDemand )
+	{
+		shared->peakDemand = demand;
+	}
+	if ( demand > arena->capacity )
+	{
+		b3Free( arena->memory, arena->capacity );
+		int newCapacity = demand + demand / 2;
+		arena->memory = (char*)b3Alloc( newCapacity );
+		arena->capacity = newCapacity;
+	}
+
+	arena->index = 0;
+	shared->maxIndex = 0;
+	shared->overflowBytes = 0;
 }

@@ -474,6 +474,7 @@ typedef struct b3Counters
 	int jointCount;
 	int islandCount;
 	int stackUsed;
+	int arenaCapacity;          // peak demand across all task arenas in bytes
 	int staticTreeHeight;
 	int treeHeight;
 	int satCallCount;
