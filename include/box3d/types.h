@@ -1266,6 +1266,29 @@ typedef struct b3BodyPlaneResult
 	b3PlaneResult result;
 } b3BodyPlaneResult;
 
+typedef struct b3ChildShape
+{
+	union
+	{
+		b3Capsule capsule;
+		const b3Hull* hull;
+		b3Mesh mesh;
+		b3Sphere sphere;
+	};
+
+	b3Transform transform;
+
+	// Index 0 is used for convex shapes.
+	// todo limit to 64K?
+	int materialIndices[B3_MAX_COMPOUND_MESH_MATERIALS];
+	b3ShapeType type;
+} b3ChildShape;
+
+typedef bool b3CompoundQueryFcn( const b3Compound* compound, int childIndex, void* context );
+
+B3_API b3ChildShape b3GetCompoundChild( const b3Compound* compound, int childIndex );
+B3_API void b3QueryCompound( const b3Compound* compound, b3AABB aabb, b3CompoundQueryFcn* fcn, void* context );
+
 /// These colors are used for debug draw and mostly match the named SVG colors.
 /// See https://www.rapidtables.com/web/color/index.html
 /// https://johndecember.com/html/spec/colorsvg.html
