@@ -100,7 +100,9 @@
 
 b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 {
-	b3HeightField* hf = (b3HeightField*)b3Alloc( sizeof( b3HeightField ) );
+	// Zero-init so the trailing pad after `clockwise` is defined — the construction-time
+	// hash below sweeps raw struct bytes and would otherwise pick up uninitialized padding.
+	b3HeightField* hf = (b3HeightField*)b3AllocZeroed( sizeof( b3HeightField ) );
 
 	int columnCount = data->countX;
 	int rowCount = data->countZ;
