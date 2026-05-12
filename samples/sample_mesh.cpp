@@ -75,6 +75,9 @@ public:
 		bodyDef.type = b3_dynamicBody;
 		//bodyDef.position = { 0.5f, 2.0f, -0.5f };
 		bodyDef.position = { 0.1f, 1.0f, -0.1f };
+		//bodyDef.enableContactRecycling = m_shapeType != ShapeType::cylinder;
+		bodyDef.angularDamping = m_shapeType == ShapeType::cylinder ? 0.1f : 0.0f;
+
 		// bodyDef.linearVelocity = { 2.0f, 0.0f, 0.0f };
 		//  bodyDef.position = { 0.208701894, 0.0791450217, -0.298710823 };
 		//  bodyDef.rotation = { { 0.0808477178, -0.00305216131, 0.000387475739 }, 0.996721804 };
@@ -112,8 +115,7 @@ public:
 
 			case ShapeType::cylinder:
 			{
-				shapeDef.baseMaterial.rollingResistance = 0.01f;
-				//shapeDef.baseMaterial.friction = 0.1f;
+				shapeDef.baseMaterial.rollingResistance = 0.02f;
 				b3CreateHullShape( m_bodyId, &shapeDef, m_cylinderHull );
 			}
 			break;

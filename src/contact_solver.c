@@ -43,6 +43,7 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	b3ManifoldConstraint* manifoldBase = context->manifoldConstraints;
 	b3ContactConstraint* base = context->contactConstraints;
 
+	// Overflow constraints are stored separately
 	if ( block.blockType == b3_overflowBlock )
 	{
 		b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
@@ -680,11 +681,9 @@ void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int work
 	b3World* world = context->world;
 
 	// Mirror b3PrepareContacts_Mesh: the per-color flat arrays and the overflow color
-	// each have their own (base, spans, manifoldBase). Selecting the wrong pair here
-	// silently writes impulses into unrelated contacts (ASan can't catch it: both
-	// arrays are valid b3ContactConstraint allocations of the same kind).
-	b3ContactConstraint* base = context->contactConstraints;
+	// each have their own (base, spans, manifoldBase).
 	b3ContactPrepareSpan* spans = context->contactPrepareSpans;
+	b3ContactConstraint* base = context->contactConstraints;
 
 	if ( block.blockType == b3_overflowBlock )
 	{
@@ -713,7 +712,6 @@ void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int work
 	{
 		int colorStart = spans[colorIndex].start;
 		int colorEndIndex = b3MinInt( spans[colorIndex + 1].start, endIndex );
-		b3ContactSpec* specs = spans[colorIndex].contacts;
 
 		// Loop over color
 		for ( ; index < colorEndIndex; ++index )
@@ -721,6 +719,7 @@ void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int work
 			b3ContactConstraint* contactConstraint = base + index;
 
 			int localIndex = index - colorStart;
+			B3_UNUSED( localIndex );
 			B3_ASSERT( 0 <= localIndex && localIndex < spans[colorIndex].count );
 
 			// Having this contact pointer simplifies impulse storage
@@ -730,7 +729,7 @@ void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int work
 			// Catches the wrong-(base, spans) pairing: the contact pointer stashed by
 			// b3PrepareContacts_Mesh at this flat slot must reference the same contact
 			// the span at this slot describes.
-			B3_ASSERT( contact->contactId == specs[localIndex].contactId );
+			B3_VALIDATE( contact->contactId == spans[colorIndex].contacts[localIndex].contactId );
 
 			int manifoldCount = contactConstraint->manifoldCount;
 			B3_ASSERT( manifoldCount == contact->manifoldCount );
@@ -2469,6 +2468,5 @@ void b3StoreImpulses_Overflow( b3StepContext* context )
 		.colorIndex = B3_OVERFLOW_INDEX,
 	};
 
-	// Overflow runs serially on the orchestrator (worker 0)
 	b3StoreImpulses_Mesh( block, context, 0 );
 }

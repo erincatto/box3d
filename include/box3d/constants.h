@@ -64,6 +64,10 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 /// The default contact recycling distance.
 #define B3_CONTACT_RECYCLE_DISTANCE ( 10.0f * B3_LINEAR_SLOP )
 
+/// The default contact recycling world angle threshold. For performance this value
+/// is cos(angle/2)^2. This value corresponds to 10 degrees.
+#define B3_CONTACT_RECYCLE_ANGULAR_DISTANCE ( 0.99240388f )
+
 // This is used to fatten AABBs in the dynamic tree. This allows proxies
 // to move by a small amount without triggering a tree adjustment. This is in meters.
 // @warning modifying this can have a significant impact on performance

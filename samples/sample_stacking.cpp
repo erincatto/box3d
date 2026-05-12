@@ -898,6 +898,60 @@ public:
 
 static int sampleArch = SampleManager::Register( "Stacking", "Arch", Arch::Create );
 
+class DoubleDomino : public Sample
+{
+public:
+	explicit DoubleDomino( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 15.0f, 20.0f, { 0.0f, 4.0f, 0.0f } );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 0.0f, -1.0f, 0.0f };
+			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3BoxHull groundBox = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
+		}
+
+		b3BoxHull box = b3MakeBoxHull( 0.125f, 0.5f, 0.25f );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.6f;
+		shapeDef.density = 4.0f;
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+
+		int count = 15;
+		float x = -0.5f * count;
+		for ( int i = 0; i < count; ++i )
+		{
+			bodyDef.position = { x, 0.5f, 0.0f };
+			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			if ( i == 0 )
+			{
+				b3Body_ApplyLinearImpulse( bodyId, { 0.2f, 0.0f, 0.0f }, { x, 1.0f, 0.0f }, true );
+			}
+
+			x += 1.01f;
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new DoubleDomino( context );
+	}
+};
+
+static int sampleDoubleDomino = SampleManager::Register( "Stacking", "Double Domino", DoubleDomino::Create );
+
 class Pyramid2D : public Sample
 {
 public:
