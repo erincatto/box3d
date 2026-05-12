@@ -167,11 +167,6 @@ typedef struct b3ContactSpec
 
 b3DeclareArray( b3ContactSpec );
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void b3InitializeContactRegisters( void );
 
 void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int childIndex );
@@ -182,7 +177,3 @@ bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Sha
 
 bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact, const b3Shape* shapeA, const int* materialMap,
 							 b3Transform xfA, const b3Shape* shapeB, b3Transform xfB, bool isFast, b3Arena arena );
-
-#ifdef __cplusplus
-}
-#endif

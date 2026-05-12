@@ -80,8 +80,10 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 // The time that a body must be still before it will go to sleep. In seconds.
 #define B3_TIME_TO_SLEEP 0.5f
 
-// Body and shape name lengths
-#define B3_NAME_LENGTH 64
+/// Maximum length of the body name. Must be at least 1. Includes null termination.
+#ifndef B3_NAME_LENGTH
+#define B3_NAME_LENGTH 18
+#endif
 
 // These generous limits allow for easy hashing. See b3ShapePairKey.
 #define B3_SHAPE_POWER 22

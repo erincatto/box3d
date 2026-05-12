@@ -711,7 +711,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		sim->flags &= ~( b3_isFast | b3_isSpeedCapped | b3_hadTimeOfImpact );
 		state->flags &= ~( b3_isFast | b3_isSpeedCapped | b3_hadTimeOfImpact );
 
-		if ( enableSleep == false || body->enableSleep == false || sleepVelocity > body->sleepThreshold )
+		if ( enableSleep == false || (body->flags & b3_enableSleep) == 0 || sleepVelocity > body->sleepThreshold )
 		{
 			// Body is not sleepy
 			body->sleepTime = 0.0f;

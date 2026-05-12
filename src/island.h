@@ -80,11 +80,6 @@ typedef struct b3IslandSim
 	int islandId;
 } b3IslandSim;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 b3Island* b3CreateIsland( b3World* world, int setIndex );
 void b3DestroyIsland( b3World* world, int islandId );
 
@@ -104,7 +99,3 @@ void b3SplitIsland( b3World* world, int baseId );
 void b3SplitIslandTask( void* context );
 
 void b3ValidateIsland( b3World* world, int islandId );
-
-#ifdef __cplusplus
-}
-#endif

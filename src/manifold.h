@@ -35,11 +35,6 @@ typedef enum b3FeatureOwner
 	b3_featureShapeB = 1
 } b3FeatureOwner;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 float b3EdgeEdgeSeparation( b3Vec3 p1, b3Vec3 e1, b3Vec3 c1, b3Vec3 p2, b3Vec3 e2, b3Vec3 c2 );
 int b3FindIncidentFace( const b3Hull* hull, b3Vec3 refNormal, int vertexIndex );
 b3FeaturePair b3MakeFeaturePair( b3FeatureOwner owner1, int index1, b3FeatureOwner owner2, int index2 );
@@ -52,14 +47,10 @@ int b3ClipPolygon( b3ClipVertex* out, b3ClipVertex* polygon, int count, b3Plane 
 bool b3ValidatePolygon( b3ClipVertex* polygon, int count );
 #endif
 
-#ifdef __cplusplus
-}
-#endif
-
 // For single point contact, such as sphere-sphere, sphere-capsule, sphere-triangle
 static const b3FeaturePair b3FeaturePair_single = { 0 };
 
-B3_INLINE uint32_t b3MakeFeatureId( b3FeaturePair pair )
+static inline uint32_t b3MakeFeatureId( b3FeaturePair pair )
 {
 	return ( (uint32_t)pair.owner1 << 24 ) | ( (uint32_t)pair.index1 << 16 ) | ( (uint32_t)pair.owner2 << 8 ) |
 		   (uint32_t)pair.index2;

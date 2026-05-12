@@ -13,11 +13,6 @@ typedef struct b3World b3World;
 // an index into per-worker state (e.g. world->taskContexts.data + workerIndex).
 typedef void b3ParallelForCallback( int startIndex, int endIndex, int workerIndex, void* context );
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 // Divide [0, itemCount) into blocks and process them with cooperative claiming:
 // up to world->workerCount tasks are enqueued, and each task loops, atomically
 // claiming the next unclaimed block until the range is drained. Blocks the
@@ -26,7 +21,3 @@ extern "C"
 // stays bounded.
 void b3ParallelFor( b3World* world, b3ParallelForCallback* callback, int itemCount, int minRange, void* context,
 					const char* name );
-
-#ifdef __cplusplus
-}
-#endif

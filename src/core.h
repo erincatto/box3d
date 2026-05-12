@@ -124,12 +124,6 @@ typedef struct b3AtomicU32
 #define B3_ALLOC( T, N ) (T*)b3Alloc( N * sizeof( T ) );
 #define B3_FREE( M, T, N ) b3Free( M, N * sizeof( T ) );
 
-
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void* b3Alloc( size_t size );
 void* b3AllocZeroed( size_t size );
 void b3Free( void* mem, size_t size );
@@ -160,7 +154,3 @@ void b3OpenDump( const char* fileName );
 void b3Dump( const char* string, ... );
 void b3CloseDump( void );
 int b3FetchAddMeshDumpIndex( void );
-
-#ifdef __cplusplus
-}
-#endif

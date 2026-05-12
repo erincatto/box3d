@@ -345,11 +345,6 @@ typedef struct b3JointSim
 	};
 } b3JointSim;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void b3DestroyJointInternal( b3World* world, b3Joint* joint, bool wakeBodies );
 
 b3Joint* b3GetJointFullId( b3World* world, b3JointId jointId );
@@ -418,7 +413,3 @@ void b3DrawRevoluteJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform trans
 void b3DrawSphericalJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transformA, b3Transform transformB, float scale );
 void b3DrawWeldJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transformA, b3Transform transformB, float scale );
 void b3DrawWheelJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transformA, b3Transform transformB, float scale );
-
-#ifdef __cplusplus
-}
-#endif

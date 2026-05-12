@@ -362,13 +362,5 @@ static inline bool b3TestBoundsRayOverlap( b3V32 nodeMin, b3V32 nodeMax, b3V32 r
 	return b3AllLessEq3V( edgeSeparation, b3_zeroV );
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 bool b3TestBoundsTriangleOverlap( b3V32 nodeCenter, b3V32 nodeExtent, b3V32 vertex1, b3V32 vertex2, b3V32 vertex3 );
 float b3IntersectRayTriangle( b3V32 rayStart, b3V32 rayDelta, b3V32 vertex1, b3V32 vertex2, b3V32 vertex3 );
-
-#ifdef __cplusplus
-}
-#endif

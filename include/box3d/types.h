@@ -243,7 +243,7 @@ typedef struct b3BodyDef
 	/// Sleep speed threshold, default is 0.05 meters per second
 	float sleepThreshold;
 
-	/// Optional body name for debugging. Up to 31 characters (excluding null termination)
+	/// Optional body name for debugging. Up to B3_NAME_LENGTH characters (including null termination)
 	const char* name;
 
 	/// Use this to store application specific body data.
@@ -258,10 +258,20 @@ typedef struct b3BodyDef
 	/// Is this body initially awake or sleeping?
 	bool isAwake;
 
-	/// Treat this body as high speed object that performs continuous collision detection
+	/// Treat this body as a high speed object that performs continuous collision detection
 	/// against dynamic and kinematic bodies, but not other bullet bodies.
 	/// @warning Bullets should be used sparingly. They are not a solution for general dynamic-versus-dynamic
-	/// continuous collision.
+	/// continuous collision. They do not guarantee accurate collision if both bodies are fast moving because
+	/// the bullet does a continuous check after all non-bullet bodies have moved. You could get unlucky and have
+	/// the bullet body end a time step very close to a non-bullet body and the non-bullet body then moves over
+	/// the bullet body. In continuous collision, initial overlap is ignored to avoid freezing bodies in place.
+	/// I do not recommend using them for game projectiles if precise collision timing is needed. Instead consider
+	/// using a ray or shape cast. You can use a marching ray or shape cast for projectile that moves over time.
+	/// If you want a fast moving projectile to collide with a fast moving target, you need to consider the relative
+	/// movement in your ray or shape cast. This is out of the scope of Box3D.
+	/// So what are good use cases for bullets? Pinball games or games with dynamic containers that hold other objects.
+	/// It should be a use case where it doesn't break the game if there is a collision missed, but having them
+	/// captured improves the quality of the game.
 	bool isBullet;
 
 	/// Used to disable a body. A disabled body does not move or collide.

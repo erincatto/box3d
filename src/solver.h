@@ -259,18 +259,9 @@ typedef struct b3StepContext
 	char padding3[64];
 } b3StepContext;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void b3Solve( b3World* world, b3StepContext* stepContext );
 
-#ifdef __cplusplus
-}
-#endif
-
-B3_INLINE b3Softness b3MakeSoft( float hertz, float zeta, float h )
+static inline b3Softness b3MakeSoft( float hertz, float zeta, float h )
 {
 	if ( hertz == 0.0f )
 	{
@@ -307,7 +298,7 @@ B3_INLINE b3Softness b3MakeSoft( float hertz, float zeta, float h )
 	// In all cases:
 	// massScale + impulseScale == 1
 
-	return B3_LITERAL( b3Softness ){
+	return ( b3Softness ){
 		.biasRate = omega / a1,
 		.massScale = a2 * a3,
 		.impulseScale = a3,

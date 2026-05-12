@@ -226,6 +226,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	bodySim->flags |= def->isBullet ? b3_isBullet : 0;
 	bodySim->flags |= def->allowFastRotation ? b3_allowFastRotation : 0;
 	bodySim->flags |= def->type == b3_dynamicBody ? b3_dynamicFlag : 0;
+	bodySim->flags |= def->enableSleep ? b3_enableSleep : 0;
 	bodySim->flags |= def->enableContactRecycling ? b3_bodyEnableContactRecycling : 0;
 
 	if ( setId == b3_awakeSet )
@@ -293,7 +294,6 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	body->inertia = b3Mat3_zero;
 	body->type = def->type;
 	body->flags = bodySim->flags;
-	body->enableSleep = def->enableSleep;
 
 	// dynamic and kinematic bodies that are enabled need a island
 	if ( setId >= b3_awakeSet )
@@ -915,7 +915,7 @@ void b3DumpBody( b3World* world, b3Body* body )
 	b3Dump( "  bd.angularVelocity = {%.9g, %.9g, %.9g};\n", w.x, w.y, w.z );
 	b3Dump( "  bd.linearDamping = %.9g;\n", sim->linearDamping );
 	b3Dump( "  bd.angularDamping = %.9g;\n", sim->angularDamping );
-	b3Dump( "  bd.enableSleep = bool(%d);\n", body->enableSleep );
+	b3Dump( "  bd.enableSleep = bool(%d);\n", body->flags & b3_enableSleep );
 	b3Dump( "  bd.isAwake = bool(%d);\n", body->setIndex == b3_awakeSet );
 	b3Dump( "  bd.gravityScale = %.9g;\n", sim->gravityScale );
 	b3Dump( "  b3BodyId bodyId = b3CreateBody(m_worldId, &bd);\n" );
@@ -1903,7 +1903,7 @@ bool b3Body_IsSleepEnabled( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	return body->enableSleep;
+	return ( body->flags & b3_enableSleep ) == b3_enableSleep;
 }
 
 void b3Body_SetSleepThreshold( b3BodyId bodyId, float sleepThreshold )
@@ -1931,7 +1931,14 @@ void b3Body_EnableSleep( b3BodyId bodyId, bool enableSleep )
 	world->locked = true;
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	body->enableSleep = enableSleep;
+
+	bool flag = ( body->flags & b3_enableSleep ) == b3_enableSleep;
+	if ( enableSleep == flag )
+	{
+		return;
+	}
+
+	body->flags = enableSleep ? body->flags | b3_enableSleep : body->flags & ~b3_enableSleep;
 
 	if ( enableSleep == false )
 	{

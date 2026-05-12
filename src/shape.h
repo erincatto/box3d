@@ -57,11 +57,6 @@ typedef struct b3Shape
 
 } b3Shape;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void b3CreateShapeProxy( b3Shape* shape, b3BroadPhase* bp, b3BodyType type, b3Transform transform, bool forcePairCreation );
 void b3DestroyShapeProxy( b3Shape* shape, b3BroadPhase* bp );
 
@@ -112,7 +107,7 @@ float b3ComputeHullProjectedArea( const b3Hull* hull, b3Vec3 direction );
 b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int triangleIndex );
 int b3GetHeightFieldMaterial( const b3HeightField* heightField, int triangleIndex );
 
-B3_INLINE int b3GetHeightFieldTriangleCount( const b3HeightField* heightField )
+static inline int b3GetHeightFieldTriangleCount( const b3HeightField* heightField )
 {
 	int cellCount = ( heightField->rowCount - 1 ) * ( heightField->columnCount - 1 );
 	return 2 * cellCount;
@@ -123,11 +118,7 @@ b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleIndex );
 bool b3IsValidMesh( const b3MeshData* meshData );
 void b3DumpShape( b3World* world, int shapeIndex );
 
-#ifdef __cplusplus
-}
-#endif
-
-B3_INLINE bool b3ShouldShapesCollide( b3Filter filterA, b3Filter filterB )
+static inline bool b3ShouldShapesCollide( b3Filter filterA, b3Filter filterB )
 {
 	if ( filterA.groupIndex == filterB.groupIndex && filterA.groupIndex != 0 )
 	{
@@ -137,7 +128,7 @@ B3_INLINE bool b3ShouldShapesCollide( b3Filter filterA, b3Filter filterB )
 	return ( filterA.maskBits & filterB.categoryBits ) != 0 && ( filterA.categoryBits & filterB.maskBits ) != 0;
 }
 
-B3_INLINE bool b3ShouldQueryCollide( const b3Filter* shapeFilter, const b3QueryFilter* queryFilter )
+static inline bool b3ShouldQueryCollide( const b3Filter* shapeFilter, const b3QueryFilter* queryFilter )
 {
 	return ( shapeFilter->categoryBits & queryFilter->maskBits ) != 0 &&
 		   ( shapeFilter->maskBits & queryFilter->categoryBits ) != 0;

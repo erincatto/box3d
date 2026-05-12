@@ -210,9 +210,9 @@ void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int chil
 	contact->shapeIdA = shapeIdA;
 	contact->shapeIdB = shapeIdB;
 	contact->childIndex = childIndex;
-	
+
 	// Both bodies must enable recycling
-	if ((bodyA->flags & b3_bodyEnableContactRecycling) != 0 && (bodyB->flags & b3_bodyEnableContactRecycling) != 0)
+	if ( ( bodyA->flags & b3_bodyEnableContactRecycling ) != 0 && ( bodyB->flags & b3_bodyEnableContactRecycling ) != 0 )
 	{
 		contact->flags |= b3_contactRecycleFlag;
 	}

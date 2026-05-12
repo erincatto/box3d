@@ -37,11 +37,6 @@ static inline uint64_t b3ShapePairKey( int s1, int s2, int c )
 		   ( (uint64_t)( B3_CHILD_MASK & c ) );
 }
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 b3HashSet b3CreateSet( int32_t capacity );
 void b3DestroySet( b3HashSet* set );
 
@@ -56,7 +51,3 @@ bool b3RemoveKey( b3HashSet* set, uint64_t key );
 bool b3ContainsKey( const b3HashSet* set, uint64_t key );
 
 int b3GetHashSetBytes( b3HashSet* set );
-
-#ifdef __cplusplus
-}
-#endif

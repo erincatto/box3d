@@ -48,11 +48,6 @@ typedef struct b3BroadPhase
 	b3HashSet pairSet;
 } b3BroadPhase;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void b3CreateBroadPhase( b3BroadPhase* bp, const b3Capacity* capacity );
 void b3DestroyBroadPhase( b3BroadPhase* bp );
 
@@ -70,10 +65,6 @@ bool b3BroadPhase_TestOverlap( const b3BroadPhase* bp, int proxyKeyA, int proxyK
 
 void b3ValidateBroadphase( const b3BroadPhase* bp );
 void b3ValidateNoEnlarged( const b3BroadPhase* bp );
-
-#ifdef __cplusplus
-}
-#endif
 
 // This is what triggers new contact pairs to be created
 // Warning: this must be called in deterministic order
