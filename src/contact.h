@@ -42,6 +42,8 @@ enum b3ContactFlags
 	// This is contact is between a dynamic and static body
 	b3_contactStaticFlag = 0x00000008,
 
+	b3_contactRecycleFlag = 0x00000010,
+
 	// Set when the shapes are touching
 	b3_simTouchingFlag = 0x00010000,
 
@@ -62,6 +64,7 @@ enum b3ContactFlags
 
 	// This is a mesh contact
 	b3_simMeshContact = 0x00400000,
+
 
 	b3_relativeTransformValid = 0x00800000,
 };

@@ -75,6 +75,72 @@ public:
 
 static int sampleHighMassRatio1 = SampleManager::Register( "Robustness", "HighMassRatio1", HighMassRatio1::Create );
 
+// A pyramid of 5cm boxes. Stacking tiny objects is challenging for physics engines due to rotational effects.
+// This is also challenging for Box3D because of the AABB margin and linear slop are close to the shape size. This
+// leads to many collision pairs and some shape overlap.
+class TinyPyramid : public Sample
+{
+public:
+	explicit TinyPyramid( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 20.0f, 2.5f, { 0.0f, 0.75f, 0.0f } );
+			EnableGrid( m_scene, true );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3BoxHull box = b3MakeTransformedBoxHull( 40.0f, 1.0f, 40.0f, { { 0.0f, -1.0f, 0.0f }, b3Quat_identity } );
+			b3CreateHullShape( groundId, &shapeDef, &box.base );
+		}
+
+		{
+			m_extent = 0.025f;
+			int baseCount = 30;
+
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+			b3BoxHull box = b3MakeBoxHull( m_extent, m_extent, m_extent );
+
+			for ( int i = 0; i < baseCount; ++i )
+			{
+				float y = ( 2.0f * i + 1.0f ) * m_extent;
+
+				for ( int j = i; j < baseCount; ++j )
+				{
+					float x = ( i + 1.0f ) * m_extent + 2.0f * ( j - i ) * m_extent - baseCount * m_extent;
+					bodyDef.position = { x, y, 0.0f };
+
+					b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+					b3CreateHullShape( bodyId, &shapeDef, &box.base );
+				}
+			}
+		}
+	}
+
+	void Step() override
+	{
+		DrawTextLine( "%.1fcm boxes", 200.0f * m_extent );
+		Sample::Step();
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new TinyPyramid( context );
+	}
+
+	float m_extent;
+};
+
+static int sampleTinyPyramid = SampleManager::Register( "Robustness", "Tiny Pyramid", TinyPyramid::Create );
+
 class OverlapRecovery : public Sample
 {
 public:

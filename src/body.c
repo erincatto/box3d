@@ -226,6 +226,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	bodySim->flags |= def->isBullet ? b3_isBullet : 0;
 	bodySim->flags |= def->allowFastRotation ? b3_allowFastRotation : 0;
 	bodySim->flags |= def->type == b3_dynamicBody ? b3_dynamicFlag : 0;
+	bodySim->flags |= def->enableContactRecycling ? b3_bodyEnableContactRecycling : 0;
 
 	if ( setId == b3_awakeSet )
 	{
@@ -872,6 +873,14 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 
 		shapeId = s->nextShapeId;
 	}
+
+	// Apply fixed rotation
+	if ( ( bodySim->flags & b3_fixedRotation ) == b3_fixedRotation )
+	{
+		body->inertia = b3Mat3_zero;
+		bodySim->invInertiaLocal = b3Mat3_zero;
+		bodySim->invInertiaWorld = b3Mat3_zero;
+	}
 }
 
 void b3DumpBody( b3World* world, b3Body* body )
@@ -1005,7 +1014,6 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Vec3 position, b3Quat rotation )
 	b3BroadPhase* broadPhase = &world->broadPhase;
 
 	b3Transform transform = bodySim->transform;
-	const float margin = B3_AABB_MARGIN;
 	const float speculativeDistance = B3_SPECULATIVE_DISTANCE;
 
 	int shapeId = body->headShapeId;
@@ -1023,6 +1031,7 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Vec3 position, b3Quat rotation )
 
 		if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 		{
+			float margin = shape->aabbMargin;
 			b3AABB fatAABB;
 			fatAABB.lowerBound.x = aabb.lowerBound.x - margin;
 			fatAABB.lowerBound.y = aabb.lowerBound.y - margin;
@@ -2107,60 +2116,70 @@ void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks )
 		return;
 	}
 
-	uint32_t newFlags = 0;
-	newFlags |= locks.linearX ? b3_lockLinearX : 0;
-	newFlags |= locks.linearY ? b3_lockLinearY : 0;
-	newFlags |= locks.linearZ ? b3_lockLinearZ : 0;
-	newFlags |= locks.angularX ? b3_lockAngularX : 0;
-	newFlags |= locks.angularY ? b3_lockAngularY : 0;
-	newFlags |= locks.angularZ ? b3_lockAngularZ : 0;
+	uint32_t newLocks = 0;
+	newLocks |= locks.linearX ? b3_lockLinearX : 0;
+	newLocks |= locks.linearY ? b3_lockLinearY : 0;
+	newLocks |= locks.linearZ ? b3_lockLinearZ : 0;
+	newLocks |= locks.angularX ? b3_lockAngularX : 0;
+	newLocks |= locks.angularY ? b3_lockAngularY : 0;
+	newLocks |= locks.angularZ ? b3_lockAngularZ : 0;
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	if ( ( body->flags & b3_allLocks ) != newFlags )
+	if ( ( body->flags & b3_allLocks ) == newLocks )
 	{
-		body->flags &= ~b3_allLocks;
-		body->flags |= newFlags;
+		return;
+	}
 
-		b3BodySim* bodySim = b3GetBodySim( world, body );
-		bodySim->flags &= ~b3_allLocks;
-		bodySim->flags |= newFlags;
+	bool fixedRotation1 = ( body->flags & b3_fixedRotation ) == b3_fixedRotation;
+	bool fixedRotation2 = ( newLocks & b3_fixedRotation ) == b3_fixedRotation;
 
-		b3BodyState* state = b3GetBodyState( world, body );
+	body->flags &= ~b3_allLocks;
+	body->flags |= newLocks;
 
-		if ( state != NULL )
+	b3BodySim* bodySim = b3GetBodySim( world, body );
+	bodySim->flags &= ~b3_allLocks;
+	bodySim->flags |= newLocks;
+
+	b3BodyState* state = b3GetBodyState( world, body );
+
+	if ( state != NULL )
+	{
+		state->flags = body->flags;
+
+		if ( locks.linearX )
 		{
-			state->flags = body->flags;
-
-			if ( locks.linearX )
-			{
-				state->linearVelocity.x = 0.0f;
-			}
-
-			if ( locks.linearY )
-			{
-				state->linearVelocity.y = 0.0f;
-			}
-
-			if ( locks.linearZ )
-			{
-				state->linearVelocity.z = 0.0f;
-			}
-
-			if ( locks.angularX )
-			{
-				state->angularVelocity.x = 0.0f;
-			}
-
-			if ( locks.angularY )
-			{
-				state->angularVelocity.y = 0.0f;
-			}
-
-			if ( locks.angularZ )
-			{
-				state->angularVelocity.z = 0.0f;
-			}
+			state->linearVelocity.x = 0.0f;
 		}
+
+		if ( locks.linearY )
+		{
+			state->linearVelocity.y = 0.0f;
+		}
+
+		if ( locks.linearZ )
+		{
+			state->linearVelocity.z = 0.0f;
+		}
+
+		if ( locks.angularX )
+		{
+			state->angularVelocity.x = 0.0f;
+		}
+
+		if ( locks.angularY )
+		{
+			state->angularVelocity.y = 0.0f;
+		}
+
+		if ( locks.angularZ )
+		{
+			state->angularVelocity.z = 0.0f;
+		}
+	}
+
+	if ( fixedRotation1 != fixedRotation2 )
+	{
+		b3UpdateBodyMassData( world, body );
 	}
 }
 

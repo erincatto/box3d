@@ -67,7 +67,11 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 // This is used to fatten AABBs in the dynamic tree. This allows proxies
 // to move by a small amount without triggering a tree adjustment. This is in meters.
 // @warning modifying this can have a significant impact on performance
-#define B3_AABB_MARGIN ( 0.05f * b3GetLengthUnitsPerMeter() )
+#define B3_MAX_AABB_MARGIN ( 0.05f * b3GetLengthUnitsPerMeter() )
+
+// Per-shape AABB margin is a fraction of the shape extent (capped by B3_MAX_AABB_MARGIN).
+// Small shapes get small margins; large shapes are clamped to the cap.
+#define B3_AABB_MARGIN_FRACTION 0.125f
 
 // The time that a body must be still before it will go to sleep. In seconds.
 #define B3_TIME_TO_SLEEP 0.5f

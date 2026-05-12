@@ -1202,12 +1202,11 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 	// Does an edge axis exist?
 	if ( edgeQuery.indexA != B3_NULL_INDEX )
 	{
-		// Idea is to ignore the jenga problem when separated and just use the best axis
-		// bool separated = clippedFaceSeparation > 0.0f && edgeQuery.separation > 0.0f;
-		// float maxFaceSeparation = b3MaxFloat( faceQueryA.separation, faceQueryB.separation );
+		// When axes are aligned the edge separation can be garbage.
+		// If a face axis has positive separation there may be no points.
+		float maxFaceSeparation = b3MaxFloat( faceQueryA.separation, faceQueryB.separation );
 
-		// Do edge contact if face contact yield no points or only one point with significantly deeper overlap.
-		if ( manifold->pointCount == 0 ||
+		if ( ( manifold->pointCount == 0 && edgeQuery.separation > maxFaceSeparation ) ||
 			 ( manifold->pointCount == 1 && edgeQuery.separation > clippedFaceSeparation + linearSlop ) )
 		{
 			B3_ASSERT( 0 <= edgeQuery.indexA && edgeQuery.indexA < 3 );

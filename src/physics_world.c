@@ -581,7 +581,7 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 		// This is inspired by persistent contact manifolds used in some physics engines, such as PhysX.
 		// However, this allows larger relative motion and has fewer tuning parameters (just one).
 		if ( ( isFast == false || isMeshContact == false ) && recycleDistance > 0.0f &&
-			 contact->flags & b3_relativeTransformValid )
+			 (contact->flags & b3_relativeTransformValid) && (contact->flags & b3_contactRecycleFlag) )
 		{
 			b3Transform xf = b3InvMulTransforms( transformA, transformB );
 			b3Transform xfc = b3InvMulTransforms( contact->cachedTransformA, contact->cachedTransformB );

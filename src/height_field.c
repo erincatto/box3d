@@ -566,7 +566,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 	b3CastOutput result = { 0 };
 
 	b3Vec3 shapeExtents = b3AABB_Extents( shapeBounds );
-	b3Vec3 margin = { B3_AABB_MARGIN, B3_AABB_MARGIN, B3_AABB_MARGIN };
+	b3Vec3 margin = { B3_MAX_AABB_MARGIN, B3_MAX_AABB_MARGIN, B3_MAX_AABB_MARGIN };
 	b3AABB combinedBounds = { b3Sub( b3Sub( heightField->aabb.lowerBound, shapeExtents ), margin ),
 							  b3Add( b3Add( heightField->aabb.upperBound, shapeExtents ), margin ) };
 

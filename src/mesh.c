@@ -1482,6 +1482,41 @@ b3MeshData* b3CreateBoxMesh( b3Vec3 center, b3Vec3 extent, bool identifyEdges )
 	return b3CreateMesh( &def, NULL, 0 );
 }
 
+b3MeshData* b3CreatePlatformMesh( b3Vec3 center, float height, float topWidth, float bottomWidth )
+{
+	float hb = 0.5f * bottomWidth;
+	float ht = 0.5f * topWidth;
+	float hy = 0.5f * height;
+	b3Vec3 vertices[] = {
+		{ ht, hy, ht },	 { -ht, hy, ht },  { -hb, -hy, hb },  { hb, -hy, hb },
+		{ ht, hy, -ht }, { -ht, hy, -ht }, { -hb, -hy, -hb }, { hb, -hy, -hb },
+	};
+
+	for ( int i = 0; i < 8; ++i )
+	{
+		vertices[i] = b3Add( vertices[i], center );
+	}
+
+	int indices[] = {
+		0, 1, 3, 1, 2, 3, // front
+		0, 4, 1, 1, 4, 5, // top
+		0, 3, 7, 4, 0, 7, // right
+		4, 7, 5, 6, 5, 7, // back
+		1, 5, 2, 6, 2, 5, // left
+		3, 2, 7, 6, 7, 2, // bottom
+	};
+
+	b3MeshDef def = { 0 };
+	def.vertexCount = 8;
+	def.vertices = vertices;
+	def.triangleCount = 12;
+	def.indices = indices;
+	def.useMedianSplit = true;
+	def.identifyEdges = true;
+
+	return b3CreateMesh( &def, NULL, 0 );
+}
+
 // todo this should fail if the mesh has a height greater than B3_MESH_STACK_SIZE
 b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, int degenerateCapacity )
 {

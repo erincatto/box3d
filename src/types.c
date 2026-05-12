@@ -39,7 +39,7 @@ b3BodyDef b3DefaultBodyDef( void )
 	def.enableSleep = true;
 	def.isAwake = true;
 	def.isEnabled = true;
-	def.enableContinuousCollision = true;
+	def.enableContactRecycling = true;
 	def.internalValue = B3_SECRET_COOKIE;
 	return def;
 }

@@ -271,10 +271,9 @@ typedef struct b3BodyDef
 	/// for circular objects, like wheels.
 	bool allowFastRotation;
 
-	/// Enable continuous collision. This is true by default and should only be disabled for application reasons, such
-	/// as wheels on a vehicle.
-	/// todo not hooked up yet
-	bool enableContinuousCollision;
+	/// Enable contact recycling. True by default. Leaving this enabled improves performance
+	/// but may lead to ghost collision that should be avoided on characters.
+	bool enableContactRecycling;
 
 	/// Used internally to detect a valid definition. DO NOT SET.
 	int internalValue;

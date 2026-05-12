@@ -53,8 +53,13 @@ enum b3BodyFlags
 	// Used for b3BodyState flags.
 	b3_dynamicFlag = 0x00001000,
 
+	b3_bodyEnableContactRecycling = 0x00002000,
+
 	// All lock flags
 	b3_allLocks = b3_lockLinearX | b3_lockLinearY | b3_lockLinearZ | b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
+
+	// If all these flags are set then the body has fixed rotation
+	b3_fixedRotation = b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ
 };
 
 // Body organizational details that are not used in the solver.

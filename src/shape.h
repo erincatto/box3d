@@ -23,6 +23,7 @@ typedef struct b3Shape
 	b3ShapeType type;
 	float density;
 	float explosionScale;
+	float aabbMargin;
 
 	b3AABB aabb;
 	b3AABB fatAABB;

@@ -26,11 +26,62 @@ static b3Shape* b3GetShape( b3World* world, b3ShapeId shapeId )
 	return shape;
 }
 
+static float b3ComputeShapeMargin( b3Shape* shape )
+{
+	float margin = 0.0f;
+
+	switch ( shape->type )
+	{
+		case b3_sphereShape:
+		{
+			margin = shape->sphere.radius;
+		}
+		break;
+
+		case b3_capsuleShape:
+		{
+			margin = 0.5f * b3Distance( shape->capsule.center2, shape->capsule.center1 ) + shape->capsule.radius;
+		}
+		break;
+
+		case b3_hullShape:
+		{
+			const b3Hull* hull = shape->hull;
+			const b3Vec3* points = b3GetHullPoints( hull );
+			float maxExtentSqr = 0.0f;
+			int count = hull->vertexCount;
+			for ( int i = 0; i < count; ++i )
+			{
+				float distSqr = b3DistanceSquared( points[i], hull->center );
+				maxExtentSqr = b3MaxFloat( maxExtentSqr, distSqr );
+			}
+			margin = sqrtf( maxExtentSqr );
+		}
+		break;
+
+		case b3_meshShape:
+		case b3_heightShape:
+		case b3_compoundShape:
+		{
+			// Static-only shapes: broadphase uses speculative distance for static
+			// proxies, so the per-shape margin is never consumed in practice.
+			// Return the cap so any incidental use is generous.
+			return B3_MAX_AABB_MARGIN;
+		}
+
+		default:
+			B3_VALIDATE( false );
+			return B3_MAX_AABB_MARGIN;
+	}
+
+	return b3MinFloat( B3_MAX_AABB_MARGIN, B3_AABB_MARGIN_FRACTION * margin );
+}
+
 static void b3UpdateShapeAABBs( b3Shape* shape, b3Transform transform, b3BodyType proxyType )
 {
 	// Compute a bounding box with a speculative margin
 	const float speculativeDistance = B3_SPECULATIVE_DISTANCE;
-	const float aabbMargin = B3_AABB_MARGIN;
+	const float aabbMargin = shape->aabbMargin;
 
 	b3AABB aabb = b3ComputeShapeAABB( shape, transform );
 	aabb.lowerBound.x -= speculativeDistance;
@@ -139,6 +190,7 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3Transform
 	shape->enablePreSolveEvents = def->enablePreSolveEvents;
 	shape->proxyKey = B3_NULL_INDEX;
 	shape->localCentroid = b3GetShapeCentroid( shape );
+	shape->aabbMargin = b3ComputeShapeMargin( shape );
 	shape->aabb = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
 	shape->fatAABB = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
 	shape->generation += 1;
@@ -1425,6 +1477,7 @@ void b3Shape_SetSphere( b3ShapeId shapeId, const b3Sphere* sphere )
 
 	shape->sphere = *sphere;
 	shape->type = b3_sphereShape;
+	shape->aabbMargin = b3ComputeShapeMargin( shape );
 
 	// need to wake bodies so they can react to the shape change
 	bool wakeBodies = true;
@@ -1450,6 +1503,7 @@ void b3Shape_SetCapsule( b3ShapeId shapeId, const b3Capsule* capsule )
 
 	shape->capsule = *capsule;
 	shape->type = b3_capsuleShape;
+	shape->aabbMargin = b3ComputeShapeMargin( shape );
 
 	// need to wake bodies so they can react to the shape change
 	bool wakeBodies = true;
@@ -1475,6 +1529,7 @@ void b3Shape_SetHull( b3ShapeId shapeId, const b3Hull* hull )
 
 	shape->hull = b3CloneHull( hull );
 	shape->type = b3_hullShape;
+	shape->aabbMargin = b3ComputeShapeMargin( shape );
 
 	// need to wake bodies so they can react to the shape change
 	bool wakeBodies = true;
@@ -1504,6 +1559,7 @@ void b3Shape_SetMesh( b3ShapeId shapeId, const b3MeshData* meshData, b3Vec3 scal
 	shape->mesh.data = meshData;
 	shape->mesh.scale = b3SafeScale( scale );
 	shape->type = b3_meshShape;
+	shape->aabbMargin = b3ComputeShapeMargin( shape );
 
 	// need to wake bodies so they can react to the shape change
 	bool wakeBodies = true;
