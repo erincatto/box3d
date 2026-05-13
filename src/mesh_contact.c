@@ -96,7 +96,7 @@ static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3Transfo
 	}
 
 	// Enlarge to the query bounds to absorb small movement
-	float radius = B3_AABB_MARGIN + B3_SPECULATIVE_DISTANCE;
+	float radius = B3_MAX_AABB_MARGIN + B3_SPECULATIVE_DISTANCE;
 	b3Vec3 extension = { radius, radius, radius };
 	meshContact->queryBounds.lowerBound = b3Sub( bounds->lowerBound, extension );
 	meshContact->queryBounds.upperBound = b3Add( bounds->upperBound, extension );

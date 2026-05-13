@@ -7,6 +7,8 @@ set(BOX3D_SHARED_FILES
 	determinism.h
 	human.c
 	human.h
+	overflow_color.c
+	overflow_color.h
 	stability.c
 	stability.h
 	utils.c

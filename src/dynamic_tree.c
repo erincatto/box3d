@@ -2038,7 +2038,7 @@ int b3DynamicTree_Rebuild( b3DynamicTree* tree, bool fullBuild )
 	// considered leaves in the tree rebuild.
 	// Free all internal nodes that have grown.
 	// todo use a node growth metric instead of simply enlarged to reduce rebuild size and frequency
-	// this should be weighed against b3_aabbMargin
+	// this should be weighed against B3_MAX_AABB_MARGIN
 	while ( true )
 	{
 		if ( b3IsLeaf( node ) == true || ( ( node->flags & b3_enlargedNode ) == 0 && fullBuild == false ) )

@@ -26,11 +26,6 @@ typedef struct b3BlockAllocator
 	int allocationCount;
 } b3BlockAllocator;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 // Element must be large enough to hold a pointer
 b3BlockAllocator b3CreateBlockAllocator( int elementSize, int initialCount );
 void b3DestroyBlockAllocator( b3BlockAllocator* allocator );
@@ -38,7 +33,3 @@ void b3DestroyBlockAllocator( b3BlockAllocator* allocator );
 // Elements are guaranteed contiguous.
 void* b3AllocateElement( b3BlockAllocator* allocator );
 void b3FreeElement( b3BlockAllocator* allocator, void* element );
-
-#ifdef __cplusplus
-}
-#endif

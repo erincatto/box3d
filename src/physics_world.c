@@ -581,8 +581,12 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 		// This is inspired by persistent contact manifolds used in some physics engines, such as PhysX.
 		// However, this allows larger relative motion and has fewer tuning parameters (just one).
 		if ( ( isFast == false || isMeshContact == false ) && recycleDistance > 0.0f &&
-			 contact->flags & b3_relativeTransformValid )
+			 (contact->flags & b3_relativeTransformValid) && (contact->flags & b3_contactRecycleFlag) )
 		{
+			float angleA = b3DotQuat( transformA.q, contact->cachedTransformA.q );
+			float angleB = b3DotQuat( transformB.q, contact->cachedTransformB.q );
+			float angularDistance = b3MinFloat( angleA * angleA, angleB * angleB );
+
 			b3Transform xf = b3InvMulTransforms( transformA, transformB );
 			b3Transform xfc = b3InvMulTransforms( contact->cachedTransformA, contact->cachedTransformB );
 			b3Vec3 maxExtentA = isStaticA ? b3Vec3_zero : bodySimA->maxExtent;
@@ -594,7 +598,7 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 			// 2*|qr.v| == 2*|sin(theta/2)| ~= theta for small angles.
 			float distSquared = b3DistanceSquared( xf.p, xfc.p );
 
-			if ( distSquared < recycleTolerance * recycleTolerance )
+			if ( angularDistance > B3_CONTACT_RECYCLE_ANGULAR_DISTANCE && distSquared < recycleTolerance * recycleTolerance )
 			{
 				float distance = sqrtf( distSquared );
 				float slack = recycleTolerance - distance;

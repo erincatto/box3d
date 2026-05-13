@@ -66,11 +66,6 @@ typedef struct b3ConstraintGraph
 	b3GraphColor colors[B3_GRAPH_COLOR_COUNT];
 } b3ConstraintGraph;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void b3CreateGraph( b3ConstraintGraph* graph, int bodyCapacity );
 void b3DestroyGraph( b3ConstraintGraph* graph );
 
@@ -80,7 +75,3 @@ void b3RemoveContactFromGraph( b3World* world, int bodyIdA, int bodyIdB, int col
 b3JointSim* b3CreateJointInGraph( b3World* world, b3Joint* joint );
 void b3AddJointToGraph( b3World* world, b3JointSim* jointSim, b3Joint* joint );
 void b3RemoveJointFromGraph( b3World* world, int bodyIdA, int bodyIdB, int colorIndex, int localIndex );
-
-#ifdef __cplusplus
-}
-#endif

@@ -783,6 +783,7 @@ B3_API b3MeshData* b3CreateWaveMesh( int xCount, int zCount, float cellWidth, fl
 									 float columnFrequency );
 B3_API b3MeshData* b3CreateTorusMesh( int radialResolution, int tubularResolution, float radius, float thickness );
 B3_API b3MeshData* b3CreateBoxMesh( b3Vec3 center, b3Vec3 extent, bool identifyEdges );
+B3_API b3MeshData* b3CreatePlatformMesh( b3Vec3 center, float height, float topWidth, float bottomWidth );
 B3_API b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, int degenerateCapacity );
 B3_API void b3DestroyMesh( b3MeshData* mesh );
 B3_API int b3GetHeight( const b3MeshData* mesh );

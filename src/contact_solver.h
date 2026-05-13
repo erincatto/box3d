@@ -51,11 +51,6 @@ typedef struct b3ContactConstraint
 	int manifoldCount;
 } b3ContactConstraint;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 int b3GetWideContactConstraintByteCount( void );
 
 // Overflow contacts don't fit into the constraint graph coloring
@@ -76,7 +71,3 @@ void b3WarmStartContacts_Convex( b3SolverBlock block, b3StepContext* context );
 void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool useBias );
 void b3ApplyRestitution_Convex( b3SolverBlock block, b3StepContext* context );
 void b3StoreImpulses_Convex( b3SolverBlock block, b3StepContext* context, int workerIndex );
-
-#ifdef __cplusplus
-}
-#endif

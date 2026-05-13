@@ -20,19 +20,19 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			//m_camera->SetView( 45.0f, 30.0f, 300.0f, { 3910.62109f, 9862.50293f, 875.395081f } );
+			// m_camera->SetView( 45.0f, 30.0f, 300.0f, { 3910.62109f, 9862.50293f, 875.395081f } );
 		}
 
 		b3SetLengthUnitsPerMeter( 1.0f );
 
 		const char* dumpPrefix = "data/dumps/single_box/";
 
-		#include "dumps/single_box/box3d_dump.inl"
+#include "dumps/single_box/box3d_dump.inl"
 	}
 
 	~DumpLoader() override
 	{
-		for (b3MeshData* md : m_meshes)
+		for ( b3MeshData* md : m_meshes )
 		{
 			b3DestroyMesh( md );
 		}
@@ -189,7 +189,6 @@ public:
 			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Vec3_zero );
 		}
 
-
 		m_hull = nullptr;
 
 #if 0
@@ -256,7 +255,7 @@ public:
 		}
 		else
 		{
-			for (int i = 0; i < m_count; ++i)
+			for ( int i = 0; i < m_count; ++i )
 			{
 				DrawPoint( m_scene, m_points[i], 5.0f, b3_colorWhite );
 			}
@@ -399,3 +398,68 @@ public:
 };
 
 static int sampleConvexJitter = SampleManager::Register( "Issues", "Convex Jitter", ConvexJitter::Create );
+
+class SBoxMover : public Sample
+{
+public:
+	explicit SBoxMover( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 45.0f, 30.0f, 12.0f, b3Vec3_zero );
+			EnableGrid( m_scene, true );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3BoxHull box = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
+			b3CreateHullShape( groundId, &shapeDef, &box.base );
+
+			//m_boxMesh = b3CreateBoxMesh( { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, true );
+			m_boxMesh = b3CreatePlatformMesh( { 0.0f, 1.5f, 0.0f }, 1.0f, 2.0f, 5.0f );
+			// m_scale = { -0.6f, 1.0f, 2.0f };
+			b3Vec3 scale = b3Vec3_one;
+			b3CreateMeshShape( groundId, &shapeDef, m_boxMesh, scale );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { 0.0f, 3.5f, 0.0f };
+			bodyDef.motionLocks.angularX = true;
+			bodyDef.motionLocks.angularY = true;
+			bodyDef.motionLocks.angularZ = true;
+			bodyDef.enableContactRecycling = false;
+			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3BoxHull box = b3MakeBoxHull( 0.25f, 1.0f, 0.25f );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+		}
+	}
+
+	~SBoxMover() override
+	{
+		b3DestroyMesh( m_boxMesh );
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+		b3Transform transform = { { 0.0f, 1.1f, 0.0f }, b3Quat_identity };
+		DrawTransform( m_scene, transform, 3.0f );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new SBoxMover( context );
+	}
+
+	b3MeshData* m_boxMesh;
+};
+
+static int sampleBoxMesh = SampleManager::Register( "Issues", "s&box mover", SBoxMover::Create );

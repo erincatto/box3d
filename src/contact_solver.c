@@ -43,6 +43,7 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	b3ManifoldConstraint* manifoldBase = context->manifoldConstraints;
 	b3ContactConstraint* base = context->contactConstraints;
 
+	// Overflow constraints are stored separately
 	if ( block.blockType == b3_overflowBlock )
 	{
 		b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
@@ -77,6 +78,7 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 			B3_ASSERT( 0 <= localIndex && localIndex < spans[colorIndex].count );
 			int contactId = specs[localIndex].contactId;
 			b3Contact* contact = b3Array_Get( world->contacts, contactId  );
+			B3_ASSERT( contact->contactId == contactId );
 
 			int indexA = contact->bodySimIndexA;
 			int indexB = contact->bodySimIndexB;
@@ -677,53 +679,96 @@ void b3ApplyRestitution_Mesh( b3SolverBlock block, b3StepContext* context )
 void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int workerIndex )
 {
 	b3World* world = context->world;
+
+	// Mirror b3PrepareContacts_Mesh: the per-color flat arrays and the overflow color
+	// each have their own (base, spans, manifoldBase).
+	b3ContactPrepareSpan* spans = context->contactPrepareSpans;
 	b3ContactConstraint* base = context->contactConstraints;
+
+	if ( block.blockType == b3_overflowBlock )
+	{
+		b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
+		spans = context->overflowSpans;
+		base = overflow->contactConstraints;
+	}
+
 	b3TaskContext* taskContext = world->taskContexts.data + workerIndex;
 	b3BitSet* hitEventBitSet = &taskContext->hitEventBitSet;
 	bool hasHitEvents = taskContext->hasHitEvents;
 	float negHitThreshold = -world->hitEventThreshold;
 
-	for ( int i = block.startIndex; i < block.startIndex + block.count; ++i )
+	int index = block.startIndex;
+	int endIndex = block.startIndex + block.count;
+
+	// Find color for start index. Linear search but fast.
+	int colorIndex = 0;
+	while ( spans[colorIndex + 1].start <= index )
 	{
-		b3ContactConstraint* contactConstraint = base + i;
+		colorIndex += 1;
+	}
 
-		// Having this contact pointer simplifies impulse storage
-		b3Contact* contact = contactConstraint->contact;
+	// Loop over block
+	while ( index < endIndex )
+	{
+		int colorStart = spans[colorIndex].start;
+		int colorEndIndex = b3MinInt( spans[colorIndex + 1].start, endIndex );
 
-		int manifoldCount = contactConstraint->manifoldCount;
-		B3_ASSERT( manifoldCount == contact->manifoldCount );
-
-		bool checkHitEvents = ( contact->flags & b3_simEnableHitEvent ) != 0;
-		bool flagged = false;
-
-		for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
+		// Loop over color
+		for ( ; index < colorEndIndex; ++index )
 		{
-			b3Manifold* manifold = contact->manifolds + manifoldIndex;
-			b3ManifoldConstraint* constraint = contactConstraint->constraints + manifoldIndex;
-			manifold->twistImpulse = constraint->twistImpulse;
-			manifold->frictionImpulse = b3Blend2( constraint->frictionImpulse.x, constraint->tangent1,
-												  constraint->frictionImpulse.y, constraint->tangent2 );
-			manifold->rollingImpulse = constraint->rollingImpulse;
+			b3ContactConstraint* contactConstraint = base + index;
 
-			int count = constraint->pointCount;
-			B3_ASSERT( count == manifold->pointCount );
-			for ( int pointIndex = 0; pointIndex < count; ++pointIndex )
+			int localIndex = index - colorStart;
+			B3_UNUSED( localIndex );
+			B3_ASSERT( 0 <= localIndex && localIndex < spans[colorIndex].count );
+
+			// Having this contact pointer simplifies impulse storage
+			b3Contact* contact = contactConstraint->contact;
+			B3_ASSERT( contact != NULL );
+
+			// Catches the wrong-(base, spans) pairing: the contact pointer stashed by
+			// b3PrepareContacts_Mesh at this flat slot must reference the same contact
+			// the span at this slot describes.
+			B3_VALIDATE( contact->contactId == spans[colorIndex].contacts[localIndex].contactId );
+
+			int manifoldCount = contactConstraint->manifoldCount;
+			B3_ASSERT( manifoldCount == contact->manifoldCount );
+
+			bool checkHitEvents = ( contact->flags & b3_simEnableHitEvent ) != 0;
+			bool flagged = false;
+
+			for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
 			{
-				b3ManifoldConstraintPoint* cp = constraint->points + pointIndex;
-				b3ManifoldPoint* mp = manifold->points + pointIndex;
-				mp->normalImpulse = cp->normalImpulse;
-				mp->totalNormalImpulse = cp->totalNormalImpulse;
-				mp->normalVelocity = cp->relativeVelocity;
+				b3Manifold* manifold = contact->manifolds + manifoldIndex;
+				b3ManifoldConstraint* constraint = contactConstraint->constraints + manifoldIndex;
+				manifold->twistImpulse = constraint->twistImpulse;
+				manifold->frictionImpulse = b3Blend2( constraint->frictionImpulse.x, constraint->tangent1,
+													  constraint->frictionImpulse.y, constraint->tangent2 );
+				manifold->rollingImpulse = constraint->rollingImpulse;
 
-				if ( checkHitEvents && flagged == false &&
-					 mp->normalVelocity < negHitThreshold && mp->totalNormalImpulse > 0.0f )
+				int count = constraint->pointCount;
+				B3_ASSERT( count == manifold->pointCount );
+				for ( int pointIndex = 0; pointIndex < count; ++pointIndex )
 				{
-					b3SetBit( hitEventBitSet, contact->contactId );
-					hasHitEvents = true;
-					flagged = true;
+					b3ManifoldConstraintPoint* cp = constraint->points + pointIndex;
+					b3ManifoldPoint* mp = manifold->points + pointIndex;
+					mp->normalImpulse = cp->normalImpulse;
+					mp->totalNormalImpulse = cp->totalNormalImpulse;
+					mp->normalVelocity = cp->relativeVelocity;
+
+					if ( checkHitEvents && flagged == false &&
+						 mp->normalVelocity < negHitThreshold && mp->totalNormalImpulse > 0.0f )
+					{
+						b3SetBit( hitEventBitSet, contact->contactId );
+						hasHitEvents = true;
+						flagged = true;
+					}
 				}
 			}
 		}
+
+		// Advance to next color
+		colorIndex += 1;
 	}
 
 	taskContext->hasHitEvents = hasHitEvents;
@@ -2423,6 +2468,5 @@ void b3StoreImpulses_Overflow( b3StepContext* context )
 		.colorIndex = B3_OVERFLOW_INDEX,
 	};
 
-	// Overflow runs serially on the orchestrator (worker 0)
 	b3StoreImpulses_Mesh( block, context, 0 );
 }

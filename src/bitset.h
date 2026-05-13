@@ -17,21 +17,12 @@ typedef struct b3BitSet
 } b3BitSet;
 
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 b3BitSet b3CreateBitSet( uint32_t bitCapacity );
 void b3DestroyBitSet( b3BitSet* bitSet );
 void b3SetBitCountAndClear( b3BitSet* bitSet, uint32_t bitCount );
 void b3InPlaceUnion( b3BitSet* setA, const b3BitSet* setB );
 void b3GrowBitSet( b3BitSet* bitSet, uint32_t blockCount );
 int b3CountSetBits( b3BitSet* bitSet );
-
-#ifdef __cplusplus
-}
-#endif
 
 static inline void b3SetBit( b3BitSet* bitSet, uint32_t bitIndex )
 {

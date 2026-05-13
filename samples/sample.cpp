@@ -395,8 +395,6 @@ void Sample::Render()
 	m_context->debugDraw.drawingBounds = bounds;
 
 	b3World_Draw( m_worldId, &m_context->debugDraw, B3_DEFAULT_MASK_BITS );
-
-	DrawTextLine( "camera radius = %g", m_camera->m_radius );
 }
 
 void Sample::ResetProfile()

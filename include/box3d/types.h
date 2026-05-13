@@ -243,7 +243,7 @@ typedef struct b3BodyDef
 	/// Sleep speed threshold, default is 0.05 meters per second
 	float sleepThreshold;
 
-	/// Optional body name for debugging. Up to 31 characters (excluding null termination)
+	/// Optional body name for debugging. Up to B3_NAME_LENGTH characters (including null termination)
 	const char* name;
 
 	/// Use this to store application specific body data.
@@ -258,10 +258,20 @@ typedef struct b3BodyDef
 	/// Is this body initially awake or sleeping?
 	bool isAwake;
 
-	/// Treat this body as high speed object that performs continuous collision detection
+	/// Treat this body as a high speed object that performs continuous collision detection
 	/// against dynamic and kinematic bodies, but not other bullet bodies.
 	/// @warning Bullets should be used sparingly. They are not a solution for general dynamic-versus-dynamic
-	/// continuous collision.
+	/// continuous collision. They do not guarantee accurate collision if both bodies are fast moving because
+	/// the bullet does a continuous check after all non-bullet bodies have moved. You could get unlucky and have
+	/// the bullet body end a time step very close to a non-bullet body and the non-bullet body then moves over
+	/// the bullet body. In continuous collision, initial overlap is ignored to avoid freezing bodies in place.
+	/// I do not recommend using them for game projectiles if precise collision timing is needed. Instead consider
+	/// using a ray or shape cast. You can use a marching ray or shape cast for projectile that moves over time.
+	/// If you want a fast moving projectile to collide with a fast moving target, you need to consider the relative
+	/// movement in your ray or shape cast. This is out of the scope of Box3D.
+	/// So what are good use cases for bullets? Pinball games or games with dynamic containers that hold other objects.
+	/// It should be a use case where it doesn't break the game if there is a collision missed, but having them
+	/// captured improves the quality of the game.
 	bool isBullet;
 
 	/// Used to disable a body. A disabled body does not move or collide.
@@ -271,10 +281,9 @@ typedef struct b3BodyDef
 	/// for circular objects, like wheels.
 	bool allowFastRotation;
 
-	/// Enable continuous collision. This is true by default and should only be disabled for application reasons, such
-	/// as wheels on a vehicle.
-	/// todo not hooked up yet
-	bool enableContinuousCollision;
+	/// Enable contact recycling. True by default. Leaving this enabled improves performance
+	/// but may lead to ghost collision that should be avoided on characters.
+	bool enableContactRecycling;
 
 	/// Used internally to detect a valid definition. DO NOT SET.
 	int internalValue;
@@ -1265,6 +1274,29 @@ typedef struct b3BodyPlaneResult
 	b3ShapeId shapeId;
 	b3PlaneResult result;
 } b3BodyPlaneResult;
+
+typedef struct b3ChildShape
+{
+	union
+	{
+		b3Capsule capsule;
+		const b3Hull* hull;
+		b3Mesh mesh;
+		b3Sphere sphere;
+	};
+
+	b3Transform transform;
+
+	// Index 0 is used for convex shapes.
+	// todo limit to 64K?
+	int materialIndices[B3_MAX_COMPOUND_MESH_MATERIALS];
+	b3ShapeType type;
+} b3ChildShape;
+
+typedef bool b3CompoundQueryFcn( const b3Compound* compound, int childIndex, void* context );
+
+B3_API b3ChildShape b3GetCompoundChild( const b3Compound* compound, int childIndex );
+B3_API void b3QueryCompound( const b3Compound* compound, b3AABB aabb, b3CompoundQueryFcn* fcn, void* context );
 
 /// These colors are used for debug draw and mostly match the named SVG colors.
 /// See https://www.rapidtables.com/web/color/index.html

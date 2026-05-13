@@ -530,10 +530,6 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	const float speculativeScalar = B3_SPECULATIVE_DISTANCE;
 	const b3Vec3 speculativeMargin = { speculativeScalar, speculativeScalar, speculativeScalar };
 
-	// todo implement per shape margin as in Box2D
-	const float marginScalar = B3_AABB_MARGIN;
-	const b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
-
 	if ( context.fraction < 1.0f )
 	{
 		// Handle time of impact event
@@ -564,6 +560,8 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 
 			if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 			{
+				float marginScalar = shape->aabbMargin;
+				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 				shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
 
 				shape->enlargedAABB = true;
@@ -591,6 +589,8 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 
 			if ( b3AABB_Contains( shape->fatAABB, shape->aabb ) == false )
 			{
+				float marginScalar = shape->aabbMargin;
+				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 				shape->fatAABB = (b3AABB){
 					.lowerBound = b3Sub( shape->aabb.lowerBound, aabbMargin ),
 					.upperBound = b3Add( shape->aabb.upperBound, aabbMargin ),
@@ -652,10 +652,6 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 	const float speculativeScalar = B3_SPECULATIVE_DISTANCE;
 	const b3Vec3 speculativeMargin = { speculativeScalar, speculativeScalar, speculativeScalar };
 
-	// todo per shape margin
-	const float marginScalar = B3_AABB_MARGIN;
-	const b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
-
 	for ( int simIndex = startIndex; simIndex < endIndex; ++simIndex )
 	{
 		b3BodyState* state = states + simIndex;
@@ -715,7 +711,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		sim->flags &= ~( b3_isFast | b3_isSpeedCapped | b3_hadTimeOfImpact );
 		state->flags &= ~( b3_isFast | b3_isSpeedCapped | b3_hadTimeOfImpact );
 
-		if ( enableSleep == false || body->enableSleep == false || sleepVelocity > body->sleepThreshold )
+		if ( enableSleep == false || (body->flags & b3_enableSleep) == 0 || sleepVelocity > body->sleepThreshold )
 		{
 			// Body is not sleepy
 			body->sleepTime = 0.0f;
@@ -805,6 +801,8 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 
 				if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 				{
+					float marginScalar = shape->aabbMargin;
+					b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 					shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
 					shape->enlargedAABB = true;
 

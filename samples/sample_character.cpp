@@ -436,3 +436,4 @@ public:
 };
 
 static int sampleMover = SampleManager::Register( "Character", "Mover", BasicMover::Create );
+

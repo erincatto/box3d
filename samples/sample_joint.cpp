@@ -2452,7 +2452,6 @@ public:
 
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.allowFastRotation = true;
-		bodyDef.enableContinuousCollision = false;
 		bodyDef.rotation = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3Vec3_axisZ );
 
 		// b3Hull* hull = b3CreateCylinder( 0.25f, 0.4f, 0.0f, 16 );

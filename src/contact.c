@@ -211,6 +211,12 @@ void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int chil
 	contact->shapeIdB = shapeIdB;
 	contact->childIndex = childIndex;
 
+	// Both bodies must enable recycling
+	if ( ( bodyA->flags & b3_bodyEnableContactRecycling ) != 0 && ( bodyB->flags & b3_bodyEnableContactRecycling ) != 0 )
+	{
+		contact->flags |= b3_contactRecycleFlag;
+	}
+
 	if ( shapeA->type == b3_meshShape || shapeA->type == b3_heightShape )
 	{
 		contact->flags |= b3_simMeshContact;

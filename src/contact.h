@@ -42,6 +42,8 @@ enum b3ContactFlags
 	// This is contact is between a dynamic and static body
 	b3_contactStaticFlag = 0x00000008,
 
+	b3_contactRecycleFlag = 0x00000010,
+
 	// Set when the shapes are touching
 	b3_simTouchingFlag = 0x00010000,
 
@@ -62,6 +64,7 @@ enum b3ContactFlags
 
 	// This is a mesh contact
 	b3_simMeshContact = 0x00400000,
+
 
 	b3_relativeTransformValid = 0x00800000,
 };
@@ -164,11 +167,6 @@ typedef struct b3ContactSpec
 
 b3DeclareArray( b3ContactSpec );
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void b3InitializeContactRegisters( void );
 
 void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int childIndex );
@@ -179,7 +177,3 @@ bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Sha
 
 bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact, const b3Shape* shapeA, const int* materialMap,
 							 b3Transform xfA, const b3Shape* shapeB, b3Transform xfB, bool isFast, b3Arena arena );
-
-#ifdef __cplusplus
-}
-#endif

@@ -54,11 +54,6 @@ typedef struct b3SolverSet
 	int setIndex;
 } b3SolverSet;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void b3DestroySolverSet( b3World* world, int setIndex );
 
 void b3WakeSolverSet( b3World* world, int setIndex );
@@ -70,7 +65,3 @@ void b3MergeSolverSets( b3World* world, int setIndex1, int setIndex2 );
 
 void b3TransferBody( b3World* world, b3SolverSet* targetSet, b3SolverSet* sourceSet, b3Body* body );
 void b3TransferJoint( b3World* world, b3SolverSet* targetSet, b3SolverSet* sourceSet, b3Joint* joint );
-
-#ifdef __cplusplus
-}
-#endif

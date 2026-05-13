@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 #include "camera.h"
+#include "overflow_color.h"
 #include "sample.h"
 #include "scene.h"
 
 #include "box3d/box3d.h"
+#include "box3d/constants.h"
 
 #include <imgui.h>
 #include <stdlib.h>
@@ -72,6 +74,72 @@ public:
 };
 
 static int sampleHighMassRatio1 = SampleManager::Register( "Robustness", "HighMassRatio1", HighMassRatio1::Create );
+
+// A pyramid of 5cm boxes. Stacking tiny objects is challenging for physics engines due to rotational effects.
+// This is also challenging for Box3D because of the AABB margin and linear slop are close to the shape size. This
+// leads to many collision pairs and some shape overlap.
+class TinyPyramid : public Sample
+{
+public:
+	explicit TinyPyramid( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 20.0f, 2.5f, { 0.0f, 0.75f, 0.0f } );
+			EnableGrid( m_scene, true );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3BoxHull box = b3MakeTransformedBoxHull( 40.0f, 1.0f, 40.0f, { { 0.0f, -1.0f, 0.0f }, b3Quat_identity } );
+			b3CreateHullShape( groundId, &shapeDef, &box.base );
+		}
+
+		{
+			m_extent = 0.025f;
+			int baseCount = 30;
+
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+			b3BoxHull box = b3MakeBoxHull( m_extent, m_extent, m_extent );
+
+			for ( int i = 0; i < baseCount; ++i )
+			{
+				float y = ( 2.0f * i + 1.0f ) * m_extent;
+
+				for ( int j = i; j < baseCount; ++j )
+				{
+					float x = ( i + 1.0f ) * m_extent + 2.0f * ( j - i ) * m_extent - baseCount * m_extent;
+					bodyDef.position = { x, y, 0.0f };
+
+					b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+					b3CreateHullShape( bodyId, &shapeDef, &box.base );
+				}
+			}
+		}
+	}
+
+	void Step() override
+	{
+		DrawTextLine( "%.1fcm boxes", 200.0f * m_extent );
+		Sample::Step();
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new TinyPyramid( context );
+	}
+
+	float m_extent;
+};
+
+static int sampleTinyPyramid = SampleManager::Register( "Robustness", "Tiny Pyramid", TinyPyramid::Create );
 
 class OverlapRecovery : public Sample
 {
@@ -402,3 +470,45 @@ public:
 };
 
 static int sampleCart = SampleManager::Register( "Robustness", "Cart", Cart::Create );
+
+// Drives the b3*_Overflow solver path. A heavy hub touches more dynamic
+// neighbors than B3_DYNAMIC_COLOR_COUNT (= 20), so several contacts land in
+// the overflow color. The HUD reports the per-step overflow contact count
+// because the scene is visually unremarkable when working correctly — the
+// point is that it stays unremarkable.
+class OverflowColorPile : public Sample
+{
+public:
+	explicit OverflowColorPile( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 5.0f, 3.0f, 6.0f, b3Vec3_zero );
+			EnableGrid( m_scene, true );
+		}
+
+		m_data = CreateOverflowColorPile( m_worldId );
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		b3Counters counters = b3World_GetCounters( m_worldId );
+		int overflowContacts = counters.colorCounts[B3_GRAPH_COLOR_COUNT - 1];
+
+		DrawTextLine( "neighbors = %d", m_data.neighborCount );
+		DrawTextLine( "overflow contacts = %d", overflowContacts );
+		DrawTextLine( "total contacts = %d", counters.contactCount );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new OverflowColorPile( context );
+	}
+
+	OverflowColorPileData m_data;
+};
+
+static int sampleOverflowColorPile = SampleManager::Register( "Robustness", "Overflow Color Pile", OverflowColorPile::Create );

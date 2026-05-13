@@ -53,15 +53,20 @@ enum b3BodyFlags
 	// Used for b3BodyState flags.
 	b3_dynamicFlag = 0x00001000,
 
+	b3_enableSleep = 0x00002000,
+
+	b3_bodyEnableContactRecycling = 0x00004000,
+
 	// All lock flags
 	b3_allLocks = b3_lockLinearX | b3_lockLinearY | b3_lockLinearZ | b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
+
+	// If all these flags are set then the body has fixed rotation
+	b3_fixedRotation = b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
 };
 
 // Body organizational details that are not used in the solver.
 typedef struct b3Body
 {
-	char name[B3_NAME_LENGTH];
-
 	void* userData;
 
 	// index of solver set stored in b3World
@@ -115,8 +120,7 @@ typedef struct b3Body
 	// Used to check for invalid b3BodyId
 	uint16_t generation;
 
-	// todo move into flags
-	bool enableSleep;
+	char name[B3_NAME_LENGTH];
 } b3Body;
 
 // Body State
@@ -210,11 +214,6 @@ typedef struct b3BodySim
 	uint32_t flags;
 } b3BodySim;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 // Get a validated body from a world using an id.
 b3Body* b3GetBodyFullId( b3World* world, b3BodyId bodyId );
 
@@ -237,11 +236,7 @@ bool b3WakeBodyWithLock( b3World* world, b3Body* body );
 void b3UpdateBodyMassData( b3World* world, b3Body* body );
 void b3DumpBody( b3World* world, b3Body* body );
 
-#ifdef __cplusplus
-}
-#endif
-
-B3_INLINE b3Sweep b3MakeSweep( const b3BodySim* bodySim )
+static inline b3Sweep b3MakeSweep( const b3BodySim* bodySim )
 {
 	b3Sweep s;
 	s.c1 = bodySim->center0;

@@ -64,16 +64,26 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 /// The default contact recycling distance.
 #define B3_CONTACT_RECYCLE_DISTANCE ( 10.0f * B3_LINEAR_SLOP )
 
+/// The default contact recycling world angle threshold. For performance this value
+/// is cos(angle/2)^2. This value corresponds to 10 degrees.
+#define B3_CONTACT_RECYCLE_ANGULAR_DISTANCE ( 0.99240388f )
+
 // This is used to fatten AABBs in the dynamic tree. This allows proxies
 // to move by a small amount without triggering a tree adjustment. This is in meters.
 // @warning modifying this can have a significant impact on performance
-#define B3_AABB_MARGIN ( 0.05f * b3GetLengthUnitsPerMeter() )
+#define B3_MAX_AABB_MARGIN ( 0.05f * b3GetLengthUnitsPerMeter() )
+
+// Per-shape AABB margin is a fraction of the shape extent (capped by B3_MAX_AABB_MARGIN).
+// Small shapes get small margins; large shapes are clamped to the cap.
+#define B3_AABB_MARGIN_FRACTION 0.125f
 
 // The time that a body must be still before it will go to sleep. In seconds.
 #define B3_TIME_TO_SLEEP 0.5f
 
-// Body and shape name lengths
-#define B3_NAME_LENGTH 64
+/// Maximum length of the body name. Must be at least 1. Includes null termination.
+#ifndef B3_NAME_LENGTH
+#define B3_NAME_LENGTH 18
+#endif
 
 // These generous limits allow for easy hashing. See b3ShapePairKey.
 #define B3_SHAPE_POWER 22

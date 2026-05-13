@@ -273,11 +273,6 @@ typedef struct b3World
 	bool inUse;
 } b3World;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 b3World* b3GetUnlockedWorldFromId( b3WorldId id );
 b3World* b3GetWorldFromId( b3WorldId id );
 
@@ -287,10 +282,6 @@ b3World* b3GetWorld( int index );
 void b3ValidateConnectivity( b3World* world );
 void b3ValidateSolverSets( b3World* world );
 void b3ValidateContacts( b3World* world );
-
-#ifdef __cplusplus
-}
-#endif
 
 static inline b3Manifold* b3AllocateManifolds( b3World* world, int count )
 {
