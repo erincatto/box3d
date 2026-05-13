@@ -2,10 +2,7 @@
 name: CI Build
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 env:
    BUILD_TYPE: Debug
