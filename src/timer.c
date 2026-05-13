@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define NAME_LENGTH 16
+
 #if defined( _WIN32 )
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -139,7 +141,7 @@ typedef struct b3Thread
 	HANDLE thread;
 	b3ThreadFunction* function;
 	void* context;
-	char name[32];
+	char name[NAME_LENGTH];
 } b3Thread;
 
 typedef HRESULT( WINAPI* b3SetThreadDescriptionFn )( HANDLE, PCWSTR );
@@ -176,7 +178,7 @@ static void b3SetCurrentThreadName( const char* name )
 		return;
 	}
 
-	wchar_t wide[32];
+	wchar_t wide[NAME_LENGTH];
 	int n = MultiByteToWideChar( CP_UTF8, 0, name, -1, wide, (int)( sizeof( wide ) / sizeof( wide[0] ) ) );
 	if ( n > 0 )
 	{
@@ -314,7 +316,7 @@ typedef struct b3Thread
 	pthread_t thread;
 	b3ThreadFunction* function;
 	void* context;
-	char name[32];
+	char name[NAME_LENGTH];
 } b3Thread;
 
 static void b3SetCurrentThreadName( const char* name )
@@ -326,7 +328,7 @@ static void b3SetCurrentThreadName( const char* name )
 
 #if defined( __linux__ )
 	// Linux caps thread names at 15 chars + null terminator.
-	char truncated[16];
+	char truncated[NAME_LENGTH];
 	snprintf( truncated, sizeof( truncated ), "%s", name );
 	pthread_setname_np( pthread_self(), truncated );
 #else
@@ -490,7 +492,7 @@ typedef struct b3Thread
 	pthread_t thread;
 	b3ThreadFunction* function;
 	void* context;
-	char name[32];
+	char name[NAME_LENGTH];
 } b3Thread;
 
 // macOS pthread_setname_np takes only the name — it always names the calling thread.

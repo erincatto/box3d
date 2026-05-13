@@ -59,22 +59,13 @@ static inline b3V32 b3NegV( b3V32 a )
 	return _mm_sub_ps( _mm_setzero_ps(), a );
 }
 
-// Unaligned loads are much faster on recent hardware with little to no penalty
-// Note: This may read one extra float beyond a b3Vec3 for performance. Address sanitizer
-// is disabled for this function as the extra read is intentional and safe.
-#if defined( __linux__ ) || defined( __APPLE__ ) || defined( __clang__ )
-__attribute__( ( no_sanitize_address ) )
-#elif defined( _MSC_VER )
-__declspec( no_sanitize_address )
-#endif
-static inline b3V32
-b3LoadV( const float* src )
+static inline b3V32 b3LoadV( const float* src )
 {
-	const __m128i masK3 = _mm_setr_epi32( 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0 );
-
-	// Read an extra float which gets zeroed (to avoid NaN or Inf)
-	b3V32 a = _mm_loadu_ps( src );
-	return _mm_and_ps( a, _mm_castsi128_ps( masK3 ) );
+	// Loads exactly 12 bytes: 8 via movsd, 4 via movss.
+	// Result lane 3 is implicitly zero from the partial loads.
+	__m128 xy = _mm_castpd_ps( _mm_load_sd( (const double*)( src ) ) );
+	__m128 z = _mm_load_ss( src + 2 );
+	return _mm_movelh_ps( xy, z ); // { src[0], src[1], src[2], 0.0f }
 }
 
 static inline b3V32 b3ZeroV( void )
@@ -363,7 +354,8 @@ static inline bool b3TestBoundsRayOverlap( b3V32 nodeMin, b3V32 nodeMax, b3V32 r
 }
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 bool b3TestBoundsTriangleOverlap( b3V32 nodeCenter, b3V32 nodeExtent, b3V32 vertex1, b3V32 vertex2, b3V32 vertex3 );
