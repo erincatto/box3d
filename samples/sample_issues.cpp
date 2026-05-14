@@ -408,20 +408,29 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 12.0f, b3Vec3_zero );
-			EnableGrid( m_scene, true );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { -10.0f, 0.0f, -10.0f };
+			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			m_heightField = b3CreateGrid( 40, 40, { 0.5f, 1.0f, 0.5f }, false );
+			//m_heightField = b3CreateWave( 40, 40, {1.0f, 2.0f, 1.0f}, 0.02f, 0.04f, false );
+			b3CreateHeightFieldShape( groundId, &shapeDef, m_heightField );
+
+			m_gridMesh = b3CreateGridMesh( 40, 40, 0.5f, 1, true );
+			//b3CreateMeshShape( groundId, &shapeDef, m_gridMesh, b3Vec3_one );
 		}
 
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
+			// m_boxMesh = b3CreateBoxMesh( { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, true );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
-
-			//m_boxMesh = b3CreateBoxMesh( { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, true );
-			m_boxMesh = b3CreatePlatformMesh( { 0.0f, 1.5f, 0.0f }, 1.0f, 2.0f, 5.0f );
-			// m_scale = { -0.6f, 1.0f, 2.0f };
+			m_boxMesh = b3CreatePlatformMesh( { 0.0f, 0.5f, 0.0f }, 1.0f, 2.0f, 5.0f );
 			b3Vec3 scale = b3Vec3_one;
 			b3CreateMeshShape( groundId, &shapeDef, m_boxMesh, scale );
 		}
@@ -445,6 +454,8 @@ public:
 	~SBoxMover() override
 	{
 		b3DestroyMesh( m_boxMesh );
+		b3DestroyHeightField( m_heightField );
+		b3DestroyMesh( m_gridMesh );
 	}
 
 	void Render() override
@@ -460,6 +471,8 @@ public:
 	}
 
 	b3MeshData* m_boxMesh;
+	b3HeightField* m_heightField;
+	b3MeshData* m_gridMesh;
 };
 
 static int sampleBoxMesh = SampleManager::Register( "Issues", "s&box mover", SBoxMover::Create );

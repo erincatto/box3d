@@ -251,6 +251,11 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 					flags1 |= b3_concaveEdge2;
 					flags2 |= b3_concaveEdge2;
 				}
+				if ( separation < 0.0f || cosAngle > cos5Deg )
+				{
+					flags1 |= b3_inverseConcaveEdge2;
+					flags2 |= b3_inverseConcaveEdge2;
+				}
 			}
 
 			B3_UNUSED( center1 );
@@ -297,6 +302,10 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 				{
 					flags1 |= b3_concaveEdge3;
 				}
+				if ( separation < 0.0f || cosAngle > cos5Deg )
+				{
+					flags1 |= b3_inverseConcaveEdge3;
+				}
 			}
 
 			int bottomCellIndex = ( row + 1 ) * ( columnCount - 1 ) + column;
@@ -338,6 +347,10 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 				if ( separation > 0.0f || cosAngle > cos5Deg )
 				{
 					flags2 |= b3_concaveEdge3;
+				}
+				if ( separation < 0.0f || cosAngle > cos5Deg )
+				{
+					flags2 |= b3_inverseConcaveEdge3;
 				}
 			}
 
@@ -381,6 +394,10 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 				{
 					flags1 |= b3_concaveEdge1;
 				}
+				if ( separation < 0.0f || cosAngle > cos5Deg )
+				{
+					flags1 |= b3_inverseConcaveEdge1;
+				}
 			}
 
 			int rightCellIndex = row * ( columnCount - 1 ) + column + 1;
@@ -422,6 +439,10 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 				if ( separation > 0.0f || cosAngle > cos5Deg )
 				{
 					flags2 |= b3_concaveEdge1;
+				}
+				if ( separation < 0.0f || cosAngle > cos5Deg )
+				{
+					flags2 |= b3_inverseConcaveEdge1;
 				}
 			}
 
@@ -1427,8 +1448,9 @@ b3HeightField* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, float 
 			}
 			else
 			{
-				int materialCount = 3;
-				materialIndices[k] = (uint8_t)( ( i + j ) % materialCount );
+				//int materialCount = 3;
+				//materialIndices[k] = (uint8_t)( ( i + j ) % materialCount );
+				materialIndices[k] = 0;
 			}
 		}
 	}

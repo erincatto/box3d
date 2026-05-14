@@ -511,6 +511,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	b3Transform transformAtoB = b3InvMulTransforms( xfB, xfA );
 	b3Matrix3 relativeMatrix = b3MakeMatrixFromQuat( transformAtoB.q );
 	float linearSlop = B3_LINEAR_SLOP;
+	float restOffset = B3_MESH_REST_OFFSET;
 
 	// Make room for clip points
 	int pointBufferCapacity = B3_MAX_POINTS_PER_TRIANGLE * triangleCount;
@@ -790,13 +791,6 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 		}
 		return false;
 	}
-
-	// todo this should push apart shapes after a time of impact event
-	// todo consider doing this based on speed
-	// todo this must be constant or varied smoothly or there will be jitter
-	// In the past I've called this `polygon skin`, but PhysX and Unreal call it `rest offset` which
-	// seems appropriate in this case.
-	float restOffset = linearSlop;
 
 	b3Cluster* clusters = b3Bump( &arena, acceptedManifoldCount * sizeof( b3Cluster ) );
 	int* clusterMemberships = b3Bump( &arena, acceptedManifoldCount * sizeof( int ) );

@@ -61,6 +61,12 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 // @warning modifying this can have a significant impact on performance and stability
 #define B3_SPECULATIVE_DISTANCE ( 4.0f * B3_LINEAR_SLOP )
 
+// The rest offset is used for mesh contact to avoid ghost collisions. It tries to 
+// key the shapes pushed apart by this distance. Must be less than B3_SPECULATIVE_DISTANCE.
+#ifndef B3_MESH_REST_OFFSET
+#define B3_MESH_REST_OFFSET ( 1.0f * B3_LINEAR_SLOP )
+#endif
+
 /// The default contact recycling distance.
 #define B3_CONTACT_RECYCLE_DISTANCE ( 10.0f * B3_LINEAR_SLOP )
 
