@@ -231,7 +231,7 @@ static bool b3PairQueryCallback( int proxyId, uint64_t userData, void* context )
 	else
 	{
 		B3_ASSERT( treeType == b3_dynamicBody );
-			bool moved = b3GetBit( &broadPhase->movedProxies[treeType], proxyId );
+		bool moved = b3GetBit( &broadPhase->movedProxies[treeType], proxyId );
 		if ( moved )
 		{
 			// Both proxies are moving. Avoid duplicate pairs.
@@ -342,12 +342,6 @@ static void b3FindPairsTask( int startIndex, int endIndex, int workerIndex, void
 		queryContext.moveResult->pairList = NULL;
 
 		int proxyKey = bp->moveArray.data[i];
-		if ( proxyKey == B3_NULL_INDEX )
-		{
-			// proxy was destroyed after it moved
-			continue;
-		}
-
 		b3BodyType proxyType = B3_PROXY_TYPE( proxyKey );
 
 		int proxyId = B3_PROXY_ID( proxyKey );
@@ -482,10 +476,6 @@ void b3UpdateBroadPhasePairs( b3World* world )
 	for ( int i = 0; i < bp->moveArray.count; ++i )
 	{
 		int proxyKey = bp->moveArray.data[i];
-		if ( proxyKey == B3_NULL_INDEX )
-		{
-			continue;
-		}
 		b3ClearBit( &bp->movedProxies[B3_PROXY_TYPE( proxyKey )], B3_PROXY_ID( proxyKey ) );
 	}
 	b3Array_Clear( bp->moveArray );
