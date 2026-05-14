@@ -792,8 +792,8 @@ public:
 		m_rowCount = 400;
 		m_columnCount = 400;
 #else
-		m_rowCount = 100;
-		m_columnCount = 100;
+		m_rowCount = 10;
+		m_columnCount = 10;
 #endif
 
 		m_groundId = {};
@@ -807,9 +807,9 @@ public:
 		// m_rayOrigin = { 30.0f, 2.0f, 0.0f };
 		// m_rayTranslation = { -60.0f, -4.0f, 0.0f };
 
-		m_rayOrigin = { 0.0f, 2.0f, 15.0f };
-		m_rayTranslation = { 0.0f, -4.0f, 0.0f };
-		m_radius = 0.571f;
+		m_rayOrigin = { 5.5f, 4.0f, 1.01f };
+		m_rayTranslation = { 0.0f, -8.0f, 0.0f };
+		m_radius = 0.2f;
 
 		m_heightField = nullptr;
 
@@ -887,11 +887,11 @@ public:
 		float fontSize = ImGui::GetFontSize();
 		float height = 18.0f * fontSize;
 		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 20.0f * fontSize, height } );
+		ImGui::SetNextWindowSize( { 40.0f * fontSize, height } );
 
 		ImGui::Begin( "Height Field", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
 
-		ImGui::PushItemWidth( 200.0f );
+		ImGui::PushItemWidth( 500.0f );
 
 		if ( ImGui::SliderInt( "columns", &m_columnCount, 1, 500 ) )
 		{
@@ -913,10 +913,10 @@ public:
 			CreateScene();
 		}
 
-		ImGui::SliderFloat( "ray x", &m_rayOrigin.x, -2.0f * m_radius - 1.0f * m_scale.x * ( m_columnCount - 1 ),
-							2.0f * m_radius + 1.0f * m_scale.x * ( m_columnCount - 1 ) );
-		ImGui::SliderFloat( "ray z", &m_rayOrigin.z, -2.0f * m_radius - 1.0f * m_scale.z * ( m_rowCount - 1 ),
-							2.0f * m_radius + 1.0f * m_scale.z * ( m_rowCount - 1 ) );
+		ImGui::SliderFloat( "ray x", &m_rayOrigin.x, -2.0f * m_radius - 0.5f * m_scale.x * ( m_columnCount - 1 ),
+							2.0f * m_radius + 0.5f * m_scale.x * ( m_columnCount - 1 ) );
+		ImGui::SliderFloat( "ray z", &m_rayOrigin.z, -2.0f * m_radius - 0.5f * m_scale.z * ( m_rowCount - 1 ),
+							2.0f * m_radius + 0.5f * m_scale.z * ( m_rowCount - 1 ) );
 		ImGui::SliderFloat( "delta x", &m_rayTranslation.x, -2.0f * m_scale.x * ( m_columnCount - 1 ),
 							2.0f * m_scale.x * ( m_columnCount - 1 ) );
 		ImGui::SliderFloat( "delta z", &m_rayTranslation.z, -2.0f * m_scale.z * ( m_rowCount - 1 ),

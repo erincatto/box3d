@@ -605,6 +605,12 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 	b3Vec3 clampedDelta = b3MulSV( maxFraction - minFraction, shapeDelta );
 	b3Vec3 clampedEnd = b3Add( clampedStart, clampedDelta );
 
+	// Preserve the un-shifted center sweep. clampedStart/clampedEnd get pushed out to the
+	// leading box corner below to drive the grid DDA, but the swept-volume AABB used to
+	// cull cells must stay centered on the actual shape path.
+	b3Vec3 centerStart = clampedStart;
+	b3Vec3 centerEnd = clampedEnd;
+
 	// The grid traversal starts from the leading shape bounds corner
 	float signX, signZ;
 	if ( shapeTranslation.x >= 0.0f )
@@ -712,6 +718,14 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 
 	float bestFraction = input->maxFraction;
 
+	// nextFractionX / nextFractionZ advance in units of the clamped sweep
+	// [minFraction, maxFraction], but bestFraction is a fraction of the full input
+	// translation. Precompute the affine map from clamped space to input space so
+	// the loop termination test compares like with like — otherwise it can exit
+	// early and miss a closer hit in a later cell.
+	float gridFractionScale = input->maxFraction * ( maxFraction - minFraction );
+	float gridFractionOffset = input->maxFraction * minFraction;
+
 	int rowCount = heightField->rowCount;
 	int columnCount = heightField->columnCount;
 	int cellCount = ( heightField->rowCount - 1 ) * ( heightField->columnCount - 1 );
@@ -729,8 +743,8 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 	pairInput.canEncroach = input->canEncroach;
 
 	b3AABB castBounds;
-	castBounds.lowerBound = b3Sub( b3Min( clampedStart, clampedEnd ), shapeExtents );
-	castBounds.upperBound = b3Add( b3Max( clampedStart, clampedEnd ), shapeExtents );
+	castBounds.lowerBound = b3Sub( b3Min( centerStart, centerEnd ), shapeExtents );
+	castBounds.upperBound = b3Add( b3Max( centerStart, centerEnd ), shapeExtents );
 
 	b3V32 rayOrigin = b3LoadV( &shapeStart.x );
 	b3V32 rayTranslation = b3LoadV( &shapeTranslation.x );
@@ -938,8 +952,12 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 			}
 		}
 
-		// These fractions always increase to guarantee the loop eventually exits
-		if ( nextFractionX > bestFraction && nextFractionZ > bestFraction )
+		// These fractions always increase to guarantee the loop eventually exits.
+		// Map them from clamped-sweep space into input-translation space before
+		// comparing against bestFraction.
+		float inputFractionX = nextFractionX == FLT_MAX ? FLT_MAX : gridFractionOffset + nextFractionX * gridFractionScale;
+		float inputFractionZ = nextFractionZ == FLT_MAX ? FLT_MAX : gridFractionOffset + nextFractionZ * gridFractionScale;
+		if ( inputFractionX > bestFraction && inputFractionZ > bestFraction )
 		{
 			break;
 		}
