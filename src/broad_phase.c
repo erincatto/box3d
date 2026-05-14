@@ -19,7 +19,9 @@ void b3CreateBroadPhase( b3BroadPhase* bp, const b3Capacity* capacity )
 {
 	_Static_assert( b3_bodyTypeCount == 3, "must be three body types" );
 
-	bp->moveSet = b3CreateSet( 2 * capacity->dynamicShapeCount );
+	bp->movedProxies[b3_staticBody] = b3CreateBitSet( b3MaxInt( 16, capacity->staticShapeCount ) );
+	bp->movedProxies[b3_kinematicBody] = b3CreateBitSet( 16 );
+	bp->movedProxies[b3_dynamicBody] = b3CreateBitSet( b3MaxInt( 16, capacity->dynamicShapeCount ) );
 	b3Array_Reserve( bp->moveArray, capacity->dynamicShapeCount );
 	bp->moveResults = NULL;
 	bp->movePairs = NULL;
@@ -44,7 +46,10 @@ void b3DestroyBroadPhase( b3BroadPhase* bp )
 		b3DynamicTree_Destroy( bp->trees + i );
 	}
 
-	b3DestroySet( &bp->moveSet );
+	for ( int i = 0; i < b3_bodyTypeCount; ++i )
+	{
+		b3DestroyBitSet( &bp->movedProxies[i] );
+	}
 	b3Array_Destroy( bp->moveArray );
 	b3DestroySet( &bp->pairSet );
 
@@ -55,10 +60,14 @@ void b3DestroyBroadPhase( b3BroadPhase* bp )
 
 static void b3UnBufferMove( b3BroadPhase* bp, int proxyKey )
 {
-	bool found = b3RemoveKey( &bp->moveSet, proxyKey + 1 );
+	b3BodyType proxyType = B3_PROXY_TYPE( proxyKey );
+	int proxyId = B3_PROXY_ID( proxyKey );
+	b3BitSet* set = &bp->movedProxies[proxyType];
 
-	if ( found )
+	if ( b3GetBit( set, proxyId ) )
 	{
+		b3ClearBit( set, proxyId );
+
 		// Purge from move buffer. Linear search.
 		// todo if I can iterate the move set then I don't need the moveArray
 		int count = bp->moveArray.count;
@@ -88,7 +97,6 @@ int b3BroadPhase_CreateProxy( b3BroadPhase* bp, b3BodyType proxyType, b3AABB aab
 
 void b3BroadPhase_DestroyProxy( b3BroadPhase* bp, int proxyKey )
 {
-	B3_ASSERT( bp->moveArray.count == (int)bp->moveSet.count );
 	b3UnBufferMove( bp, proxyKey );
 
 	b3BodyType proxyType = B3_PROXY_TYPE( proxyKey );
@@ -203,22 +211,16 @@ static bool b3PairQueryCallback( int proxyId, uint64_t userData, void* context )
 
 	// De-duplication
 	// It is important to prevent duplicate contacts from being created. Ideally I can prevent duplicates
-	// early and in the worker. Most of the time the moveSet contains dynamic and kinematic proxies, but
-	// sometimes it has static proxies.
-
-	// I had an optimization here to skip checking the move set if this is a query into
-	// the static tree. The assumption is that the static proxies are never in the move set
-	// so there is no risk of duplication. However, this is not true with
-	// b3ShapeDef::invokeContactCreation or when a static shape is modified.
-	// There can easily be scenarios where the static proxy is in the moveSet but the dynamic proxy is not.
-	// I could have some flag to indicate that there are any static bodies in the moveSet.
+	// early and in the worker. Most of the time the movedProxies bit sets contain dynamic and kinematic
+	// proxies, but sometimes static proxies are in there too (b3ShapeDef::invokeContactCreation or a
+	// modified static shape), so we always have to check.
 
 	// Is this proxy also moving?
 	if ( queryProxyType == b3_dynamicBody )
 	{
 		if ( treeType == b3_dynamicBody && proxyKey < queryProxyKey )
 		{
-			bool moved = b3ContainsKey( &broadPhase->moveSet, proxyKey + 1 );
+			bool moved = b3GetBit( &broadPhase->movedProxies[treeType], proxyId );
 			if ( moved )
 			{
 				// Both proxies are moving. Avoid duplicate pairs.
@@ -229,7 +231,7 @@ static bool b3PairQueryCallback( int proxyId, uint64_t userData, void* context )
 	else
 	{
 		B3_ASSERT( treeType == b3_dynamicBody );
-		bool moved = b3ContainsKey( &broadPhase->moveSet, proxyKey + 1 );
+			bool moved = b3GetBit( &broadPhase->movedProxies[treeType], proxyId );
 		if ( moved )
 		{
 			// Both proxies are moving. Avoid duplicate pairs.
@@ -403,7 +405,6 @@ void b3UpdateBroadPhasePairs( b3World* world )
 	b3BroadPhase* bp = &world->broadPhase;
 
 	int moveCount = bp->moveArray.count;
-	B3_ASSERT( moveCount == (int)bp->moveSet.count );
 
 	if ( moveCount == 0 )
 	{
@@ -476,9 +477,18 @@ void b3UpdateBroadPhasePairs( b3World* world )
 		}
 	}
 
-	// Reset move buffer
+	// Reset move buffer: clear only the bits that were set this step.
+	// Invariant: bit set in movedProxies[type] iff proxyKey is present in moveArray.
+	for ( int i = 0; i < bp->moveArray.count; ++i )
+	{
+		int proxyKey = bp->moveArray.data[i];
+		if ( proxyKey == B3_NULL_INDEX )
+		{
+			continue;
+		}
+		b3ClearBit( &bp->movedProxies[B3_PROXY_TYPE( proxyKey )], B3_PROXY_ID( proxyKey ) );
+	}
 	b3Array_Clear( bp->moveArray );
-	b3ClearSet( &bp->moveSet );
 
 	b3StackFree( alloc, bp->movePairs );
 	bp->movePairs = NULL;

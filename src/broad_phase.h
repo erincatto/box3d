@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "bitset.h"
 #include "container.h"
 #include "table.h"
 
@@ -27,12 +28,9 @@ typedef struct b3BroadPhase
 {
 	b3DynamicTree trees[b3_bodyTypeCount];
 
-	// The move set and array are used to track shapes that have moved significantly
-	// and need a pair query for new contacts. The array has a deterministic order.
-	// todo perhaps just a move set?
-	// todo implement a 32bit hash set for faster lookup
-	// todo moveSet can grow quite large on the first time step and remain large
-	b3HashSet moveSet;
+	// Per body-type bit sets indexed by proxyId, marking proxies moved this step.
+	// Paired with moveArray which preserves deterministic insertion order for pair queries.
+	b3BitSet movedProxies[b3_bodyTypeCount];
 	b3ArrayC( int ) moveArray;
 
 	// These are the results from the pair query and are used to create new contacts
@@ -70,10 +68,12 @@ void b3ValidateNoEnlarged( const b3BroadPhase* bp );
 // Warning: this must be called in deterministic order
 static inline void b3BufferMove( b3BroadPhase* bp, int queryProxy )
 {
-	// Adding 1 because 0 is the sentinel
-	bool alreadyAdded = b3AddKey( &bp->moveSet, queryProxy + 1 );
-	if ( alreadyAdded == false )
+	b3BodyType proxyType = B3_PROXY_TYPE( queryProxy );
+	int proxyId = B3_PROXY_ID( queryProxy );
+	b3BitSet* set = &bp->movedProxies[proxyType];
+	if ( b3GetBit( set, proxyId ) == false )
 	{
+		b3SetBitGrow( set, proxyId );
 		b3Array_Push( bp->moveArray, queryProxy );
 	}
 }

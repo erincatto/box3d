@@ -402,6 +402,115 @@ void StepRain( b3WorldId worldId, int stepCount )
 	}
 }
 
+// Static Floor: a huge grid of static box bodies with b3ShapeDef::invokeContactCreation = true,
+// plus a small number of dynamic spheres that drop onto it staggered over time. The point of this
+// benchmark is to exercise the b3BroadPhase move buffer at steady state when it was once populated
+// with ~staticShapeCount entries and now sees only a handful of dynamic moves per step.
+#define STATIC_FLOOR_CELL_SIZE 10.0f
+#if BENCHMARK_DEBUG
+#define STATIC_FLOOR_GRID 32
+#define STATIC_FLOOR_SPHERES 16
+#define STATIC_FLOOR_DROP_INTERVAL 8
+#else
+#define STATIC_FLOOR_GRID 1000
+#define STATIC_FLOOR_SPHERES 100
+#define STATIC_FLOOR_DROP_INTERVAL 5
+#endif
+
+typedef struct StaticFloorData
+{
+	int spheresDropped;
+} StaticFloorData;
+
+static StaticFloorData g_staticFloorData;
+
+void GetStaticFloorCapacity( b3Capacity* capacity )
+{
+	int floorCount = STATIC_FLOOR_GRID * STATIC_FLOOR_GRID;
+	capacity->staticShapeCount = floorCount;
+	capacity->staticBodyCount = floorCount;
+	capacity->dynamicShapeCount = STATIC_FLOOR_SPHERES;
+	capacity->dynamicBodyCount = STATIC_FLOOR_SPHERES;
+	capacity->contactCount = b3MaxInt( 1024, 8 * STATIC_FLOOR_SPHERES );
+}
+
+void CreateStaticFloor( b3WorldId worldId )
+{
+	memset( &g_staticFloorData, 0, sizeof( g_staticFloorData ) );
+
+	float cell = STATIC_FLOOR_CELL_SIZE;
+	int gridCount = STATIC_FLOOR_GRID;
+	float halfSpan = 0.5f * cell * gridCount;
+
+	b3BoxHull box = b3MakeBoxHull( 0.5f * cell, 0.25f, 0.5f * cell );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+	// The trigger: every static shape gets buffered into the move set on creation.
+	shapeDef.invokeContactCreation = true;
+
+	for ( int i = 0; i < gridCount; ++i )
+	{
+		float x = -halfSpan + ( i + 0.5f ) * cell;
+		for ( int j = 0; j < gridCount; ++j )
+		{
+			float z = -halfSpan + ( j + 0.5f ) * cell;
+			bodyDef.position = (b3Vec3){ x, 0.0f, z };
+			b3BodyId body = b3CreateBody( worldId, &bodyDef );
+			b3CreateHullShape( body, &shapeDef, &box.base );
+		}
+	}
+}
+
+void StepStaticFloor( b3WorldId worldId, int stepCount )
+{
+	if ( g_staticFloorData.spheresDropped >= STATIC_FLOOR_SPHERES )
+	{
+		return;
+	}
+
+	if ( stepCount == 0 )
+	{
+		return;
+	}
+
+	if ( ( stepCount % STATIC_FLOOR_DROP_INTERVAL ) != 0 )
+	{
+		return;
+	}
+
+	// Spread spheres in a coarse grid across the floor so they don't all pile on one box.
+	int side = 1;
+	while ( side * side < STATIC_FLOOR_SPHERES )
+	{
+		side += 1;
+	}
+
+	int idx = g_staticFloorData.spheresDropped;
+	int gi = idx % side;
+	int gj = idx / side;
+
+	float halfSpan = 0.5f * STATIC_FLOOR_CELL_SIZE * STATIC_FLOOR_GRID;
+	// Confine drops to the inner 80% of the floor so spheres can't roll off the edge.
+	float inset = 0.1f * 2.0f * halfSpan;
+	float usable = 2.0f * halfSpan - 2.0f * inset;
+	float x = -halfSpan + inset + ( gi + 0.5f ) * ( usable / side );
+	float z = -halfSpan + inset + ( gj + 0.5f ) * ( usable / side );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Vec3){ x, 1.5f, z };
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+
+	b3BodyId body = b3CreateBody( worldId, &bodyDef );
+	b3CreateSphereShape( body, &shapeDef, &sphere );
+
+	g_staticFloorData.spheresDropped += 1;
+}
+
 void GetWasherCapacity( b3Capacity* capacity )
 {
 	capacity->staticShapeCount = 16;

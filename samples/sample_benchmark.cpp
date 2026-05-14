@@ -1095,6 +1095,39 @@ public:
 
 static int benchmarkWasher = SampleManager::Register( "Benchmark", "Washer", BenchmarkWasher::Create );
 
+class BenchmarkStaticFloor : public Sample
+{
+public:
+	explicit BenchmarkStaticFloor( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 60.0f, 80.0f, b3Vec3_zero );
+			EnableGrid( m_scene, false );
+		}
+
+		b3Capacity capacity = {};
+		GetStaticFloorCapacity( &capacity );
+		CreateWorld( &capacity );
+
+		CreateStaticFloor( m_worldId );
+	}
+
+	void Step() override
+	{
+		StepStaticFloor( m_worldId, m_stepCount );
+		Sample::Step();
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new BenchmarkStaticFloor( context );
+	}
+};
+
+static int sampleStaticFloor = SampleManager::Register( "Benchmark", "Static Floor", BenchmarkStaticFloor::Create );
+
 class BenchmarkHull : public Sample
 {
 public:
