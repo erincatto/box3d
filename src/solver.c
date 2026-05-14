@@ -2181,7 +2181,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 				B3_ASSERT( B3_PROXY_TYPE( proxyKey ) == b3_dynamicBody );
 
 				// all fast bullet shapes should already be in the move buffer
-				B3_ASSERT( b3ContainsKey( &broadPhase->moveSet, proxyKey + 1 ) );
+				B3_ASSERT( b3GetBit( &broadPhase->movedProxies[b3_dynamicBody], proxyId ) );
 
 				b3DynamicTree_EnlargeProxy( dynamicTree, proxyId, shape->fatAABB );
 

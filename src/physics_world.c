@@ -2115,8 +2115,12 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	fprintf( file, "static tree: %d\n", b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_staticBody ) );
 	fprintf( file, "kinematic tree: %d\n", b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_kinematicBody ) );
 	fprintf( file, "dynamic tree: %d\n", b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_dynamicBody ) );
-	b3HashSet* moveSet = &world->broadPhase.moveSet;
-	fprintf( file, "moveSet: %d (%d, %d)\n", b3GetHashSetBytes( moveSet ), moveSet->count, moveSet->capacity );
+	int movedBytes = 0;
+	for ( int i = 0; i < b3_bodyTypeCount; ++i )
+	{
+		movedBytes += b3GetBitSetBytes( &world->broadPhase.movedProxies[i] );
+	}
+	fprintf( file, "movedProxies: %d\n", movedBytes );
 	fprintf( file, "moveArray: %d\n", b3Array_ByteCount( world->broadPhase.moveArray ) );
 	b3HashSet* pairSet = &world->broadPhase.pairSet;
 	fprintf( file, "pairSet: %d (%d, %d)\n", b3GetHashSetBytes( pairSet ), pairSet->count, pairSet->capacity );
