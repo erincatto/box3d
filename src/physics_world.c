@@ -154,6 +154,9 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 {
 	B3_CHECK_DEF( def );
 
+	B3_ASSERT( B3_LINEAR_SLOP <= B3_MESH_REST_OFFSET );
+	B3_ASSERT( B3_MESH_REST_OFFSET < B3_SPECULATIVE_DISTANCE );
+
 	int worldId = B3_NULL_INDEX;
 	for ( int i = 0; i < B3_MAX_WORLDS; ++i )
 	{
@@ -581,7 +584,7 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 		// This is inspired by persistent contact manifolds used in some physics engines, such as PhysX.
 		// However, this allows larger relative motion and has fewer tuning parameters (just one).
 		if ( ( isFast == false || isMeshContact == false ) && recycleDistance > 0.0f &&
-			 (contact->flags & b3_relativeTransformValid) && (contact->flags & b3_contactRecycleFlag) )
+			 ( contact->flags & b3_relativeTransformValid ) && ( contact->flags & b3_contactRecycleFlag ) )
 		{
 			float angleA = b3DotQuat( transformA.q, contact->cachedTransformA.q );
 			float angleB = b3DotQuat( transformB.q, contact->cachedTransformB.q );
@@ -982,7 +985,6 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 
 	world->profile = (b3Profile){ 0 };
 
-
 	world->activeTaskCount = 0;
 	world->taskCount = 0;
 
@@ -1088,7 +1090,6 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 
 	// Make sure all tasks that were started were also finished
 	B3_ASSERT( world->activeTaskCount == 0 );
-
 
 	// Swap end event array buffers
 	world->endEventArrayIndex = 1 - world->endEventArrayIndex;

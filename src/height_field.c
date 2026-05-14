@@ -1448,8 +1448,6 @@ b3HeightField* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, float 
 			}
 			else
 			{
-				//int materialCount = 3;
-				//materialIndices[k] = (uint8_t)( ( i + j ) % materialCount );
 				materialIndices[k] = 0;
 			}
 		}

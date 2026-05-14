@@ -43,26 +43,28 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 
 #define B3_MIN_CAPSULE_LENGTH ( B3_LINEAR_SLOP )
 
-// The distance between shapes where they are considered overlapped. This is needed
-// because GJK may return small positive values for overlapped shapes in degenerate
-// configurations.
+/// The distance between shapes where they are considered overlapped. This is needed
+/// because GJK may return small positive values for overlapped shapes in degenerate
+/// configurations.
 #define B3_OVERLAP_SLOP ( 0.1f * B3_LINEAR_SLOP )
 
-// Maximum number of simultaneous worlds that can be allocated
+/// Maximum number of simultaneous worlds that can be allocated
 #ifndef B3_MAX_WORLDS
 #define B3_MAX_WORLDS 128
 #endif
 
-// The maximum rotation of a body per time step. This limit is very large and is used
-// to prevent numerical problems. You shouldn't need to adjust this.
-// @warning increasing this to 0.5f * b3_pi or greater will break continuous collision.
+/// The maximum rotation of a body per time step. This limit is very large and is used
+/// to prevent numerical problems. You shouldn't need to adjust this.
+/// @warning increasing this to 0.5f * b3_pi or greater will break continuous collision.
 #define B3_MAX_ROTATION ( 0.25f * B3_PI )
 
-// @warning modifying this can have a significant impact on performance and stability
+/// @warning modifying this can have a significant impact on performance and stability
 #define B3_SPECULATIVE_DISTANCE ( 4.0f * B3_LINEAR_SLOP )
 
-// The rest offset is used for mesh contact to avoid ghost collisions. It tries to 
-// key the shapes pushed apart by this distance. Must be less than B3_SPECULATIVE_DISTANCE.
+/// The rest offset is used for mesh contact to reduce ghost collisions and assist with CCD.
+/// The rest offset adjusts the contact point separation value, making the solver push the shapes
+/// apart by this distance.
+/// Must be at least B3_LINEAR_SLOP and less than B3_SPECULATIVE_DISTANCE.
 #ifndef B3_MESH_REST_OFFSET
 #define B3_MESH_REST_OFFSET ( 1.0f * B3_LINEAR_SLOP )
 #endif
@@ -74,16 +76,16 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 /// is cos(angle/2)^2. This value corresponds to 10 degrees.
 #define B3_CONTACT_RECYCLE_ANGULAR_DISTANCE ( 0.99240388f )
 
-// This is used to fatten AABBs in the dynamic tree. This allows proxies
-// to move by a small amount without triggering a tree adjustment. This is in meters.
-// @warning modifying this can have a significant impact on performance
+/// This is used to fatten AABBs in the dynamic tree. This allows proxies
+/// to move by a small amount without triggering a tree adjustment. This is in meters.
+/// @warning modifying this can have a significant impact on performance
 #define B3_MAX_AABB_MARGIN ( 0.05f * b3GetLengthUnitsPerMeter() )
 
-// Per-shape AABB margin is a fraction of the shape extent (capped by B3_MAX_AABB_MARGIN).
-// Small shapes get small margins; large shapes are clamped to the cap.
+/// Per-shape AABB margin is a fraction of the shape extent (capped by B3_MAX_AABB_MARGIN).
+/// Small shapes get small margins; large shapes are clamped to the cap.
 #define B3_AABB_MARGIN_FRACTION 0.125f
 
-// The time that a body must be still before it will go to sleep. In seconds.
+/// The time that a body must be still before it will go to sleep. In seconds.
 #define B3_TIME_TO_SLEEP 0.5f
 
 /// Maximum length of the body name. Must be at least 1. Includes null termination.
@@ -91,7 +93,7 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 #define B3_NAME_LENGTH 18
 #endif
 
-// These generous limits allow for easy hashing. See b3ShapePairKey.
+/// These generous limits allow for easy hashing. See b3ShapePairKey.
 #define B3_SHAPE_POWER 22
 #define B3_CHILD_POWER ( 64 - 2 * B3_SHAPE_POWER )
 #define B3_MAX_SHAPES ( 1 << B3_SHAPE_POWER )

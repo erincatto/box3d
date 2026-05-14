@@ -511,6 +511,12 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	b3Transform transformAtoB = b3InvMulTransforms( xfB, xfA );
 	b3Matrix3 relativeMatrix = b3MakeMatrixFromQuat( transformAtoB.q );
 	float linearSlop = B3_LINEAR_SLOP;
+
+	// This should push apart shapes after a time of impact event.
+	// In the past I've called this `polygon skin`, but PhysX and Unreal
+	// call it `rest offset` which seems appropriate in this case.
+	// It leads to a small visual gap but seems to improve the quality of mesh
+	// collision, especially for hull versus mesh.
 	float restOffset = B3_MESH_REST_OFFSET;
 
 	// Make room for clip points
