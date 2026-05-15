@@ -472,6 +472,39 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 _Static_assert( b3_concaveEdge3 == 4 * b3_concaveEdge1, "bit math" );
 _Static_assert( b3_inverseConcaveEdge3 == 4 * b3_inverseConcaveEdge1, "bit math" );
 
+// Decode the four corner vertices of a height field cell into local space.
+// Output order matches the index naming used throughout this file:
+// corners[0] = (column, row), corners[1] = (column + 1, row),
+// corners[2] = (column, row + 1), corners[3] = (column + 1, row + 1).
+static inline void b3GetHeightFieldCellCorners( const b3HeightField* hf, int row, int column, b3Vec3 corners[4] )
+{
+	int columnCount = hf->columnCount;
+	int index11 = row * columnCount + column;
+	int index12 = index11 + 1;
+	int index21 = ( row + 1 ) * columnCount + column;
+	int index22 = index21 + 1;
+
+	float minHeight = hf->minHeight;
+	float heightScale = hf->heightScale;
+	const uint16_t* heights = hf->compressedHeights;
+
+	float height11 = minHeight + heightScale * heights[index11];
+	float height12 = minHeight + heightScale * heights[index12];
+	float height21 = minHeight + heightScale * heights[index21];
+	float height22 = minHeight + heightScale * heights[index22];
+
+	float x1 = (float)( column );
+	float x2 = (float)( column + 1 );
+	float z1 = (float)( row );
+	float z2 = (float)( row + 1 );
+
+	b3Vec3 scale = hf->scale;
+	corners[0] = b3Mul( scale, (b3Vec3){ x1, height11, z1 } );
+	corners[1] = b3Mul( scale, (b3Vec3){ x2, height12, z1 } );
+	corners[2] = b3Mul( scale, (b3Vec3){ x1, height21, z2 } );
+	corners[3] = b3Mul( scale, (b3Vec3){ x2, height22, z2 } );
+}
+
 b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int triangleIndex )
 {
 	B3_ASSERT( 0 <= triangleIndex );
@@ -496,35 +529,23 @@ b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int trian
 	B3_ASSERT( heightField->materialIndices[cellIndex] != B3_HEIGHT_FIELD_HOLE );
 	B3_UNUSED( cellIndex );
 
-	float minHeight = heightField->minHeight;
-	float heightScale = heightField->heightScale;
-	const uint16_t* heights = heightField->compressedHeights;
+	b3Vec3 corners[4];
+	b3GetHeightFieldCellCorners( heightField, row, column, corners );
 
-	float height11 = minHeight + heightScale * heights[index11];
-	float height12 = minHeight + heightScale * heights[index12];
-	float height21 = minHeight + heightScale * heights[index21];
-	float height22 = minHeight + heightScale * heights[index22];
-
-	float x1 = (float)( column );
-	float x2 = (float)( column + 1 );
-	float z1 = (float)( row );
-	float z2 = (float)( row + 1 );
-
-	b3Vec3 scale = heightField->scale;
 	if ( ( triangleIndex & 1 ) == 0 )
 	{
-		triangle.vertices[0] = b3Mul( scale, (b3Vec3){ x1, height11, z1 } );
-		triangle.vertices[1] = b3Mul( scale, (b3Vec3){ x1, height21, z2 } );
-		triangle.vertices[2] = b3Mul( scale, (b3Vec3){ x2, height12, z1 } );
+		triangle.vertices[0] = corners[0];
+		triangle.vertices[1] = corners[2];
+		triangle.vertices[2] = corners[1];
 		triangle.i1 = index11;
 		triangle.i2 = index21;
 		triangle.i3 = index12;
 	}
 	else
 	{
-		triangle.vertices[0] = b3Mul( scale, (b3Vec3){ x2, height22, z2 } );
-		triangle.vertices[1] = b3Mul( scale, (b3Vec3){ x2, height12, z1 } );
-		triangle.vertices[2] = b3Mul( scale, (b3Vec3){ x1, height21, z2 } );
+		triangle.vertices[0] = corners[3];
+		triangle.vertices[1] = corners[1];
+		triangle.vertices[2] = corners[2];
 		triangle.i1 = index22;
 		triangle.i2 = index12;
 		triangle.i3 = index21;
@@ -731,10 +752,6 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 	int cellCount = ( heightField->rowCount - 1 ) * ( heightField->columnCount - 1 );
 	B3_UNUSED( cellCount );
 
-	float minHeight = heightField->minHeight;
-	float heightScale = heightField->heightScale;
-	const uint16_t* heights = heightField->compressedHeights;
-
 	b3ShapeCastPairInput pairInput = { 0 };
 	pairInput.transformA = b3Transform_identity;
 	pairInput.proxyB = input->proxy;
@@ -798,27 +815,12 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 					continue;
 				}
 
-				// 	index = row * columnCount + column
-				int index11 = row * columnCount + column;
-
-				int index12 = index11 + 1;
-				int index21 = ( row + 1 ) * columnCount + column;
-				int index22 = index21 + 1;
-
-				float height11 = minHeight + heightScale * heights[index11];
-				float height12 = minHeight + heightScale * heights[index12];
-				float height21 = minHeight + heightScale * heights[index21];
-				float height22 = minHeight + heightScale * heights[index22];
-
-				float x1 = (float)( column );
-				float x2 = (float)( column + 1 );
-				float z1 = (float)( row );
-				float z2 = (float)( row + 1 );
-
-				b3Vec3 point11 = b3Mul( scale, (b3Vec3){ x1, height11, z1 } );
-				b3Vec3 point12 = b3Mul( scale, (b3Vec3){ x2, height12, z1 } );
-				b3Vec3 point21 = b3Mul( scale, (b3Vec3){ x1, height21, z2 } );
-				b3Vec3 point22 = b3Mul( scale, (b3Vec3){ x2, height22, z2 } );
+				b3Vec3 corners[4];
+				b3GetHeightFieldCellCorners( heightField, row, column, corners );
+				b3Vec3 point11 = corners[0];
+				b3Vec3 point12 = corners[1];
+				b3Vec3 point21 = corners[2];
+				b3Vec3 point22 = corners[3];
 
 				// I know the min/max x and z values, but not the min/max heights.
 				b3AABB bounds;
@@ -1049,11 +1051,6 @@ bool b3OverlapHeightField( const b3HeightField* shape, b3Transform shapeTransfor
 
 	b3SimplexCache cache = { 0 };
 
-	float minHeight = shape->minHeight;
-	float heightScale = shape->heightScale;
-
-	const uint16_t* heights = shape->compressedHeights;
-
 	// Outer loop on rows and inner loop on columns so that triangle indices
 	// increase monotonically.
 	for ( int row = minRow; row <= maxRow; ++row )
@@ -1078,26 +1075,12 @@ bool b3OverlapHeightField( const b3HeightField* shape, b3Transform shapeTransfor
 				continue;
 			}
 
-			// 	index = row * columnCount + column
-			int index11 = row * shape->columnCount + column;
-			int index12 = index11 + 1;
-			int index21 = ( row + 1 ) * shape->columnCount + column;
-			int index22 = index21 + 1;
-
-			float height11 = minHeight + heightScale * heights[index11];
-			float height12 = minHeight + heightScale * heights[index12];
-			float height21 = minHeight + heightScale * heights[index21];
-			float height22 = minHeight + heightScale * heights[index22];
-
-			float x1 = (float)( column );
-			float x2 = (float)( column + 1 );
-			float z1 = (float)( row );
-			float z2 = (float)( row + 1 );
-
-			b3Vec3 point11 = b3Mul( scale, (b3Vec3){ x1, height11, z1 } );
-			b3Vec3 point12 = b3Mul( scale, (b3Vec3){ x2, height12, z1 } );
-			b3Vec3 point21 = b3Mul( scale, (b3Vec3){ x1, height21, z2 } );
-			b3Vec3 point22 = b3Mul( scale, (b3Vec3){ x2, height22, z2 } );
+			b3Vec3 corners[4];
+			b3GetHeightFieldCellCorners( shape, row, column, corners );
+			b3Vec3 point11 = corners[0];
+			b3Vec3 point12 = corners[1];
+			b3Vec3 point21 = corners[2];
+			b3Vec3 point22 = corners[3];
 
 			b3V32 v11 = b3LoadV( &point11.x );
 			b3V32 v12 = b3LoadV( &point12.x );
@@ -1156,11 +1139,6 @@ void b3QueryHeightField( const b3HeightField* heightField, b3AABB bounds, b3Mesh
 	int minCol = (int)floorf( bounds.lowerBound.x / scale.x );
 	int maxCol = (int)floorf( bounds.upperBound.x / scale.x );
 
-	float minHeight = heightField->minHeight;
-	float heightScale = heightField->heightScale;
-
-	const uint16_t* heights = heightField->compressedHeights;
-
 	// Outer loop on rows and inner loop on columns so that triangle indices
 	// increase monotonically.
 	for ( int row = minRow; row <= maxRow; ++row )
@@ -1185,26 +1163,12 @@ void b3QueryHeightField( const b3HeightField* heightField, b3AABB bounds, b3Mesh
 				continue;
 			}
 
-			// 	index = row * columnCount + column
-			int index11 = row * heightField->columnCount + column;
-			int index12 = index11 + 1;
-			int index21 = ( row + 1 ) * heightField->columnCount + column;
-			int index22 = index21 + 1;
-
-			float height11 = minHeight + heightScale * heights[index11];
-			float height12 = minHeight + heightScale * heights[index12];
-			float height21 = minHeight + heightScale * heights[index21];
-			float height22 = minHeight + heightScale * heights[index22];
-
-			float x1 = (float)( column );
-			float x2 = (float)( column + 1 );
-			float z1 = (float)( row );
-			float z2 = (float)( row + 1 );
-
-			b3Vec3 point11 = b3Mul( scale, (b3Vec3){ x1, height11, z1 } );
-			b3Vec3 point12 = b3Mul( scale, (b3Vec3){ x2, height12, z1 } );
-			b3Vec3 point21 = b3Mul( scale, (b3Vec3){ x1, height21, z2 } );
-			b3Vec3 point22 = b3Mul( scale, (b3Vec3){ x2, height22, z2 } );
+			b3Vec3 corners[4];
+			b3GetHeightFieldCellCorners( heightField, row, column, corners );
+			b3Vec3 point11 = corners[0];
+			b3Vec3 point12 = corners[1];
+			b3Vec3 point21 = corners[2];
+			b3Vec3 point22 = corners[3];
 
 			// I know the min/max x and z values, but not the min/max heights.
 			// This could be done with no branching in SIMD.
@@ -1262,9 +1226,6 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 	int minCol = (int)floorf( localMinX / scale.x );
 	int maxCol = (int)floorf( localMaxX / scale.x );
 
-	float minHeight = shape->minHeight;
-	float heightScale = shape->heightScale;
-	const uint16_t* heights = shape->compressedHeights;
 	int planeCount = 0;
 
 	// Outer loop on rows and inner loop on columns so that triangle indices
@@ -1291,26 +1252,12 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 				continue;
 			}
 
-			// 	index = row * columnCount + column
-			int index11 = row * shape->columnCount + column;
-			int index12 = index11 + 1;
-			int index21 = ( row + 1 ) * shape->columnCount + column;
-			int index22 = index21 + 1;
-
-			float height11 = minHeight + heightScale * heights[index11];
-			float height12 = minHeight + heightScale * heights[index12];
-			float height21 = minHeight + heightScale * heights[index21];
-			float height22 = minHeight + heightScale * heights[index22];
-
-			float x1 = (float)( column );
-			float x2 = (float)( column + 1 );
-			float z1 = (float)( row );
-			float z2 = (float)( row + 1 );
-
-			b3Vec3 point11 = b3Mul( scale, (b3Vec3){ x1, height11, z1 } );
-			b3Vec3 point12 = b3Mul( scale, (b3Vec3){ x2, height12, z1 } );
-			b3Vec3 point21 = b3Mul( scale, (b3Vec3){ x1, height21, z2 } );
-			b3Vec3 point22 = b3Mul( scale, (b3Vec3){ x2, height22, z2 } );
+			b3Vec3 corners[4];
+			b3GetHeightFieldCellCorners( shape, row, column, corners );
+			b3Vec3 point11 = corners[0];
+			b3Vec3 point12 = corners[1];
+			b3Vec3 point21 = corners[2];
+			b3Vec3 point22 = corners[3];
 
 			b3V32 v11 = b3LoadV( &point11.x );
 			b3V32 v12 = b3LoadV( &point12.x );
