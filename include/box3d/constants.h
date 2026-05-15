@@ -65,9 +65,7 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 /// The rest offset adjusts the contact point separation value, making the solver push the shapes
 /// apart by this distance.
 /// Must be at least B3_LINEAR_SLOP and less than B3_SPECULATIVE_DISTANCE.
-#ifndef B3_MESH_REST_OFFSET
 #define B3_MESH_REST_OFFSET ( 1.0f * B3_LINEAR_SLOP )
-#endif
 
 /// The default contact recycling distance.
 #define B3_CONTACT_RECYCLE_DISTANCE ( 10.0f * B3_LINEAR_SLOP )

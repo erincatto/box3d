@@ -478,6 +478,8 @@ _Static_assert( b3_inverseConcaveEdge3 == 4 * b3_inverseConcaveEdge1, "bit math"
 // corners[2] = (column, row + 1), corners[3] = (column + 1, row + 1).
 static inline void b3GetHeightFieldCellCorners( const b3HeightField* hf, int row, int column, b3Vec3 corners[4] )
 {
+	B3_ASSERT( 0 <= row && row < hf->rowCount - 1 && 0 <= column && column < hf->columnCount - 1 );
+
 	int columnCount = hf->columnCount;
 	int index11 = row * columnCount + column;
 	int index12 = index11 + 1;
