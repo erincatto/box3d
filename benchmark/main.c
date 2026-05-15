@@ -86,7 +86,7 @@ int main( int argc, char** argv )
 		{ "many_pyramids", NULL, CreateManyPyramids, NULL, NULL, 100 },
 		{ "rain", GetRainCapacity, CreateRain, DestroyRain, StepRain, 400 },
 		{ "washer", GetWasherCapacity, CreateWasher, NULL, NULL, 1000 },
-		{ "static_floor", GetStaticFloorCapacity, CreateStaticFloor, NULL, StepStaticFloor, 500 },
+		{ "large_world", GetLargeWorldCapacity, CreateLargeWorld, NULL, StepLargeWorld, 500 },
 		//{ "smash", CreateSmash, NULL, 300 },
 		//{ "spinner", CreateSpinner, StepSpinner, 1400 },
 		//{ "tumbler", CreateTumbler, NULL, 750 },

@@ -702,43 +702,6 @@ public:
 
 static int sampleHeightFieldBenchmark = SampleManager::Register( "Benchmark", "Height Field", BenchmarkHeightField::Create );
 
-class BenchmarkCompoundCapsules : public Sample
-{
-public:
-	explicit BenchmarkCompoundCapsules( SampleContext* context )
-		: Sample( context )
-	{
-		if ( context->restart == false )
-		{
-			float distance = 220.0f;
-			float height = 20.0f;
-			m_camera->SetView( 25.0f, 10.0f, distance, { 0.0f, height, 0.0f } );
-		}
-
-		CreateCompoundCapsules( m_worldId );
-	}
-
-	~BenchmarkCompoundCapsules() override
-	{
-		DestroyCompoundCapsules();
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
-	}
-
-	static Sample* Create( SampleContext* context )
-	{
-		return new BenchmarkCompoundCapsules( context );
-	}
-};
-
-static int sampleCompoundCapsules =
-	SampleManager::Register( "Benchmark", "Compounds Capsules", BenchmarkCompoundCapsules::Create );
-
 class BenchmarkFallingTrees : public Sample
 {
 public:
@@ -820,36 +783,7 @@ public:
 	int m_gridSize;
 };
 
-static int sampleCompoundHulls = SampleManager::Register( "Benchmark", "Falling Trees", BenchmarkFallingTrees::Create );
-
-class WeldedHulls : public Sample
-{
-public:
-	explicit WeldedHulls( SampleContext* context )
-		: Sample( context )
-	{
-		if ( context->restart == false )
-		{
-			float distance = 220.0f;
-			float height = 20.0f;
-			m_camera->SetView( 25.0f, 10.0f, distance, { 0.0f, height, 0.0f } );
-		}
-
-		CreateWeldedHulls( m_worldId );
-	}
-
-	~WeldedHulls() override
-	{
-		DestroyWeldedHulls();
-	}
-
-	static Sample* Create( SampleContext* context )
-	{
-		return new WeldedHulls( context );
-	}
-};
-
-static int sampleWeldedHulls = SampleManager::Register( "Benchmark", "Welded Hulls", WeldedHulls::Create );
+static int sampleFallingTrees = SampleManager::Register( "Benchmark", "Falling Trees", BenchmarkFallingTrees::Create );
 
 struct ShapeUserData
 {
@@ -1095,10 +1029,10 @@ public:
 
 static int benchmarkWasher = SampleManager::Register( "Benchmark", "Washer", BenchmarkWasher::Create );
 
-class BenchmarkStaticFloor : public Sample
+class BenchmarkLargeWorld : public Sample
 {
 public:
-	explicit BenchmarkStaticFloor( SampleContext* context )
+	explicit BenchmarkLargeWorld( SampleContext* context )
 		: Sample( context )
 	{
 		if ( context->restart == false )
@@ -1108,25 +1042,25 @@ public:
 		}
 
 		b3Capacity capacity = {};
-		GetStaticFloorCapacity( &capacity );
+		GetLargeWorldCapacity( &capacity );
 		CreateWorld( &capacity );
 
-		CreateStaticFloor( m_worldId );
+		CreateLargeWorld( m_worldId );
 	}
 
 	void Step() override
 	{
-		StepStaticFloor( m_worldId, m_stepCount );
+		StepLargeWorld( m_worldId, m_stepCount );
 		Sample::Step();
 	}
 
 	static Sample* Create( SampleContext* context )
 	{
-		return new BenchmarkStaticFloor( context );
+		return new BenchmarkLargeWorld( context );
 	}
 };
 
-static int sampleStaticFloor = SampleManager::Register( "Benchmark", "Static Floor", BenchmarkStaticFloor::Create );
+static int sampleLargeWorld = SampleManager::Register( "Benchmark", "Large World", BenchmarkLargeWorld::Create );
 
 class BenchmarkHull : public Sample
 {

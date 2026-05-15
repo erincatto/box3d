@@ -15,8 +15,6 @@ extern "C"
 {
 #endif
 
-void CreateCompoundCapsules( b3WorldId worldId );
-void DestroyCompoundCapsules( void );
 void CreateTrees25( b3WorldId worldId );
 void CreateTrees50( b3WorldId worldId );
 void CreateTrees100( b3WorldId worldId );
@@ -25,22 +23,17 @@ void CreateJointGrid( b3WorldId worldId );
 void CreateJunkyard( b3WorldId worldId );
 void StepJunkyard( b3WorldId worldId, int stepCount );
 void CreateLargePyramid( b3WorldId worldId );
-//void CreateLargeWorld( b3WorldId worldId );
-//void StepLargeWorld( b3WorldId worldId, int stepCount );
-//void DestroyLargeWorld( void );
 void CreateWidePyramid( b3WorldId worldId );
 void CreateManyPyramids( b3WorldId worldId );
 void GetRainCapacity( b3Capacity* capacity );
 void CreateRain( b3WorldId worldId );
 void StepRain( b3WorldId worldId, int stepCount );
 void DestroyRain( void );
-void GetStaticFloorCapacity( b3Capacity* capacity );
-void CreateStaticFloor( b3WorldId worldId );
-void StepStaticFloor( b3WorldId worldId, int stepCount );
+void GetLargeWorldCapacity( b3Capacity* capacity );
+void CreateLargeWorld( b3WorldId worldId );
+void StepLargeWorld( b3WorldId worldId, int stepCount );
 void GetWasherCapacity( b3Capacity* capacity );
 void CreateWasher( b3WorldId worldId );
-void CreateWeldedHulls( b3WorldId worldId );
-void DestroyWeldedHulls( void );
 
 // void CreateSpinner( b3WorldId worldId );
 // float StepSpinner( b3WorldId worldId, int stepCount );

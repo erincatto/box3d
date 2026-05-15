@@ -424,7 +424,7 @@ typedef struct StaticFloorData
 
 static StaticFloorData g_staticFloorData;
 
-void GetStaticFloorCapacity( b3Capacity* capacity )
+void GetLargeWorldCapacity( b3Capacity* capacity )
 {
 	int floorCount = STATIC_FLOOR_GRID * STATIC_FLOOR_GRID;
 	capacity->staticShapeCount = floorCount;
@@ -434,7 +434,7 @@ void GetStaticFloorCapacity( b3Capacity* capacity )
 	capacity->contactCount = b3MaxInt( 1024, 8 * STATIC_FLOOR_SPHERES );
 }
 
-void CreateStaticFloor( b3WorldId worldId )
+void CreateLargeWorld( b3WorldId worldId )
 {
 	memset( &g_staticFloorData, 0, sizeof( g_staticFloorData ) );
 
@@ -463,7 +463,7 @@ void CreateStaticFloor( b3WorldId worldId )
 	}
 }
 
-void StepStaticFloor( b3WorldId worldId, int stepCount )
+void StepLargeWorld( b3WorldId worldId, int stepCount )
 {
 	if ( g_staticFloorData.spheresDropped >= STATIC_FLOOR_SPHERES )
 	{
@@ -664,110 +664,6 @@ void CreateWasher( b3WorldId worldId )
 struct
 {
 	b3MeshData* meshData;
-} g_compoundCapsulesData;
-
-void CreateCompoundCapsules( b3WorldId worldId )
-{
-	memset( &g_compoundCapsulesData, 0, sizeof( g_compoundCapsulesData ) );
-
-	// float tilt = 0.15f * B3_PI;
-	float tilt = 0.0f * B3_PI;
-	b3BodyDef bodyDef = b3DefaultBodyDef();
-	bodyDef.position = (b3Vec3){ 0.0f, -1.0f, 0.0f };
-	bodyDef.rotation = b3MakeQuatFromAxisAngle( (b3Vec3){ 1.0f, 0.0f, 0.0 }, tilt );
-	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
-
-	int xCount = 200;
-	int zCount = 400;
-
-	float cellWidth = 1.0f;
-	float amplitude = 0.4f;
-	float rowHz = 0.05f;
-	float columnHz = 0.1f;
-
-	g_compoundCapsulesData.meshData = b3CreateWaveMesh( xCount, zCount, cellWidth, amplitude, rowHz, columnHz );
-
-	// g_compoundCapsulesData.meshData = b3CreateWaveMesh( xCount, zCount, 1.0f, 2.5f, 0.05f, 0.01f );
-	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	b3CreateMeshShape( groundId, &shapeDef, g_compoundCapsulesData.meshData, b3Vec3_one );
-
-	bodyDef.rotation = b3Quat_identity;
-	bodyDef.type = b3_dynamicBody;
-	bodyDef.sleepThreshold = 0.2f;
-
-	int bodyCount = BENCHMARK_DEBUG ? 10 : 90;
-
-	shapeDef.baseMaterial.friction = 0.9f;
-	shapeDef.baseMaterial.rollingResistance = 0.2f;
-	shapeDef.updateBodyMass = false;
-	shapeDef.density = 1.0f;
-
-	float angularVelocity = -0.5f;
-	float z = BENCHMARK_DEBUG ? -15.0f : -140.0f;
-	b3CosSin cs = b3ComputeCosSin( tilt );
-	float yTilt = cs.sine / cs.cosine;
-	// b3CosSin stubCS = b3ComputeCosSin( 50.0f * B3_PI / 180.0f );
-	for ( int bodyIndex = 0; bodyIndex < bodyCount; ++bodyIndex )
-	{
-		bodyDef.position = (b3Vec3){ 0.0, 0.5f - z * yTilt, z };
-		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
-
-		float y = 1.0f;
-		float r = 0.75f;
-		float l = 1.5f;
-		float offset = 0.05f;
-		// float stubX = 1.4f;
-		// float stubZ = 0.0f;
-		for ( int shapeIndex = 0; shapeIndex < 22; ++shapeIndex )
-		{
-			b3Capsule capsule = { { offset, y, 0.0f }, { 0.0f, y + l, -offset }, r };
-			b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
-
-#if 0
-			if ( ( shapeIndex & 1 ) == 0 )
-			{
-				b3Capsule stub = { { 0.0f, y + 0.5f * l, 0.0f }, { 1.4f * r, y + 0.5f * l, 0.0f }, 0.2f };
-				b3CreateCapsuleShape( bodyId, &shapeDef, &stub );
-			}
-			else
-			{
-			}
-#elif 0
-			b3Capsule stub = { { 0.0f, y + 0.5f * l, 0.0f }, { stubX * r, y + 0.5f * l, stubZ * r }, 0.2f };
-			b3CreateCapsuleShape( bodyId, &shapeDef, &stub );
-			stubCS = b3ComputeCosSin( B3_PI * RandomFloat() );
-			float sx = stubX * stubCS.cosine - stubZ * stubCS.sine;
-			float sz = stubX * stubCS.sine + stubZ * stubCS.cosine;
-			stubX = sx;
-			stubZ = sz;
-#endif
-			y += l + 2.0f * r;
-			r = 0.95f * r;
-			offset = -offset;
-		}
-
-		float velocityScale = 0.5f + ( 0.5f * bodyIndex ) / bodyCount;
-		b3Body_ApplyMassFromShapes( bodyId );
-		b3Vec3 center = b3Body_GetWorldCenterOfMass( bodyId );
-		b3Vec3 omega = { 0.0f, 0.0f, velocityScale * angularVelocity };
-		b3Vec3 v = b3Cross( omega, b3Sub( center, bodyDef.position ) );
-		b3Body_SetAngularVelocity( bodyId, omega );
-		b3Body_SetLinearVelocity( bodyId, v );
-
-		z += 3.0f;
-		angularVelocity = -angularVelocity;
-	}
-}
-
-void DestroyCompoundCapsules( void )
-{
-	b3DestroyMesh( g_compoundCapsulesData.meshData );
-	memset( &g_compoundCapsulesData, 0, sizeof( g_compoundCapsulesData ) );
-}
-
-struct
-{
-	b3MeshData* meshData;
 } g_treeData;
 
 static void CreateTrees( b3WorldId worldId, int scale )
@@ -876,136 +772,6 @@ void DestroyTrees( void )
 {
 	b3DestroyMesh( g_treeData.meshData );
 	memset( &g_treeData, 0, sizeof( g_treeData ) );
-}
-
-struct
-{
-	b3MeshData* meshData;
-} g_weldedHullsData;
-
-void CreateWeldedHulls( b3WorldId worldId )
-{
-	memset( &g_weldedHullsData, 0, sizeof( g_weldedHullsData ) );
-
-	float tilt = 0.0f * B3_PI;
-	b3BodyDef bodyDef = b3DefaultBodyDef();
-	bodyDef.position = (b3Vec3){ 0.0f, 0.0f, 0.0f };
-	bodyDef.rotation = b3MakeQuatFromAxisAngle( (b3Vec3){ 1.0f, 0.0f, 0.0 }, tilt );
-	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
-
-	int xCount = 200;
-	// int zCount = BENCHMARK_DEBUG ? 100 : 400;
-	int zCount = 400;
-
-	float cellWidth = 1.0f;
-	float amplitude = 0.4f;
-	float rowHz = 0.05f;
-	float columnHz = 0.1f;
-
-	g_weldedHullsData.meshData = b3CreateWaveMesh( xCount, zCount, cellWidth, amplitude, rowHz, columnHz );
-	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	b3CreateMeshShape( groundId, &shapeDef, g_weldedHullsData.meshData, b3Vec3_one );
-
-	int entityCount = BENCHMARK_DEBUG ? 10 : 90;
-
-	int shapeCount = 22;
-	b3Hull* hulls[22] = { 0 };
-
-	float y = 1.0f;
-	float r = 0.75f;
-	float l = 1.5f;
-	for ( int i = 0; i < shapeCount; ++i )
-	{
-		hulls[i] = b3CreateCylinder( l + 2.0f * r, r, y - r, 6 );
-		y += l + 2.0f * r;
-		r = 0.95f * r;
-	}
-
-	b3WeldJointDef jointDef = b3DefaultWeldJointDef();
-	jointDef.angularHertz = 6.0f;
-	jointDef.angularDampingRatio = 2.0f;
-
-	float angularVelocity = -0.5f;
-	float z = BENCHMARK_DEBUG ? -15.0f : -140.0f;
-	b3CosSin cs = b3ComputeCosSin( tilt );
-	float yTilt = cs.sine / cs.cosine;
-
-	int shapesPerBody = 5;
-
-	shapeDef.baseMaterial.friction = 0.9f;
-	shapeDef.baseMaterial.rollingResistance = 0.1f;
-	shapeDef.updateBodyMass = false;
-	shapeDef.density = 1.0f;
-
-	bodyDef.type = b3_dynamicBody;
-	bodyDef.sleepThreshold = 0.2f;
-
-	for ( int entityIndex = 0; entityIndex < entityCount; ++entityIndex )
-	{
-		b3BodyId prevBodyId = b3_nullBodyId;
-
-		y = 1.0f;
-		r = 0.75f;
-		b3Vec3 base = (b3Vec3){ 0.0, 1.0f - z * yTilt, z };
-		bodyDef.position = base;
-		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
-		float velocityScale = 0.5f + ( 0.5f * entityIndex ) / entityCount;
-
-		for ( int i = 0; i < shapeCount; ++i )
-		{
-			b3CreateHullShape( bodyId, &shapeDef, hulls[i] );
-
-			if ( ( i + 1 ) % shapesPerBody == 0 || i == shapeCount - 1 )
-			{
-				b3Body_ApplyMassFromShapes( bodyId );
-
-				b3Vec3 center = b3Body_GetWorldCenterOfMass( bodyId );
-				b3Vec3 omega = { 0.0f, 0.0f, angularVelocity * velocityScale };
-				b3Vec3 v = b3Cross( omega, b3Sub( center, base ) );
-				b3Body_SetAngularVelocity( bodyId, omega );
-				b3Body_SetLinearVelocity( bodyId, v );
-
-				if ( i < shapeCount - 1 )
-				{
-					prevBodyId = bodyId;
-
-					if ( i < shapeCount - 1 )
-					{
-						bodyId = b3CreateBody( worldId, &bodyDef );
-
-						if ( B3_IS_NON_NULL( prevBodyId ) )
-						{
-							jointDef.base.bodyIdA = prevBodyId;
-							jointDef.base.bodyIdB = bodyId;
-							jointDef.base.localFrameA.p = (b3Vec3){ 0.0f, y + l + r, 0.0f };
-							jointDef.base.localFrameB.p = (b3Vec3){ 0.0f, y + l + r, 0.0f };
-
-							b3CreateWeldJoint( worldId, &jointDef );
-						}
-
-						velocityScale *= 0.75f;
-					}
-				}
-			}
-
-			y += l + 2.0f * r;
-			r = 0.95f * r;
-		}
-
-		z += 3.0f;
-		angularVelocity = -angularVelocity;
-	}
-
-	for ( int i = 0; i < shapeCount; ++i )
-	{
-		b3DestroyHull( hulls[i] );
-	}
-}
-
-void DestroyWeldedHulls( void )
-{
-	b3DestroyMesh( g_weldedHullsData.meshData );
-	memset( &g_weldedHullsData, 0, sizeof( g_weldedHullsData ) );
 }
 
 struct JunkyardData
