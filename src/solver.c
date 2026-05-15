@@ -705,11 +705,11 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		sim->force = b3Vec3_zero;
 		sim->torque = b3Vec3_zero;
 
-		body->flags &= ~( b3_isFast | b3_isSpeedCapped | b3_hadTimeOfImpact );
+		body->flags &= ~b3_bodyTransientFlags;
 		body->flags |= ( sim->flags & ( b3_isSpeedCapped | b3_hadTimeOfImpact ) );
 		body->flags |= ( state->flags & ( b3_isSpeedCapped | b3_hadTimeOfImpact ) );
-		sim->flags &= ~( b3_isFast | b3_isSpeedCapped | b3_hadTimeOfImpact );
-		state->flags &= ~( b3_isFast | b3_isSpeedCapped | b3_hadTimeOfImpact );
+		sim->flags &= ~b3_bodyTransientFlags;
+		state->flags &= ~b3_bodyTransientFlags;
 
 		if ( enableSleep == false || (body->flags & b3_enableSleep) == 0 || sleepVelocity > body->sleepThreshold )
 		{

@@ -3064,7 +3064,15 @@ void b3ValidateSolverSets( b3World* world )
 					b3Body* body = bodies + bodyId;
 					B3_ASSERT( body->setIndex == setIndex );
 					B3_ASSERT( body->localIndex == i );
-					B3_ASSERT( body->generation == body->generation );
+
+					uint32_t syncedFlags = body->flags & ~b3_bodyTransientFlags;
+					B3_ASSERT( ( bodySim->flags & syncedFlags ) == syncedFlags );
+
+					b3BodyState* bodyState = b3GetBodyState( world, body );
+					if ( bodyState != NULL )
+					{
+						B3_ASSERT( ( bodyState->flags & syncedFlags ) == syncedFlags );
+					}
 
 					if ( body->type == b3_dynamicBody )
 					{

@@ -69,6 +69,21 @@ b3BodyState* b3GetBodyState( b3World* world, b3Body* body )
 	return NULL;
 }
 
+static void b3SyncBodyFlags(b3World* world, b3Body* body)
+{
+	// Never sync transient flags
+	uint32_t flags = body->flags & ~b3_bodyTransientFlags;
+
+	b3BodySim* bodySim = b3GetBodySim( world, body );
+	bodySim->flags = flags;
+
+	b3BodyState* bodyState = b3GetBodyState( world, body );
+	if (bodyState != NULL)
+	{
+		bodyState->flags = flags;
+	}
+}
+
 static void b3CreateIslandForBody( b3World* world, int setIndex, b3Body* body )
 {
 	B3_ASSERT( body->islandId == B3_NULL_INDEX );
@@ -1472,6 +1487,8 @@ void b3Body_SetType( b3BodyId bodyId, b3BodyType type )
 			body->flags &= ~b3_dynamicFlag;
 		}
 
+		b3SyncBodyFlags( world, body );
+
 		// Body type affects the mass properties
 		b3UpdateBodyMassData( world, body );
 		world->locked = false;
@@ -1626,15 +1643,10 @@ void b3Body_SetType( b3BodyId bodyId, b3BodyType type )
 		b3LinkJoint( world, joint );
 	}
 
+	b3SyncBodyFlags( world, body );
+
 	// Body type affects the mass
 	b3UpdateBodyMassData( world, body );
-
-	b3BodyState* state = b3GetBodyState( world, body );
-	if ( state != NULL )
-	{
-		// Ensure flags are in sync (b2_skipSolverWrite)
-		state->flags = body->flags;
-	}
 
 	b3ValidateSolverSets( world );
 	b3ValidateIsland( world, body->islandId );
@@ -2143,16 +2155,12 @@ void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks )
 	body->flags &= ~b3_allLocks;
 	body->flags |= newLocks;
 
-	b3BodySim* bodySim = b3GetBodySim( world, body );
-	bodySim->flags &= ~b3_allLocks;
-	bodySim->flags |= newLocks;
+	b3SyncBodyFlags( world, body );
 
 	b3BodyState* state = b3GetBodyState( world, body );
 
 	if ( state != NULL )
 	{
-		state->flags = body->flags;
-
 		if ( locks.linearX )
 		{
 			state->linearVelocity.x = 0.0f;

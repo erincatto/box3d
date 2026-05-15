@@ -62,6 +62,9 @@ enum b3BodyFlags
 
 	// If all these flags are set then the body has fixed rotation
 	b3_fixedRotation = b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
+
+	// These flags are transient per time step. These may be different across b3Body, b3BodySim, and b3BodyState.
+	b3_bodyTransientFlags = b3_isFast | b3_isSpeedCapped | b3_hadTimeOfImpact,
 };
 
 // Body organizational details that are not used in the solver.
