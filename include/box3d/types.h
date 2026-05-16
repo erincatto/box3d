@@ -498,6 +498,11 @@ typedef struct b3Counters
 
 	// Number of contacts recycled in the most recent step.
 	int recycledContactCount;
+
+	// Maximum number of time of impact iterations
+	int distanceIterations;
+	int pushBackIterations;
+	int rootIterations;
 } b3Counters;
 //! @endcond
 

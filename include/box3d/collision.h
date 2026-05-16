@@ -1472,7 +1472,7 @@ B3_API void b3CollideCapsuleAndTriangle( b3LocalManifold* manifold, int capacity
 										 const b3Vec3* triangleB, b3SimplexCache* cache );
 
 // b3MeshEdgeFlags
-B3_API void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3Hull* hullA, const b3Vec3* triangleB,
+B3_API void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3Hull* hullA, b3Vec3 v1, b3Vec3 v2, b3Vec3 v3,
 									  int triangleFlags, b3SATCache* cache );
 
 B3_API void b3CollideSphereAndTriangle( b3LocalManifold* manifold, int capacity, const b3Sphere* sphereA, const b3Vec3* triangleB );

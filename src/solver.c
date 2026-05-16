@@ -148,14 +148,11 @@ static void b3IntegrateVelocitiesTask( b3SolverBlock block, b3StepContext* conte
 				// Jacobian derived by Erin Catto, Ph.D. Do not attempt to do this without a Ph.D.
 				// Doubled inertia terms above fold into Iw, e.g. row 2 col 1: i00*w3 - i02*w1 - Iw3.
 				b3Matrix3 J = {
-					{ i00 + h * ( w2 * i02 - w3 * i01 ),
-					  i01 + h * ( w3 * i00 - w1 * i02 - Iw3 ),
+					{ i00 + h * ( w2 * i02 - w3 * i01 ), i01 + h * ( w3 * i00 - w1 * i02 - Iw3 ),
 					  i02 + h * ( w1 * i01 - w2 * i00 + Iw2 ) },
-					{ i01 + h * ( w2 * i12 - w3 * i11 + Iw3 ),
-					  i11 + h * ( w3 * i01 - w1 * i12 ),
+					{ i01 + h * ( w2 * i12 - w3 * i11 + Iw3 ), i11 + h * ( w3 * i01 - w1 * i12 ),
 					  i12 + h * ( w1 * i11 - w2 * i01 - Iw1 ) },
-					{ i02 + h * ( w2 * i22 - w3 * i12 - Iw2 ),
-					  i12 + h * ( w3 * i02 - w1 * i22 + Iw1 ),
+					{ i02 + h * ( w2 * i22 - w3 * i12 - Iw2 ), i12 + h * ( w3 * i02 - w1 * i22 + Iw1 ),
 					  i22 + h * ( w1 * i12 - w2 * i02 ) },
 				};
 
@@ -326,6 +323,10 @@ typedef struct b3ContinuousContext
 	b3SensorHit sensorHits[B2_MAX_CONTINUOUS_SENSOR_HITS];
 	float sensorFractions[B2_MAX_CONTINUOUS_SENSOR_HITS];
 	int sensorCount;
+
+	int distanceIterations;
+	int pushBackIterations;
+	int rootIterations;
 } b3ContinuousContext;
 
 // This is called from b3DynamicTree_Query for continuous collision
@@ -442,14 +443,9 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 		{
 			fastBodySim->flags |= b3_hadTimeOfImpact;
 			continuousContext->fraction = output.fraction;
-
-			// if (output.usedFallback == true)
-			//{
-			//	// help out the solver
-			//	b3BodyState* state = b3GetBodyState( world, fastBody );
-			//	B3_ASSERT( state != NULL );
-			//	state->angularVelocity = b3Vec3_zero;
-			// }
+			continuousContext->distanceIterations = b3MaxInt( continuousContext->distanceIterations, output.distanceIterations );
+			continuousContext->pushBackIterations = b3MaxInt( continuousContext->pushBackIterations, output.pushBackIterations );
+			continuousContext->rootIterations = b3MaxInt( continuousContext->rootIterations, output.rootIterations );
 		}
 	}
 
@@ -620,6 +616,10 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 		}
 	}
 
+	taskContext->distanceIterations = b3MaxInt( taskContext->distanceIterations, context.distanceIterations );
+	taskContext->pushBackIterations = b3MaxInt( taskContext->pushBackIterations, context.pushBackIterations );
+	taskContext->rootIterations = b3MaxInt( taskContext->rootIterations, context.rootIterations );
+
 	b3TracyCZoneEnd( ccd );
 }
 
@@ -681,7 +681,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		// q = [sin(theta/2) * v, cos(theta/2)]
 		// for small angles abs(theta) ~= 2 * length(sin(theta/2) * v)
 		b3Vec3 rotationArc = b3ModifiedCross( b3Abs( localDeltaRotation ), sim->maxExtent );
-		float maxDeltaPosition = b3Length( state->deltaPosition ) + 2.0f * b3Length(rotationArc);
+		float maxDeltaPosition = b3Length( state->deltaPosition ) + 2.0f * b3Length( rotationArc );
 
 		// Position correction is not as important for sleep as true velocity.
 		float positionSleepFactor = 0.5f;
@@ -711,7 +711,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		sim->flags &= ~b3_bodyTransientFlags;
 		state->flags &= ~b3_bodyTransientFlags;
 
-		if ( enableSleep == false || (body->flags & b3_enableSleep) == 0 || sleepVelocity > body->sleepThreshold )
+		if ( enableSleep == false || ( body->flags & b3_enableSleep ) == 0 || sleepVelocity > body->sleepThreshold )
 		{
 			// Body is not sleepy
 			body->sleepTime = 0.0f;
@@ -1783,8 +1783,9 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			if ( world->taskCount < B3_MAX_TASKS )
 			{
 				char buffer[16];
-				snprintf( buffer, sizeof(buffer), "solve[%d]", i );
-				workerContext[i].userTask = world->enqueueTaskFcn( &b3SolverTask, workerContext + i, world->userTaskContext, buffer );
+				snprintf( buffer, sizeof( buffer ), "solve[%d]", i );
+				workerContext[i].userTask =
+					world->enqueueTaskFcn( &b3SolverTask, workerContext + i, world->userTaskContext, buffer );
 				world->taskCount += 1;
 				world->activeTaskCount += workerContext[i].userTask == NULL ? 0 : 1;
 			}
@@ -1841,7 +1842,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		}
 
 		// Finalize bodies. Must happen after the constraint solver and after island splitting.
-		b3ParallelFor( world, &b3FinalizeBodiesTask, awakeBodyCount, 64, stepContext, "ccd" );
+		b3ParallelFor( world, &b3FinalizeBodiesTask, awakeBodyCount, 16, stepContext, "ccd" );
 
 		// Free in reverse order
 		b3StackFree( &world->stack, graphBlocks );

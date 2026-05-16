@@ -1995,9 +1995,16 @@ b3Counters b3World_GetCounters( b3WorldId worldId )
 
 	s.recycledContactCount = 0;
 	s.arenaCapacity = 0;
+	s.distanceIterations = 0;
+	s.pushBackIterations = 0;
+	s.rootIterations = 0;
 	for ( int i = 0; i < world->workerCount; ++i )
 	{
 		s.recycledContactCount += world->taskContexts.data[i].recycledContactCount;
+
+		s.distanceIterations = b3MaxInt( s.distanceIterations, world->taskContexts.data[i].distanceIterations );
+		s.pushBackIterations = b3MaxInt( s.pushBackIterations, world->taskContexts.data[i].pushBackIterations );
+		s.rootIterations = b3MaxInt( s.rootIterations, world->taskContexts.data[i].rootIterations );
 
 		int peak = world->taskContexts.data[i].arena.shared->peakDemand;
 		if ( peak > s.arenaCapacity )

@@ -921,7 +921,8 @@ public:
 			b3TransformPoint( xf, m_triangle[2] ),
 		};
 
-		b3CollideHullAndTriangle( &m_manifold, m_pointCapacity, m_hull, localTriangle, m_flags, &m_satCache );
+		b3CollideHullAndTriangle( &m_manifold, m_pointCapacity, m_hull, localTriangle[0], localTriangle[1], localTriangle[2],
+								  m_flags, &m_satCache );
 
 		// Convert manifold from frame B to world space
 		m_manifold.normal = b3RotateVector( m_transformB.q, m_manifold.normal );

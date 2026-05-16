@@ -100,6 +100,12 @@ typedef struct b3TaskContext
 	// Profiling
 	int satCallCount;
 	int satCacheHitCount;
+	int distanceIterations;
+	int pushBackIterations;
+	int rootIterations;
+
+	// Number of contacts recycled this step (collide pass).
+	int recycledContactCount;
 
 	b3DebugPoint points[B3_DEBUG_POINT_CAPACITY];
 	int pointCount;
@@ -108,10 +114,6 @@ typedef struct b3TaskContext
 	int lineCount;
 
 	int manifoldCounts[B3_CONTACT_MANIFOLD_COUNT_BUCKETS];
-
-	// Number of contacts recycled this step (collide pass).
-	int recycledContactCount;
-
 	// Prevent false sharing
 	char cacheLine[64];
 } b3TaskContext;
