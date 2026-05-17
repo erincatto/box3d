@@ -13,7 +13,7 @@
 
 // This guards against excessive memory usage and complex collision
 #define B3_MAX_MESH_CONTACT_TRIANGLES 256
-#define B3_MAX_POINTS_PER_TRIANGLE 16
+#define B3_MAX_POINTS_PER_TRIANGLE 32
 
 #if B3_ENABLE_VALIDATION
 static bool b3IsSorted( const int* array, int count )
@@ -338,7 +338,7 @@ int b3CullPoints( b3Point2D* points, int count )
 				deepestIndex = i;
 			}
 		}
-		
+
 		if ( deepestIndex != 0 )
 		{
 			points[0] = points[deepestIndex];
@@ -439,6 +439,7 @@ int b3CullPoints( b3Point2D* points, int count )
 		float u3 = b3Cross2( b3Sub2( p, c ), ac );
 		float score = b3MaxFloat( u1, b3MaxFloat( u2, u3 ) );
 
+		// Use the area tolerance for collinear points and hysteresis
 		if ( b3IsBetterCullCandidate( score, points[i].separation, bestScore, bestSeparation, tolSqr, separationTol ) )
 		{
 			bestScore = score;
@@ -482,11 +483,10 @@ static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 nor
 
 	for ( int i = 0; i < count1; ++i )
 	{
-		pts[i].originalIndex = (uint16_t)i;
-		pts[i].separation = points[i].separation;
 		b3Vec3 d = b3Sub( points[i].point, origin );
 		pts[i].p = (b3Vec2){ b3Dot( d, u ), b3Dot( d, v ) };
-		pts[i].persisted = false;
+		pts[i].separation = points[i].separation;
+		pts[i].originalIndex = i;
 	}
 
 	int count2 = b3CullPoints( pts, count1 );
@@ -495,8 +495,8 @@ static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 nor
 	b3LocalManifoldPoint finalPoints[B3_MAX_MANIFOLD_POINTS];
 	for ( int i = 0; i < count2; ++i )
 	{
-		uint16_t index = pts[i].originalIndex;
-		B3_ASSERT( index < count1 );
+		int index = pts[i].originalIndex;
+		B3_ASSERT( 0 <= index && index < count1 );
 		finalPoints[i] = points[index];
 	}
 
