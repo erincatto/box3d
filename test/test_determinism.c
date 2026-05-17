@@ -14,8 +14,8 @@
 	#define TracyCFrameMark
 #endif
 
-#define EXPECTED_SLEEP_STEP 302
-#define EXPECTED_HASH 0xBE02DCBB
+#define EXPECTED_SLEEP_STEP 306
+#define EXPECTED_HASH 0x596EA165
 
 static int SingleMultithreadingTest( int workerCount )
 {

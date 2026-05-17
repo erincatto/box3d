@@ -437,3 +437,1101 @@ public:
 
 static int sampleMover = SampleManager::Register( "Character", "Mover", BasicMover::Create );
 
+struct ClosestShapeCastContext
+{
+	b3ShapeId ignoreShapes[16];
+	int ignoreCount;
+	float closestFraction;
+	b3Vec3 closestNormal;
+	b3Vec3 closestPoint;
+	b3ShapeId closestShape;
+	bool hit;
+	bool startedSolid;
+};
+
+static float ClosestShapeCastCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+									   int triangleIndex, int childIndex, void* context )
+{
+	auto* ctx = static_cast<ClosestShapeCastContext*>( context );
+
+	for ( int i = 0; i < ctx->ignoreCount; ++i )
+	{
+		if ( B3_ID_EQUALS( shapeId, ctx->ignoreShapes[i] ) )
+		{
+			return -1.0f;
+		}
+	}
+
+	if ( fraction == 0.0f )
+	{
+		ctx->startedSolid = true;
+		return -1.0f;
+	}
+
+	if ( fraction < ctx->closestFraction )
+	{
+		ctx->closestFraction = fraction;
+		ctx->closestNormal = normal;
+		ctx->closestPoint = point;
+		ctx->closestShape = shapeId;
+		ctx->hit = true;
+	}
+
+	return ctx->closestFraction;
+}
+
+// --- Trace result matching s&box's SceneTraceResult ---
+
+struct TraceResult
+{
+	b3Vec3 endPosition;
+	b3Vec3 normal;
+	b3Vec3 hitPoint;
+	float fraction;
+	bool hit;
+	bool startedSolid;
+};
+
+// --- RigidbodyCharacter ---
+
+struct RigidbodyCharacter
+{
+	// s&box unit conversion: 1 unit = 1 inch = 0.0254m (40 units per meter)
+	static constexpr float SRC = 0.0254f;
+
+	// Tuning — s&box defaults (converted to meters)
+	static constexpr float m_walkSpeed = 230.0f * SRC;
+	static constexpr float m_runSpeed = 350.0f * SRC;
+	static constexpr float m_jumpSpeed = 300.0f * SRC;
+	static constexpr float m_maxSlopeAngle = 45.0f;
+	static constexpr float m_characterGravity = 15.0f;
+	static constexpr float m_characterMass = 500.0f;
+	static constexpr float m_jumpCooldownTime = 0.2f;
+
+	// s&box PlayerController parameters
+	static constexpr float m_stepUpHeight = 18.0f * SRC;
+	static constexpr float m_stepDownHeight = 18.0f * SRC;
+	static constexpr float m_skin = 0.095f * SRC;
+	static constexpr float m_brakePower = 0.2f;
+	static constexpr float m_surfaceFriction = 0.6f;
+	static constexpr float m_airFriction = 0.1f;
+
+	// Character dimensions (radius=16, height=72 in s&box units)
+	static constexpr float m_bodyRadius = 16.0f * SRC;
+	static constexpr float m_totalHeight = 72.0f * SRC;
+	static constexpr float m_feetHeight = m_totalHeight * 0.5f;
+
+	// Physics handles
+	b3BodyId m_bodyId;
+	b3ShapeId m_bodyCapsuleId;
+	b3ShapeId m_feetBoxId;
+
+	// All shapes on this body (for ignore list in traces)
+	b3ShapeId m_ownShapes[4];
+	int m_ownShapeCount;
+
+	// State
+	b3Vec3 m_groundNormal;
+	b3Vec3 m_groundVelocity;
+	float m_jumpCooldown;
+	bool m_onGround;
+	bool m_sprint;
+
+	// Step-up state: position to restore after physics step
+	bool m_didStep;
+	b3Vec3 m_stepPosition;
+
+	// Debug readouts
+	b3Vec3 m_lastWishVelocity;
+	b3Vec3 m_massCenterWorld;
+
+	Sample* m_sample;
+
+	void Initialize( Sample* sample, b3Vec3 position )
+	{
+		m_sample = sample;
+		m_onGround = false;
+		m_sprint = false;
+		m_jumpCooldown = 0.0f;
+		m_groundNormal = b3Vec3_axisY;
+		m_groundVelocity = b3Vec3_zero;
+		m_lastWishVelocity = b3Vec3_zero;
+		m_massCenterWorld = position;
+		m_didStep = false;
+		m_stepPosition = b3Vec3_zero;
+
+		// Create dynamic body with all rotation locked
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = position;
+		bodyDef.motionLocks.angularX = true;
+		bodyDef.motionLocks.angularY = true;
+		bodyDef.motionLocks.angularZ = true;
+		bodyDef.enableSleep = false;
+		bodyDef.enableContactRecycling = false;
+		bodyDef.name = "character";
+
+		bodyDef.gravityScale = m_characterGravity / 10.0f;
+
+		m_bodyId = b3CreateBody( sample->m_worldId, &bodyDef );
+
+		// --- Feet box (lower half): dynamic friction for braking/sliding ---
+		// s&box BodyBox: half-extent = BodyRadius * 0.5 (box width = BodyRadius)
+		{
+			float halfExtX = m_bodyRadius * 0.5f;
+			float halfExtY = m_feetHeight * 0.5f;
+			float halfExtZ = m_bodyRadius * 0.5f;
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.baseMaterial.friction = 0.0f;
+			shapeDef.baseMaterial.restitution = 0.0f;
+			shapeDef.baseMaterial.customColor = b3_colorLimeGreen;
+
+			float feetVolume = 8.0f * halfExtX * halfExtY * halfExtZ;
+			shapeDef.density = ( m_characterMass * 0.4f ) / feetVolume;
+
+			b3Transform feetTransform = { { 0.0f, -m_totalHeight * 0.5f + halfExtY, 0.0f }, b3Quat_identity };
+			b3BoxHull feetBox = b3MakeTransformedBoxHull( halfExtX, halfExtY, halfExtZ, feetTransform );
+			m_feetBoxId = b3CreateHullShape( m_bodyId, &shapeDef, &feetBox.base );
+		}
+
+		// --- Body capsule (upper half): zero friction so we slide on walls ---
+		{
+			float capsuleRadius = m_bodyRadius * 0.707f;
+			float capsuleBottom = -m_totalHeight * 0.5f + m_feetHeight * 0.5f + capsuleRadius;
+			float capsuleTop = m_totalHeight * 0.5f - capsuleRadius;
+
+			if ( capsuleTop > capsuleBottom )
+			{
+				b3Capsule capsule = {
+					{ 0.0f, capsuleBottom, 0.0f },
+					{ 0.0f, capsuleTop, 0.0f },
+					capsuleRadius,
+				};
+
+				b3ShapeDef shapeDef = b3DefaultShapeDef();
+				shapeDef.baseMaterial.friction = 0.0f;
+				shapeDef.baseMaterial.restitution = 0.0f;
+				shapeDef.baseMaterial.customColor = b3_colorCornflowerBlue;
+
+				float h = capsuleTop - capsuleBottom;
+				float r = capsuleRadius;
+				float capsuleVolume = B3_PI * r * r * ( h + 4.0f * r / 3.0f );
+				shapeDef.density = ( m_characterMass * 0.6f ) / capsuleVolume;
+
+				m_bodyCapsuleId = b3CreateCapsuleShape( m_bodyId, &shapeDef, &capsule );
+			}
+		}
+
+		// Cache own shapes for ignore list
+		m_ownShapeCount = b3Body_GetShapes( m_bodyId, m_ownShapes, 4 );
+
+		UpdateMassCenter( 0.0f );
+	}
+
+	// --- TraceBody: box shape cast matching s&box's TraceBody ---
+	// Casts a box from `from` to `to` with given radius and height scale.
+	TraceResult TraceBody( b3Vec3 from, b3Vec3 to, float radiusScale = 1.0f, float heightScale = 1.0f ) const
+	{
+		TraceResult result = {};
+		result.endPosition = to;
+		result.normal = b3Vec3_axisY;
+		result.hitPoint = to;
+		result.fraction = 1.0f;
+		result.hit = false;
+		result.startedSolid = false;
+
+		b3Vec3 translation = to - from;
+		float translationLen = b3Length( translation );
+		if ( translationLen < 1e-6f )
+		{
+			return result;
+		}
+
+		// Build box half extents matching s&box's BodyBox
+		float halfW = m_bodyRadius * 0.5f * radiusScale;
+		float halfH = m_totalHeight * heightScale * 0.5f;
+		float halfD = m_bodyRadius * 0.5f * radiusScale;
+
+		// 8 corners of the box centered at `from`, with box bottom at from.y
+		// s&box BodyBox: min=(−r*0.5*s, −r*0.5*s, 0), max=(r*0.5*s, r*0.5*s, height*hScale)
+		// In box3d Y is up, so min.y=0 (feet), max.y=height*hScale (top)
+		float boxMinY = 0.0f;
+		float boxMaxY = m_totalHeight * heightScale;
+		float boxCenterY = ( boxMinY + boxMaxY ) * 0.5f;
+
+		b3Vec3 points[8];
+		for ( int i = 0; i < 8; ++i )
+		{
+			float sx = ( i & 1 ) ? halfW : -halfW;
+			float sy = ( i & 2 ) ? halfH : -halfH;
+			float sz = ( i & 4 ) ? halfD : -halfD;
+			points[i] = { from.x + sx, from.y + boxCenterY + sy, from.z + sz };
+		}
+
+		b3ShapeProxy proxy;
+		proxy.points = points;
+		proxy.count = 8;
+		proxy.radius = 0.0f;
+
+		ClosestShapeCastContext ctx = {};
+		for ( int i = 0; i < m_ownShapeCount; ++i )
+		{
+			ctx.ignoreShapes[i] = m_ownShapes[i];
+		}
+		ctx.ignoreCount = m_ownShapeCount;
+		ctx.closestFraction = 1.0f;
+		ctx.hit = false;
+		ctx.startedSolid = false;
+		ctx.closestShape = b3_nullShapeId;
+
+		b3QueryFilter filter = b3DefaultQueryFilter();
+		b3World_CastShape( m_sample->m_worldId, &proxy, translation, filter, ClosestShapeCastCallback, &ctx );
+
+		result.startedSolid = ctx.startedSolid;
+		if ( ctx.hit )
+		{
+			result.hit = true;
+			result.fraction = ctx.closestFraction;
+			result.normal = ctx.closestNormal;
+			result.hitPoint = ctx.closestPoint;
+			result.endPosition = from + ctx.closestFraction * translation;
+		}
+
+		return result;
+	}
+
+	bool IsStandableSurface( b3Vec3 normal ) const
+	{
+		float maxSlopeCos = cosf( m_maxSlopeAngle * B3_PI / 180.0f );
+		return b3Dot( normal, b3Vec3_axisY ) >= maxSlopeCos;
+	}
+
+	// Get feet position from body center position
+	b3Vec3 GetFeetPosition() const
+	{
+		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
+		return { pos.x, pos.y - m_totalHeight * 0.5f, pos.z };
+	}
+
+	// Convert feet position back to body center for SetTransform
+	b3Vec3 FeetToCenter( b3Vec3 feetPos ) const
+	{
+		return { feetPos.x, feetPos.y + m_totalHeight * 0.5f, feetPos.z };
+	}
+
+	// --- CategorizeGround: s&box-style box cast with radius shrinking ---
+	void CategorizeGround()
+	{
+		Scene* scene = m_sample->m_scene;
+		b3Vec3 feet = GetFeetPosition();
+
+		// s&box: from = WorldPosition + Up*4, to = WorldPosition + Down*2 (Source units)
+		b3Vec3 from = { feet.x, feet.y + 4.0f * SRC, feet.z };
+		b3Vec3 to = { feet.x, feet.y - 2.0f * SRC, feet.z };
+
+		float radiusScale = 1.0f;
+		TraceResult tr = TraceBody( from, to, radiusScale, 0.5f );
+
+		// Shrink radius if started solid or hit non-standable surface
+		while ( tr.startedSolid || ( tr.hit && !IsStandableSurface( tr.normal ) ) )
+		{
+			radiusScale -= 0.1f;
+			if ( radiusScale < 0.7f )
+			{
+				UpdateGround( false, b3Vec3_axisY );
+				DrawLine( scene, from, to, b3_colorRed );
+				return;
+			}
+			tr = TraceBody( from, to, radiusScale, 0.5f );
+		}
+
+		if ( !tr.startedSolid && tr.hit && IsStandableSurface( tr.normal ) && m_jumpCooldown <= 0.0f )
+		{
+			UpdateGround( true, tr.normal );
+			DrawLine( scene, from, tr.hitPoint, b3_colorGreen );
+			DrawPoint( scene, tr.hitPoint, 5.0f, b3_colorGreen );
+		}
+		else
+		{
+			UpdateGround( false, b3Vec3_axisY );
+			DrawLine( scene, from, to, b3_colorGray );
+		}
+	}
+
+	void UpdateGround( bool onGround, b3Vec3 normal )
+	{
+		m_onGround = onGround;
+		m_groundNormal = normal;
+		if ( !onGround )
+		{
+			m_groundVelocity = b3Vec3_zero;
+		}
+	}
+
+	// --- Reground / StickToGround: snap character to surface when on ground ---
+	void Reground( float stepSize )
+	{
+		if ( !m_onGround )
+		{
+			return;
+		}
+
+		Scene* scene = m_sample->m_scene;
+		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
+
+		b3Vec3 from = { pos.x, pos.y + 0.05f, pos.z };
+		b3Vec3 to = { pos.x, pos.y - stepSize, pos.z };
+
+		float radiusScale = 1.0f;
+		TraceResult tr = TraceBody( from, to, radiusScale, 0.5f );
+
+		while ( tr.startedSolid )
+		{
+			radiusScale -= 0.1f;
+			if ( radiusScale < 0.7f )
+			{
+				return;
+			}
+			tr = TraceBody( from, to, radiusScale, 0.5f );
+		}
+
+		if ( tr.hit )
+		{
+			b3Vec3 targetPos = { tr.endPosition.x, tr.endPosition.y + 0.01f, tr.endPosition.z };
+			float deltaY = targetPos.y - pos.y;
+
+			b3Quat rot = b3Body_GetRotation( m_bodyId );
+			b3Body_SetTransform( m_bodyId, targetPos, rot );
+
+			// If we moved upward, kill vertical velocity to prevent bouncing
+			if ( deltaY > 0.01f )
+			{
+				b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
+				vel.y = 0.0f;
+				b3Body_SetLinearVelocity( m_bodyId, vel );
+			}
+
+			DrawLine( scene, from, tr.endPosition, b3_colorCyan );
+		}
+	}
+
+	// --- TryStep: 4-phase trace-based step-up algorithm ---
+	// Returns true if a step was taken and m_stepPosition was set.
+	bool TryStep( float maxStepHeight )
+	{
+		Scene* scene = m_sample->m_scene;
+		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
+		b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
+
+		// Only step when on ground and moving
+		if ( !m_onGround )
+		{
+			return false;
+		}
+
+		// Horizontal velocity direction
+		b3Vec3 hVel = { vel.x, 0.0f, vel.z };
+		float hSpeed = b3Length( hVel );
+		if ( hSpeed < 0.01f )
+		{
+			return false;
+		}
+		b3Vec3 moveDir = { hVel.x / hSpeed, 0.0f, hVel.z / hSpeed };
+
+		// Phase 1 — FORWARD: trace body forward in velocity direction
+		// Start slightly behind (offset by skin)
+		float forwardDist = hSpeed * ( 1.0f / 60.0f ) + m_bodyRadius; // one frame of movement + radius
+		b3Vec3 forwardFrom = pos - m_skin * moveDir;
+		b3Vec3 forwardTo = pos + forwardDist * moveDir;
+
+		float radiusScale = 1.0f;
+		TraceResult trForward = TraceBody( forwardFrom, forwardTo, radiusScale );
+
+		while ( trForward.startedSolid )
+		{
+			radiusScale -= 0.1f;
+			if ( radiusScale < 0.6f )
+			{
+				DrawLine( scene, forwardFrom, forwardTo, b3_colorRed );
+				return false;
+			}
+			trForward = TraceBody( forwardFrom, forwardTo, radiusScale );
+		}
+
+		if ( !trForward.hit )
+		{
+			// No obstacle ahead, no step needed
+			return false;
+		}
+
+		DrawLine( scene, forwardFrom, trForward.endPosition, b3_colorYellow );
+
+		// Remaining velocity direction after hit
+		b3Vec3 hitPos = trForward.endPosition;
+
+		// Phase 2 — UP: trace straight up from hit position
+		b3Vec3 upFrom = hitPos;
+		b3Vec3 upTo = { hitPos.x, hitPos.y + maxStepHeight, hitPos.z };
+		TraceResult trUp = TraceBody( upFrom, upTo, radiusScale );
+
+		if ( trUp.startedSolid )
+		{
+			DrawLine( scene, upFrom, upTo, b3_colorRed );
+			return false;
+		}
+
+		b3Vec3 topPos = trUp.hit ? trUp.endPosition : upTo;
+		float upDistance = topPos.y - upFrom.y;
+		if ( upDistance < 0.005f )
+		{
+			// Too tight to step up
+			DrawLine( scene, upFrom, topPos, b3_colorRed );
+			return false;
+		}
+
+		DrawLine( scene, upFrom, topPos, b3_colorYellow );
+
+		// Phase 3 — ACROSS: from top position, trace in move direction
+		float acrossDist = forwardDist * ( 1.0f - trForward.fraction ) + m_bodyRadius * 0.5f;
+		b3Vec3 acrossFrom = topPos;
+		b3Vec3 acrossTo = topPos + acrossDist * moveDir;
+		TraceResult trAcross = TraceBody( acrossFrom, acrossTo, radiusScale );
+
+		if ( trAcross.startedSolid )
+		{
+			DrawLine( scene, acrossFrom, acrossTo, b3_colorRed );
+			return false;
+		}
+
+		b3Vec3 acrossPos = trAcross.hit ? trAcross.endPosition : acrossTo;
+		DrawLine( scene, acrossFrom, acrossPos, b3_colorYellow );
+
+		// Phase 4 — DOWN: from across position, trace straight down
+		b3Vec3 downFrom = acrossPos;
+		b3Vec3 downTo = { acrossPos.x, acrossPos.y - maxStepHeight, acrossPos.z };
+		TraceResult trDown = TraceBody( downFrom, downTo, radiusScale );
+
+		if ( !trDown.hit )
+		{
+			DrawLine( scene, downFrom, downTo, b3_colorRed );
+			return false;
+		}
+
+		if ( !IsStandableSurface( trDown.normal ) )
+		{
+			DrawLine( scene, downFrom, trDown.endPosition, b3_colorRed );
+			return false;
+		}
+
+		// Check we actually stepped up (not just laterally)
+		float stepHeight = trDown.endPosition.y - pos.y;
+		if ( stepHeight < 0.01f )
+		{
+			return false;
+		}
+
+		DrawLine( scene, downFrom, trDown.endPosition, b3_colorYellow );
+		DrawPoint( scene, trDown.endPosition, 8.0f, b3_colorYellow );
+
+		// Teleport body to step position
+		b3Vec3 stepPos = { trDown.endPosition.x, trDown.endPosition.y + 0.01f, trDown.endPosition.z };
+		b3Quat rot = b3Body_GetRotation( m_bodyId );
+		b3Body_SetTransform( m_bodyId, stepPos, rot );
+
+		// Kill vertical velocity, scale horizontal by 0.9
+		b3Vec3 newVel = b3Body_GetLinearVelocity( m_bodyId );
+		newVel.x *= 0.9f;
+		newVel.y = 0.0f;
+		newVel.z *= 0.9f;
+		b3Body_SetLinearVelocity( m_bodyId, newVel );
+
+		m_stepPosition = stepPos;
+		return true;
+	}
+
+	void RestoreStep()
+	{
+		if ( !m_didStep )
+		{
+			return;
+		}
+
+		// After physics, restore to step position to prevent double-velocity
+		b3Quat rot = b3Body_GetRotation( m_bodyId );
+		b3Body_SetTransform( m_bodyId, m_stepPosition, rot );
+		m_didStep = false;
+	}
+
+	// --- AddClamped: add vector but cap the addition's magnitude ---
+	static b3Vec3 AddClamped( b3Vec3 current, b3Vec3 add, float maxAddLength )
+	{
+		float addLen = b3Length( add );
+		if ( addLen > maxAddLength && addLen > 0.0f )
+		{
+			add = ( maxAddLength / addLen ) * add;
+		}
+		return current + add;
+	}
+
+	// --- UpdateMassCenter: s&box formula ---
+	void UpdateMassCenter( float wishSpeed )
+	{
+		b3MassData massData = b3Body_GetMassData( m_bodyId );
+		float halfHeight = m_totalHeight * 0.5f;
+
+		if ( m_onGround )
+		{
+			// s&box: massCenter = clamp(WishSpeed, 0, halfHeight)
+			float centerOffset = b3ClampFloat( wishSpeed, 0.0f, halfHeight );
+			massData.center = { 0.0f, centerOffset - halfHeight, 0.0f };
+		}
+		else
+		{
+			massData.center = { 0.0f, 0.0f, 0.0f };
+		}
+
+		b3Body_SetMassData( m_bodyId, massData );
+	}
+
+	// --- UpdateBody: set friction, gravity, damping per s&box ---
+	void UpdateBody( b3Vec3 wishVelocity )
+	{
+		float wishLen = b3Length( wishVelocity );
+		b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
+		float velLen = b3Length( vel );
+
+		// Feet friction — s&box: wantsBrakes when wish < 5 Source/s or wish < vel * 0.9
+		float feetFriction = 0.0f;
+		if ( m_onGround )
+		{
+			bool wantsBrakes = wishLen < ( 5.0f * SRC ) || wishLen < velLen * 0.9f;
+			if ( wantsBrakes )
+			{
+				// s&box: 1 + 100 * BrakePower * GroundFriction = 1 + 100 * 0.2 * 0.6 = 13.0
+				feetFriction = 1.0f + 100.0f * m_brakePower * m_surfaceFriction;
+			}
+		}
+		b3Shape_SetFriction( m_feetBoxId, feetFriction );
+
+		// Mass center
+		UpdateMassCenter( wishLen );
+
+		// Gravity: s&box disables gravity when stationary on stable ground
+		// s&box: wantsGravity if !onGround || velocity > 1 Source/s || groundVel > 1 Source/s
+		bool wantsGravity = false;
+		if ( !m_onGround )
+			wantsGravity = true;
+		if ( velLen > ( 1.0f * SRC ) )
+			wantsGravity = true;
+		if ( b3Length( m_groundVelocity ) > ( 1.0f * SRC ) )
+			wantsGravity = true;
+		b3Body_SetGravityScale( m_bodyId, wantsGravity ? ( m_characterGravity / 10.0f ) : 0.0f );
+
+		// Linear damping — s&box: brakes when wish < 1 unit/s && groundVel < 1 unit/s
+		bool wantsDamping = m_onGround && wishLen < ( 1.0f * SRC ) && b3Length( m_groundVelocity ) < ( 1.0f * SRC );
+		b3Body_SetLinearDamping( m_bodyId, wantsDamping ? 10.0f * m_brakePower : m_airFriction );
+	}
+
+	// --- AddVelocity: s&box's MoveMode.Walk velocity model ---
+	void AddVelocity( b3Vec3 wishVelocity )
+	{
+		// Walk mode strips vertical component
+		b3Vec3 wish = { wishVelocity.x, 0.0f, wishVelocity.z };
+		float wishLen = b3Length( wish );
+		if ( wishLen < 0.001f )
+		{
+			return;
+		}
+
+		float groundFrictionFactor = 0.25f + m_surfaceFriction * 10.0f;
+		b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
+		float savedY = vel.y;
+
+		b3Vec3 velocity = vel - m_groundVelocity;
+		float speed = b3Length( velocity );
+		float maxSpeed = b3MaxFloat( wishLen, speed );
+
+		if ( m_onGround )
+		{
+			float amount = 1.0f * groundFrictionFactor;
+			velocity = AddClamped( velocity, amount * wish, wishLen * amount );
+		}
+		else
+		{
+			float amount = 0.05f;
+			velocity = AddClamped( velocity, amount * wish, wishLen );
+		}
+
+		// Cap at max speed
+		float newSpeed = b3Length( velocity );
+		if ( newSpeed > maxSpeed && newSpeed > 0.0f )
+		{
+			velocity = ( maxSpeed / newSpeed ) * velocity;
+		}
+
+		velocity = velocity + m_groundVelocity;
+		if ( m_onGround )
+		{
+			velocity.y = savedY;
+		}
+
+		b3Body_SetLinearVelocity( m_bodyId, velocity );
+	}
+
+	// --- PreStep: UpdateBody + AddVelocity + TryStep ---
+	void PreStep( float timeStep, b3Vec3 forward, b3Vec3 right, b3Vec2 throttle )
+	{
+		if ( m_jumpCooldown > 0.0f )
+		{
+			m_jumpCooldown -= timeStep;
+		}
+
+		// Compute wish velocity from input
+		float maxSpeed = m_sprint ? m_runSpeed : m_walkSpeed;
+		b3Vec3 wishVelocity = maxSpeed * throttle.x * forward + maxSpeed * throttle.y * right;
+		float wishSpeed = b3Length( wishVelocity );
+		if ( wishSpeed > maxSpeed )
+		{
+			wishVelocity = ( maxSpeed / wishSpeed ) * wishVelocity;
+		}
+		m_lastWishVelocity = wishVelocity;
+
+		// 1. UpdateBody — set friction, mass center, gravity, damping
+		UpdateBody( wishVelocity );
+
+		// 2. AddVelocity — apply wish velocity (s&box model)
+		AddVelocity( wishVelocity );
+
+		// 3. TryStep — 4-phase step-up
+		m_didStep = TryStep( m_stepUpHeight );
+
+		m_massCenterWorld = b3Body_GetWorldCenterOfMass( m_bodyId );
+	}
+
+	// --- PostStep: RestoreStep + Reground + CategorizeGround ---
+	void PostStep( float timeStep )
+	{
+		// 1. RestoreStep — teleport back to step position if we stepped
+		RestoreStep();
+
+		// 2. Reground / StickToGround
+		Reground( m_stepDownHeight );
+
+		// 3. CategorizeGround
+		CategorizeGround();
+	}
+
+	void Jump()
+	{
+		if ( m_onGround && m_jumpCooldown <= 0.0f )
+		{
+			b3Vec3 velocity = b3Body_GetLinearVelocity( m_bodyId );
+			velocity.y = m_jumpSpeed;
+			b3Body_SetLinearVelocity( m_bodyId, velocity );
+			m_onGround = false;
+			m_jumpCooldown = m_jumpCooldownTime;
+		}
+	}
+
+	void Step( float timeStep, b3Vec3 forward, b3Vec3 right, b3Vec2 throttle )
+	{
+		PreStep( timeStep, forward, right, throttle );
+	}
+
+	void LateStep( float timeStep )
+	{
+		PostStep( timeStep );
+	}
+
+	void DrawDebug() const
+	{
+		Scene* scene = m_sample->m_scene;
+		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
+		b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
+
+		// Draw velocity vector (purple)
+		DrawLine( scene, pos, pos + vel, b3_colorPurple );
+
+		// Draw wish velocity (orange)
+		DrawLine( scene, pos, pos + m_lastWishVelocity, b3_colorOrange );
+
+		// Draw mass center (yellow dot)
+		DrawPoint( scene, m_massCenterWorld, 8.0f, b3_colorYellow );
+
+		// Draw ground indicator
+		if ( m_onGround )
+		{
+			b3Vec3 bottom = { pos.x, pos.y - m_totalHeight * 0.5f, pos.z };
+			DrawLine( scene, bottom, bottom + 0.3f * m_groundNormal, b3_colorGreen );
+		}
+	}
+};
+
+class RigidBodyCharacter : public Sample
+{
+public:
+	explicit RigidBodyCharacter( SampleContext* context )
+		: Sample( context )
+	{
+		b3Vec3 startPosition = { 7.5f, 2.0f, 9.0f };
+
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 120.0f, 30.0f, 5.0f, startPosition );
+		}
+
+		m_character.Initialize( this, startPosition );
+
+		// --- Main level mesh (test_map01) ---
+		{
+			m_levelMesh = CreateMeshData( "data/meshes/test_map01.obj", 1.0f, false, false, true, true );
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3SurfaceMaterial materials[3];
+			materials[0] = { 0.6f, 0.0f, 0 };
+			materials[1] = { 0.6f, 1.0f, 1 };
+			materials[2] = { 0.1f, 0.0f, 2 };
+			shapeDef.materials = materials;
+			shapeDef.materialCount = 3;
+
+			b3CreateMeshShape( body, &shapeDef, m_levelMesh, b3Vec3_one );
+		}
+
+		// --- Stairs mesh ---
+		{
+			m_stairs = CreateMeshData( "data/meshes/stairs.obj", 1.0f, false, false, true, true );
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { -10.0f, 0.0f, 0.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateMeshShape( body, &shapeDef, m_stairs, { 0.75f, 0.75f, -1.5f } );
+		}
+
+		// --- High-poly building mesh ---
+		{
+			m_building = CreateMeshData( "data/meshes/building.obj", 1.0f, false, false, true, true );
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { -5.0f, 0.0f, -10.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateMeshShape( body, &shapeDef, m_building, b3Vec3_one );
+		}
+
+		// --- Voxel meshes (dense tri terrain) ---
+		{
+			m_voxel01 = CreateMeshData( "data/meshes/voxel_mesh_01.obj", 1.0f, false, false, true, true );
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 10.0f, 0.0f, -10.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateMeshShape( body, &shapeDef, m_voxel01, b3Vec3_one );
+		}
+		{
+			m_voxel02 = CreateMeshData( "data/meshes/voxel_mesh_02.obj", 1.0f, false, false, true, true );
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 10.0f, 0.0f, 10.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateMeshShape( body, &shapeDef, m_voxel02, b3Vec3_one );
+		}
+
+		// --- Height field terrain ---
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 20.0f, 0.0f, 0.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+
+			m_heightField = b3CreateWave( 50.0f, 50.0f, b3Vec3_one, 0.02f, 0.04f, true );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3SurfaceMaterial materials[3];
+			materials[0] = { 0.6f, 0.0f, 0 };
+			materials[1] = { 0.6f, 1.0f, 1 };
+			materials[2] = { 0.1f, 0.0f, 2 };
+			shapeDef.materials = materials;
+			shapeDef.materialCount = 3;
+
+			b3CreateHeightFieldShape( body, &shapeDef, m_heightField );
+		}
+
+		// --- Hull obstacles on top of mesh level ---
+		b3ShapeDef hullShapeDef = b3DefaultShapeDef();
+		hullShapeDef.baseMaterial.friction = 0.6f;
+
+		// Ramp (tilted box)
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 6.0f, 1.0f, 4.0f };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, -20.0f * B3_DEG_TO_RAD );
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			hullShapeDef.baseMaterial.customColor = b3_colorOliveDrab;
+			b3BoxHull box = b3MakeBoxHull( 3.0f, 0.15f, 1.5f );
+			b3CreateHullShape( body, &hullShapeDef, &box.base );
+		}
+
+		// Steep ramp (too steep to stand on)
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 6.0f, 2.0f, -4.0f };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, -50.0f * B3_DEG_TO_RAD );
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			hullShapeDef.baseMaterial.customColor = b3_colorIndianRed;
+			b3BoxHull box = b3MakeBoxHull( 2.5f, 0.15f, 1.5f );
+			b3CreateHullShape( body, &hullShapeDef, &box.base );
+		}
+
+		// Elevated platforms with gaps
+		for ( int i = 0; i < 3; ++i )
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { -4.0f + 3.5f * i, 1.2f, -5.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			hullShapeDef.baseMaterial.customColor = b3_colorSlateGray;
+			b3BoxHull box = b3MakeBoxHull( 1.2f, 0.15f, 1.2f );
+			b3CreateHullShape( body, &hullShapeDef, &box.base );
+		}
+
+		// Step-height test (increasing lip heights)
+		for ( int i = 0; i < 5; ++i )
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			float lipHeight = 0.05f + 0.08f * i;
+			bodyDef.position = { -8.0f, lipHeight, -1.0f + 2.0f * i };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			hullShapeDef.baseMaterial.customColor = b3_colorCornflowerBlue;
+			b3BoxHull box = b3MakeBoxHull( 1.0f, lipHeight, 0.6f );
+			b3CreateHullShape( body, &hullShapeDef, &box.base );
+		}
+
+		// Wall
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 0.0f, 1.5f, 10.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			hullShapeDef.baseMaterial.customColor = b3_colorDarkSlateGray;
+			b3BoxHull box = b3MakeBoxHull( 4.0f, 1.5f, 0.2f );
+			b3CreateHullShape( body, &hullShapeDef, &box.base );
+		}
+
+		// Dynamic boxes to push around
+		for ( int i = 0; i < 3; ++i )
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { 3.0f + 1.5f * i, 0.5f, 0.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			hullShapeDef.baseMaterial.customColor = b3_colorGold;
+			b3BoxHull box = b3MakeBoxHull( 0.4f, 0.4f, 0.4f );
+			b3CreateHullShape( body, &hullShapeDef, &box.base );
+		}
+
+		// Dynamic sphere
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { -3.0f, 1.0f, 0.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			hullShapeDef.baseMaterial.customColor = b3_colorOrange;
+			b3Sphere sphere = { b3Vec3_zero, 0.5f };
+			b3CreateSphereShape( body, &hullShapeDef, &sphere );
+		}
+
+		m_camera->m_thirdPerson = true;
+		m_showDebug = true;
+		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED );
+	}
+
+	~RigidBodyCharacter() override
+	{
+		m_camera->m_thirdPerson = false;
+		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL );
+		b3DestroyMesh( m_levelMesh );
+		b3DestroyMesh( m_stairs );
+		b3DestroyMesh( m_building );
+		b3DestroyMesh( m_voxel01 );
+		b3DestroyMesh( m_voxel02 );
+		b3DestroyHeightField( m_heightField );
+	}
+
+	void Keyboard( int key, int action, int mods ) override
+	{
+		if ( key == GLFW_KEY_T && action == GLFW_PRESS )
+		{
+			ToggleThirdPerson();
+		}
+
+		if ( key == GLFW_KEY_V && action == GLFW_PRESS )
+		{
+			m_showDebug = !m_showDebug;
+		}
+	}
+
+	void Step() override
+	{
+		float hertz = m_context->hertz;
+		float timeStep = hertz > 0.0f ? 1.0f / hertz : 0.0f;
+
+		// Read input
+		b3Vec2 throttle = { 0.0f, 0.0f };
+		b3Vec3 forward = -m_camera->GetForward();
+		b3Vec3 right = m_camera->GetRight();
+		forward.y = 0.0f;
+
+		// Normalize forward to horizontal plane
+		float forwardLen = b3Length( forward );
+		if ( forwardLen > 0.001f )
+		{
+			forward *= 1.0f / forwardLen;
+		}
+
+		if ( m_camera->m_thirdPerson )
+		{
+			if ( glfwGetKey( m_window, GLFW_KEY_W ) )
+			{
+				throttle.x += 1.0f;
+			}
+			if ( glfwGetKey( m_window, GLFW_KEY_S ) )
+			{
+				throttle.x -= 1.0f;
+			}
+			if ( glfwGetKey( m_window, GLFW_KEY_A ) )
+			{
+				throttle.y -= 1.0f;
+			}
+			if ( glfwGetKey( m_window, GLFW_KEY_D ) )
+			{
+				throttle.y += 1.0f;
+			}
+
+			if ( glfwGetKey( m_window, GLFW_KEY_SPACE ) )
+			{
+				m_character.Jump();
+			}
+
+			m_character.m_sprint = m_character.m_onGround && glfwGetKey( m_window, GLFW_KEY_LEFT_SHIFT ) != 0;
+		}
+
+		// Pre-step: manipulate velocity before physics
+		m_character.Step( timeStep, forward, right, throttle );
+
+		// Run physics
+		Sample::Step();
+
+		// Post-step: re-categorize ground and apply corrections
+		m_character.LateStep( timeStep );
+
+		// Update camera pivot to follow character
+		b3Vec3 pos = b3Body_GetPosition( m_character.m_bodyId );
+		if ( m_camera->m_thirdPerson )
+		{
+			m_camera->m_pivot = pos;
+			m_camera->UpdateTransform();
+
+			// Sphere collision: cast a sphere from pivot toward camera position
+			// to prevent clipping through geometry
+			float cameraRadius = 0.15f;
+			b3Vec3 desiredPos = m_camera->m_position;
+			b3Vec3 translation = desiredPos - pos;
+			float desiredDist = b3Length( translation );
+
+			if ( desiredDist > 0.01f )
+			{
+				// Single-point sphere proxy (sphere = 1 point + radius)
+				b3Vec3 sphereCenter = pos;
+				b3ShapeProxy proxy;
+				proxy.points = &sphereCenter;
+				proxy.count = 1;
+				proxy.radius = cameraRadius;
+
+				b3QueryFilter filter = b3DefaultQueryFilter();
+				b3RayResult rayResult = b3World_CastRayClosest( m_worldId, pos, translation, filter );
+
+				if ( rayResult.hit )
+				{
+					// Pull camera in front of the hit point
+					float clampedDist = rayResult.fraction * desiredDist - cameraRadius;
+					if ( clampedDist < 0.1f )
+						clampedDist = 0.1f;
+
+					b3Vec3 dir = { translation.x / desiredDist, translation.y / desiredDist, translation.z / desiredDist };
+					m_camera->m_position = pos + clampedDist * dir;
+				}
+			}
+		}
+
+		// Debug visualization
+		if ( m_showDebug )
+		{
+			m_character.DrawDebug();
+		}
+
+		// HUD text
+		b3Vec3 vel = b3Body_GetLinearVelocity( m_character.m_bodyId );
+		float speed = sqrtf( vel.x * vel.x + vel.z * vel.z );
+		DrawTextLine( "Rigid Body Character (s&box-style)" );
+		DrawTextLine( "position: %.2f %.2f %.2f", pos.x, pos.y, pos.z );
+		DrawTextLine( "velocity: %.2f %.2f %.2f (horizontal: %.2f)", vel.x, vel.y, vel.z, speed );
+		DrawTextLine( "on ground: %s | sprint: %s", m_character.m_onGround ? "yes" : "no", m_character.m_sprint ? "yes" : "no" );
+		DrawTextLine( "WASD=move Space=jump Shift=sprint T=camera V=debug" );
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+		DrawTransform( m_scene, { { 0.0f, 0.0f, 0.02f }, b3Quat_identity }, 2.0f );
+	}
+
+	void UpdateUI() override
+	{
+		float fontSize = ImGui::GetFontSize();
+		float height = 12.0f * fontSize;
+		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
+		ImGui::SetNextWindowSize( ImVec2( 22.0f * fontSize, height ) );
+
+		ImGui::Begin( "Rigidbody Character", nullptr, ImGuiWindowFlags_NoResize );
+
+		bool thirdPerson = m_camera->m_thirdPerson;
+		if ( ImGui::Checkbox( "Third Person (Key: T)", &thirdPerson ) )
+		{
+			ToggleThirdPerson();
+		}
+
+		ImGui::Checkbox( "Debug Visualization (Key: V)", &m_showDebug );
+
+		ImGui::Separator();
+		ImGui::Text( "Ground: %s", m_character.m_onGround ? "YES" : "NO" );
+
+		b3Vec3 vel = b3Body_GetLinearVelocity( m_character.m_bodyId );
+		float hSpeed = sqrtf( vel.x * vel.x + vel.z * vel.z );
+		ImGui::Text( "Speed: %.2f m/s", hSpeed );
+		ImGui::Text( "Vertical: %.2f m/s", vel.y );
+
+		b3Vec3 mc = m_character.m_massCenterWorld;
+		b3Vec3 pos = b3Body_GetPosition( m_character.m_bodyId );
+		ImGui::Text( "Mass center offset: %.2f", mc.y - pos.y );
+
+		ImGui::End();
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new RigidBodyCharacter( context );
+	}
+
+	RigidbodyCharacter m_character;
+	b3MeshData* m_levelMesh;
+	b3MeshData* m_stairs;
+	b3MeshData* m_building;
+	b3MeshData* m_voxel01;
+	b3MeshData* m_voxel02;
+	b3HeightField* m_heightField;
+	bool m_showDebug;
+};
+
+static int sampleRBCharacter = SampleManager::Register( "Character", "Rigid Body", RigidBodyCharacter::Create );
