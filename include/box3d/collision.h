@@ -1535,8 +1535,8 @@ typedef struct b3Point2D
 {
 	b3Vec2 p;
 	float separation;
-	int16_t originalIndex;
+	uint16_t originalIndex;
 	bool persisted;
 } b3Point2D;
 
-B3_API int b3CullPoints( b3Point2D* points, int count, int target );
+B3_API int b3CullPoints( b3Point2D* points, int count );

@@ -914,7 +914,7 @@ public:
 			bodyDef.name = "angular xz";
 			bodyDef.position = { 2.0f, 2.0f, 0.0f };
 			bodyDef.motionLocks.angularX = true;
-			//bodyDef.motionLocks.angularY = true;
+			// bodyDef.motionLocks.angularY = true;
 			bodyDef.motionLocks.angularZ = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
@@ -963,3 +963,61 @@ public:
 };
 
 static int sampleLockMixing = SampleManager::Register( "Bodies", "Lock Mixing", LockMixing::Create );
+
+// A fully rotation locked body uses a zero inverse inertia tensor
+class FixedRotation : public Sample
+{
+public:
+	explicit FixedRotation( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 15.0f, 10.0f, b3Vec3_zero );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 0.0f, -1.0f, 0.0f };
+
+			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3BoxHull hull = b3MakeBoxHull( 15.0f, 1.0f, 15.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull.base );
+		}
+
+		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 0.3f };
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 0.0f, 0.5f, 0.0f };
+
+			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 0.3f, 0.5f, 0.0f };
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.gravityScale = 0.0f;
+			bodyDef.enableSleep = false;
+			bodyDef.motionLocks.angularX = true;
+			bodyDef.motionLocks.angularY = true;
+			bodyDef.motionLocks.angularZ = true;
+
+			capsule.radius = 0.2f;
+			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new FixedRotation( context );
+	}
+};
+
+static int sampleFixedRotation = SampleManager::Register( "Bodies", "Fixed Rotation", FixedRotation::Create );

@@ -761,8 +761,8 @@ void b3CollideCapsules( b3LocalManifold* manifold, int capacity, const b3Capsule
 					return;
 				}
 
-				b3Vec3 normal1 = b3MulSV( 1.0f / distance1, b3Sub( closestPoint1, verticesB[0].position ) );
-				b3Vec3 normal2 = b3MulSV( 1.0f / distance2, b3Sub( closestPoint2, verticesB[1].position ) );
+				b3Vec3 normal1 = b3MulSV( 1.0f / distance1, b3Sub( verticesB[0].position, closestPoint1 ) );
+				b3Vec3 normal2 = b3MulSV( 1.0f / distance2, b3Sub( verticesB[1].position, closestPoint2 ) );
 				b3Vec3 normal = b3Normalize( b3Add( normal1, normal2 ) );
 				float radiusA = capsuleA->radius;
 				float radiusB = capsuleB->radius;

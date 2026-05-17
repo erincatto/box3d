@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "camera.h"
-#include "human.h"
 #include "imgui.h"
 #include "mesh_loader.h"
 #include "sample.h"
@@ -245,6 +244,61 @@ public:
 };
 
 static int sampleSphereStack = SampleManager::Register( "Stacking", "Sphere Stack", SphereStack::Create );
+
+class CapsuleStack : public Sample
+{
+public:
+	explicit CapsuleStack( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 15.0f, 50.0f, { 0.0f, 10.0f, 0.0f } );
+			EnableGrid( m_scene, true );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.name = "ground";
+			bodyDef.position = { 0.0f, -1.0f, 0.0f };
+
+			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3BoxHull hull = b3MakeBoxHull( 40.0f, 1.0f, 40.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull.base );
+		}
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.motionLocks.linearZ = true;
+		bodyDef.motionLocks.angularX = true;
+		bodyDef.motionLocks.angularY = true;
+		bodyDef.motionLocks.angularZ = true;
+
+		float r = 0.5f;
+		b3Capsule capsule = { {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, r };
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		float y = 1.5f * r;
+
+		for ( int i = 0; i < 20; ++i )
+		{
+			bodyDef.position.y = y;
+			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
+
+			y += 2.0f * r;
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new CapsuleStack( context );
+	}
+};
+
+static int sampleCapsuleStack = SampleManager::Register( "Stacking", "Capsule Stack", CapsuleStack::Create );
 
 class SingleBox : public Sample
 {

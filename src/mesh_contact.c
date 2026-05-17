@@ -288,7 +288,7 @@ static inline bool b3IsBetterCullCandidate( float score, float separation, float
 	return separation < bestSeparation - separationTol;
 }
 
-int b3CullPoints( b3Point2D* points, int count, int target )
+int b3CullPoints( b3Point2D* points, int count )
 {
 	if ( count <= 1 )
 	{
@@ -327,7 +327,7 @@ int b3CullPoints( b3Point2D* points, int count, int target )
 		}
 	}
 
-	if ( bestScore < tolSqr || target == 1 )
+	if ( bestScore < tolSqr )
 	{
 		// Choose deepest point
 		int deepestIndex = 0;
@@ -354,7 +354,7 @@ int b3CullPoints( b3Point2D* points, int count, int target )
 	points[bestIndex1] = points[count1 - 2];
 	count1 -= 2;
 
-	if ( count1 == 0 || target == 2 )
+	if ( count1 == 0 )
 	{
 		points[0] = finalPoints[0];
 		points[1] = finalPoints[1];
@@ -401,7 +401,7 @@ int b3CullPoints( b3Point2D* points, int count, int target )
 	// Store best point
 	finalPoints[2] = points[bestIndex];
 
-	if ( count1 == 1 || target == 3 )
+	if ( count1 == 1 )
 	{
 		points[0] = finalPoints[0];
 		points[1] = finalPoints[1];
@@ -482,26 +482,26 @@ static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 nor
 
 	for ( int i = 0; i < count1; ++i )
 	{
-		pts[i].originalIndex = (int16_t)i;
+		pts[i].originalIndex = (uint16_t)i;
 		pts[i].separation = points[i].separation;
 		b3Vec3 d = b3Sub( points[i].point, origin );
 		pts[i].p = (b3Vec2){ b3Dot( d, u ), b3Dot( d, v ) };
 		pts[i].persisted = false;
 	}
 
-	int count3 = b3CullPoints( pts, count1, 4 );
-	B3_ASSERT( count3 <= B3_MAX_MANIFOLD_POINTS );
+	int count2 = b3CullPoints( pts, count1 );
+	B3_ASSERT( count2 <= B3_MAX_MANIFOLD_POINTS );
 
 	b3LocalManifoldPoint finalPoints[B3_MAX_MANIFOLD_POINTS];
-	for ( int i = 0; i < count3; ++i )
+	for ( int i = 0; i < count2; ++i )
 	{
-		int index = pts[i].originalIndex;
-		B3_ASSERT( 0 <= index && index < count1 );
+		uint16_t index = pts[i].originalIndex;
+		B3_ASSERT( index < count1 );
 		finalPoints[i] = points[index];
 	}
 
-	memcpy( points, finalPoints, count3 * sizeof( b3LocalManifoldPoint ) );
-	return count3;
+	memcpy( points, finalPoints, count2 * sizeof( b3LocalManifoldPoint ) );
+	return count2;
 }
 
 typedef struct b3Cluster

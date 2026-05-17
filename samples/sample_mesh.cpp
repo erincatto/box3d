@@ -225,7 +225,7 @@ public:
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-		m_boxMesh = b3CreateBoxMesh( b3Vec3_zero, { 50.0f, 1.0f, 50.0f }, true );
+		m_boxMesh = b3CreateBoxMesh( {0.0f, -1.0f, 0.0f}, { 50.0f, 1.0f, 50.0f }, true );
 		m_scale = b3Vec3_one;
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -236,7 +236,8 @@ public:
 
 		m_shapeType = ShapeType::cylinder;
 		m_bodyId = b3_nullBodyId;
-		m_cylinderHull = b3CreateCylinder( 0.5f, 0.2f, 0.0f, 15 );
+		//m_cylinderHull = b3CreateCylinder( 0.5f, 0.2f, 0.0f, 15 );
+		m_cylinderHull = b3CreateCylinder( 0.3f, 0.15f, 0.0f, 32 );
 
 		m_stepWhilePaused = false;
 
@@ -258,7 +259,7 @@ public:
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = { 0.0f, 2.0f, 0.0f };
+		bodyDef.position = { 0.5f, 0.0f, 0.0f };
 		m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
