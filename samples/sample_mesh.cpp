@@ -1582,7 +1582,7 @@ public:
 				{ 9.8f, 2.0f, 0.0f }, { 0.0f, 2.0f, -9.8f }, { 0.0f, 2.0f, 9.8f },
 			};
 
-			for (int i = 0; i < 6; ++i)
+			for (int i = 0; i < 8; ++i)
 			{
 				bodyDef.position = positions[i];
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
