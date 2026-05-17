@@ -271,6 +271,23 @@ static inline bool b3AddVertex( b3FoundVertices* vertices, int vertex )
 	return true;
 }
 
+// Returns true if (score, separation) should replace (bestScore, bestSeparation).
+static inline bool b3IsBetterCullCandidate( float score, float separation, float bestScore, float bestSeparation, float scoreTol,
+											float separationTol )
+{
+	if ( score > bestScore + scoreTol )
+	{
+		return true;
+	}
+	if ( score < bestScore - scoreTol )
+	{
+		return false;
+	}
+
+	// Break the tie using separation
+	return separation < bestSeparation - separationTol;
+}
+
 int b3CullPoints( b3Point2D* points, int count, int target )
 {
 	if ( count <= 1 )
@@ -280,12 +297,14 @@ int b3CullPoints( b3Point2D* points, int count, int target )
 
 	float tol = 0.25f * B3_LINEAR_SLOP;
 	float tolSqr = tol * tol;
+	float separationTol = B3_LINEAR_SLOP;
 
 	b3Point2D finalPoints[4];
 	int count1 = count;
 
-	// Step 1: the two points with the largest distance
+	// Step 1: the two points with the largest distance, ties broken by deepest combined separation
 	float bestScore = 0.0f;
+	float bestSeparation = FLT_MAX;
 	int bestIndex1 = B3_NULL_INDEX;
 	int bestIndex2 = B3_NULL_INDEX;
 
@@ -295,20 +314,35 @@ int b3CullPoints( b3Point2D* points, int count, int target )
 		for ( int j = i + 1; j < count1; ++j )
 		{
 			float score = b3DistanceSquared2( p1, points[j].p );
+			// Separation sum heuristic
+			float separation = points[i].separation + points[j].separation;
 
-			// Use tolerance for welding and hysteresis
-			if ( score > bestScore + tolSqr )
+			if ( b3IsBetterCullCandidate( score, separation, bestScore, bestSeparation, tolSqr, separationTol ) )
 			{
 				bestIndex1 = i;
 				bestIndex2 = j;
 				bestScore = score;
+				bestSeparation = separation;
 			}
 		}
 	}
 
 	if ( bestScore < tolSqr || target == 1 )
 	{
-		// All points coincident. Just use first point.
+		// Choose deepest point
+		int deepestIndex = 0;
+		for ( int i = 1; i < count1; ++i )
+		{
+			if ( points[i].separation < points[deepestIndex].separation )
+			{
+				deepestIndex = i;
+			}
+		}
+		
+		if ( deepestIndex != 0 )
+		{
+			points[0] = points[deepestIndex];
+		}
 		return 1;
 	}
 
@@ -336,8 +370,9 @@ int b3CullPoints( b3Point2D* points, int count, int target )
 	// float length = b3Length2( ba );
 	// float areaTol = tol * length;
 
-	// Step 2: find the point with the maximum triangular area
+	// Step 2: find the point with the maximum triangular area, ties broken by deepest separation
 	bestScore = 0.0f;
+	bestSeparation = FLT_MAX;
 	int bestIndex = B3_NULL_INDEX;
 	float bestSignedArea = 0.0f;
 	for ( int i = 0; i < count1; ++i )
@@ -346,11 +381,11 @@ int b3CullPoints( b3Point2D* points, int count, int target )
 		float signedArea = b3Cross2( ba, b3Sub2( p, a ) );
 		float score = b3AbsFloat( signedArea );
 
-		// Use the area tolerance for collinear points and hysteresis
-		if ( score > bestScore + tolSqr )
+		if ( b3IsBetterCullCandidate( score, points[i].separation, bestScore, bestSeparation, tolSqr, separationTol ) )
 		{
 			bestSignedArea = signedArea;
 			bestScore = score;
+			bestSeparation = points[i].separation;
 			bestIndex = i;
 		}
 	}
@@ -394,6 +429,7 @@ int b3CullPoints( b3Point2D* points, int count, int target )
 	b3Vec2 ac = b3Sub2( a, c );
 
 	bestScore = 0.0f;
+	bestSeparation = FLT_MAX;
 	bestIndex = B3_NULL_INDEX;
 	for ( int i = 0; i < count1; ++i )
 	{
@@ -403,10 +439,10 @@ int b3CullPoints( b3Point2D* points, int count, int target )
 		float u3 = b3Cross2( b3Sub2( p, c ), ac );
 		float score = b3MaxFloat( u1, b3MaxFloat( u2, u3 ) );
 
-		// Use the area tolerance for collinear points and hysteresis
-		if ( score > bestScore + tolSqr )
+		if ( b3IsBetterCullCandidate( score, points[i].separation, bestScore, bestSeparation, tolSqr, separationTol ) )
 		{
 			bestScore = score;
+			bestSeparation = points[i].separation;
 			bestIndex = i;
 		}
 	}
@@ -439,7 +475,6 @@ static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 nor
 		return count1;
 	}
 
-	// bump MAX_POINTS * MAX_TRI * 16
 	b3Point2D* pts = b3Bump( &arena, count1 * sizeof( b3Point2D ) );
 	b3Vec3 u = b3Perp( normal );
 	b3Vec3 v = b3Cross( normal, u );
@@ -448,8 +483,7 @@ static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 nor
 	for ( int i = 0; i < count1; ++i )
 	{
 		pts[i].originalIndex = (int16_t)i;
-		pts[i].separation = 0.0f;
-
+		pts[i].separation = points[i].separation;
 		b3Vec3 d = b3Sub( points[i].point, origin );
 		pts[i].p = (b3Vec2){ b3Dot( d, u ), b3Dot( d, v ) };
 		pts[i].persisted = false;
@@ -573,9 +607,8 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 					cache->satCache = (b3SATCache){ 0 };
 				}
 
-				b3CollideHullAndTriangle( manifold, pointCapacity, shapeB->hull, vertices[0], vertices[1],
-										  vertices[2],triangle.flags,
-										  &cache->satCache );
+				b3CollideHullAndTriangle( manifold, pointCapacity, shapeB->hull, vertices[0], vertices[1], vertices[2],
+										  triangle.flags, &cache->satCache );
 				context->satCallCount += 1;
 				context->satCacheHitCount += cache->satCache.hit;
 				break;

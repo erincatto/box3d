@@ -1482,6 +1482,40 @@ b3MeshData* b3CreateBoxMesh( b3Vec3 center, b3Vec3 extent, bool identifyEdges )
 	return b3CreateMesh( &def, NULL, 0 );
 }
 
+b3MeshData* b3CreateHollowBoxMesh(b3Vec3 center, b3Vec3 extent)
+{
+	float x = extent.x;
+	float y = extent.y;
+	float z = extent.z;
+	b3Vec3 vertices[] = {
+		{ x, y, z }, { -x, y, z }, { -x, -y, z }, { x, -y, z }, { x, y, -z }, { -x, y, -z }, { -x, -y, -z }, { x, -y, -z },
+	};
+
+	for ( int i = 0; i < 8; ++i )
+	{
+		vertices[i] = b3Add( vertices[i], center );
+	}
+
+	int indices[] = {
+		3, 1, 0, 3, 2, 1, // front
+		1, 4, 0, 5, 4, 1, // top
+		7, 3, 0, 7, 0, 4, // right
+		5, 7, 4, 7, 5, 6, // back
+		2, 5, 1, 5, 2, 6, // left
+		7, 2, 3, 2, 7, 6, // bottom
+	};
+
+	b3MeshDef def = { 0 };
+	def.vertexCount = 8;
+	def.vertices = vertices;
+	def.triangleCount = 12;
+	def.indices = indices;
+	def.useMedianSplit = false;
+	def.identifyEdges = true;
+
+	return b3CreateMesh( &def, NULL, 0 );
+}
+
 b3MeshData* b3CreatePlatformMesh( b3Vec3 center, float height, float topWidth, float bottomWidth )
 {
 	float hb = 0.5f * bottomWidth;

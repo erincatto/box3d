@@ -3,6 +3,7 @@
 
 #include "camera.h"
 #include "imgui.h"
+#include "mesh_loader.h"
 #include "renderer.h"
 #include "sample.h"
 #include "scene.h"
@@ -476,3 +477,74 @@ public:
 };
 
 static int sampleBoxMesh = SampleManager::Register( "Issues", "s&box mover", SBoxMover::Create );
+
+class CapsuleMeshBug : public Sample
+{
+public:
+	explicit CapsuleMeshBug( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 120.0f, 30.0f, 10.0f, { 0.0f, 2.0f, 0.0f } );
+		}
+
+		// --- Ground plane ---
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3BoxHull ground = b3MakeBoxHull( 50.0f, 0.1f, 50.0f );
+			b3CreateHullShape( body, &shapeDef, &ground.base );
+		}
+
+		// --- Building mesh on top of ground ---
+		m_building = CreateMeshData( "data/meshes/building.obj", 1.0f, false, false, true, true );
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 0.0f, 0.1f, 0.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateMeshShape( body, &shapeDef, m_building, b3Vec3_one );
+		}
+
+		// --- Locked capsule (same setup as player controller body) ---
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { 0.0f, 4.0f, 10.0f };
+			bodyDef.motionLocks.angularX = true;
+			bodyDef.motionLocks.angularY = true;
+			bodyDef.motionLocks.angularZ = true;
+			bodyDef.enableSleep = false;
+			bodyDef.enableContactRecycling = false;
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.baseMaterial.friction = 0.3f;
+			shapeDef.baseMaterial.customColor = b3_colorMagenta;
+
+			b3Capsule capsule = { { 0.0f, -0.5f, 0.0f }, { 0.0f, 0.5f, 0.0f }, 0.3f };
+			b3CreateCapsuleShape( body, &shapeDef, &capsule );
+		}
+	}
+
+	~CapsuleMeshBug() override
+	{
+		if ( m_building )
+		{
+			b3DestroyMesh( m_building );
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new CapsuleMeshBug( context );
+	}
+
+	b3MeshData* m_building = nullptr;
+};
+
+static int sampleIndex = SampleManager::Register( "Issues", "Capsule Mesh", CapsuleMeshBug::Create );

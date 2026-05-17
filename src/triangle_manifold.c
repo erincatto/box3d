@@ -243,11 +243,12 @@ static void b3BuildTriangleAndCapsuleFaceContact( b3LocalManifold* manifold, con
 		return;
 	}
 
+	float radius = capsule->radius;
 	float distance1 = b3PlaneSeparation( plane, segment[0].position );
 	float distance2 = b3PlaneSeparation( plane, segment[1].position );
 
 	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
-	if ( distance1 > speculativeDistance && distance2 > speculativeDistance )
+	if ( distance1 > speculativeDistance + radius && distance2 > speculativeDistance + radius )
 	{
 		return;
 	}

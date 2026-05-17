@@ -39,11 +39,11 @@ public:
 		m_gridMesh = b3CreateGridMesh( 20, 20, 1.0f, 0, true );
 
 		m_scale = b3Vec3_one;
-		m_scale = {2.0f, 2.0f, 2.0f};
-		//m_scale = { -1.2f, 2.0f, 4.0f };
-		//m_scale = {  8.0f, 8.0f, 8.0f };
-		//m_scale = {  0.5f, 0.5f, 0.5f };
-		//m_scale = { 0.25f, 0.25f, 0.25f };
+		m_scale = { 2.0f, 2.0f, 2.0f };
+		// m_scale = { -1.2f, 2.0f, 4.0f };
+		// m_scale = {  8.0f, 8.0f, 8.0f };
+		// m_scale = {  0.5f, 0.5f, 0.5f };
+		// m_scale = { 0.25f, 0.25f, 0.25f };
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		m_gridShapeId = b3CreateMeshShape( groundId, &shapeDef, m_gridMesh, m_scale );
@@ -51,7 +51,7 @@ public:
 		m_shapeType = ShapeType::cylinder;
 		m_bodyId = b3_nullBodyId;
 		m_cylinderHull = b3CreateCylinder( 1.0f, 0.25f, 0.0f, 15 );
-		//m_cylinderHull = b3CreateCylinder( 0.5f, 0.2f, 0.0f, 15 );
+		// m_cylinderHull = b3CreateCylinder( 0.5f, 0.2f, 0.0f, 15 );
 
 		Spawn();
 
@@ -73,9 +73,9 @@ public:
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		//bodyDef.position = { 0.5f, 2.0f, -0.5f };
+		// bodyDef.position = { 0.5f, 2.0f, -0.5f };
 		bodyDef.position = { 0.1f, 1.0f, -0.1f };
-		//bodyDef.enableContactRecycling = m_shapeType != ShapeType::cylinder;
+		// bodyDef.enableContactRecycling = m_shapeType != ShapeType::cylinder;
 		bodyDef.angularDamping = m_shapeType == ShapeType::cylinder ? 0.1f : 0.0f;
 
 		// bodyDef.linearVelocity = { 2.0f, 0.0f, 0.0f };
@@ -108,7 +108,7 @@ public:
 			case ShapeType::box:
 			{
 				b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
-				//shapeDef.baseMaterial.friction = 0.01f;
+				// shapeDef.baseMaterial.friction = 0.01f;
 				b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
 			}
 			break;
@@ -230,8 +230,8 @@ public:
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.friction = 0.5f;
-		//shapeDef.baseMaterial.restitution = 0.5f;
-		//shapeDef.baseMaterial.rollingResistance = 0.5f;
+		// shapeDef.baseMaterial.restitution = 0.5f;
+		// shapeDef.baseMaterial.rollingResistance = 0.5f;
 		m_gridShapeId = b3CreateMeshShape( groundId, &shapeDef, m_boxMesh, m_scale );
 
 		m_shapeType = ShapeType::cylinder;
@@ -276,8 +276,8 @@ public:
 			case ShapeType::capsule:
 			{
 				b3SurfaceMaterial material = b3DefaultSurfaceMaterial();
-				//material.friction = 0.0f;
-				//material.restitution = 1.0f;
+				// material.friction = 0.0f;
+				// material.restitution = 1.0f;
 				material.rollingResistance = 0.1f;
 				shapeDef.materials = &material;
 				shapeDef.materialCount = 1;
@@ -289,7 +289,7 @@ public:
 			case ShapeType::box:
 			{
 				b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
-				//shapeDef.baseMaterial.friction = 0.01f;
+				// shapeDef.baseMaterial.friction = 0.01f;
 				b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
 			}
 			break;
@@ -440,7 +440,7 @@ public:
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.0f, 1.5f, 0.0f };
-		//bodyDef.position = { -0.2f, 1.5f, -1.25f };
+		// bodyDef.position = { -0.2f, 1.5f, -1.25f };
 
 		if ( m_shapeType == ShapeType::cylinder )
 		{
@@ -788,7 +788,7 @@ public:
 			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Vec3_zero );
 		}
 
-#if defined(NDEBUG)
+#if defined( NDEBUG )
 		m_rowCount = 400;
 		m_columnCount = 400;
 #else
@@ -1098,7 +1098,10 @@ public:
 		float scale = 0.01f;
 
 		const char* filesNames[m_meshCount] = {
-			"voxel_mesh_01.obj", "voxel_mesh_02.obj", "voxel_mesh_03.obj", "voxel_mesh_04.obj",
+			"voxel_mesh_01.obj",
+			"voxel_mesh_02.obj",
+			"voxel_mesh_03.obj",
+			"voxel_mesh_04.obj",
 		};
 
 		char buffer[64] = {};
@@ -1523,3 +1526,94 @@ public:
 };
 
 static int sampleVoxelMesh = SampleManager::Register( "Mesh", "Voxel", VoxelMesh::Create );
+
+// Pause this to check contact manifolds for axis aligned collisions.
+class HollowBox : public Sample
+{
+public:
+	explicit HollowBox( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Vec3_zero );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+
+			m_mesh = b3CreateHollowBoxMesh( { 0.0f, 0.0f, 0.0f }, { 10.0f, 10.0f, 10.0f } );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateMeshShape( groundId, &shapeDef, m_mesh, b3Vec3_one );
+		}
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.gravityScale = 0.0f;
+		bodyDef.enableSleep = false;
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		{
+			b3Hull* cylinderHull = b3CreateCylinder( 1.0f, 0.25f, 0.0f, 8 );
+
+			b3Vec3 positions[6] = {
+				{ 0.0f, -10.2f, 0.0f }, { 0.0f, 9.2f, 0.0f }, { -9.8f, 0.0f, 0.0f },
+				{ 9.8f, 0.0f, 0.0f }, { 0.0f, 0.0f, -9.8f }, { 0.0f, 0.0f, 9.8f },
+			};
+
+			for (int i = 0; i < 6; ++i)
+			{
+				bodyDef.position = positions[i];
+				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+				b3CreateHullShape( bodyId, &shapeDef, cylinderHull );
+			}
+
+			b3DestroyHull( cylinderHull );
+		}
+
+		{
+			b3Capsule capsule ={{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0.25f};
+			b3Vec3 positions[8] = {
+				{ 0.0f, -10.2f, 2.0f }, { 0.0f, 9.2f, 2.0f }, 
+				{ 0.0f, -9.9f, 4.0f }, { 0.0f, 8.9f, 4.0f }, 
+				{ -9.8f, 2.0f, 0.0f },
+				{ 9.8f, 2.0f, 0.0f }, { 0.0f, 2.0f, -9.8f }, { 0.0f, 2.0f, 9.8f },
+			};
+
+			for (int i = 0; i < 6; ++i)
+			{
+				bodyDef.position = positions[i];
+				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+				b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
+			}
+		}
+	}
+
+	~HollowBox() override
+	{
+		b3DestroyMesh( m_mesh );
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+
+		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
+		DrawTransform( m_scene, transform, 1.0f );
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new HollowBox( context );
+	}
+
+	b3MeshData* m_mesh;
+};
+
+static int sampleHollowBox = SampleManager::Register( "Mesh", "Hollow Box", HollowBox::Create );

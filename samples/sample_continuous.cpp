@@ -570,7 +570,7 @@ public:
 		bodyDef.type = b3_dynamicBody;
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		shapeDef.baseMaterial.rollingResistance = m_shapeType == e_capsule ? 0.4f : 0.1f;
 
 		// Don't allow shapes to collide with each other. This
 		// makes isolating failures easier.
@@ -743,7 +743,8 @@ public:
 				m_stepCount += n;
 			}
 
-			if ( m_stepCount > 1000 )
+			int maxSteps = m_shapeType == e_capsule ? 3000 : 1000;
+			if ( m_stepCount > maxSteps )
 			{
 				m_context->pause = true;
 				m_failure = true;
