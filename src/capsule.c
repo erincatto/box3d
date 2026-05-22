@@ -267,24 +267,39 @@ b3CastOutput b3ShapeCastCapsule( const b3Capsule* capsule, const b3ShapeCastInpu
 
 int b3CollideMoverAndCapsule( b3PlaneResult* result, const b3Capsule* shape, const b3Capsule* mover )
 {
-	b3DistanceInput distanceInput;
-	distanceInput.proxyA = (b3ShapeProxy){ &shape->center1, 2, 0.0f };
-	distanceInput.proxyB = (b3ShapeProxy){ &mover->center1, 2, mover->radius };
-	distanceInput.transformA = b3Transform_identity;
-	distanceInput.transformB = b3Transform_identity;
-	distanceInput.useRadii = false;
-
 	float totalRadius = mover->radius + shape->radius;
 
-	b3SimplexCache cache = { 0 };
-	b3DistanceOutput distanceOutput = b3ShapeDistance( &distanceInput, &cache, NULL, 0 );
+	b3ClosestApproachResult approach =
+		b3ClosestApproachSegments( shape->center1, shape->center2, mover->center1, mover->center2 );
 
-	if ( distanceOutput.distance <= totalRadius )
+	// The normal points from the shape toward the mover.
+	float distance;
+	b3Vec3 normal = b3GetLengthAndNormalize( &distance, b3Sub( approach.point2, approach.point1 ) );
+
+	if ( distance > totalRadius )
 	{
-		b3Plane plane = { distanceOutput.normal, totalRadius - distanceOutput.distance };
-		*result = (b3PlaneResult){ plane, distanceOutput.pointA };
-		return 1;
+		return 0;
 	}
 
-	return 0;
+	float linearSlop = B3_LINEAR_SLOP;
+	if ( distance < linearSlop )
+	{
+		// Deep overlap: the core segments intersect. The separating axis for two
+		// crossing segments is perpendicular to both. Fall back to a perpendicular
+		// of the mover axis when the segments are parallel or degenerate.
+		float moverLength, shapeLength, crossLength;
+		b3Vec3 moverAxis = b3GetLengthAndNormalize( &moverLength, b3Sub( mover->center2, mover->center1 ) );
+		b3Vec3 shapeAxis = b3GetLengthAndNormalize( &shapeLength, b3Sub( shape->center2, shape->center1 ) );
+		normal = b3GetLengthAndNormalize( &crossLength, b3Cross( moverAxis, shapeAxis ) );
+
+		if ( crossLength < linearSlop )
+		{
+			normal = moverLength > linearSlop ? b3Perp( moverAxis ) : b3Vec3_axisY;
+		}
+		distance = 0.0f;
+	}
+
+	b3Plane plane = { normal, totalRadius - distance };
+	*result = (b3PlaneResult){ plane, approach.point1 };
+	return 1;
 }

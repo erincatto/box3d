@@ -2471,6 +2471,15 @@ int b3CollideMoverAndHull( b3PlaneResult* result, const b3Hull* shape, const b3C
 	b3SimplexCache cache = { 0 };
 	b3DistanceOutput distanceOutput = b3ShapeDistance( &distanceInput, &cache, NULL, 0 );
 
+	if ( distanceOutput.distance == 0.0f )
+	{
+		// I could handle deep overlap on hulls, but there is no reasonable solution for
+		// deep overlap on meshes. So if someone converted a hull to a mesh there would be
+		// different behavior. So I think there is not a good reason to handle deep overlap
+		// on hulls.
+		return 0;
+	}
+
 	if ( distanceOutput.distance <= totalRadius )
 	{
 		b3Plane plane = { distanceOutput.normal, totalRadius - distanceOutput.distance };

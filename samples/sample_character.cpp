@@ -152,6 +152,176 @@ public:
 
 static int sampleCapsulePlane = SampleManager::Register( "Character", "CapsulePlane", CapsulePlane::Create );
 
+// Exercises the deep-overlap path of b3World_CollideMover against each primitive
+// shape type: drag the mover capsule (yellow) into the static sphere, capsule,
+// and box hull and watch the returned planes (lime arrows) and the solved
+// push-out position (cyan). The HUD reports the count of planes and the count
+// of degenerate (zero) normals; the latter must stay at 0 even when the mover
+// is buried inside a shape.
+class MoverOverlap : public Sample
+{
+public:
+	static Sample* Create( SampleContext* context )
+	{
+		return new MoverOverlap( context );
+	}
+
+	explicit MoverOverlap( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 120.0f, 25.0f, 10.0f, { 0.0f, 1.0f, 0.0f } );
+		}
+
+		m_capsule = { { 0.0f, -0.5f, 0.0f }, { 0.0f, 0.5f, 0.0f }, 0.35f };
+		m_transform = { { 0.0f, 3.5f, 0.0f }, b3Quat_identity };
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		// Static sphere
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { -3.0f, 1.0f, 0.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			b3Sphere sphere = { b3Vec3_zero, 0.6f };
+			b3CreateSphereShape( body, &shapeDef, &sphere );
+		}
+
+		// Static capsule
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 0.0f, 1.0f, 0.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			b3Capsule capsule = { { 0.0f, 0.0f, -0.7f }, { 0.0f, 0.0f, 0.7f }, 0.4f };
+			b3CreateCapsuleShape( body, &shapeDef, &capsule );
+		}
+
+		// Static box hull
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 3.0f, 1.0f, 0.0f };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			b3BoxHull box = b3MakeBoxHull( 0.6f, 0.6f, 0.6f );
+			b3CreateHullShape( body, &shapeDef, &box.base );
+		}
+
+		m_baseTranslation = b3Vec3_zero;
+		m_origin = b3Vec3_zero;
+		m_tracking = false;
+		m_planeCount = 0;
+		m_zeroNormalCount = 0;
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+		DrawGrid( m_scene, 12 );
+	}
+
+	static bool PlaneResultFcn( b3ShapeId /*shape*/, const b3PlaneResult* results, int planeCount, void* context )
+	{
+		MoverOverlap* self = static_cast<MoverOverlap*>( context );
+		for ( int i = 0; i < planeCount && self->m_planeCount < m_planeCapacity; ++i )
+		{
+			self->m_results[self->m_planeCount] = results[i];
+			self->m_planeCount += 1;
+		}
+		return true;
+	}
+
+	void MouseDown( b3Vec2 p, int button, int modifiers ) override
+	{
+		if ( button == 0 && ( modifiers & GLFW_MOD_ALT ) == 0 )
+		{
+			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
+			m_origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
+			m_baseTranslation = m_transform.p;
+			m_tracking = true;
+		}
+	}
+
+	void MouseUp( b3Vec2 /*p*/, int /*button*/ ) override
+	{
+		m_tracking = false;
+	}
+
+	void MouseMove( b3Vec2 p ) override
+	{
+		if ( m_tracking )
+		{
+			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
+			b3Vec3 origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
+			m_transform.p = m_baseTranslation + origin - m_origin;
+		}
+	}
+
+	void Step() override
+	{
+		// Build the mover in world space and query all overlapping shapes.
+		b3Capsule worldMover = { m_capsule.center1 + m_transform.p, m_capsule.center2 + m_transform.p, m_capsule.radius };
+
+		m_planeCount = 0;
+		m_zeroNormalCount = 0;
+		b3QueryFilter filter = b3DefaultQueryFilter();
+		b3World_CollideMover( m_worldId, &worldMover, filter, PlaneResultFcn, this );
+
+		// Mover at the queried position.
+		DrawCapsule( m_scene, m_transform, m_capsule, b3_colorYellow );
+
+		// One arrow per returned plane, drawn from the contact point along the
+		// normal. A degenerate (zero) normal is drawn red to surface the bug.
+		b3CollisionPlane solverPlanes[m_planeCapacity];
+		for ( int i = 0; i < m_planeCount; ++i )
+		{
+			b3PlaneResult r = m_results[i];
+			bool valid = b3IsNormalized( r.plane.normal );
+			b3HexColor color = valid ? b3_colorLimeGreen : b3_colorRed;
+			DrawPoint( m_scene, r.point, 6.0f, color );
+			DrawArrow( m_scene, r.point, r.point + 0.5f * r.plane.normal, 0.05f, color );
+			if ( valid == false )
+			{
+				m_zeroNormalCount += 1;
+			}
+			solverPlanes[i] = { r.plane, FLT_MAX, 0.0f, true };
+		}
+
+		// Solve the planes and show the pushed-out capsule pose.
+		b3PlaneSolverResult solved = b3SolvePlanes( b3Vec3_zero, solverPlanes, m_planeCount );
+		b3Transform pushed = { m_transform.p + solved.delta, m_transform.q };
+		DrawCapsule( m_scene, pushed, m_capsule, b3_colorCyan );
+
+		DrawTextLine( "drag the capsule with the left mouse to push it into the shapes" );
+		DrawTextLine( "yellow = queried pose, cyan = solved push-out, lime = valid plane normals" );
+		DrawTextLine( "planes: %d   degenerate normals: %d", m_planeCount, m_zeroNormalCount );
+	}
+
+	void UpdateUI() override
+	{
+		float fontSize = ImGui::GetFontSize();
+		ImGui::SetNextWindowPos( ImVec2( 10.0f, 600.0f ), ImGuiCond_Once );
+		ImGui::SetNextWindowSize( ImVec2( 18.0f * fontSize, 5.0f * fontSize ) );
+		ImGui::Begin( "Mover Overlap", nullptr, ImGuiWindowFlags_NoResize );
+		ImGui::Text( "planes: %d", m_planeCount );
+		ImGui::Text( "degenerate normals: %d", m_zeroNormalCount );
+		ImGui::End();
+	}
+
+	static constexpr int m_planeCapacity = 32;
+
+	b3Transform m_transform;
+	b3Capsule m_capsule;
+	b3PlaneResult m_results[m_planeCapacity] = {};
+	int m_planeCount;
+	int m_zeroNormalCount;
+
+	b3Vec3 m_baseTranslation;
+	b3Vec3 m_origin;
+	bool m_tracking;
+};
+
+static int sampleMoverOverlap = SampleManager::Register( "Character", "MoverOverlap", MoverOverlap::Create );
+
 class BasicMover : public Sample
 {
 public:
