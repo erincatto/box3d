@@ -1549,6 +1549,24 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 	}
 }
 
+b3AABB b3World_GetBounds( b3WorldId worldId )
+{
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return (b3AABB){ 0 };
+	}
+
+	b3AABB worldBounds = b3DynamicTree_GetRootBounds( world->broadPhase.trees + 0 );
+	for ( int i = 1; i < b3_bodyTypeCount; ++i )
+	{
+		b3AABB bounds = b3DynamicTree_GetRootBounds( world->broadPhase.trees + i );
+		worldBounds = b3AABB_Union( worldBounds, bounds );
+	}
+
+	return worldBounds;
+}
+
 b3BodyEvents b3World_GetBodyEvents( b3WorldId worldId )
 {
 	b3World* world = b3GetUnlockedWorldFromId( worldId );

@@ -48,6 +48,10 @@ B3_API void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount );
 /// Call this to draw shapes and other debug draw data
 B3_API void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits );
 
+/// Get the worlds bounds. This is the bounding box that covers the current simulation. May have a small
+/// amount of padding.
+B3_API b3AABB b3World_GetBounds( b3WorldId worldId );
+
 /// Get the body events for the current time step. The event data is transient. Do not store a reference to this data.
 B3_API b3BodyEvents b3World_GetBodyEvents( b3WorldId worldId );
 
