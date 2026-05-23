@@ -1557,11 +1557,27 @@ b3AABB b3World_GetBounds( b3WorldId worldId )
 		return (b3AABB){ 0 };
 	}
 
-	b3AABB worldBounds = b3DynamicTree_GetRootBounds( world->broadPhase.trees + 0 );
-	for ( int i = 1; i < b3_bodyTypeCount; ++i )
+	b3AABB worldBounds = { 0 };
+	bool haveBounds = false;
+
+	for ( int i = 0; i < b3_bodyTypeCount; ++i )
 	{
+		b3DynamicTree* tree = world->broadPhase.trees + i;
+		if ( b3DynamicTree_GetProxyCount( tree ) == 0 )
+		{
+			continue;
+		}
+
 		b3AABB bounds = b3DynamicTree_GetRootBounds( world->broadPhase.trees + i );
-		worldBounds = b3AABB_Union( worldBounds, bounds );
+
+		if ( haveBounds )
+		{
+			worldBounds = b3AABB_Union( worldBounds, bounds );
+		}
+		else
+		{
+			worldBounds = bounds;
+		}
 	}
 
 	return worldBounds;

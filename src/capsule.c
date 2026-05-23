@@ -284,18 +284,11 @@ int b3CollideMoverAndCapsule( b3PlaneResult* result, const b3Capsule* shape, con
 	float linearSlop = B3_LINEAR_SLOP;
 	if ( distance < linearSlop )
 	{
-		// Deep overlap: the core segments intersect. The separating axis for two
-		// crossing segments is perpendicular to both. Fall back to a perpendicular
-		// of the mover axis when the segments are parallel or degenerate.
-		float moverLength, shapeLength, crossLength;
+		// Deep overlap: the core segments intersect. Pick an arbitrary direction perpendicular
+		// the to capsule axis.
+		float moverLength;
 		b3Vec3 moverAxis = b3GetLengthAndNormalize( &moverLength, b3Sub( mover->center2, mover->center1 ) );
-		b3Vec3 shapeAxis = b3GetLengthAndNormalize( &shapeLength, b3Sub( shape->center2, shape->center1 ) );
-		normal = b3GetLengthAndNormalize( &crossLength, b3Cross( moverAxis, shapeAxis ) );
-
-		if ( crossLength < linearSlop )
-		{
-			normal = moverLength > linearSlop ? b3Perp( moverAxis ) : b3Vec3_axisY;
-		}
+		normal = moverLength > linearSlop ? b3Perp( moverAxis ) : b3Vec3_axisY;
 		distance = 0.0f;
 	}
 
