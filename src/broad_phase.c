@@ -512,7 +512,7 @@ int b3BroadPhase_GetShapeIndex( b3BroadPhase* bp, int proxyKey )
 	return (int)b3DynamicTree_GetUserData( bp->trees + typeIndex, proxyId );
 }
 
-void b3ValidateBroadphase( const b3BroadPhase* bp )
+void b3ValidateBroadPhase( const b3BroadPhase* bp )
 {
 	b3DynamicTree_Validate( bp->trees + b3_dynamicBody );
 	b3DynamicTree_Validate( bp->trees + b3_kinematicBody );

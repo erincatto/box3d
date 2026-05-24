@@ -123,7 +123,7 @@ typedef struct b3Body
 	// Used to check for invalid b3BodyId
 	uint16_t generation;
 
-	char name[B3_NAME_LENGTH];
+	char name[B3_NAME_LENGTH + 1];
 } b3Body;
 
 // Body State

@@ -2119,7 +2119,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			}
 		}
 
-		b3ValidateBroadphase( &world->broadPhase );
+		b3ValidateBroadPhase( &world->broadPhase );
 
 		world->profile.refit = b3GetMilliseconds( refitTicks );
 		b3TracyCZoneEnd( refit_bvh );

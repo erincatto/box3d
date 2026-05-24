@@ -21,6 +21,8 @@
 #include <stddef.h>
 #include <string.h>
 
+_Static_assert( B3_NAME_LENGTH >= 0, "minimum name length" );
+
 // Get a validated body from a world using an id.
 b3Body* b3GetBodyFullId( b3World* world, b3BodyId bodyId )
 {
@@ -270,22 +272,16 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 
 	if ( def->name )
 	{
-		int i = 0;
-		while ( i < B3_NAME_LENGTH - 1 && def->name[i] != 0 )
-		{
-			body->name[i] = def->name[i];
-			i += 1;
-		}
-
-		while ( i < B3_NAME_LENGTH )
-		{
-			body->name[i] = 0;
-			i += 1;
-		}
+#if defined( _MSC_VER )
+		strncpy_s( body->name, B3_NAME_LENGTH + 1, def->name, B3_NAME_LENGTH );
+#else
+		strncpy( body->name, def->name, B3_NAME_LENGTH );
+		body->name[B3_NAME_LENGTH] = 0;
+#endif
 	}
 	else
 	{
-		memset( body->name, 0, B3_NAME_LENGTH * sizeof( char ) );
+		memset( body->name, 0, sizeof( body->name ) );
 	}
 
 	body->userData = def->userData;
@@ -1661,22 +1657,16 @@ void b3Body_SetName( b3BodyId bodyId, const char* name )
 
 	if ( name )
 	{
-		int i = 0;
-		while ( i < B3_NAME_LENGTH - 1 && name[i] != 0 )
-		{
-			body->name[i] = name[i];
-			i += 1;
-		}
-
-		while ( i < B3_NAME_LENGTH )
-		{
-			body->name[i] = 0;
-			i += 1;
-		}
+#if defined( _MSC_VER )
+		strncpy_s( body->name, B3_NAME_LENGTH + 1, name, B3_NAME_LENGTH );
+#else
+		strncpy( body->name, name, B3_NAME_LENGTH );
+		body->name[B3_NAME_LENGTH] = 0;
+#endif
 	}
 	else
 	{
-		memset( body->name, 0, B3_NAME_LENGTH * sizeof( char ) );
+		memset( body->name, 0, sizeof( body->name ) );
 	}
 }
 
@@ -1951,6 +1941,7 @@ void b3Body_EnableSleep( b3BodyId bodyId, bool enableSleep )
 	}
 
 	body->flags = enableSleep ? body->flags | b3_enableSleep : body->flags & ~b3_enableSleep;
+	b3SyncBodyFlags( world, body );
 
 	if ( enableSleep == false )
 	{
@@ -2221,17 +2212,18 @@ void b3Body_SetBullet( b3BodyId bodyId, bool flag )
 		return;
 	}
 
-	b3Body* body = b3GetBodyFullId( world, bodyId );
-	b3BodySim* bodySim = b3GetBodySim( world, body );
+	uint32_t newFlag = flag ? b3_isBullet : 0;
 
-	if ( flag )
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	if ( ( body->flags & b3_isBullet ) == newFlag )
 	{
-		bodySim->flags |= b3_isBullet;
+		return;
 	}
-	else
-	{
-		bodySim->flags &= ~b3_isBullet;
-	}
+
+	body->flags &= ~b3_isBullet;
+	body->flags |= newFlag;
+
+	b3SyncBodyFlags( world, body );
 }
 
 bool b3Body_IsBullet( b3BodyId bodyId )

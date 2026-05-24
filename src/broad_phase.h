@@ -61,7 +61,7 @@ int b3BroadPhase_GetShapeIndex( b3BroadPhase* bp, int proxyKey );
 void b3UpdateBroadPhasePairs( b3World* world );
 bool b3BroadPhase_TestOverlap( const b3BroadPhase* bp, int proxyKeyA, int proxyKeyB );
 
-void b3ValidateBroadphase( const b3BroadPhase* bp );
+void b3ValidateBroadPhase( const b3BroadPhase* bp );
 void b3ValidateNoEnlarged( const b3BroadPhase* bp );
 
 // This is what triggers new contact pairs to be created

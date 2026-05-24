@@ -618,7 +618,6 @@ static int TestCompoundHitEvents( void )
 	return 0;
 }
 
-#if 0
 static int TestSetWorkerCount( void )
 {
 	b3WorldDef worldDef = b3DefaultWorldDef();
@@ -650,8 +649,8 @@ static int TestSetWorkerCount( void )
 
 	StepJunkyard( worldId, 5 );
 
-	b3World_SetWorkerCount( worldId, B2_MAX_WORKERS + 10 );
-	ENSURE( b3World_GetWorkerCount( worldId ) == B2_MAX_WORKERS );
+	b3World_SetWorkerCount( worldId, B3_MAX_WORKERS + 10 );
+	ENSURE( b3World_GetWorkerCount( worldId ) == B3_MAX_WORKERS );
 
 	StepJunkyard( worldId, 2 );
 
@@ -659,7 +658,6 @@ static int TestSetWorkerCount( void )
 
 	return 0;
 }
-#endif
 
 // This tests continuous collision and mesh contact stability
 static int TestMeshDrop( void )
@@ -740,6 +738,92 @@ static int TestOverflowColorPile( void )
 	return 0;
 }
 
+// Exposes that b3Body_EnableSleep mutates body->flags but never syncs
+// bodySim->flags / bodyState->flags. When a body created with
+// enableSleep=false is later flipped on, body->flags gains b3_enableSleep
+// but bodySim/bodyState do not. The flag-sync assertion in
+// b3ValidateSolverSets then fires on the next world step.
+//
+// Under Debug + BOX3D_VALIDATE this crashes; after b3Body_EnableSleep
+// calls b3SyncBodyFlags the test runs cleanly.
+static int EnableSleepFlagSyncTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.enableSleep = false;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	ENSURE( b3Body_IsSleepEnabled( bodyId ) == false );
+
+	b3Body_EnableSleep( bodyId, true );
+	ENSURE( b3Body_IsSleepEnabled( bodyId ) == true );
+
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+// Exposes that b3Body_SetBullet writes only bodySim->flags without
+// touching body->flags, while b3SyncBodyFlags overwrites bodySim from
+// body->flags. Any subsequent b3Body_SetMotionLocks or b3Body_SetType
+// silently wipes (or re-asserts) the bullet bit.
+//
+// Reproducer A: create with isBullet=false, SetBullet(true), then
+// SetMotionLocks. b3Body_IsBullet returns false today (wiped); should be
+// true after fix.
+//
+// Reproducer B: create with isBullet=true, SetBullet(false), then
+// SetMotionLocks. b3Body_IsBullet returns true today (re-asserted); should
+// be false after fix.
+static int SetBulletDriftTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.isBullet = false;
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+		ENSURE( b3Body_IsBullet( bodyId ) == false );
+
+		b3Body_SetBullet( bodyId, true );
+		ENSURE( b3Body_IsBullet( bodyId ) == true );
+
+		b3MotionLocks locks = { 0 };
+		locks.linearX = true;
+		b3Body_SetMotionLocks( bodyId, locks );
+
+		ENSURE( b3Body_IsBullet( bodyId ) == true );
+	}
+
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.isBullet = true;
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+		ENSURE( b3Body_IsBullet( bodyId ) == true );
+
+		b3Body_SetBullet( bodyId, false );
+		ENSURE( b3Body_IsBullet( bodyId ) == false );
+
+		b3MotionLocks locks = { 0 };
+		locks.linearX = true;
+		b3Body_SetMotionLocks( bodyId, locks );
+
+		ENSURE( b3Body_IsBullet( bodyId ) == false );
+	}
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int WorldTest( void )
 {
 	RUN_SUBTEST( HelloWorld );
@@ -754,7 +838,9 @@ int WorldTest( void )
 	RUN_SUBTEST( TestCompoundHitEvents );
 	RUN_SUBTEST( TestMeshDrop );
 	RUN_SUBTEST( TestOverflowColorPile );
-	// RUN_SUBTEST( TestSetWorkerCount );
+	RUN_SUBTEST( SetBulletDriftTest );
+	RUN_SUBTEST( EnableSleepFlagSyncTest );
+	RUN_SUBTEST( TestSetWorkerCount );
 
 	return 0;
 }
