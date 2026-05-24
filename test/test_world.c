@@ -824,6 +824,60 @@ static int SetBulletDriftTest( void )
 	return 0;
 }
 
+// Regression: b3Body_EnableSleep used to set world->locked = true before checking
+// for a no-op change, then early-return without unlocking. The next mutator call
+// would then trip the assert in b3GetUnlockedWorld.
+static int EnableSleepNoopUnlockTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.enableSleep = true;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	// No-op: enableSleep is already true. Must not leak the world lock.
+	b3Body_EnableSleep( bodyId, true );
+
+	// Would assert in b3GetUnlockedWorld if the lock had leaked.
+	b3Body_EnableSleep( bodyId, false );
+	ENSURE( b3Body_IsSleepEnabled( bodyId ) == false );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+static int EnableContactRecyclingTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+
+	// Default is enabled
+	b3BodyId bodyA = b3CreateBody( worldId, &bodyDef );
+	ENSURE( b3Body_IsContactRecyclingEnabled( bodyA ) == true );
+
+	b3Body_EnableContactRecycling( bodyA, false );
+	ENSURE( b3Body_IsContactRecyclingEnabled( bodyA ) == false );
+
+	b3Body_EnableContactRecycling( bodyA, true );
+	ENSURE( b3Body_IsContactRecyclingEnabled( bodyA ) == true );
+
+	// Per-def opt-out at creation
+	bodyDef.enableContactRecycling = false;
+	b3BodyId bodyB = b3CreateBody( worldId, &bodyDef );
+	ENSURE( b3Body_IsContactRecyclingEnabled( bodyB ) == false );
+
+	// Stepping after toggling must not trip the flag-sync validator
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int WorldTest( void )
 {
 	RUN_SUBTEST( HelloWorld );
@@ -840,6 +894,8 @@ int WorldTest( void )
 	RUN_SUBTEST( TestOverflowColorPile );
 	RUN_SUBTEST( SetBulletDriftTest );
 	RUN_SUBTEST( EnableSleepFlagSyncTest );
+	RUN_SUBTEST( EnableSleepNoopUnlockTest );
+	RUN_SUBTEST( EnableContactRecyclingTest );
 	RUN_SUBTEST( TestSetWorkerCount );
 
 	return 0;

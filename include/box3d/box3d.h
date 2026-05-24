@@ -482,6 +482,16 @@ B3_API void b3Body_SetBullet( b3BodyId bodyId, bool flag );
 /// Is this body a bullet?
 B3_API bool b3Body_IsBullet( b3BodyId bodyId );
 
+/// Enable or disable contact recycling for this body. Contact recycling is a performance optimization
+/// that reuses contact manifolds when bodies move slightly. Disabling it can avoid ghost collisions
+/// on characters at the cost of higher per-step work. Existing contacts retain their prior setting;
+/// only contacts created after this call see the new value.
+/// @see b3BodyDef::enableContactRecycling
+B3_API void b3Body_EnableContactRecycling( b3BodyId bodyId, bool flag );
+
+/// Is contact recycling enabled on this body?
+B3_API bool b3Body_IsContactRecyclingEnabled( b3BodyId bodyId );
+
 /// Enable/disable hit events on all shapes
 /// @see b3ShapeDef::enableHitEvents
 B3_API void b3Body_EnableHitEvents( b3BodyId bodyId, bool enableHitEvents );

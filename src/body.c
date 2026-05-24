@@ -1930,8 +1930,6 @@ void b3Body_EnableSleep( b3BodyId bodyId, bool enableSleep )
 		return;
 	}
 
-	world->locked = true;
-
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	bool flag = ( body->flags & b3_enableSleep ) == b3_enableSleep;
@@ -1939,6 +1937,8 @@ void b3Body_EnableSleep( b3BodyId bodyId, bool enableSleep )
 	{
 		return;
 	}
+
+	world->locked = true;
 
 	body->flags = enableSleep ? body->flags | b3_enableSleep : body->flags & ~b3_enableSleep;
 	b3SyncBodyFlags( world, body );
@@ -2232,6 +2232,35 @@ bool b3Body_IsBullet( b3BodyId bodyId )
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3BodySim* bodySim = b3GetBodySim( world, body );
 	return ( bodySim->flags & b3_isBullet ) != 0;
+}
+
+void b3Body_EnableContactRecycling( b3BodyId bodyId, bool flag )
+{
+	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
+	if ( world == NULL )
+	{
+		return;
+	}
+
+	uint32_t newFlag = flag ? b3_bodyEnableContactRecycling : 0;
+
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	if ( ( body->flags & b3_bodyEnableContactRecycling ) == newFlag )
+	{
+		return;
+	}
+
+	body->flags &= ~b3_bodyEnableContactRecycling;
+	body->flags |= newFlag;
+
+	b3SyncBodyFlags( world, body );
+}
+
+bool b3Body_IsContactRecyclingEnabled( b3BodyId bodyId )
+{
+	b3World* world = b3GetWorld( bodyId.world0 );
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	return ( body->flags & b3_bodyEnableContactRecycling ) != 0;
 }
 
 void b3Body_EnableHitEvents( b3BodyId bodyId, bool enableHitEvents )
