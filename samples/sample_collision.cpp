@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "GLFW/glfw3.h"
-#include "camera.h"
-#include "utils.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+
+#include "sample_draw.h"
+#include "utils.h"
+
+#include "gfx/debug_adapter.h"
+#include "gfx/keycodes.h"
 
 #include "box3d/box3d.h"
 
@@ -510,7 +511,7 @@ public:
 
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override
 	{
-		if ( button == 0 && modifiers == GLFW_MOD_CONTROL )
+		if ( button == 0 && modifiers == MOD_CTRL )
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 			m_origin = pickRay.origin;
@@ -1089,12 +1090,12 @@ public:
 	{
 		if ( button == 0 )
 		{
-			if ( modifiers == GLFW_MOD_SHIFT )
+			if ( modifiers == MOD_SHIFT )
 			{
 				m_trackingX = true;
 				m_baseX = p.x;
 			}
-			else if ( modifiers == GLFW_MOD_CONTROL )
+			else if ( modifiers == MOD_CTRL )
 			{
 				m_trackingY = true;
 				m_baseY = p.y;
@@ -1295,7 +1296,7 @@ public:
 	{
 		if ( button == 0 )
 		{
-			if ( modifiers == GLFW_MOD_SHIFT )
+			if ( modifiers == MOD_SHIFT )
 			{
 				m_tracking = true;
 				m_baseX = p.x;
@@ -2022,7 +2023,7 @@ public:
 
 	void MouseDown( b3Vec2 ps, int button, int mods ) override
 	{
-		if ( button == GLFW_MOUSE_BUTTON_1 )
+		if ( button == MOUSE_LEFT )
 		{
 			if ( mods == 0 && m_rotating == false )
 			{
@@ -2038,7 +2039,7 @@ public:
 				m_dragStart = b3MulSub( ray.origin, b3Dot( ray.origin, d ), d );
 				m_basePosition = m_transform.p;
 			}
-			else if ( mods == GLFW_MOD_SHIFT && m_dragging == false )
+			else if ( mods == MOD_SHIFT && m_dragging == false )
 			{
 				m_rotating = true;
 				m_rotateStart = ps.x;
@@ -2049,7 +2050,7 @@ public:
 
 	void MouseUp( b3Vec2, int button ) override
 	{
-		if ( button == GLFW_MOUSE_BUTTON_1 )
+		if ( button == MOUSE_LEFT )
 		{
 			m_dragging = false;
 			m_rotating = false;

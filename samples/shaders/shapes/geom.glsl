@@ -228,6 +228,13 @@ void main()
 {
 	vec3 n_world = normalize( v_world_normal );
 
+	// Geom meshes render double sided, a per-instance mirror scale can flip
+	// winding, so face the shading normal toward the camera.
+	if ( dot( n_world, camera_pos.xyz - v_view_pos ) < 0.0 )
+	{
+		n_world = -n_world;
+	}
+
 	if ( flags.x == 1 )
 	{
 		vec3 hit_view = ( view * vec4( v_view_pos, 1.0 ) ).xyz;

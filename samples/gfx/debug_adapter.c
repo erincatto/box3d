@@ -286,6 +286,16 @@ static int AllocDebugShape( void )
 static void FreeDebugShape( int index )
 {
 	assert( index >= 0 && index < BOX3D_USER_SHAPE_CAPACITY );
+
+	// A sample switch cleans the pool twice: ResetAdapterPool sweeps it, then
+	// b3DestroyWorld fires the destroy callback per shape. Relinking a slot
+	// that is already free loops the free list, and a later alloc then hands
+	// one slot to two shapes so the second overwrites the first.
+	if ( s_adapter.pool[index].kind == Box3DUS_Free )
+	{
+		return;
+	}
+
 	s_adapter.pool[index].kind = Box3DUS_Free;
 	s_adapter.pool[index].nextFree = s_adapter.firstFree;
 	s_adapter.firstFree = index;

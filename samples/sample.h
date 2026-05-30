@@ -3,28 +3,47 @@
 
 #pragma once
 
-#include "camera.h"
+#include "host/camera.h"
 
-class Font;
-struct MouseEvent;
-struct MouseMoveEvent;
-struct MouseWheelEvent;
+#include "box3d/types.h"
+
+// Vestigial handle from the old scene renderer. The render3d renderer owns
+// scene state now, so this stays null; it exists only so the sample draw
+// calls (DrawSphere(m_scene, ...), etc.) port unchanged through sample_draw.h.
 struct Scene;
-struct GLFWwindow;
+
+// Polled key state for samples that need continuous input (character movers).
+// Fed from the host event loop; read with the KEY_* aliases in gfx/keycodes.h.
+bool IsKeyDown( int key );
+void SetKeyDown( int key, bool down );
+
+// Key action passed to Keyboard, matching the old GLFW press/release values so
+// sample code reads naturally without leaking sokol_app event types.
+enum
+{
+	ACTION_RELEASE = 0,
+	ACTION_PRESS = 1,
+};
 
 struct SampleContext
 {
 	void Save();
 	void Load();
 
-	GLFWwindow* window = nullptr;
 	Camera camera;
-	Arena arena;
-	Scene* scene = nullptr;
 	bool minimized = false;
 	class Sample* sample = nullptr;
 	b3Capacity capacity;
-	b3DebugDraw debugDraw;
+
+	// Latest cursor position in framebuffer pixels, fed from the host event
+	// loop. Drives picking on the step that follows a mouse move.
+	float mouseX = 0.0f;
+	float mouseY = 0.0f;
+
+	// Relative cursor motion for the latest move, fed from the host. Used for
+	// third-person look while the cursor is locked.
+	float mouseDX = 0.0f;
+	float mouseDY = 0.0f;
 
 	int windowWidth = 1920;
 	int windowHeight = 1080;
@@ -89,9 +108,8 @@ public:
 	static constexpr int m_profileCapacity = 512;
 
 	SampleContext* m_context;
-	GLFWwindow* m_window;
-	Scene* m_scene;
 	Camera* m_camera;
+	Scene* m_scene = nullptr;
 
 	b3WorldId m_worldId;
 	b3Vec3 m_mousePoint;
@@ -105,12 +123,12 @@ public:
 	int m_textIncrement;
 	int m_triangleIndex;
 	uint64_t m_userMaterialId;
-	
+
 	b3Profile m_profiles[m_profileCapacity];
 	int m_currentProfileIndex;
 	int m_profileReadIndex;
 	int m_profileWriteIndex;
-	
+
 	b3Vec2 m_mouseLast;
 	b3Vec2 m_mouseDelta;
 	bool m_didStep;
@@ -134,18 +152,21 @@ class SampleManager
 public:
 	static int Register( const char* category, const char* name, SampleCreateFcn* fcn );
 
-	void Startup( GLFWwindow* window, int width, int height, int bufferWidth, int bufferHeight );
+	void Startup( int width, int height );
 	void Step();
-	void Resize( int width, int height, int bufferWidth, int bufferHeight );
-	void Render( GLFWwindow* window, float elapsedTime );
-	void Shutdown( GLFWwindow* window );
+	void Draw();
+	void Resize( int width, int height );
+	void Shutdown();
 
 	void Keyboard( int key, int action, int modifiers );
+	void MouseDown( b3Vec2 p, int button, int modifiers );
+	void MouseUp( b3Vec2 p, int button );
+	void MouseMove( b3Vec2 p );
 
 	void CreateSample();
 
-	void RenderScene( GLFWwindow* window, float elapsedTime );
-	void UpdateUI( GLFWwindow* window );
+	// The single host UI callback: tools panel + the active sample's panel.
+	void UpdateUI();
 
 	static SampleEntry sEntries[MAX_SAMPLES];
 	static int sEntryCount;

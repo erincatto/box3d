@@ -1,25 +1,30 @@
-// Box3D samples host: sokol_app shell driving render3d's renderer.
-//
-// Scaffolding milestone. This is the minimal host that proves the ported
-// pipeline links and runs: it opens a sokol_app window, drives an orbit
-// camera, submits a fixed placeholder scene through the Draw* API, and
-// renders it with the full renderer (sky + shadows + GTAO + tone map) plus
-// an ImGui panel. No Sample / SampleManager retargeting yet; that lands in
-// later phases. The four sokol_app callbacks mirror render3d's app/main.cpp.
-//
-// --frames N runs N frames then exits with a status equal to the sokol
-// validation-error count, the automated regression net for the port.
+// SPDX-FileCopyrightText: 2025 Erin Catto
+// SPDX-License-Identifier: MIT
 
-#include "host/camera.h"
-#include "host/gui.h"
+// Box3D samples host: a sokol_app shell driving render3d's renderer through
+// the SampleManager. The four sokol_app callbacks own the window and input;
+// everything below the entry points (InitRenderer, RenderFrame, the Draw* API,
+// the b3DebugDraw adapter) is host-agnostic. See render3d's HOST_INTEGRATION.md
+// for the contract this fills in.
+//
+//   OnInit:    InitRenderer -> InitUI -> InitAdapter -> SampleManager::Startup
+//   OnEvent:   Esc quits; ImGui gate; else feed camera + dispatch to the sample
+//   OnFrame:   ResetFrameArena -> Step -> Draw -> RenderFrame -> UI -> commit
+//   OnCleanup: SampleManager::Shutdown -> ShutdownUI -> ShutdownRenderer
+//
+// --frames N runs N frames then exits with status = sokol validation-error
+// count, the automated regression net for the port.
 
-#include "gfx/draw.h"
+#include "sample.h"
+
+#include "gfx/debug_adapter.h"
+#include "gfx/keycodes.h"
 #include "gfx/renderer.h"
-#include "gfx/text.h"
+
+#include "host/gui.h"
 
 #include "box3d/math_functions.h"
 
-#include "imgui.h"
 #include "sokol_app.h"
 #include "sokol_glue.h"
 
@@ -27,34 +32,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-static Camera s_camera;
+static SampleManager s_manager;
 static int s_frame = 0;
 static int s_frameLimit = -1;
+static int s_sampleOverride = -1;
 static bool s_shadowsOn = true;
 static bool s_gtaoOn = true;
 static int s_debugView = 0;
 
-static b3Transform TransformAt( float x, float y, float z )
-{
-	b3Transform t = b3Transform_identity;
-	t.p = b3Vec3{ x, y, z };
-	return t;
-}
-
-// Right "Scaffold" panel, registered with InitUI. Renders after the built-in
-// left "Renderer" window. Placeholder content until the Box3D sample UI ports.
+// Single host UI callback fired from inside StartUIFrame: the tools panel plus
+// the active sample's own panel, both drawn by the manager.
 static void DrawUI( void )
 {
-	if ( !BeginPanel( "Scaffold", GUI_ANCHOR_RIGHT, 250.0f ) )
-	{
-		EndPanel();
-		return;
-	}
-	ImGui::TextUnformatted( "render3d renderer on sokol_app" );
-	ImGui::Separator();
-	ImGui::Text( "frame %d", s_frame );
-	ImGui::TextUnformatted( "Sample host scaffold" );
-	EndPanel();
+	s_manager.UpdateUI();
 }
 
 static void OnInit( void )
@@ -62,12 +52,23 @@ static void OnInit( void )
 	const sg_environment env = sglue_environment();
 	InitRenderer( &env );
 	InitUI( &env, DrawUI, true );
+	InitAdapter();
 
 	constexpr float DEG = 3.14159265358979323846f / 180.0f;
-	s_camera.SetFov( 50.0f * DEG );
-	s_camera.SetClip( 0.1f, 1000.0f );
-	s_camera.SetTarget( b3Vec3{ 0.0f, 0.6f, 0.0f } );
-	s_camera.SetOrbit( 35.0f * DEG, 18.0f * DEG, 7.0f );
+	Camera& camera = s_manager.m_context.camera;
+	camera.SetFov( 50.0f * DEG );
+	camera.SetClip( 0.1f, 1000.0f );
+
+	s_manager.Startup( sapp_width(), sapp_height() );
+
+	// --sample N selects a registered sample by sorted index, overriding the
+	// persisted one. Lets a headless --frames run target a specific sample.
+	if ( s_sampleOverride >= 0 && s_sampleOverride < SampleManager::sEntryCount )
+	{
+		s_manager.m_context.sampleIndex = s_sampleOverride;
+		s_manager.m_context.restart = false;
+		s_manager.CreateSample();
+	}
 }
 
 static void OnEvent( const sapp_event* e )
@@ -78,11 +79,55 @@ static void OnEvent( const sapp_event* e )
 		sapp_request_quit();
 		return;
 	}
+
 	if ( HandleEvent( e ) )
 	{
 		return;
 	}
-	s_camera.OnEvent( e );
+
+	Camera& camera = s_manager.m_context.camera;
+	camera.OnEvent( e );
+
+	switch ( e->type )
+	{
+		case SAPP_EVENTTYPE_KEY_DOWN:
+			SetKeyDown( e->key_code, true );
+			if ( e->key_repeat == false )
+			{
+				s_manager.Keyboard( e->key_code, ACTION_PRESS, e->modifiers );
+			}
+			break;
+
+		case SAPP_EVENTTYPE_KEY_UP:
+			SetKeyDown( e->key_code, false );
+			s_manager.Keyboard( e->key_code, ACTION_RELEASE, e->modifiers );
+			break;
+
+		case SAPP_EVENTTYPE_MOUSE_DOWN:
+			s_manager.m_context.mouseX = e->mouse_x;
+			s_manager.m_context.mouseY = e->mouse_y;
+			s_manager.MouseDown( { e->mouse_x, e->mouse_y }, e->mouse_button, e->modifiers );
+			break;
+
+		case SAPP_EVENTTYPE_MOUSE_UP:
+			s_manager.MouseUp( { e->mouse_x, e->mouse_y }, e->mouse_button );
+			break;
+
+		case SAPP_EVENTTYPE_MOUSE_MOVE:
+			s_manager.m_context.mouseX = e->mouse_x;
+			s_manager.m_context.mouseY = e->mouse_y;
+			s_manager.m_context.mouseDX = e->mouse_dx;
+			s_manager.m_context.mouseDY = e->mouse_dy;
+			s_manager.MouseMove( { e->mouse_x, e->mouse_y } );
+			break;
+
+		case SAPP_EVENTTYPE_RESIZED:
+			s_manager.Resize( sapp_width(), sapp_height() );
+			break;
+
+		default:
+			break;
+	}
 }
 
 static void OnFrame( void )
@@ -96,37 +141,34 @@ static void OnFrame( void )
 	const float dt = (float)sapp_frame_duration();
 	const int W = sapp_width();
 	const int H = sapp_height();
-	s_camera.Update( dt, W, H );
+
+	Camera& camera = s_manager.m_context.camera;
+	camera.Update( dt, W, H );
+
+	ResetFrameArena();
+
+	// Physics + the sample's debug-draw submission. Step advances the world and
+	// queues the HUD text; Draw fills the instance and overlay arenas via the
+	// b3DebugDraw adapter and the sample's own Draw* calls.
+	s_manager.Step();
+	s_manager.Draw();
 
 	FrameInput fi{};
-	fi.view = s_camera.View();
-	fi.viewInv = s_camera.ViewInverse();
-	fi.proj = s_camera.Proj();
-	fi.projInv = s_camera.ProjInverse();
-	fi.cameraPosition = s_camera.Position();
+	fi.view = camera.View();
+	fi.viewInv = camera.ViewInverse();
+	fi.proj = camera.Proj();
+	fi.projInv = camera.ProjInverse();
+	fi.cameraPosition = camera.Position();
 	fi.time = (float)sapp_frame_count() / 60.0f;
 	fi.debugMode = s_debugView;
 	fi.disableShadows = !s_shadowsOn;
 	fi.disableAmbientOcclusion = !s_gtaoOn;
 
-	ResetFrameArena();
-
-	// Placeholder scene: ground plate, one of each impostor shape, an axis
-	// triad, and a ground grid. Exercises the cube / sphere / capsule
-	// pipelines plus the overlay path.
-	DrawCube( TransformAt( 0.0f, -0.25f, 0.0f ), b3Vec3{ 20.0f, 0.5f, 20.0f }, MakeVec4( 0.40f, 0.42f, 0.45f, 1.0f ) );
-	DrawCube( TransformAt( -2.0f, 0.5f, 0.0f ), b3Vec3{ 1.0f, 1.0f, 1.0f }, MakeVec4( 0.80f, 0.25f, 0.20f, 1.0f ) );
-	DrawSphere( TransformAt( 0.0f, 0.6f, 0.0f ), 0.6f, MakeVec4( 0.25f, 0.55f, 0.80f, 1.0f ) );
-	DrawCapsule( TransformAt( 2.0f, 0.5f, 0.0f ), 0.5f, 0.4f, MakeVec4( 0.30f, 0.70f, 0.35f, 1.0f ) );
-	DrawAxes( b3Transform_identity, 1.0f );
-	DrawGrid( b3Vec3{ 0.0f, 0.0f, 0.0f }, b3Vec3{ 0.0f, 1.0f, 0.0f }, 10.0f, 20, MakeVec4( 0.5f, 0.5f, 0.5f, 0.25f ) );
-	DrawScreenStringFormat( 10, 10, MakeVec4( 0.9f, 0.9f, 0.9f, 1.0f ), "Box3D sokol scaffold  frame %d", s_frame );
-
 	const sg_swapchain sc = sglue_swapchain();
 	RenderFrame( &sc, &fi );
 
 	// StartUIFrame runs after RenderFrame: it drains the text arena with the
-	// camera state RenderFrame just latched and opens the ImGui frame.
+	// camera state RenderFrame just latched and runs the UI draw callback.
 	GuiToggles tg{};
 	tg.shadowsOn = &s_shadowsOn;
 	tg.gtaoOn = &s_gtaoOn;
@@ -140,13 +182,12 @@ static void OnFrame( void )
 
 static void OnCleanup( void )
 {
+	s_manager.Shutdown();
 	ShutdownUI();
 	ShutdownRenderer();
 
 	const int errors = GetRenderErrorCount();
-	fprintf( stderr, "scaffold: %d frames, %d sokol errors\n", s_frame, errors );
-	// sokol_app's own main returns 0; bypass it so a --frames run surfaces
-	// the real validation-error count to the caller.
+	fprintf( stderr, "samples: %d frames, %d sokol errors\n", s_frame, errors );
 	exit( errors == 0 ? 0 : 1 );
 }
 
@@ -157,6 +198,10 @@ sapp_desc sokol_main( int argc, char** argv )
 		if ( strcmp( argv[i], "--frames" ) == 0 && i + 1 < argc )
 		{
 			s_frameLimit = atoi( argv[++i] );
+		}
+		else if ( strcmp( argv[i], "--sample" ) == 0 && i + 1 < argc )
+		{
+			s_sampleOverride = atoi( argv[++i] );
 		}
 	}
 
@@ -170,13 +215,13 @@ sapp_desc sokol_main( int argc, char** argv )
 	desc.gl.major_version = 4;
 	desc.gl.minor_version = 5;
 
-	desc.width = 1280;
-	desc.height = 720;
+	desc.width = 1920;
+	desc.height = 1080;
 
-	// No swapchain MSAA; the renderer runs MSAA in its own scene target.
+	// No swap-chain MSAA. The renderer runs MSAA in its own scene target.
 	desc.sample_count = 1;
 
-	desc.window_title = "Box3D samples (sokol scaffold)";
+	desc.window_title = "Box3D Samples";
 	desc.swap_interval = 1;
 	desc.high_dpi = true;
 

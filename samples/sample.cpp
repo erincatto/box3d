@@ -7,26 +7,32 @@
 
 #include "sample.h"
 
-#include "camera.h"
-#include "imgui.h"
-#include "implot.h"
-#include "jsmn.h"
-#include "renderer.h"
-#include "scene.h"
-#include "shader.h"
+#include "human.h"
+#include "sample_draw.h"
 #include "utils.h"
 
-// clang-format off
-#include "glad/glad.h"
-#include "GLFW/glfw3.h"
-// clang-format on
+#include "gfx/debug_adapter.h"
+#include "gfx/keycodes.h"
+#include "gfx/text.h"
 
-#include "human.h"
+#include "imgui.h"
+#include "jsmn.h"
+
+// ImPlot backs only the optional Frame Time chart. It is not yet wired into the
+// ported build, so the chart is compiled out until implot is added back.
+#ifdef BOX3D_USE_IMPLOT
+#include "implot.h"
+#endif
+
+#include "sokol_app.h"
 
 #include "box3d/box3d.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <thread>
 
 // Load a file. You must free the character array.
 static char* ReadFile( int& size, const char* filename )
@@ -57,100 +63,38 @@ static char* ReadFile( int& size, const char* filename )
 
 static const char* settingsFileName = "settings.ini";
 
-void Arena::Create( int byteCount )
+// Polled key state, fed from the host event loop (see main.cpp). Indexed by
+// sokol keycode; samples read it through the KEY_* aliases in gfx/keycodes.h.
+static bool s_keyDown[512];
+
+bool IsKeyDown( int key )
 {
-	data = (char*)malloc( byteCount );
-	capacity = byteCount;
-	index = 0;
+	return (unsigned)key < 512u ? s_keyDown[key] : false;
 }
 
-void Arena::Destroy()
+void SetKeyDown( int key, bool down )
 {
-	free( data );
-	data = nullptr;
-	capacity = 0;
-	index = 0;
-}
-
-void* Arena::Allocate( int byteCount )
-{
-	if ( index + byteCount > capacity )
+	if ( (unsigned)key < 512u )
 	{
-		assert( false );
-		return nullptr;
+		s_keyDown[key] = down;
 	}
-
-	void* mem = data + index;
-	index += byteCount;
-	return mem;
-}
-
-void Arena::Clear()
-{
-	index = 0;
-}
-
-static bool DrawShapeCallback( void* userShape, b3Transform transform, b3HexColor color, void* context )
-{
-	DebugShape* shape = (DebugShape*)userShape;
-	SampleContext* sampleContext = (SampleContext*)context;
-	float alpha = sampleContext->transparentDynamic && shape->bodyType != b3_staticBody ? 0.6f : 1.0f;
-	DrawDebugShape( sampleContext->scene, shape, transform, color, alpha );
-	return true;
-}
-
-static void DrawPointCallback( b3Vec3 point, float size, b3HexColor color, void* context )
-{
-	SampleContext* sampleContext = (SampleContext*)context;
-	DrawPoint( sampleContext->scene, point, size, color );
-}
-
-static void DrawLineCallback( b3Vec3 vertex1, b3Vec3 vertex2, b3HexColor color, void* context )
-{
-	SampleContext* sampleContext = (SampleContext*)context;
-	DrawLine( sampleContext->scene, vertex1, vertex2, color );
-}
-
-static void DrawBoundsCallback( b3AABB bounds, b3HexColor color, void* context )
-{
-	SampleContext* sampleContext = (SampleContext*)context;
-	float extension = 0.0f;
-	DrawBounds( sampleContext->scene, bounds, extension, color );
-}
-
-static void DrawBoxCallback( b3Vec3 extents, b3Transform transform, b3HexColor color, void* context )
-{
-	SampleContext* sampleContext = (SampleContext*)context;
-	DrawBox( sampleContext->scene, extents, transform, color );
-}
-
-static void DrawTransformCallback( b3Transform transform, void* context )
-{
-	SampleContext* sampleContext = (SampleContext*)context;
-	DrawTransform( sampleContext->scene, transform, 0.25f );
-}
-
-static void DrawSceneTextCallback( b3Vec3 position, const char* text, b3HexColor color, void* context )
-{
-	SampleContext* sampleContext = (SampleContext*)context;
-	DrawWorldString( &sampleContext->camera, position, color, text );
 }
 
 void SampleContext::Save()
 {
+	const b3DebugDraw* gd = GetGuiDraw();
 	FILE* file = fopen( settingsFileName, "w" );
+	if ( file == nullptr )
+	{
+		return;
+	}
 	fprintf( file, "{\n" );
 	fprintf( file, "  \"sampleIndex\": %d,\n", sampleIndex );
-	fprintf( file, "  \"drawShapes\": %s,\n", debugDraw.drawShapes ? "true" : "false" );
-	fprintf( file, "  \"drawJoints\": %s,\n", debugDraw.drawJoints ? "true" : "false" );
-	fprintf( file, "  \"drawContacts\": %s,\n", debugDraw.drawContacts ? "true" : "false" );
-	fprintf( file, "  \"drawImpulses\": %s,\n", debugDraw.drawContactForces ? "true" : "false" );
-	fprintf( file, "  \"drawBounds\": %s,\n", debugDraw.drawBounds ? "true" : "false" );
+	fprintf( file, "  \"drawShapes\": %s,\n", gd->drawShapes ? "true" : "false" );
+	fprintf( file, "  \"drawJoints\": %s,\n", gd->drawJoints ? "true" : "false" );
+	fprintf( file, "  \"drawContacts\": %s,\n", gd->drawContacts ? "true" : "false" );
 	fprintf( file, "  \"drawCounters\": %s,\n", drawCounters ? "true" : "false" );
-	fprintf( file, "  \"drawProfile\": %s,\n", drawProfile ? "true" : "false" );
-	fprintf( file, "  \"transparent\": %s,\n", transparent ? "true" : "false" );
-	fprintf( file, "  \"enableSleep\": %s\n", enableSleep ? "true" : "false" );
-	fprintf( file, "  \"enableContinuous\": %s,\n", enableContinuous ? "true" : "false" );
+	fprintf( file, "  \"drawProfile\": %s\n", drawProfile ? "true" : "false" );
 	fprintf( file, "}\n" );
 	fclose( file );
 }
@@ -169,16 +113,6 @@ static int jsoneq( const char* json, jsmntok_t* tok, const char* s )
 
 void SampleContext::Load()
 {
-	debugDraw = b3DefaultDebugDraw();
-	debugDraw.DrawShapeFcn = DrawShapeCallback;
-	debugDraw.DrawSegmentFcn = DrawLineCallback;
-	debugDraw.DrawPointFcn = DrawPointCallback;
-	debugDraw.DrawBoundsFcn = DrawBoundsCallback;
-	debugDraw.DrawBoxFcn = DrawBoxCallback;
-	debugDraw.DrawTransformFcn = DrawTransformCallback;
-	debugDraw.DrawStringFcn = DrawSceneTextCallback;
-	debugDraw.context = this;
-
 	recycleDistance = B3_CONTACT_RECYCLE_DISTANCE;
 
 	int size = 0;
@@ -222,11 +156,11 @@ void SampleContext::Load()
 			const char* s = data + tokens[i + 1].start;
 			if ( strncmp( s, "true", 4 ) == 0 )
 			{
-				debugDraw.drawShapes = true;
+				GetGuiDraw()->drawShapes = true;
 			}
 			else if ( strncmp( s, "false", 5 ) == 0 )
 			{
-				debugDraw.drawShapes = false;
+				GetGuiDraw()->drawShapes = false;
 			}
 		}
 	}
@@ -237,8 +171,6 @@ void SampleContext::Load()
 Sample::Sample( SampleContext* context )
 {
 	m_context = context;
-	m_window = context->window;
-	m_scene = m_context->scene;
 	m_camera = &m_context->camera;
 
 	m_worldId = b3_nullWorldId;
@@ -274,9 +206,8 @@ Sample::Sample( SampleContext* context )
 
 Sample::~Sample()
 {
+	ResetAdapterPool();
 	b3DestroyWorld( m_worldId );
-
-	DestroySharedMeshes( m_context->scene );
 }
 
 void Sample::CreateWorld( b3Capacity* capacity )
@@ -293,10 +224,8 @@ void Sample::CreateWorld( b3Capacity* capacity )
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	worldDef.workerCount = m_context->workerCount;
 	worldDef.enableSleep = m_context->enableSleep;
-	worldDef.createDebugShape = CreateDebugShape;
-	worldDef.destroyDebugShape = DestroyDebugShape;
-	worldDef.userDebugShapeContext = m_context;
-	if (capacity != nullptr)
+	AttachToWorldDef( &worldDef );
+	if ( capacity != nullptr )
 	{
 		worldDef.capacity = *capacity;
 	}
@@ -342,11 +271,6 @@ void Sample::Step()
 		b3World_Step( m_worldId, timeStep, m_context->subStepCount );
 	}
 
-	// if (glfwGetKey( m_window, 'F' ))
-	//{
-	//	b3World_DumpShapeBounds( m_worldId, b3_staticBody );
-	// }
-
 	if ( timeStep > 0.0f )
 	{
 		m_stepCount += 1;
@@ -367,9 +291,7 @@ void Sample::Step()
 	m_userMaterialId = 0;
 
 	{
-		double screenX, screenY;
-		glfwGetCursorPos( m_window, &screenX, &screenY );
-		PickRay pickRay = m_camera->BuildPickRay( (float)screenX, (float)screenY );
+		PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
 		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
@@ -388,13 +310,18 @@ void Sample::Step()
 
 void Sample::Render()
 {
-	// Draw world
-	b3Vec3 position = m_context->camera.GetPosition();
-	b3Vec3 r = { 1000.0f, 1000.0f, 1000.0f };
-	b3AABB bounds = { position - r, position + r };
-	m_context->debugDraw.drawingBounds = bounds;
+	b3DebugDraw debugDraw;
+	MakeDebugDraw( &debugDraw );
 
-	b3World_Draw( m_worldId, &m_context->debugDraw, B3_DEFAULT_MASK_BITS );
+	// Generous visible volume around the eye. Box3D uses this to decide which
+	// shapes enter the draw set and lazily fire createDebugShape.
+	b3Vec3 position = m_camera->GetPosition();
+	b3Vec3 r = { 1000.0f, 1000.0f, 1000.0f };
+	debugDraw.drawingBounds = { position - r, position + r };
+
+	ApplyGuiFlags( &debugDraw );
+
+	b3World_Draw( m_worldId, &debugDraw, B3_DEFAULT_MASK_BITS );
 }
 
 void Sample::ResetProfile()
@@ -826,6 +753,7 @@ void Sample::UpdateUI()
 		ImGui::End();
 	}
 
+#ifdef BOX3D_USE_IMPLOT
 	if ( m_context->frameTime )
 	{
 		float frameTimeHeight = 400.0f;
@@ -870,6 +798,7 @@ void Sample::UpdateUI()
 		ImGui::PopItemWidth();
 		ImGui::End();
 	}
+#endif
 }
 
 void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
@@ -919,13 +848,13 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			m_mouseFraction = result.fraction;
 		}
 	}
-	else if ( modifiers & GLFW_MOD_SHIFT )
+	else if ( modifiers & MOD_SHIFT )
 	{
 		PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 		b3Vec3 direction = b3Normalize( pickRay.translation );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		if ( modifiers & GLFW_MOD_CONTROL )
+		if ( modifiers & MOD_CTRL )
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
@@ -937,7 +866,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			b3CreateHullShape( bodyId, &shapeDef, hull );
 			b3DestroyHull( hull );
 		}
-		else if ( modifiers & GLFW_MOD_ALT )
+		else if ( modifiers & MOD_ALT )
 		{
 			b3Vec3 position = pickRay.origin + 2.0f * direction;
 			Human human = {};
@@ -981,30 +910,20 @@ void Sample::MouseMove( b3Vec2 p )
 {
 	if ( m_camera->m_thirdPerson )
 	{
-		if ( m_haveMouseLast == false )
-		{
-			m_mouseLast = p;
-			m_haveMouseLast = true;
-		}
-		else
-		{
-			m_mouseDelta = { p.x - m_mouseLast.x, p.y - m_mouseLast.y };
-			// printf( "mdx = %g, mdy = %g\n", m_mouseDelta.x, m_mouseDelta.y );
-			m_mouseLast = p;
-		}
+		// The cursor is locked in third person, so look uses the host's
+		// relative deltas. Camera angles are radians here (host camera).
+		m_mouseDelta = { m_context->mouseDX, m_context->mouseDY };
 
-		const float sensitivity = 0.1f;
+		const float sensitivity = 0.1f * B3_DEG_TO_RAD;
 		m_camera->m_yaw -= 2.0f * sensitivity * m_mouseDelta.x;
 		m_camera->m_pitch += sensitivity * m_mouseDelta.y;
-		m_camera->m_pitch = b3ClampFloat( m_camera->m_pitch, -85.0f, 85.0f );
+		m_camera->m_pitch = b3ClampFloat( m_camera->m_pitch, -85.0f * B3_DEG_TO_RAD, 85.0f * B3_DEG_TO_RAD );
 	}
 
 	PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 	if ( B3_IS_NON_NULL( m_mouseJointId ) )
 	{
 		m_mousePoint = pickRay.origin + m_mouseFraction * pickRay.translation;
-		// b3Transform localFrameA = { target, b3Quat_identity };
-		// b3Joint_SetLocalFrameA( m_mouseJointId, localFrameA );
 	}
 }
 
@@ -1014,8 +933,8 @@ void Sample::DrawTextLine( const char* text, ... )
 	va_start( args, text );
 	char buffer[512];
 	vsnprintf( buffer, sizeof( buffer ), text, args );
-	DrawText( 5, m_textLine, b3_colorWhite, buffer );
 	va_end( args );
+	DrawScreenString( 5, m_textLine, MakeColor( b3_colorWhite ), buffer );
 	m_textLine += m_textIncrement;
 }
 
@@ -1049,29 +968,14 @@ static int CompareSamples( const void* a, const void* b )
 	return result;
 }
 
-void SampleManager::Startup( GLFWwindow* window, int width, int height, int bufferWidth, int bufferHeight )
+void SampleManager::Startup( int width, int height )
 {
 	m_context.Load();
 
-	m_context.workerCount = b3MinInt( 8, GetNumberOfCores() / 2 );
-
-	// todo_erin testing
-	// m_context.settings.workerCount = 1;
-
-	m_context.arena.Create( 400 * 1024 * 1024 );
-	m_context.window = window;
-	m_context.camera.Resize( width, height );
-
-	assert( bufferWidth > 0 && bufferHeight > 0 );
-	m_context.camera.m_bufferWidth = bufferWidth;
-	m_context.camera.m_bufferHeight = bufferHeight;
-	m_context.scene = CreateScene( &m_context.camera, m_context.arena );
-
-	if ( m_context.scene == nullptr )
-	{
-		fprintf( stderr, "Failed to create scene\n" );
-		glfwTerminate();
-	}
+	int cores = (int)std::thread::hardware_concurrency();
+	m_context.workerCount = b3ClampInt( cores / 2, 1, 8 );
+	m_context.windowWidth = width;
+	m_context.windowHeight = height;
 
 	qsort( sEntries, sEntryCount, sizeof( SampleEntry ), CompareSamples );
 
@@ -1080,8 +984,10 @@ void SampleManager::Startup( GLFWwindow* window, int width, int height, int buff
 
 void SampleManager::Step()
 {
+	SetTransparentDynamic( m_context.transparentDynamic );
+
 	const SampleEntry* entry = sEntries + m_context.sampleIndex;
-	DrawFormat( 5, m_sample->m_textIncrement, b3_colorCyan, "%s : %s", entry->Category, entry->Name );
+	DrawScreenStringFormat( 5, m_sample->m_textIncrement, MakeColor( b3_colorCyan ), "%s : %s", entry->Category, entry->Name );
 	m_sample->m_textLine = 2 * m_sample->m_textIncrement;
 
 	if ( m_context.pause )
@@ -1092,127 +998,109 @@ void SampleManager::Step()
 	m_sample->Step();
 }
 
-void SampleManager::Resize( int width, int height, int bufferWidth, int bufferHeight )
+// Submit the sample's debug geometry. Runs after Step and before RenderFrame so
+// the instance and overlay arenas are full when the renderer consumes them.
+void SampleManager::Draw()
 {
-	m_context.minimized = false;
-	if ( width == 0 || height == 0 || bufferWidth == 0 || bufferHeight == 0 )
+	m_sample->Render();
+}
+
+void SampleManager::Resize( int width, int height )
+{
+	m_context.minimized = ( width == 0 || height == 0 );
+	if ( m_context.minimized )
 	{
-		m_context.minimized = true;
 		return;
 	}
 
-	m_context.camera.Resize( width, height );
-	m_context.camera.m_bufferWidth = bufferWidth;
-	m_context.camera.m_bufferHeight = bufferHeight;
-	ResizeScene( m_context.scene, &m_context.camera );
+	m_context.windowWidth = width;
+	m_context.windowHeight = height;
 }
 
-void SampleManager::Render( GLFWwindow* window, float elapsedTime )
-{
-	RenderScene( window, elapsedTime );
-	UpdateUI( window );
-}
-
-void SampleManager::Shutdown( GLFWwindow* window )
+void SampleManager::Shutdown()
 {
 	// Must destroy sample first because it will destroy debug shapes.
 	delete m_sample;
 	m_sample = nullptr;
 
 	m_context.Save();
-
-	DestroyScene( m_context.scene );
-	m_context.scene = nullptr;
-
-	m_context.arena.Destroy();
 }
 
 void SampleManager::Keyboard( int key, int action, int modifiers )
 {
-	if ( action == GLFW_PRESS )
+	if ( action != ACTION_PRESS )
 	{
-		switch ( key )
-		{
-			case GLFW_KEY_ESCAPE:
-				glfwSetWindowShouldClose( m_context.window, GL_TRUE );
-				break;
-
-			case GLFW_KEY_TAB:
-				m_showMenu = !m_showMenu;
-				break;
-
-			case GLFW_KEY_O:
-				if ( modifiers & GLFW_MOD_SHIFT )
-				{
-					m_context.singleStep += 5;
-				}
-				else
-				{
-					m_context.singleStep += 1;
-				}
-				break;
-
-			case GLFW_KEY_P:
-				m_context.pause = !m_context.pause;
-				break;
-
-			case GLFW_KEY_R:
-				m_context.restart = true;
-				CreateSample();
-				break;
-
-			case GLFW_KEY_LEFT_BRACKET:
-				m_context.sampleIndex = b3MaxInt( 0, m_context.sampleIndex - 1 );
-				m_context.restart = false;
-				CreateSample();
-				break;
-
-			case GLFW_KEY_RIGHT_BRACKET:
-				m_context.sampleIndex = b3MinInt( sEntryCount - 1, m_context.sampleIndex + 1 );
-				m_context.restart = false;
-				CreateSample();
-				break;
-
-			default:
-				m_sample->Keyboard( key, action, modifiers );
-				break;
-		}
+		return;
 	}
+
+	switch ( key )
+	{
+		case KEY_TAB:
+			m_showMenu = !m_showMenu;
+			break;
+
+		case KEY_O:
+			m_context.singleStep += ( modifiers & MOD_SHIFT ) ? 5 : 1;
+			break;
+
+		case KEY_P:
+			m_context.pause = !m_context.pause;
+			break;
+
+		case KEY_R:
+			m_context.restart = true;
+			CreateSample();
+			break;
+
+		case KEY_LEFT_BRACKET:
+			m_context.sampleIndex = b3MaxInt( 0, m_context.sampleIndex - 1 );
+			m_context.restart = false;
+			CreateSample();
+			break;
+
+		case KEY_RIGHT_BRACKET:
+			m_context.sampleIndex = b3MinInt( sEntryCount - 1, m_context.sampleIndex + 1 );
+			m_context.restart = false;
+			CreateSample();
+			break;
+
+		default:
+			m_sample->Keyboard( key, action, modifiers );
+			break;
+	}
+}
+
+void SampleManager::MouseDown( b3Vec2 p, int button, int modifiers )
+{
+	m_sample->MouseDown( p, button, modifiers );
+}
+
+void SampleManager::MouseUp( b3Vec2 p, int button )
+{
+	m_sample->MouseUp( p, button );
+}
+
+void SampleManager::MouseMove( b3Vec2 p )
+{
+	m_sample->MouseMove( p );
 }
 
 void SampleManager::CreateSample()
 {
 	B3_ASSERT( m_sample );
 
-	if (m_context.restart == false)
-	{
-		EnableGrid( m_context.scene, false );
-	}
-
 	delete m_sample;
 	m_sample = sEntries[m_context.sampleIndex].CreateFcn( &m_context );
 }
 
-void SampleManager::RenderScene( GLFWwindow* window, float elapsedTime )
-{
-	// Update camera
-	m_context.camera.Update( window, elapsedTime );
-
-	m_sample->Render();
-	// CheckOpenGL();
-
-	// Actually render
-	DrawScene( m_context.scene, &m_context.camera );
-	// CheckOpenGL();
-}
-
-void SampleManager::UpdateUI( GLFWwindow* window )
+void SampleManager::UpdateUI()
 {
 	if ( m_showMenu == false )
 	{
 		return;
 	}
 
+	b3DebugDraw* gd = GetGuiDraw();
 	int maxWorkers = B3_MAX_WORKERS;
 
 	int savedTestIndex = m_context.sampleIndex;
@@ -1255,59 +1143,37 @@ void SampleManager::UpdateUI( GLFWwindow* window )
 
 			ImGui::Separator();
 
-			ImGui::Checkbox( "Shapes", &m_context.debugDraw.drawShapes );
+			ImGui::Checkbox( "Shapes", &gd->drawShapes );
 			ImGui::Checkbox( "Transparent", &m_context.transparentDynamic );
-			ImGui::Checkbox( "Joints", &m_context.debugDraw.drawJoints );
-			ImGui::Checkbox( "Joint Extras", &m_context.debugDraw.drawJointExtras );
-			ImGui::Checkbox( "Bounds", &m_context.debugDraw.drawBounds );
+			ImGui::Checkbox( "Joints", &gd->drawJoints );
+			ImGui::Checkbox( "Joint Extras", &gd->drawJointExtras );
+			ImGui::Checkbox( "Bounds", &gd->drawBounds );
 
 			ImGui::Separator();
 
-			ImGui::Checkbox( "Contact Points", &m_context.debugDraw.drawContacts );
-			ImGui::RadioButton( "Anchor A", &m_context.debugDraw.drawAnchorA, 1 );
+			ImGui::Checkbox( "Contact Points", &gd->drawContacts );
+			ImGui::RadioButton( "Anchor A", &gd->drawAnchorA, 1 );
 			ImGui::SameLine();
-			ImGui::RadioButton( "Anchor B", &m_context.debugDraw.drawAnchorA, 0 );
-			ImGui::Checkbox( "Contact Normals", &m_context.debugDraw.drawContactNormals );
-			ImGui::Checkbox( "Contact Forces", &m_context.debugDraw.drawContactForces );
-			ImGui::Checkbox( "Contact Features", &m_context.debugDraw.drawContactFeatures );
-			ImGui::Checkbox( "Friction Forces", &m_context.debugDraw.drawFrictionForces );
+			ImGui::RadioButton( "Anchor B", &gd->drawAnchorA, 0 );
+			ImGui::Checkbox( "Contact Normals", &gd->drawContactNormals );
+			ImGui::Checkbox( "Contact Forces", &gd->drawContactForces );
+			ImGui::Checkbox( "Contact Features", &gd->drawContactFeatures );
+			ImGui::Checkbox( "Friction Forces", &gd->drawFrictionForces );
 
 			ImGui::Separator();
 
-			ImGui::Checkbox( "Mass", &m_context.debugDraw.drawMass );
-			ImGui::Checkbox( "Body Names", &m_context.debugDraw.drawBodyNames );
-			ImGui::Checkbox( "Graph Colors", &m_context.debugDraw.drawGraphColors );
-			ImGui::Checkbox( "Draw Islands", &m_context.debugDraw.drawIslands );
+			ImGui::Checkbox( "Mass", &gd->drawMass );
+			ImGui::Checkbox( "Body Names", &gd->drawBodyNames );
+			ImGui::Checkbox( "Graph Colors", &gd->drawGraphColors );
+			ImGui::Checkbox( "Draw Islands", &gd->drawIslands );
 			ImGui::Checkbox( "Counters", &m_context.drawCounters );
 			ImGui::Checkbox( "Profile", &m_context.drawProfile );
 			ImGui::Checkbox( "Frame Time", &m_context.frameTime );
 
 			ImGui::PushItemWidth( 80.0f );
-			ImGui::InputFloat( "Joint Scale", &m_context.debugDraw.jointScale );
-			ImGui::InputFloat( "Force Scale", &m_context.debugDraw.forceScale );
+			ImGui::InputFloat( "Joint Scale", &gd->jointScale );
+			ImGui::InputFloat( "Force Scale", &gd->forceScale );
 			ImGui::PopItemWidth();
-
-			ImGui::Separator();
-
-			bool useSSAO = IsSSAOEnabled( m_context.scene );
-			if ( ImGui::Checkbox( "SSAO", &useSSAO ) )
-			{
-				EnableSSAO( m_context.scene, useSSAO );
-			}
-
-			bool useShadows = AreShadowsEnabled( m_context.scene );
-			if ( ImGui::Checkbox( "Shadows", &useShadows ) )
-			{
-				EnableShadows( m_context.scene, useShadows );
-			}
-
-			SceneAOSettings* ao = GetAOSettings( m_context.scene );
-			ImGui::SliderFloat( "AO Radius", &ao->radius, 0.0f, 5.0f );
-			ImGui::SliderFloat( "AO Bias", &ao->bias, 0.0f, 0.5f );
-			ImGui::SliderFloat( "AO Min", &ao->minScale, 0.0f, 1.0f );
-			ImGui::SliderFloat( "AO Power", &ao->power, 0.5f, 8.0f );
-			ImGui::SliderFloat( "AO Direct", &ao->direct, 0.0f, 1.0f );
-			ImGui::Checkbox( "AO Only", &ao->aoOnly );
 
 			ImGui::Separator();
 
@@ -1334,7 +1200,7 @@ void SampleManager::UpdateUI( GLFWwindow* window )
 
 			if ( ImGui::Button( "Quit", ImVec2( -1, 0 ) ) )
 			{
-				glfwSetWindowShouldClose( window, GL_TRUE );
+				sapp_request_quit();
 			}
 
 			ImGui::EndTabItem();
@@ -1407,12 +1273,12 @@ void Sample::ToggleThirdPerson()
 {
 	if ( m_camera->m_thirdPerson )
 	{
-		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL );
+		sapp_lock_mouse( false );
 		m_camera->m_thirdPerson = false;
 	}
 	else
 	{
-		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED );
+		sapp_lock_mouse( true );
 		m_camera->m_thirdPerson = true;
 	}
 }
@@ -1687,27 +1553,27 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 
 	if ( m_sample->m_camera->m_thirdPerson )
 	{
-		if ( glfwGetKey( m_sample->m_window, GLFW_KEY_W ) )
+		if ( IsKeyDown( KEY_W ) )
 		{
 			throttle.x += 1.0f;
 		}
 
-		if ( glfwGetKey( m_sample->m_window, GLFW_KEY_S ) )
+		if ( IsKeyDown( KEY_S ) )
 		{
 			throttle.x -= 1.0f;
 		}
 
-		if ( glfwGetKey( m_sample->m_window, GLFW_KEY_A ) )
+		if ( IsKeyDown( KEY_A ) )
 		{
 			throttle.y -= 1.0f;
 		}
 
-		if ( glfwGetKey( m_sample->m_window, GLFW_KEY_D ) )
+		if ( IsKeyDown( KEY_D ) )
 		{
 			throttle.y += 1.0f;
 		}
 
-		if ( glfwGetKey( m_sample->m_window, GLFW_KEY_SPACE ) && m_onGround == true )
+		if ( IsKeyDown( KEY_SPACE ) && m_onGround == true )
 		{
 			m_velocity.y = m_jumpSpeed;
 			m_onGround = false;
@@ -1715,7 +1581,7 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 
 		if ( m_onGround == true )
 		{
-			m_sprint = glfwGetKey( m_sample->m_window, GLFW_KEY_LEFT_SHIFT ) != 0;
+			m_sprint = IsKeyDown( KEY_LEFT_SHIFT );
 		}
 		else
 		{

@@ -1,11 +1,15 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "camera.h"
-#include "imgui.h"
-#include "mesh_loader.h"
 #include "sample.h"
-#include "scene.h"
+
+#include "mesh_loader.h"
+#include "sample_draw.h"
+
+#include "gfx/debug_adapter.h"
+#include "gfx/keycodes.h"
+
+#include "imgui.h"
 
 #include "box3d/box3d.h"
 
@@ -410,7 +414,7 @@ public:
 			b3CreateHullShape( bodyId, &shapeDef, m_hull );
 		}
 
-		m_context->debugDraw.forceScale = 0.01f;
+		GetGuiDraw()->forceScale = 0.01f;
 	}
 
 	~Cylinder() override
@@ -479,7 +483,7 @@ public:
 			b3CreateTransformedHullShape( bodyId, &shapeDef, m_hull, b3Transform_identity, scales[i % 4] );
 		}
 
-		m_context->debugDraw.forceScale = 0.001f;
+		GetGuiDraw()->forceScale = 0.001f;
 	}
 
 	~CylinderStack() override

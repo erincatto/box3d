@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "camera.h"
-#include "mesh_loader.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+
+#include "mesh_loader.h"
+#include "sample_draw.h"
+
+#include "gfx/keycodes.h"
 
 #include "box3d/box3d.h"
 
-#include <glad/glad.h>
-// prevent clang format sorting glad.h with glfw3.h
-#include <GLFW/glfw3.h>
 #include <imgui.h>
 
 class CapsulePlane : public Sample
@@ -92,7 +90,7 @@ public:
 
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override
 	{
-		if ( button == 0 && ( modifiers & GLFW_MOD_ALT ) == 0 )
+		if ( button == 0 && ( modifiers & MOD_ALT ) == 0 )
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 			m_origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
@@ -232,7 +230,7 @@ public:
 
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override
 	{
-		if ( button == 0 && ( modifiers & GLFW_MOD_ALT ) == 0 )
+		if ( button == 0 && ( modifiers & MOD_ALT ) == 0 )
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 			m_origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
@@ -527,9 +525,9 @@ public:
 		//	Body->AddSphere( &ShapeDef, Sphere );
 		//}
 
-		m_camera->m_thirdPerson = true;
+		m_camera->m_thirdPerson = false;
 		m_clipVelocity = true;
-		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED );
+		// sapp_lock_mouse( true );
 
 		//m_haveMouseLast = false;
 		//m_mouseLast = { 0.0f, 0.0f };
@@ -539,7 +537,7 @@ public:
 	~BasicMover() override
 	{
 		m_camera->m_thirdPerson = false;
-		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL );
+		sapp_lock_mouse( false );
 		b3DestroyMesh( m_levelMesh );
 		b3DestroyMesh( m_stairs );
 		b3DestroyMesh( m_torus );
@@ -574,7 +572,7 @@ public:
 
 	void Keyboard( int key, int action, int mods ) override
 	{
-		if ( key == GLFW_KEY_T && action == GLFW_PRESS )
+		if ( key == KEY_T && action == ACTION_PRESS )
 		{
 			ToggleThirdPerson();
 		}
@@ -1514,13 +1512,13 @@ public:
 
 		m_camera->m_thirdPerson = true;
 		m_showDebug = true;
-		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED );
+		sapp_lock_mouse( true );
 	}
 
 	~RigidBodyCharacter() override
 	{
 		m_camera->m_thirdPerson = false;
-		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL );
+		sapp_lock_mouse( false );
 		b3DestroyMesh( m_levelMesh );
 		b3DestroyMesh( m_stairs );
 		b3DestroyMesh( m_building );
@@ -1531,12 +1529,12 @@ public:
 
 	void Keyboard( int key, int action, int mods ) override
 	{
-		if ( key == GLFW_KEY_T && action == GLFW_PRESS )
+		if ( key == KEY_T && action == ACTION_PRESS )
 		{
 			ToggleThirdPerson();
 		}
 
-		if ( key == GLFW_KEY_V && action == GLFW_PRESS )
+		if ( key == KEY_V && action == ACTION_PRESS )
 		{
 			m_showDebug = !m_showDebug;
 		}
@@ -1562,29 +1560,29 @@ public:
 
 		if ( m_camera->m_thirdPerson )
 		{
-			if ( glfwGetKey( m_window, GLFW_KEY_W ) )
+			if ( IsKeyDown( KEY_W ) )
 			{
 				throttle.x += 1.0f;
 			}
-			if ( glfwGetKey( m_window, GLFW_KEY_S ) )
+			if ( IsKeyDown( KEY_S ) )
 			{
 				throttle.x -= 1.0f;
 			}
-			if ( glfwGetKey( m_window, GLFW_KEY_A ) )
+			if ( IsKeyDown( KEY_A ) )
 			{
 				throttle.y -= 1.0f;
 			}
-			if ( glfwGetKey( m_window, GLFW_KEY_D ) )
+			if ( IsKeyDown( KEY_D ) )
 			{
 				throttle.y += 1.0f;
 			}
 
-			if ( glfwGetKey( m_window, GLFW_KEY_SPACE ) )
+			if ( IsKeyDown( KEY_SPACE ) )
 			{
 				m_character.Jump();
 			}
 
-			m_character.m_sprint = m_character.m_onGround && glfwGetKey( m_window, GLFW_KEY_LEFT_SHIFT ) != 0;
+			m_character.m_sprint = m_character.m_onGround && IsKeyDown( KEY_LEFT_SHIFT );
 		}
 
 		// Pre-step: manipulate velocity before physics

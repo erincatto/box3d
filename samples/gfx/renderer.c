@@ -816,7 +816,10 @@ void InitRenderer( const sg_environment* env )
 	geomPdesc.depth.pixel_format = env->defaults.depth_format;
 	geomPdesc.depth.compare = SG_COMPAREFUNC_GREATER;
 	geomPdesc.depth.write_enabled = true;
-	geomPdesc.cull_mode = SG_CULLMODE_BACK;
+	// Meshes may carry a per-instance scale with negative determinant, which
+	// mirrors the geometry and flips winding. Scale is per instance within one
+	// instanced draw, so cull nothing and shade two sided in the FS.
+	geomPdesc.cull_mode = SG_CULLMODE_NONE;
 	geomPdesc.face_winding = SG_FACEWINDING_CCW;
 	geomPdesc.sample_count = SCENE_SAMPLE_COUNT;
 	geomPdesc.label = "geom_pipeline";
@@ -876,7 +879,7 @@ void InitRenderer( const sg_environment* env )
 	shadowGeomPdesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
 	shadowGeomPdesc.depth.compare = SG_COMPAREFUNC_LESS;
 	shadowGeomPdesc.depth.write_enabled = true;
-	shadowGeomPdesc.cull_mode = SG_CULLMODE_BACK;
+	shadowGeomPdesc.cull_mode = SG_CULLMODE_NONE; // match geom pipeline, mesh scale may mirror
 	shadowGeomPdesc.face_winding = SG_FACEWINDING_CCW;
 	shadowGeomPdesc.sample_count = 1;
 	shadowGeomPdesc.label = "shadow_geom_pipeline";
@@ -1050,7 +1053,7 @@ void InitRenderer( const sg_environment* env )
 	dnGeomPdesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
 	dnGeomPdesc.depth.compare = SG_COMPAREFUNC_GREATER;
 	dnGeomPdesc.depth.write_enabled = true;
-	dnGeomPdesc.cull_mode = SG_CULLMODE_BACK;
+	dnGeomPdesc.cull_mode = SG_CULLMODE_NONE; // match geom pipeline, mesh scale may mirror
 	dnGeomPdesc.face_winding = SG_FACEWINDING_CCW;
 	dnGeomPdesc.sample_count = 1;
 	dnGeomPdesc.label = "depth_only_geom_pipeline";

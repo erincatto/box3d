@@ -104,15 +104,39 @@ unset(_shdc_exe)
 add_subdirectory(shaders)
 add_subdirectory(gfx)
 
-# --- Samples executable: sokol_app host + placeholder sample. ----------------
+# --- Samples executable: sokol_app host + SampleManager + samples. -----------
+# Tracer-bullet port: the infrastructure (sample base + manager + draw shims)
+# plus three representative samples build on the new renderer. The other 15
+# sample_*.cpp stay out of the build until they are ported in turn; the Frame
+# Time chart (ImPlot) is gated off via BOX3D_USE_IMPLOT pending its re-add.
 set(SAMPLE_FILES
     main.cpp
+
+    # Host glue (ported from render3d's app/).
     host/camera.cpp
     host/camera.h
     host/gui.cpp
     host/gui.h
     host/imgui_impl.cpp
     host/sokol_app_impl.c
+
+    # Sample infrastructure + the old-API draw compatibility layer.
+    sample.cpp
+    sample.h
+    sample_draw.cpp
+    sample_draw.h
+    draw_bridge.cpp
+    draw_bridge.h
+    mesh_loader.cpp
+    mesh_loader.h
+    jsmn.h
+    tiny_obj_loader.h
+    earcut.h
+
+    # Retargeted samples (tracer bullet).
+    sample_stacking.cpp
+    sample_character.cpp
+    sample_collision.cpp
 )
 
 add_executable(samples ${SAMPLE_FILES})
@@ -126,7 +150,10 @@ endif()
 
 # Include root is the samples dir so "gfx/..." and "host/..." prefixes resolve.
 target_include_directories(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(samples PRIVATE gfx imgui sokol)
+
+# gfx: the renderer + Draw*/adapter. shared: human, utils (Random*), the
+# benchmark/determinism helpers the samples lean on.
+target_link_libraries(samples PRIVATE gfx shared imgui sokol)
 
 set_target_properties(samples PROPERTIES
     CXX_STANDARD 20

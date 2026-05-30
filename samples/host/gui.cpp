@@ -140,7 +140,7 @@ void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn, bool showInterfac
 	desc.color_format = env->defaults.color_format;
 	desc.depth_format = env->defaults.depth_format;
 	desc.sample_count = env->defaults.sample_count;
-	desc.ini_filename = "render3d_imgui.ini";
+	desc.ini_filename = "imgui.ini";
 	desc.logger.func = slog_func;
 	// Skip ImGui's auto-pick so we always get the vector font we add below.
 	desc.no_default_font = true;

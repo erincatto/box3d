@@ -30,7 +30,7 @@ static struct
 EdgeOverlayParams GetDefaultEdgeParams( void )
 {
 	EdgeOverlayParams p;
-	p.enabled = false;
+	p.enabled = true;
 	p.showHulls = true;
 	p.showMeshes = true;
 	p.showHeightfields = true;
