@@ -1,149 +1,137 @@
-# Samples app
+# Box3D samples: sokol_app + sokol_gfx host driving render3d's renderer.
+#
+# Scaffolding milestone. Builds the ported renderer (gfx/), its shaders
+# (shaders/), the sokol_app host glue (host/), and a single placeholder
+# sample in main.cpp. The legacy GLFW + GLAD + custom GL renderer sources
+# (renderer.cpp, scene.cpp, shader.cpp, font.cpp, the sample_*.cpp set, ...)
+# stay on disk but are not built here yet; they get retargeted in later
+# phases. box3d itself is the in-tree target, not a FetchContent copy.
 
-option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
-# set(FETCHCONTENT_QUIET FALSE)
+include(FetchContent)
 
-# glad for OpenGL API
-set(GLAD_DIR ${CMAKE_SOURCE_DIR}/extern/glad)
+# render3d's gfx/CMakeLists references these per-target interfaces. Box3D
+# applies its own warning policy globally, so keep them empty for now.
+add_library(render3d_warnings INTERFACE)
+add_library(render3d_sanitizers INTERFACE)
 
-add_library(
-	glad STATIC
-	${GLAD_DIR}/src/glad.c
-	${GLAD_DIR}/include/glad/glad.h
-	${GLAD_DIR}/include/KHR/khrplatform.h
+# --- Dependencies: imgui core + the sokol-shdc binary. -----------------------
+FetchContent_Declare(imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG        v1.92.8
+    GIT_SHALLOW    TRUE
+    GIT_PROGRESS   TRUE
 )
-target_include_directories(glad PUBLIC ${GLAD_DIR}/include)
-
-# glfw for windowing and input
-SET(GLFW_BUILD_DOCS OFF CACHE BOOL "GLFW Docs")
-SET(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "GLFW Examples")
-SET(GLFW_BUILD_TESTS OFF CACHE BOOL "GLFW Tests")
-SET(GLFW_INSTALL OFF CACHE BOOL "GLFW Install")
-
-FetchContent_Declare(
-	glfw
-	GIT_REPOSITORY https://github.com/glfw/glfw.git
-	GIT_TAG master
-	GIT_SHALLOW TRUE
-	GIT_PROGRESS TRUE
+FetchContent_Declare(sokol_tools_bin
+    GIT_REPOSITORY https://github.com/floooh/sokol-tools-bin.git
+    GIT_TAG        1a9a4e54090fec42c5d13169b638f09f25474953
+    GIT_SHALLOW    TRUE
+    GIT_PROGRESS   TRUE
 )
-FetchContent_MakeAvailable(glfw)
+FetchContent_MakeAvailable(imgui sokol_tools_bin)
 
-# imgui and glfw backend for GUI
-# https://gist.github.com/jeffamstutz/992723dfabac4e3ffff265eb71a24cd9
-# Modified to pin to a specific imgui release
-FetchContent_Populate(imgui
-	URL https://github.com/ocornut/imgui/archive/refs/tags/v1.92.5.zip
-	SOURCE_DIR ${CMAKE_SOURCE_DIR}/build/imgui
-)
-
-set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/build/imgui)
-
+# imgui static lib: the five core sources. sokol_imgui is the backend (no
+# glfw/opengl3 backend sources), so it is not listed here.
 add_library(imgui STATIC
-	${IMGUI_DIR}/imconfig.h
-	${IMGUI_DIR}/imgui.h
-	${IMGUI_DIR}/imstb_truetype.h
-
-	${IMGUI_DIR}/imgui.cpp
-	${IMGUI_DIR}/imgui_draw.cpp
-	${IMGUI_DIR}/imgui_demo.cpp
-	${IMGUI_DIR}/imgui_tables.cpp
-	${IMGUI_DIR}/imgui_widgets.cpp
-
-	${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
-	${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+    "${imgui_SOURCE_DIR}/imgui.cpp"
+    "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+    "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+    "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+    "${imgui_SOURCE_DIR}/imgui_demo.cpp"
 )
-
-target_link_libraries(imgui PUBLIC glfw glad)
-target_include_directories(imgui PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
-# The sample app also uses stb_truetype and this keeps the symbols separate
-target_compile_definitions(imgui PRIVATE IMGUI_STB_NAMESPACE=imgui_stb)
+target_include_directories(imgui SYSTEM PUBLIC "${imgui_SOURCE_DIR}")
 set_target_properties(imgui PROPERTIES
-	CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
 )
 
-# implot for drawing real time plots
-FetchContent_Declare(
-    implot
-    GIT_REPOSITORY https://github.com/epezent/implot.git
-    GIT_TAG v0.17
-    GIT_SHALLOW TRUE
-    GIT_PROGRESS TRUE
+# --- sokol: vendored headers INTERFACE target + per-platform backend. --------
+set(sokol_SOURCE_DIR "${CMAKE_SOURCE_DIR}/extern/sokol")
+add_library(sokol INTERFACE)
+target_include_directories(sokol SYSTEM INTERFACE "${sokol_SOURCE_DIR}")
+if(WIN32)
+    target_compile_definitions(sokol INTERFACE SOKOL_D3D11)
+    target_link_libraries(sokol INTERFACE
+        d3d11 dxgi dxguid
+        user32 gdi32 shell32 ole32)
+elseif(APPLE)
+    target_compile_definitions(sokol INTERFACE SOKOL_METAL)
+    target_link_libraries(sokol INTERFACE
+        "-framework Foundation"
+        "-framework Cocoa"
+        "-framework QuartzCore"
+        "-framework Metal"
+        "-framework MetalKit")
+elseif(UNIX)
+    target_compile_definitions(sokol INTERFACE SOKOL_GLCORE)
+    find_package(OpenGL REQUIRED)
+    find_package(Threads REQUIRED)
+    find_package(X11 REQUIRED)
+    if(NOT X11_Xi_FOUND OR NOT X11_Xcursor_FOUND)
+        message(FATAL_ERROR
+            "sokol_app needs Xi and Xcursor; install libxi-dev and libxcursor-dev.")
+    endif()
+    target_link_libraries(sokol INTERFACE
+        OpenGL::GL Threads::Threads ${CMAKE_DL_LIBS} m
+        X11::X11 X11::Xi X11::Xcursor)
+else()
+    message(FATAL_ERROR "Unsupported platform for sokol backend selection.")
+endif()
+
+# sokol-shdc executable path, consumed by shaders/CMakeLists.txt.
+if(WIN32)
+    set(_shdc_subdir win32)
+    set(_shdc_exe    sokol-shdc.exe)
+elseif(APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+        set(_shdc_subdir osx_arm64)
+    else()
+        set(_shdc_subdir osx)
+    endif()
+    set(_shdc_exe sokol-shdc)
+else()
+    set(_shdc_subdir linux)
+    set(_shdc_exe    sokol-shdc)
+endif()
+set(SOKOL_SHDC_EXECUTABLE
+    "${sokol_tools_bin_SOURCE_DIR}/bin/${_shdc_subdir}/${_shdc_exe}"
+    CACHE FILEPATH "Path to sokol-shdc binary")
+unset(_shdc_subdir)
+unset(_shdc_exe)
+
+# --- Renderer + shaders (ported verbatim from render3d). ---------------------
+add_subdirectory(shaders)
+add_subdirectory(gfx)
+
+# --- Samples executable: sokol_app host + placeholder sample. ----------------
+set(SAMPLE_FILES
+    main.cpp
+    host/camera.cpp
+    host/camera.h
+    host/gui.cpp
+    host/gui.h
+    host/imgui_impl.cpp
+    host/sokol_app_impl.c
 )
-FetchContent_MakeAvailable(implot)
 
-add_library(implot STATIC
-    ${implot_SOURCE_DIR}/implot.cpp
-    ${implot_SOURCE_DIR}/implot_items.cpp
-    ${implot_SOURCE_DIR}/implot_demo.cpp
-    ${implot_SOURCE_DIR}/implot.h
-    ${implot_SOURCE_DIR}/implot_internal.h
-)
-target_link_libraries(implot PUBLIC imgui)
-target_include_directories(implot PUBLIC ${implot_SOURCE_DIR})
+add_executable(samples ${SAMPLE_FILES})
 
-set (BOX3D_SAMPLE_FILES
-	camera.cpp
-	camera.h
-	earcut.h
-	font.cpp
-	font.h
-	geo_buffer.cpp
-	geo_buffer.h
-	jsmn.h
-	main.cpp
-	mesh_loader.cpp
-	mesh_loader.h
-	renderer.cpp
-	renderer.h
-	sample.cpp
-	sample.h
-	scene.cpp
-	scene.h
-	shader.cpp
-	shader.h
-	ssao_buffer.cpp
-	ssao_buffer.h
-	stb_image_write.h
-	stb_truetype.h
-    tiny_obj_loader.h
-	utility.h
+if(APPLE)
+    # sokol_app's Cocoa backend is Objective-C; compile its impl TU as OBJC
+    # with ARC, matching render3d's app/CMakeLists.
+    set_source_files_properties(host/sokol_app_impl.c PROPERTIES LANGUAGE OBJC)
+    set_source_files_properties(host/sokol_app_impl.c PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+endif()
 
-	sample_benchmark.cpp
-	sample_bodies.cpp
-	sample_character.cpp
-	sample_collision.cpp
-	sample_compound.cpp
-	sample_continuous.cpp
-	sample_determinism.cpp
-	sample_events.cpp
-	sample_geometry.cpp
-	sample_issues.cpp
-	sample_joint.cpp
-	sample_manifold.cpp
-	sample_mesh.cpp
-	sample_ragdoll.cpp
-	sample_robustness.cpp
-	sample_shapes.cpp
-	sample_stacking.cpp
-	sample_tree.cpp
-)
-
-add_executable(samples ${BOX3D_SAMPLE_FILES})
-target_include_directories(samples PRIVATE ${CMAKE_SOURCE_DIR}/data)
-target_include_directories(samples PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(samples PRIVATE box3d shared glfw imgui implot glad)
+# Include root is the samples dir so "gfx/..." and "host/..." prefixes resolve.
+target_include_directories(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(samples PRIVATE gfx imgui sokol)
 
 set_target_properties(samples PROPERTIES
-	CMAKE_COMPILE_WARNING_AS_ERROR ON
-	CXX_STANDARD 20
-	CXX_STANDARD_REQUIRED YES
-	CXX_EXTENSIONS NO
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
 )
 
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${BOX3D_SAMPLE_FILES})
-
-message(STATUS "runtime = ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-message(STATUS "binary = ${CMAKE_CURRENT_BINARY_DIR}")
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SAMPLE_FILES})
