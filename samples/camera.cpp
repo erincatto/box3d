@@ -108,7 +108,7 @@ Matrix4 Camera::GetWorldMatrix() const
 	return m;
 }
 
-static Matrix4 InvertOrtho( const Matrix4& m)
+static Matrix4 InvertOrthonormal( const Matrix4& m)
 {
 	//     [ R | t ]
 	// M = [ --+-- ]
@@ -123,7 +123,9 @@ static Matrix4 InvertOrtho( const Matrix4& m)
 	r.cx = {m.cx.x, m.cx.y, m.cx.z };
 	r.cy = {m.cy.x, m.cy.y, m.cy.z };
 	r.cz = {m.cz.x, m.cz.y, m.cz.z };
-	b3Matrix3 invR = b3InvertMatrix(r);
+
+	// todo just transpose in place into out matrix
+	b3Matrix3 invR = b3Transpose(r);
 
 	b3Vec3 t{m.cw.x, m.cw.y, m.cw.z };
 	b3Vec3 invRXT = invR * t;
@@ -140,7 +142,7 @@ static Matrix4 InvertOrtho( const Matrix4& m)
 Matrix4 Camera::GetViewMatrix() const
 {
 	Matrix4 v = GetWorldMatrix();
-	v = InvertOrtho(v);
+	v = InvertOrthonormal(v);
 	return v;
 }
 

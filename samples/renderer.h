@@ -28,7 +28,6 @@ void DrawCross( Scene* scene, b3Vec3 center, float radius, b3HexColor color );
 void DrawSphere( Scene* scene, const b3Transform& transform, const b3Sphere& sphere, b3HexColor color );
 void DrawCapsule( Scene* scene, const b3Transform& transform, const b3Capsule& capsule, b3HexColor color );
 void DrawHull( Scene* scene, const b3Transform& transform, const b3Hull* hull, b3HexColor color, bool drawNormals );
-void DrawEllipsoid( Scene* scene, const b3Transform& transform, b3Vec3 radius, b3HexColor color );
 void DrawTransform( Scene* scene, const b3Transform& transform, float length );
 
 // Debug points

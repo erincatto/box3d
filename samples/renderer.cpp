@@ -733,44 +733,6 @@ void DrawHull( Scene* scene, const b3Transform& transform, const b3Hull* hull, b
 	}
 }
 
-void DrawEllipsoid( Scene* scene, const b3Transform& transform, b3Vec3 radius, b3HexColor color )
-{
-	b3Vec3 ex = { 1.0f, 0.0, 0.0f };
-	b3Vec3 ey = { 0.0f, 1.0, 0.0f };
-	b3Vec3 ez = { 0.0f, 0.0, 1.0f };
-
-	for ( float angle = 0.0f; angle < 360.0f; angle += 5.0f )
-	{
-		float alpha1 = B3_DEG_TO_RAD * ( angle + 0.0f );
-		float alpha2 = B3_DEG_TO_RAD * ( angle + 5.0f );
-
-		// XY - Plane
-		{
-			b3Vec3 vertex1 = radius * ( b3Cos( alpha1 ) * ex + b3Sin( alpha1 ) * ey );
-			b3Vec3 vertex2 = radius * ( b3Cos( alpha2 ) * ex + b3Sin( alpha2 ) * ey );
-			vertex1 = b3TransformPoint( transform, vertex1 );
-			vertex2 = b3TransformPoint( transform, vertex2 );
-			DrawLine( scene, vertex1, vertex2, color );
-		}
-		// XZ - Plane
-		{
-			b3Vec3 vertex1 = radius * ( b3Cos( alpha1 ) * ex + b3Sin( alpha1 ) * ez );
-			b3Vec3 vertex2 = radius * ( b3Cos( alpha2 ) * ex + b3Sin( alpha2 ) * ez );
-			vertex1 = b3TransformPoint( transform, vertex1 );
-			vertex2 = b3TransformPoint( transform, vertex2 );
-			DrawLine( scene, vertex1, vertex2, color );
-		}
-		// YZ - Plane
-		{
-			b3Vec3 vertex1 = radius * ( b3Cos( alpha1 ) * ex + b3Sin( alpha1 ) * ez );
-			b3Vec3 vertex2 = radius * ( b3Cos( alpha2 ) * ey + b3Sin( alpha2 ) * ez );
-			vertex1 = b3TransformPoint( transform, vertex1 );
-			vertex2 = b3TransformPoint( transform, vertex2 );
-			DrawLine( scene, vertex1, vertex2, color );
-		}
-	}
-}
-
 void DrawTransform( Scene* scene, const b3Transform& transform, float length )
 {
 	b3Vec3 p = transform.p;
