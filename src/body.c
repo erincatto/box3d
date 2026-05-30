@@ -2230,8 +2230,7 @@ bool b3Body_IsBullet( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	b3BodySim* bodySim = b3GetBodySim( world, body );
-	return ( bodySim->flags & b3_isBullet ) != 0;
+	return ( body->flags & b3_isBullet ) != 0;
 }
 
 void b3Body_EnableContactRecycling( b3BodyId bodyId, bool flag )
