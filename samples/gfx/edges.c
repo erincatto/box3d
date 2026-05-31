@@ -36,8 +36,9 @@ EdgeOverlayParams GetDefaultEdgeParams( void )
 	p.showHeightfields = true;
 	p.thicknessPx = 1.5f;
 	p.zBias = 1.0e-6f;
-	p.convexColor = MakeVec4( 0.5f, 0.5f, 0.5f, 1.0f );
+	p.convexColor = MakeVec4( 0.4f, 0.4f, 0.4f, 1.0f );
 	p.concaveColor = MakeVec4( 0.50f, 0.10f, 0.10f, 1.0f );
+	p.flatColor = MakeVec4( 1.0f, 1.0f, 1.0f, 1.0f );
 	return p;
 }
 
@@ -154,6 +155,7 @@ static void SubmitBatches( int width, int height, const Mat4* view, const Mat4* 
 	edge_ub_pass_t up = { 0 };
 	up.convex_color = Premultiply( params->convexColor );
 	up.concave_color = Premultiply( params->concaveColor );
+	up.flat_color = Premultiply( params->flatColor );
 	sg_apply_uniforms( UB_edge_ub_pass, &SG_RANGE( up ) );
 
 	sg_view currentEdgeView = { SG_INVALID_ID };
@@ -261,7 +263,7 @@ void RenderEdgesInMSAA( int width, int height, const Mat4* view, const Mat4* pro
 	{
 		return;
 	}
-	
+
 	const ArenaFilter filter = EDGES_MSAA_INCLUDES_TRANSPARENT ? ARENA_FILTER_BOTH : ARENA_FILTER_OPAQUE_ONLY;
 	if ( !DoesAnyBatchSurvive( filter, params ) )
 	{

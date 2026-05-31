@@ -43,6 +43,44 @@ typedef struct EdgeBuilder
 	int capacity;
 } EdgeBuilder;
 
+// Render class carried in the edge flag. Convex must stay 1 so hull edges
+// (which emit 1u directly) keep their color. Concave stays 0 to match the
+// old binary flag value.
+typedef enum EdgeClass
+{
+	EDGE_CONCAVE = 0,
+	EDGE_CONVEX = 1,
+	EDGE_FLAT = 2,
+} EdgeClass;
+
+// Collapse Box3D's two-bit edge flags to a render class. Concave bit clear
+// means convex, a true convex edge or an open boundary with neither bit.
+// Both bits set means nearly coplanar.
+static uint32_t ClassifyEdge( uint8_t flags, uint8_t concaveBit, uint8_t inverseBit )
+{
+	if ( flags & concaveBit )
+	{
+		return ( flags & inverseBit ) ? (uint32_t)EDGE_FLAT : (uint32_t)EDGE_CONCAVE;
+	}
+	return (uint32_t)EDGE_CONVEX;
+}
+
+// Dedup priority when two adjacent triangles disagree on a shared edge. They
+// normally agree, this only matters at non-manifold joints. Convex wins as the
+// most prominent feature, then concave, then flat.
+static uint32_t EdgeClassRank( uint32_t c )
+{
+	if ( c == EDGE_CONVEX )
+	{
+		return 2;
+	}
+	if ( c == EDGE_CONCAVE )
+	{
+		return 1;
+	}
+	return 0;
+}
+
 static bool EdgeBuilderReserve( EdgeBuilder* b, int extra )
 {
 	const int need = b->count + extra;
@@ -411,22 +449,20 @@ static MeshHandle BuildMeshData( const b3MeshData* meshData )
 			return InvalidMeshHandle();
 		}
 
-		// Convex edges only
+		// Emit all three edges, classified by convexity
 		const uint8_t f = flags ? flags[t] : 0u;
-		bool ok = true;
-		if ( ok && ( f & b3_concaveEdge1 ) == 0 )
+		bool ok = EmitEdge( &eb, (uint32_t)tri.index1, (uint32_t)tri.index2,
+							ClassifyEdge( f, b3_concaveEdge1, b3_inverseConcaveEdge1 ) );
+		if ( ok )
 		{
-			ok = EmitEdge( &eb, (uint32_t)tri.index1, (uint32_t)tri.index2, 1u );
+			ok = EmitEdge( &eb, (uint32_t)tri.index2, (uint32_t)tri.index3,
+						   ClassifyEdge( f, b3_concaveEdge2, b3_inverseConcaveEdge2 ) );
 		}
 
-		if ( ok && ( f & b3_concaveEdge2 ) == 0 )
+		if ( ok )
 		{
-			ok = EmitEdge( &eb, (uint32_t)tri.index2, (uint32_t)tri.index3, 1u );
-		}
-
-		if ( ok && ( f & b3_concaveEdge3 ) == 0 )
-		{
-			ok = EmitEdge( &eb, (uint32_t)tri.index3, (uint32_t)tri.index1, 1u );
+			ok = EmitEdge( &eb, (uint32_t)tri.index3, (uint32_t)tri.index1,
+						   ClassifyEdge( f, b3_concaveEdge3, b3_inverseConcaveEdge3 ) );
 		}
 
 		if ( !ok )
@@ -463,11 +499,10 @@ static MeshHandle BuildMeshData( const b3MeshData* meshData )
 #undef LESS
 #undef SWAP
 
-		// In-place unique. Two records compare equal when (v0, v1) match,
-		// `flags` ties are broken in favor of "convex wins" so the overlay
-		// renders the edge in the higher-visibility color when the two
-		// triangles' flag bits disagree (rare but possible at non-manifold
-		// joints).
+		// In-place unique. Two records compare equal when (v0, v1) match.
+		// On a flag tie the higher-rank class wins so the overlay renders the
+		// edge in the more prominent color when the two triangles' bits
+		// disagree (rare but possible at non-manifold joints).
 		int write = 0;
 		for ( int read = 1; read < eb.count; ++read )
 		{
@@ -475,9 +510,9 @@ static MeshHandle BuildMeshData( const b3MeshData* meshData )
 			EdgeRecord* r = &eb.edges[read];
 			if ( w->v0 == r->v0 && w->v1 == r->v1 )
 			{
-				if ( r->flags == 1u )
+				if ( EdgeClassRank( r->flags ) > EdgeClassRank( w->flags ) )
 				{
-					w->flags = 1u;
+					w->flags = r->flags;
 				}
 			}
 			else
@@ -624,23 +659,18 @@ static MeshHandle BuildHeightField( const b3HeightField* hf )
 				return InvalidMeshHandle();
 			}
 
-			// Diagonal edge (shared between tri0 and tri1). Only emit when
-			// truly convex, same "concave bit clear" test as the mesh
-			// builder above. Drops flat (coplanar) and concave dihedral
-			// in one check. b3's flag interpretation is fixed to the
+			// Diagonal edge (shared between tri0 and tri1), classified by
+			// convexity. b3's flag interpretation is fixed to the
 			// source-order triangulation, independent of our render-side
 			// clockwise flip.
 			const int tri0 = 2 * cellIndex;
 			const uint8_t f0 = edgeFlags ? edgeFlags[tri0] : 0u;
-			if ( ( f0 & b3_concaveEdge2 ) == 0 )
+			if ( !EmitEdge( &eb, i10, i01, ClassifyEdge( f0, b3_concaveEdge2, b3_inverseConcaveEdge2 ) ) )
 			{
-				if ( !EmitEdge( &eb, i10, i01, 1u ) )
-				{
-					EdgeBuilderFree( &eb );
-					BufferFree( &buf );
-					free( gridVertices );
-					return InvalidMeshHandle();
-				}
+				EdgeBuilderFree( &eb );
+				BufferFree( &buf );
+				free( gridVertices );
+				return InvalidMeshHandle();
 			}
 		}
 	}
@@ -685,13 +715,9 @@ static MeshHandle BuildHeightField( const b3HeightField* hf )
 			}
 
 			const uint8_t f = edgeFlags ? edgeFlags[triangleIndex] : 0u;
-			if ( ( f & b3_concaveEdge3 ) != 0 )
-			{
-				continue; // concave or flat, drop, only convex edges drawn
-			}
 			const uint32_t i0 = (uint32_t)( row * cols + col );
 			const uint32_t i1 = (uint32_t)( row * cols + col + 1 );
-			if ( !EmitEdge( &eb, i0, i1, 1u ) )
+			if ( !EmitEdge( &eb, i0, i1, ClassifyEdge( f, b3_concaveEdge3, b3_inverseConcaveEdge3 ) ) )
 			{
 				EdgeBuilderFree( &eb );
 				BufferFree( &buf );
@@ -732,14 +758,9 @@ static MeshHandle BuildHeightField( const b3HeightField* hf )
 			}
 
 			const uint8_t f = edgeFlags ? edgeFlags[triangleIndex] : 0u;
-			if ( ( f & b3_concaveEdge1 ) != 0 )
-			{
-				// concave or flat, drop, only convex edges drawn
-				continue;
-			}
 			const uint32_t i0 = (uint32_t)( row * cols + col );
 			const uint32_t i1 = (uint32_t)( ( row + 1 ) * cols + col );
-			if ( !EmitEdge( &eb, i0, i1, 1u ) )
+			if ( !EmitEdge( &eb, i0, i1, ClassifyEdge( f, b3_concaveEdge1, b3_inverseConcaveEdge1 ) ) )
 			{
 				EdgeBuilderFree( &eb );
 				BufferFree( &buf );

@@ -71,10 +71,10 @@ typedef struct MeshVertex
 
 // Per-edge-endpoint data for the edge overlay. Two consecutive entries
 // per edge (the two endpoints). `flag` carries the Box3D edge classification
-// as 0.0 = concave or 1.0 = convex/face boundary, used by the FS to pick
-// between concaveColor and convexColor uniforms. Stored as a float (not
-// uint) so the shader struct can be a flat vec4, sidesteps std430 vec3+uint
-// padding ambiguity across GLSL/HLSL/MSL cross-compilers.
+// as 0.0 = concave, 1.0 = convex/face boundary, 2.0 = flat (coplanar), used
+// by the FS to pick between the concave/convex/flat color uniforms. Stored as
+// a float (not uint) so the shader struct can be a flat vec4, sidesteps
+// std430 vec3+uint padding ambiguity across GLSL/HLSL/MSL cross-compilers.
 typedef struct EdgeVertex
 {
 	float position[3];

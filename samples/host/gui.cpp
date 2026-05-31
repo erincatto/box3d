@@ -605,9 +605,15 @@ static void SettingsSection( GuiToggles t )
 		changed |= ImGui::SliderFloat( "Z-bias", &ep.zBias, 0.0f, 1.0e-3f, "%.6f" );
 		float cv[3] = { ep.convexColor.x, ep.convexColor.y, ep.convexColor.z };
 		float cc[3] = { ep.concaveColor.x, ep.concaveColor.y, ep.concaveColor.z };
+		float cf[3] = { ep.flatColor.x, ep.flatColor.y, ep.flatColor.z };
 		if ( ImGui::ColorEdit3( "Convex color", cv, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoInputs ) )
 		{
 			ep.convexColor = MakeVec4( cv[0], cv[1], cv[2], ep.convexColor.w );
+			changed = true;
+		}
+		if ( ImGui::ColorEdit3( "Flat color", cf, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoInputs ) )
+		{
+			ep.flatColor = MakeVec4( cf[0], cf[1], cf[2], ep.flatColor.w );
 			changed = true;
 		}
 		if ( ImGui::ColorEdit3( "Concave color", cc, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoInputs ) )
@@ -616,6 +622,7 @@ static void SettingsSection( GuiToggles t )
 			changed = true;
 		}
 		changed |= ImGui::SliderFloat( "Convex alpha", &ep.convexColor.w, 0.0f, 1.0f, "%.2f" );
+		changed |= ImGui::SliderFloat( "Flat alpha", &ep.flatColor.w, 0.0f, 1.0f, "%.2f" );
 		changed |= ImGui::SliderFloat( "Concave alpha", &ep.concaveColor.w, 0.0f, 1.0f, "%.2f" );
 		if ( ImGui::Button( "Reset to defaults##edges" ) )
 		{

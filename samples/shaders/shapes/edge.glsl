@@ -22,9 +22,9 @@
 // reverse-Z). 5e-5 is enough at typical scene scales without visible offset
 // at glancing angles.
 //
-// Per-fragment color picks between convex/concave uniforms from the per-
-// endpoint flag (0.0 / 1.0 stored as float to keep the std430 endpoint
-// struct a flat vec4, no vec3+uint padding ambiguity).
+// Per-fragment color picks between convex/concave/flat uniforms from the
+// per-endpoint flag (0 concave, 1 convex, 2 flat, stored as float to keep
+// the std430 endpoint struct a flat vec4, no vec3+uint padding ambiguity).
 //
 // Pipeline state:
 //   * depth_compare = GREATER_EQUAL (reverse-Z). With the zBias nudge this
@@ -160,6 +160,7 @@ layout( binding = 1 ) uniform ub_pass
 {
 	vec4 convex_color;	// premultiplied linear RGBA
 	vec4 concave_color; // premultiplied linear RGBA
+	vec4 flat_color;	// premultiplied linear RGBA
 };
 
 noperspective in float v_dist_from_axis_px;
@@ -180,7 +181,20 @@ void main()
 	float aa = fwidth( v_dist_from_axis_px );
 	float coverage = 1.0 - smoothstep( v_half_width_px - aa, v_half_width_px + aa, d );
 
-	vec4 col = ( v_flag > 0.5 ) ? convex_color : concave_color;
+	// Flag is 0 concave, 1 convex, 2 flat (coplanar).
+	vec4 col;
+	if ( v_flag > 1.5 )
+	{
+		col = flat_color;
+	}
+	else if ( v_flag > 0.5 )
+	{
+		col = convex_color;
+	}
+	else
+	{
+		col = concave_color;
+	}
 	out_color = col * coverage;
 }
 #pragma sokol @end

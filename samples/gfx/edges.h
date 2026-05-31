@@ -41,6 +41,7 @@ typedef struct EdgeOverlayParams
 	float zBias;	  // reverse-Z nudge toward camera, ~5e-5 is a good start
 	Vec4 convexColor; // straight (non-premultiplied) linear RGBA, premultiplied inside
 	Vec4 concaveColor;
+	Vec4 flatColor;
 } EdgeOverlayParams;
 
 EdgeOverlayParams GetDefaultEdgeParams( void );
