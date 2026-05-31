@@ -81,8 +81,11 @@ layout(binding = 0) readonly buffer line_instances
 
 out vec2 v_screen_a; // flat per-instance screen-space pixel coords of A
 out vec2 v_screen_b; // flat per-instance screen-space pixel coords of B
+
+// todo consider using noperspective if long lines get thin in the middle
 out float v_dist_from_axis_px; // signed perpendicular pixel distance (smooth)
 out float v_half_width_px; // half-width in pixels at this fragment (smooth, varies in WORLD mode)
+
 out float v_view_z; // positive view-space depth (smooth, perspective-correct)
 flat out vec4 v_color;
 flat out uint v_occ_mode;

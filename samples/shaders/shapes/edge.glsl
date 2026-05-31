@@ -81,8 +81,10 @@ layout( binding = 1 ) readonly buffer edge_endpoints
 	edge_endpoint ee_items[];
 };
 
-out float v_dist_from_axis_px;
-out float v_half_width_px;
+// Long edges get thinned in the middle with perspective math
+noperspective out float v_dist_from_axis_px;
+noperspective out float v_half_width_px;
+
 flat out float v_flag;
 
 void main()
@@ -158,8 +160,8 @@ layout( binding = 1 ) uniform ub_pass
 	vec4 concave_color; // premultiplied linear RGBA
 };
 
-in float v_dist_from_axis_px;
-in float v_half_width_px;
+noperspective in float v_dist_from_axis_px;
+noperspective in float v_half_width_px;
 flat in float v_flag;
 
 out vec4 out_color;
