@@ -54,7 +54,3 @@ void DrawGrid( Scene* scene, int size );
 // World-space text label. The renderer projects with its latched camera; the
 // Camera* is accepted for source compatibility and ignored.
 void DrawWorldString( Camera* camera, b3Vec3 point, b3HexColor color, const char* format, ... );
-
-// The old renderer toggled a shader-side ground grid per scene. The new
-// renderer has no equivalent, so this is a no-op kept so call sites compile.
-void EnableGrid( Scene* scene, bool enable );

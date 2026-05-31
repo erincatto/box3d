@@ -333,6 +333,23 @@ void Sample::ResetProfile()
 	m_profileWriteIndex = 0;
 }
 
+b3BodyId Sample::AddGroundBox( float extent )
+{
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.name = "ground";
+	bodyDef.position = { 0.0f, -1.0f, 0.0f };
+	b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull hull = b3MakeBoxHull( extent, 1.0f, extent );
+	b3ShapeId shapeId = b3CreateHullShape( groundId, &shapeDef, &hull.base );
+
+	// Draw the ground with the procedural grid material
+	SetGroundShape( shapeId );
+
+	return groundId;
+}
+
 void Sample::UpdateUI()
 {
 	float fontSize = ImGui::GetFontSize();

@@ -253,7 +253,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			EnableGrid( m_scene, true );
 		}
 
 		b3BodyId groundId;
@@ -315,7 +314,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 0.0f, 40.0f, { 0.0f, 10.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyId groundId;
@@ -602,7 +601,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		m_targetTranslation = 0.0f;
@@ -775,7 +774,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyId groundId;
@@ -968,7 +967,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		m_hertz = 10.0f;
@@ -1094,7 +1093,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		m_targetAngle = 0.0f;
@@ -1277,7 +1276,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyId groundId;
@@ -1385,7 +1384,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 25.0f, 20.0f, 7.0f, { 0.0f, 2.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		m_spinSpeed = 0.0f;
@@ -1703,7 +1702,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		{
@@ -2084,7 +2083,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 40.0f, { 0.0f, 5.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyId groundId;

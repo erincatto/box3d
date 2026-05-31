@@ -148,6 +148,12 @@ void ResetAdapterPool( void )
 	}
 	s_adapter.firstFree = 0;
 	s_adapter.allocCount = 0;
+
+	s_adapter.groundShapeId = b3_nullShapeId;
+	s_adapter.materialOverrideCount = 0;
+	s_adapter.hoveredBodyId = b3_nullBodyId;
+	s_adapter.selectedBodyId = b3_nullBodyId;
+	s_adapter.transparentDynamic = false;
 }
 
 b3DebugDraw* GetGuiDraw( void )

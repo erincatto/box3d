@@ -97,6 +97,9 @@ public:
 	void DrawTextLine( const char* text, ... );
 	void ResetProfile();
 
+	// Static ground box at the origin, drawn with the procedural grid material
+	b3BodyId AddGroundBox( float extent );
+
 #if defined( NDEBUG )
 	static constexpr bool m_isDebug = false;
 #else

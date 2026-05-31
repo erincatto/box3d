@@ -21,7 +21,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 20.0f, 50.0f, b3Vec3_zero );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		float extent = 1.0f;
@@ -86,7 +86,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 20.0f, 2.5f, { 0.0f, 0.75f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		{
@@ -149,7 +149,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 20.0f, 50.0f, b3Vec3_zero );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		m_bodyIds = nullptr;
@@ -274,7 +274,7 @@ public:
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
 			//context->settings.subStepCount = 12;
-			EnableGrid( m_scene, true );
+			
 		}
 
 		{
@@ -484,7 +484,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 5.0f, 3.0f, 6.0f, b3Vec3_zero );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		m_data = CreateOverflowColorPile( m_worldId );

@@ -17,7 +17,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Vec3_zero );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		{

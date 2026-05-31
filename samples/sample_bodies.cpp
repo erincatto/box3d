@@ -23,18 +23,7 @@ public:
 		m_type = b3_dynamicBody;
 		m_isEnabled = true;
 
-		b3BodyId groundId = b3_nullBodyId;
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position.y = -1.0f;
-			bodyDef.name = "ground";
-			groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3BoxHull box = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
-		}
+		b3BodyId groundId = AddGroundBox( 20.0f );
 
 		// Define attachment
 		{

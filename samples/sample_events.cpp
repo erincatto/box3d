@@ -254,7 +254,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 40.0f, { 0.0f, 5.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -351,7 +351,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 40.0f, { 0.0f, 5.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyId groundId;
@@ -689,7 +689,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 40.0f, { 0.0f, 5.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyId groundId;

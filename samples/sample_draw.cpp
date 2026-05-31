@@ -146,7 +146,3 @@ void DrawWorldString( Camera*, b3Vec3 point, b3HexColor color, const char* forma
 	va_end( args );
 	BridgeString( point, MakeColor( color ), buffer );
 }
-
-void EnableGrid( Scene*, bool )
-{
-}

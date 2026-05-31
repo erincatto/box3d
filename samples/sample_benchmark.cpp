@@ -29,7 +29,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		CreateLargePyramid( m_worldId );
@@ -52,7 +52,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		CreateWidePyramid( m_worldId );
@@ -75,7 +75,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		CreateManyPyramids( m_worldId );
@@ -261,7 +261,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 45.0f, 250.0f, b3Vec3_zero );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		{
@@ -314,18 +314,10 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 35.0f, 40.0f, b3Vec3_zero );
-			EnableGrid( m_scene, true );
+			
 		}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 250.0f, 1.0f, 250.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
-		}
+		AddGroundBox( 100.0f );
 
 		{
 			constexpr int n = m_isDebug ? 4 : 16;
@@ -1011,7 +1003,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 20.0f, 60.0, { 0.0f, 15.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3Capacity capacity = {};
@@ -1038,7 +1030,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 60.0f, 80.0f, b3Vec3_zero );
-			EnableGrid( m_scene, false );
 		}
 
 		b3Capacity capacity = {};
@@ -1159,7 +1150,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 50.0f, { 0.0f, 5.0f, 0.0f } );
-			EnableGrid( m_scene, false );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -1279,7 +1269,6 @@ public:
 			{
 				m_camera->SetView( 0.0f, 40.0f, 30.0f, { 0.0f, 0.0f, 0.0f } );
 			}
-			EnableGrid( m_scene, false );
 		}
 
 		int bodyCapacity = m_gridCount * m_gridCount * m_gridCount;
@@ -1468,7 +1457,7 @@ public:
 		{
 			m_camera->SetView( 45.0f, 30.0f, 100.0f, b3Vec3_zero );
 			GetGuiDraw()->drawJoints = false;
-			EnableGrid( m_scene, true );
+			
 		}
 
 		CreateJunkyard( m_worldId );

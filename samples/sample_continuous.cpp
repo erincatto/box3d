@@ -952,7 +952,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 50.0f, { 0.0f, 15.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		{

@@ -287,7 +287,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 10.0f, { 0.0f, 2.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 #if 1

@@ -19,7 +19,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( -55.0f, 30.0f, 60.0f, { 0.0f, 7.5f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -68,7 +68,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( -140.0f, 17.0f, 60.0f, { 0.0f, 7.5f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -129,7 +129,7 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 40.0f, { 0.0f, 7.5f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -173,7 +173,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 150.0f, b3Vec3_zero );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -224,7 +224,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( -30.0f, 17.0f, 22.0f, { 0.0f, 5.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3Quat orientation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 20.0f * B3_DEG_TO_RAD );
@@ -279,7 +279,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 25.0f, 85.0f, { 0.0f, 20.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -385,7 +385,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 25.0f, 10.0f, { 0.0f, 1.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -499,7 +499,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 25.0f, 40.0f, { 0.0f, 1.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		// Ground
@@ -566,7 +566,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 65.0f, 25.0f, 28.0f, { 0.0f, 1.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		// Ground
@@ -768,7 +768,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 0.0f, 5.0f, { 0.0f, 1.0f, 0.0f } );
-			EnableGrid( m_scene, true );
+			
 		}
 
 		{
@@ -940,17 +940,7 @@ public:
 			m_camera->SetView( 0.0f, -10.0f, 20.0f, { 0.0f, 5.0f, 0.0f } );
 		}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.name = "ground";
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull hull = b3MakeBoxHull( 15.0f, 1.0f, 15.0f );
-			b3CreateHullShape( groundId, &shapeDef, &hull.base );
-		}
+		AddGroundBox( 15.0f );
 
 		m_drag = 1.0f;
 		m_lift = 4.0f;
@@ -1019,17 +1009,7 @@ public:
 			m_camera->SetView( 0.0f, -10.0f, 20.0f, { 0.0f, 5.0f, 0.0f } );
 		}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.name = "ground";
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull hull = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-			b3CreateHullShape( groundId, &shapeDef, &hull.base );
-		}
+		AddGroundBox( 50.0f );
 
 		m_drag = 1.0f;
 		m_lift = 2.0f;
