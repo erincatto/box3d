@@ -264,15 +264,7 @@ public:
 			
 		}
 
-		{
-			b3BoxHull groundBox = b3MakeBoxHull( 250.0f, 1.0f, 250.0f );
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
-		}
+		AddGroundBox( 200.0f );
 
 		{
 			constexpr int n = m_isDebug ? 4 : 50;

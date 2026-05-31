@@ -13,21 +13,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-static inline float SrgbToLinear( float c )
-{
-	return c <= 0.04045f ? c / 12.92f : powf( ( c + 0.055f ) / 1.055f, 2.4f );
-}
-
-Vec4 MakeColor( b3HexColor hexColor )
-{
-	uint32_t v = (uint32_t)hexColor;
-	float k = 1.0f / 255.0f;
-	float r = (float)( ( v >> 16 ) & 0xFFu ) * k;
-	float g = (float)( ( v >> 8 ) & 0xFFu ) * k;
-	float b = (float)( v & 0xFFu ) * k;
-	return MakeVec4( SrgbToLinear( r ), SrgbToLinear( g ), SrgbToLinear( b ), 1.0f );
-}
-
 void DrawSphere( Scene*, const b3Transform& transform, const b3Sphere& sphere, b3HexColor color )
 {
 	b3Transform world = { b3TransformPoint( transform, sphere.center ), transform.q };
