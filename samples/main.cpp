@@ -88,25 +88,29 @@ static void OnEvent( const sapp_event* e )
 	Camera& camera = s_manager.m_context.camera;
 	camera.OnEvent( e );
 
+	// Keep keyboard mods only. sokol packs the held mouse button into modifiers
+	// (SAPP_MODIFIER_LMB == 0x100), which would defeat the sample's modifiers == 0 checks.
+	const int mods = e->modifiers & ( SAPP_MODIFIER_SHIFT | SAPP_MODIFIER_CTRL | SAPP_MODIFIER_ALT | SAPP_MODIFIER_SUPER );
+
 	switch ( e->type )
 	{
 		case SAPP_EVENTTYPE_KEY_DOWN:
 			SetKeyDown( e->key_code, true );
 			if ( e->key_repeat == false )
 			{
-				s_manager.Keyboard( e->key_code, ACTION_PRESS, e->modifiers );
+				s_manager.Keyboard( e->key_code, ACTION_PRESS, mods );
 			}
 			break;
 
 		case SAPP_EVENTTYPE_KEY_UP:
 			SetKeyDown( e->key_code, false );
-			s_manager.Keyboard( e->key_code, ACTION_RELEASE, e->modifiers );
+			s_manager.Keyboard( e->key_code, ACTION_RELEASE, mods );
 			break;
 
 		case SAPP_EVENTTYPE_MOUSE_DOWN:
 			s_manager.m_context.mouseX = e->mouse_x;
 			s_manager.m_context.mouseY = e->mouse_y;
-			s_manager.MouseDown( { e->mouse_x, e->mouse_y }, e->mouse_button, e->modifiers );
+			s_manager.MouseDown( { e->mouse_x, e->mouse_y }, e->mouse_button, mods );
 			break;
 
 		case SAPP_EVENTTYPE_MOUSE_UP:

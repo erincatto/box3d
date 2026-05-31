@@ -295,6 +295,7 @@ void Sample::Step()
 
 		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
+		b3BodyId hovered = b3_nullBodyId;
 		if ( result.hit )
 		{
 			b3ShapeType type = b3Shape_GetType( result.shapeId );
@@ -304,7 +305,16 @@ void Sample::Step()
 			}
 
 			m_userMaterialId = result.userMaterialId;
+
+			// Only dynamic bodies highlight, so the static ground never lights up.
+			b3BodyId bodyId = b3Shape_GetBody( result.shapeId );
+			if ( b3Body_GetType( bodyId ) == b3_dynamicBody )
+			{
+				hovered = bodyId;
+			}
 		}
+
+		SetHoveredBody( hovered );
 	}
 }
 
@@ -838,6 +848,16 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 
 			b3BodyId bodyId = b3Shape_GetBody( result.shapeId );
 
+			// A plain click also sets the selection. Dynamic only, matching hover.
+			if ( b3Body_GetType( bodyId ) == b3_dynamicBody )
+			{
+				SetSelectedBody( bodyId );
+			}
+			else
+			{
+				ClearSelection();
+			}
+
 			b3MotorJointDef jointDef = b3DefaultMotorJointDef();
 			jointDef.base.bodyIdA = m_mouseBodyId;
 			jointDef.base.bodyIdB = bodyId;
@@ -863,6 +883,11 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			b3Body_SetAwake( bodyId, true );
 
 			m_mouseFraction = result.fraction;
+		}
+		else
+		{
+			// Click into empty space clears the selection.
+			ClearSelection();
 		}
 	}
 	else if ( modifiers & MOD_SHIFT )
@@ -1080,6 +1105,29 @@ void SampleManager::Keyboard( int key, int action, int modifiers )
 			m_context.restart = false;
 			CreateSample();
 			break;
+
+		case KEY_F:
+		{
+			// Frame the selection, or the whole world when nothing is selected.
+			b3BodyId bodyId = GetSelectedBody();
+			b3AABB aabb;
+			float padding;
+			if ( B3_IS_NON_NULL( bodyId ) )
+			{
+				aabb = b3Body_ComputeAABB( bodyId );
+				padding = 1.5f;
+			}
+			else
+			{
+				aabb = b3World_GetBounds( m_sample->m_worldId );
+				padding = 0.75f;
+			}
+
+			Camera& cam = m_context.camera;
+			float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
+			cam.Frame( aabb, aspect, padding );
+		}
+		break;
 
 		default:
 			m_sample->Keyboard( key, action, modifiers );

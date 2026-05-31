@@ -17,18 +17,9 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Vec3_zero );
-			
 		}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeBoxHull( 10.0f, 1.0f, 10.0f );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
-		}
+		AddGroundBox( 20.0f );
 
 		m_jointFrictionTorque = 5.0f;
 		m_jointHertz = 1.0f;
