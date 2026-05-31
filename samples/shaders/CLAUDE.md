@@ -13,8 +13,10 @@ rules that don't apply elsewhere.
 - Author in **GLSL 4.30 core** dialect, with sokol-shdc directives.
 - sokol-shdc generates a single C header per shader file, containing the
   bytecode/source for every enabled backend plus pipeline reflection.
-- Generated headers live in `build/shaders/` and are **not committed**.
-  They are produced by a CMake custom command at build time.
+- Generated headers live in `shaders/generated/` and **are committed**, so a
+  fresh clone builds without sokol-shdc. `BOX3D_BUILD_SHADERS` (default ON)
+  recompiles them in place via a CMake custom command; build with it OFF to
+  use the committed headers and fetch no tooling.
 - Shader edits trigger the custom command automatically; run
   `cmake --build build --target shaders` to force a rebuild.
 

@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "camera.h"
 #include "human.h"
 #include "mesh_loader.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+#include "sample_draw.h"
+
+#include "gfx/debug_adapter.h"
 
 #include "box3d/box3d.h"
 
@@ -55,7 +55,7 @@ public:
 
 		Spawn();
 
-		m_context->debugDraw.forceScale = 0.01f;
+		GetGuiDraw()->forceScale = 0.01f;
 	}
 
 	~GridMesh() override

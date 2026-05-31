@@ -1,12 +1,11 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "GLFW/glfw3.h"
-#include "camera.h"
 #include "imgui.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+#include "sample_draw.h"
+
+#include "gfx/keycodes.h"
 
 #include "box3d/box3d.h"
 
@@ -2346,7 +2345,7 @@ public:
 
 		ImGui::End();
 
-		if ( glfwGetKey( m_context->window, GLFW_KEY_L ) == GLFW_PRESS )
+		if ( IsKeyDown( KEY_L ) )
 		{
 			b3Body_ApplyLinearImpulseToCenter( m_bodyIds[0], { 100.0f, 0.0f }, true );
 		}
@@ -2534,7 +2533,7 @@ public:
 		// b3DestroyHull( hull );
 
 		m_camera->m_thirdPerson = true;
-		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED );
+		sapp_lock_mouse( true );
 
 		m_haveMouseLast = false;
 		m_mouseLast = { 0.0f, 0.0f };
@@ -2544,7 +2543,7 @@ public:
 	~Driving() override
 	{
 		m_camera->m_thirdPerson = false;
-		glfwSetInputMode( m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL );
+		sapp_lock_mouse( false );
 		b3DestroyHeightField( m_heightField );
 	}
 
@@ -2576,7 +2575,7 @@ public:
 
 	void Keyboard( int key, int action, int mods ) override
 	{
-		if ( key == GLFW_KEY_T && action == GLFW_PRESS )
+		if ( key == KEY_T && action == ACTION_PRESS )
 		{
 			ToggleThirdPerson();
 		}
@@ -2708,25 +2707,25 @@ public:
 
 		if ( m_camera->m_thirdPerson )
 		{
-			if ( glfwGetKey( m_window, GLFW_KEY_W ) )
+			if ( IsKeyDown( KEY_W ) )
 			{
 				throttle.x += 1.0f;
 				b3Body_SetAwake( m_chassisId, true );
 			}
 
-			if ( glfwGetKey( m_window, GLFW_KEY_S ) )
+			if ( IsKeyDown( KEY_S ) )
 			{
 				throttle.x -= 1.0f;
 				b3Body_SetAwake( m_chassisId, true );
 			}
 
-			if ( glfwGetKey( m_window, GLFW_KEY_A ) )
+			if ( IsKeyDown( KEY_A ) )
 			{
 				throttle.y += 1.0f;
 				b3Body_SetAwake( m_chassisId, true );
 			}
 
-			if ( glfwGetKey( m_window, GLFW_KEY_D ) )
+			if ( IsKeyDown( KEY_D ) )
 			{
 				throttle.y -= 1.0f;
 				b3Body_SetAwake( m_chassisId, true );

@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "GLFW/glfw3.h"
-#include "camera.h"
 #include "imgui.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+#include "sample_draw.h"
 #include "stability.h"
 #include "utils.h"
+
+#include "gfx/debug_adapter.h"
 
 #include "box3d/box3d.h"
 
@@ -447,7 +446,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 20.0f, b3Vec3_zero );
-			m_context->debugDraw.forceScale = 0.1f;
+			GetGuiDraw()->forceScale = 0.1f;
 		}
 
 		m_groundId = b3_nullBodyId;
@@ -677,9 +676,7 @@ public:
 		Sample::Step();
 
 		{
-			double screenX, screenY;
-			glfwGetCursorPos( m_window, &screenX, &screenY );
-			PickRay pickRay = m_camera->BuildPickRay( (float)screenX, (float)screenY );
+			PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
 			b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
@@ -784,7 +781,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 20.0f, b3Vec3_zero );
-			m_context->debugDraw.forceScale = 0.1f;
+			GetGuiDraw()->forceScale = 0.1f;
 		}
 
 		m_data = CreateMeshDrop( m_worldId );

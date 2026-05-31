@@ -35,8 +35,8 @@ EdgeOverlayParams GetDefaultEdgeParams( void )
 	p.showMeshes = true;
 	p.showHeightfields = true;
 	p.thicknessPx = 1.5f;
-	p.zBias = 5.0e-5f;
-	p.convexColor = MakeVec4( 0.25f, 0.25f, 0.25f, 1.0f );
+	p.zBias = 1.0e-6f;
+	p.convexColor = MakeVec4( 0.5f, 0.5f, 0.5f, 1.0f );
 	p.concaveColor = MakeVec4( 0.50f, 0.10f, 0.10f, 1.0f );
 	return p;
 }

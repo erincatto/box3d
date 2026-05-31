@@ -1,11 +1,8 @@
-# Box3D samples: sokol_app + sokol_gfx host driving render3d's renderer.
+# Box3D samples: sokol_app + sokol_gfx host
 #
-# Scaffolding milestone. Builds the ported renderer (gfx/), its shaders
-# (shaders/), the sokol_app host glue (host/), and a single placeholder
-# sample in main.cpp. The legacy GLFW + GLAD + custom GL renderer sources
-# (renderer.cpp, scene.cpp, shader.cpp, font.cpp, the sample_*.cpp set, ...)
-# stay on disk but are not built here yet; they get retargeted in later
-# phases. box3d itself is the in-tree target, not a FetchContent copy.
+# Builds the ported renderer (gfx/), its shaders (shaders/), the sokol_app
+# host glue (host/), and the full sample set on the new renderer. box3d
+# itself is the in-tree target, not a FetchContent copy.
 
 include(FetchContent)
 
@@ -14,20 +11,26 @@ include(FetchContent)
 add_library(render3d_warnings INTERFACE)
 add_library(render3d_sanitizers INTERFACE)
 
-# --- Dependencies: imgui core + the sokol-shdc binary. -----------------------
+# --- Dependencies: imgui core (always) + sokol-shdc (only to recompile shaders).
 FetchContent_Declare(imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG        v1.92.8
     GIT_SHALLOW    TRUE
     GIT_PROGRESS   TRUE
 )
-FetchContent_Declare(sokol_tools_bin
-    GIT_REPOSITORY https://github.com/floooh/sokol-tools-bin.git
-    GIT_TAG        1a9a4e54090fec42c5d13169b638f09f25474953
-    GIT_SHALLOW    TRUE
-    GIT_PROGRESS   TRUE
-)
-FetchContent_MakeAvailable(imgui sokol_tools_bin)
+FetchContent_MakeAvailable(imgui)
+
+# The shader compiler is only needed when recompiling shaders. A fresh clone
+# with BOX3D_BUILD_SHADERS=OFF builds from the committed headers and skips this.
+if(BOX3D_BUILD_SHADERS)
+    FetchContent_Declare(sokol_tools_bin
+        GIT_REPOSITORY https://github.com/floooh/sokol-tools-bin.git
+        GIT_TAG        1a9a4e54090fec42c5d13169b638f09f25474953
+        GIT_SHALLOW    TRUE
+        GIT_PROGRESS   TRUE
+    )
+    FetchContent_MakeAvailable(sokol_tools_bin)
+endif()
 
 # imgui static lib: the five core sources. sokol_imgui is the backend (no
 # glfw/opengl3 backend sources), so it is not listed here.
@@ -80,35 +83,36 @@ else()
 endif()
 
 # sokol-shdc executable path, consumed by shaders/CMakeLists.txt.
-if(WIN32)
-    set(_shdc_subdir win32)
-    set(_shdc_exe    sokol-shdc.exe)
-elseif(APPLE)
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
-        set(_shdc_subdir osx_arm64)
+if(BOX3D_BUILD_SHADERS)
+    if(WIN32)
+        set(_shdc_subdir win32)
+        set(_shdc_exe    sokol-shdc.exe)
+    elseif(APPLE)
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+            set(_shdc_subdir osx_arm64)
+        else()
+            set(_shdc_subdir osx)
+        endif()
+        set(_shdc_exe sokol-shdc)
     else()
-        set(_shdc_subdir osx)
+        set(_shdc_subdir linux)
+        set(_shdc_exe    sokol-shdc)
     endif()
-    set(_shdc_exe sokol-shdc)
-else()
-    set(_shdc_subdir linux)
-    set(_shdc_exe    sokol-shdc)
+    set(SOKOL_SHDC_EXECUTABLE
+        "${sokol_tools_bin_SOURCE_DIR}/bin/${_shdc_subdir}/${_shdc_exe}"
+        CACHE FILEPATH "Path to sokol-shdc binary")
+    unset(_shdc_subdir)
+    unset(_shdc_exe)
 endif()
-set(SOKOL_SHDC_EXECUTABLE
-    "${sokol_tools_bin_SOURCE_DIR}/bin/${_shdc_subdir}/${_shdc_exe}"
-    CACHE FILEPATH "Path to sokol-shdc binary")
-unset(_shdc_subdir)
-unset(_shdc_exe)
 
 # --- Renderer + shaders (ported verbatim from render3d). ---------------------
 add_subdirectory(shaders)
 add_subdirectory(gfx)
 
 # --- Samples executable: sokol_app host + SampleManager + samples. -----------
-# Tracer-bullet port: the infrastructure (sample base + manager + draw shims)
-# plus three representative samples build on the new renderer. The other 15
-# sample_*.cpp stay out of the build until they are ported in turn; the Frame
-# Time chart (ImPlot) is gated off via BOX3D_USE_IMPLOT pending its re-add.
+# The samples build on the new renderer through the draw compatibility layer.
+# The Frame Time chart (ImPlot) is gated off via BOX3D_USE_IMPLOT pending its
+# re-add.
 set(SAMPLE_FILES
     main.cpp
 
@@ -133,10 +137,25 @@ set(SAMPLE_FILES
     tiny_obj_loader.h
     earcut.h
 
-    # Retargeted samples (tracer bullet).
+    # Samples.
     sample_stacking.cpp
     sample_character.cpp
     sample_collision.cpp
+    sample_determinism.cpp
+    sample_robustness.cpp
+    sample_benchmark.cpp
+    sample_ragdoll.cpp
+    sample_geometry.cpp
+    sample_issues.cpp
+    sample_shapes.cpp
+    sample_tree.cpp
+    sample_mesh.cpp
+    sample_compound.cpp
+    sample_events.cpp
+    sample_bodies.cpp
+    sample_manifold.cpp
+    sample_continuous.cpp
+    sample_joint.cpp
 )
 
 add_executable(samples ${SAMPLE_FILES})
@@ -149,7 +168,11 @@ if(APPLE)
 endif()
 
 # Include root is the samples dir so "gfx/..." and "host/..." prefixes resolve.
-target_include_directories(samples PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+# The data dir is on the path too so samples can #include recorded dumps
+# (sample_issues pulls dumps/.../box3d_dump.inl at compile time).
+target_include_directories(samples PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../data")
 
 # gfx: the renderer + Draw*/adapter. shared: human, utils (Random*), the
 # benchmark/determinism helpers the samples lean on.

@@ -42,6 +42,9 @@ void DrawCross( Scene* scene, b3Vec3 center, float radius, b3HexColor color );
 void DrawBounds( Scene* scene, b3AABB bounds, float extension, b3HexColor color );
 void DrawTransform( Scene* scene, const b3Transform& transform, float length );
 
+// Plane as a unit wireframe quad through the point, plus a short normal and a dot.
+void DrawPlane( Scene* scene, b3Vec3 normal, b3Vec3 point, b3HexColor color );
+
 // Wireframe triangle (the old DrawFace was filled; debug-vis tradeoff).
 void DrawFace( Scene* scene, b3Vec3 vertex1, b3Vec3 vertex2, b3Vec3 vertex3, b3HexColor color );
 

@@ -9,7 +9,7 @@ hand-copied into `samples/`. Update the status table as phases land.
 - **Scaffolding (done).** `samples/gfx/` + `samples/shaders/` + `samples/host/`
   + `extern/sokol/` build green; a placeholder `main.cpp` opens a sokol_app
   window and draws a fixed scene with 0 sokol validation errors.
-- **Tracer bullet (this phase).** Retarget the sample infrastructure
+- **Tracer bullet (done).** Retarget the sample infrastructure
   (`sample.{h,cpp}`, `main.cpp`) + shims, and **3 representative samples**:
   `sample_stacking`, `sample_character`, `sample_collision`. The other 15
   `sample_*.cpp` stay out of the CMake build and port mechanically afterward.
@@ -70,14 +70,29 @@ Picking uses `Camera::BuildPickRay`. `ToggleThirdPerson` → `sapp_lock_mouse`.
 |---|---|
 | Scaffolding (renderer/shaders/host/placeholder main) | done |
 | Tracer bullet: infra + 3 samples | done |
-| Remaining 15 `sample_*.cpp` | not started |
-| Delete old renderer/scene/camera/font/geo_buffer/ssao_buffer | not started |
-| B1: committed shader headers, `BOX3D_BUILD_SHADERS` gate | not started |
+| Remaining 15 `sample_*.cpp` | done |
+| Delete old renderer/scene/camera/font/geo_buffer/ssao_buffer | done |
+| B1: committed shader headers, `BOX3D_BUILD_SHADERS` gate | done |
 
 Tracer bullet landed 2026-05-30: `samples.exe` builds green (VS2026 / D3D11,
 Debug) and runs `--frames` with 0 sokol validation errors across a 9-sample
 sweep spanning all three categories (incl. the third-person Mover). Added
 `--sample N` to the host to target a sample headlessly.
+
+Port completed 2026-05-31: all 18 `sample_*.cpp` build on the new path; the
+145 registered samples sweep green headless (`--sample N --frames 12`, 0 sokol
+errors each). Legacy renderer sources deleted. Shader headers now committed
+under `shaders/generated/` behind the `BOX3D_BUILD_SHADERS` gate (a fresh
+`-DBOX3D_BUILD_SHADERS=OFF` configure builds and renders without fetching
+sokol-shdc). Cross-cutting decisions made while porting:
+- Added `DrawPlane` to the draw shim (`sample_draw` + a bridge line/point fan)
+  for the one sample that drew planes; the rest reuse the tracer-bullet shims.
+- Put the `data/` dir on the samples include path so `sample_issues` can
+  `#include` its recorded `dumps/.../box3d_dump.inl` at compile time.
+- The two `CreateConvex` helpers that took the old per-step arena now use a
+  fixed local array (the trimmed `SampleContext` has no arena).
+- Live ALT/SHIFT, WASD, and third-person input paths compile and run headless
+  but still want a human spot-check for feel.
 
 ### What the tracer bullet established (reuse for the remaining 15)
 
@@ -102,8 +117,6 @@ sweep spanning all three categories (incl. the third-person Mover). Added
 
 ## Deferred
 
-- The 15 other samples (mechanical, follow the stacking pattern; character-like
-  and collision-like ones reuse the tracer-bullet solutions).
-- Deleting the legacy GLFW/GLAD/custom-GL sources once all 18 samples build on
-  the new path.
-- B1 so a fresh clone builds without fetching sokol-shdc.
+Nothing outstanding from this roadmap. Possible follow-ups outside its scope:
+re-adding the ImPlot Frame Time chart (gated off via `BOX3D_USE_IMPLOT`), and
+lifting the four inlined shadow-sampling copies into a shared `common/` block.

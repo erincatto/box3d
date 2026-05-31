@@ -1,12 +1,11 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "GLFW/glfw3.h"
-#include "camera.h"
 #include "imgui.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+#include "sample_draw.h"
+
+#include "gfx/keycodes.h"
 
 #include "box3d/box3d.h"
 
@@ -657,7 +656,7 @@ public:
 
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override
 	{
-		if ( button == 0 && modifiers == GLFW_MOD_ALT )
+		if ( button == 0 && modifiers == MOD_ALT )
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 			m_origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );

@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "GLFW/glfw3.h"
-#include "camera.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+#include "sample_draw.h"
 
+#include "gfx/keycodes.h"
+
+#include "box3d/box3d.h"
 #include "box3d/constants.h"
 
 #include <imgui.h>
@@ -113,9 +113,9 @@ public:
 
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override
 	{
-		if ( button == 0 && ( modifiers & GLFW_MOD_ALT ) == 0 )
+		if ( button == 0 && ( modifiers & MOD_ALT ) == 0 )
 		{
-			if ( modifiers & GLFW_MOD_SHIFT )
+			if ( modifiers & MOD_SHIFT )
 			{
 				m_baseX = p.x;
 				m_baseY = p.y;
@@ -291,9 +291,9 @@ public:
 
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override
 	{
-		if ( button == 0 && ( modifiers & GLFW_MOD_ALT ) == 0 )
+		if ( button == 0 && ( modifiers & MOD_ALT ) == 0 )
 		{
-			if ( modifiers & GLFW_MOD_SHIFT )
+			if ( modifiers & MOD_SHIFT )
 			{
 				m_baseX = p.x;
 				m_baseY = p.y;
@@ -749,13 +749,13 @@ public:
 		}
 	}
 
-	b3Hull* CreateConvex( float radius1, float height1, float radius2, float height2, Arena arena ) const
+	b3Hull* CreateConvex( float radius1, float height1, float radius2, float height2 ) const
 	{
-		const int sideCount = 32;
+		constexpr int sideCount = 32;
 		const float deltaAlpha = 2.0f * B3_PI / sideCount;
 
 		int vertexCount = 2 * sideCount;
-		b3Vec3* vertexBase = static_cast<b3Vec3*>( arena.Allocate( vertexCount * sizeof( b3Vec3 ) ) );
+		b3Vec3 vertexBase[2 * sideCount];
 
 		float alpha = 0.0f;
 		for ( int sideIndex = 0; sideIndex < sideCount; ++sideIndex )

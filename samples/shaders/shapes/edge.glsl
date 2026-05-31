@@ -83,7 +83,9 @@ layout( binding = 1 ) readonly buffer edge_endpoints
 
 // Long edges get thinned in the middle with perspective math
 noperspective out float v_dist_from_axis_px;
-noperspective out float v_half_width_px;
+
+// Flat thickness
+flat out float v_half_width_px;
 
 flat out float v_flag;
 
@@ -161,7 +163,7 @@ layout( binding = 1 ) uniform ub_pass
 };
 
 noperspective in float v_dist_from_axis_px;
-noperspective in float v_half_width_px;
+flat in float v_half_width_px;
 flat in float v_flag;
 
 out vec4 out_color;

@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 #include "benchmarks.h"
-#include "camera.h"
 #include "imgui.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+#include "sample_draw.h"
 #include "utils.h"
+
+#include "gfx/debug_adapter.h"
 
 #include "box3d/box3d.h"
 
@@ -114,7 +114,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Vec3_zero );
-			context->debugDraw.drawJoints = false;
+			GetGuiDraw()->drawJoints = false;
 		}
 
 		b3Capacity capacity = {};
@@ -334,7 +334,7 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			m_convex = CreateConvex( 0.6f, 0.0f, 0.95f, 1.0f, context->arena );
+			m_convex = CreateConvex( 0.6f, 0.0f, 0.95f, 1.0f );
 			for ( int i = 0; i < n; ++i )
 			{
 				for ( int j = 0; j < m; ++j )
@@ -355,13 +355,13 @@ public:
 		b3DestroyHull( m_convex );
 	}
 
-	b3Hull* CreateConvex( float radius1, float height1, float radius2, float height2, Arena arena ) const
+	b3Hull* CreateConvex( float radius1, float height1, float radius2, float height2 ) const
 	{
-		const int sideCount = 8;
+		constexpr int sideCount = 8;
 		const float deltaAlpha = 2.0f * B3_PI / sideCount;
 
 		int vertexCount = 2 * sideCount;
-		b3Vec3* vertexBase = static_cast<b3Vec3*>( arena.Allocate( vertexCount * sizeof( b3Vec3 ) ) );
+		b3Vec3 vertexBase[2 * sideCount];
 
 		float alpha = 0.0f;
 		for ( int sideIndex = 0; sideIndex < sideCount; ++sideIndex )
@@ -1159,7 +1159,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 50.0f, { 0.0f, 5.0f, 0.0f } );
-			EnableGrid( context->scene, false );
+			EnableGrid( m_scene, false );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -1279,7 +1279,7 @@ public:
 			{
 				m_camera->SetView( 0.0f, 40.0f, 30.0f, { 0.0f, 0.0f, 0.0f } );
 			}
-			EnableGrid( m_context->scene, false );
+			EnableGrid( m_scene, false );
 		}
 
 		int bodyCapacity = m_gridCount * m_gridCount * m_gridCount;
@@ -1467,7 +1467,7 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 100.0f, b3Vec3_zero );
-			context->debugDraw.drawJoints = false;
+			GetGuiDraw()->drawJoints = false;
 			EnableGrid( m_scene, true );
 		}
 

@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "camera.h"
 #include "determinism.h"
 #include "sample.h"
-#include "scene.h"
+
+#include "box3d/box3d.h"
 
 #include <stdio.h>
 

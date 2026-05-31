@@ -5,12 +5,12 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include "camera.h"
 #include "imgui.h"
 #include "utils.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+#include "sample_draw.h"
+
+#include "box3d/box3d.h"
 
 #include <queue>
 #include <stdio.h>

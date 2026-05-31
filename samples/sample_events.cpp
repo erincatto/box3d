@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "GLFW/glfw3.h"
-#include "camera.h"
 #include "imgui.h"
-#include "renderer.h"
 #include "sample.h"
-#include "scene.h"
+#include "sample_draw.h"
 #include "utils.h"
+
+#include "gfx/keycodes.h"
 
 #include "box3d/box3d.h"
 
@@ -822,7 +821,7 @@ public:
 
 		ImGui::Checkbox( "Bullet", &m_isBullet );
 
-		if ( ImGui::Button( "Launch" ) || glfwGetKey( m_context->window, GLFW_KEY_B ) == GLFW_PRESS )
+		if ( ImGui::Button( "Launch" ) || IsKeyDown( KEY_B ) )
 		{
 			Launch();
 		}

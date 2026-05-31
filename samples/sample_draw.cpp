@@ -114,6 +114,23 @@ void DrawFace( Scene*, b3Vec3 vertex1, b3Vec3 vertex2, b3Vec3 vertex3, b3HexColo
 	BridgeTriangle( vertex1, vertex2, vertex3, MakeColor( color ) );
 }
 
+void DrawPlane( Scene*, b3Vec3 normal, b3Vec3 point, b3HexColor color )
+{
+	Vec4 c = MakeColor( color );
+	b3Vec3 perp1 = b3Perp( normal );
+	b3Vec3 perp2 = b3Cross( perp1, normal );
+	b3Vec3 p1 = b3Add( point, b3Add( perp1, perp2 ) );
+	b3Vec3 p2 = b3Add( point, b3Sub( perp2, perp1 ) );
+	b3Vec3 p3 = b3Sub( point, b3Add( perp1, perp2 ) );
+	b3Vec3 p4 = b3Add( point, b3Sub( perp1, perp2 ) );
+	BridgeLine( p1, p2, c );
+	BridgeLine( p2, p3, c );
+	BridgeLine( p3, p4, c );
+	BridgeLine( p4, p1, c );
+	BridgeLine( point, b3Add( point, b3MulSV( 0.5f, normal ) ), c );
+	BridgePoint( point, 10.0f, c );
+}
+
 void DrawGrid( Scene*, int size )
 {
 	Vec4 color = MakeVec4( 0.3f, 0.3f, 0.3f, 1.0f );
