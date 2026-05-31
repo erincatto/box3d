@@ -7,6 +7,7 @@
 
 #include "sample.h"
 
+#include "benchmarks.h"
 #include "human.h"
 #include "sample_draw.h"
 #include "utils.h"
@@ -207,6 +208,7 @@ Sample::Sample( SampleContext* context )
 Sample::~Sample()
 {
 	ResetAdapterPool();
+	ResetGroundShapeId();
 	b3DestroyWorld( m_worldId );
 }
 

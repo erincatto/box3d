@@ -33,6 +33,8 @@ public:
 		}
 
 		CreateLargePyramid( m_worldId );
+
+		SetGroundShape( GetGroundShapeId() );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -56,6 +58,8 @@ public:
 		}
 
 		CreateWidePyramid( m_worldId );
+
+		SetGroundShape( GetGroundShapeId() );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -88,6 +92,8 @@ public:
 		// Human human = {};
 		// b3Vec3 position = m_isDebug ? b3Vec3{ 0.0f, 20.0f, 0.0f } : b3Vec3{ 5.0f, 20.0f, 53.0f };
 		// CreateHuman( &human, m_worldId, position, frictionTorque, hertz, dampingRatio, 0, nullptr, colorize );
+
+		SetGroundShape( GetGroundShapeId() );
 	}
 
 	void Render() override
@@ -1003,6 +1009,7 @@ public:
 		CreateWorld( &capacity );
 
 		CreateWasher( m_worldId );
+		SetGroundShape( GetGroundShapeId() );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -1453,6 +1460,8 @@ public:
 		}
 
 		CreateJunkyard( m_worldId );
+
+		SetGroundShape( GetGroundShapeId() );
 	}
 
 	void Step() override

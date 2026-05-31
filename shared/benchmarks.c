@@ -18,6 +18,18 @@
 #define BENCHMARK_DEBUG 1
 #endif
 
+static b3ShapeId g_groundShapeId = { 0 };
+
+b3ShapeId GetGroundShapeId( void )
+{
+	return g_groundShapeId;
+}
+
+void ResetGroundShapeId( void )
+{
+	g_groundShapeId = b3_nullShapeId;
+}
+
 void CreateJointGrid( b3WorldId worldId )
 {
 	b3World_EnableSleeping( worldId, false );
@@ -94,12 +106,12 @@ void CreateLargePyramid( b3WorldId worldId )
 
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = (b3Vec3){ 0.0f, -1.0f };
+		bodyDef.position = (b3Vec3){ 0.0f, -1.0f, 0.0f };
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
 		b3BoxHull box = b3MakeBoxHull( 100.0f, 1.0f, 100.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateHullShape( groundId, &shapeDef, &box.base );
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
 	b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -133,12 +145,12 @@ void CreateWidePyramid( b3WorldId worldId )
 {
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = (b3Vec3){ 0.0f, -1.0f };
+		bodyDef.position = (b3Vec3){ 0.0f, -1.0f, 0.0f };
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
 		b3BoxHull box = b3MakeBoxHull( 100.0f, 1.0f, 100.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateHullShape( groundId, &shapeDef, &box.base );
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
 	const float boxSize = 2.0f;
@@ -212,7 +224,7 @@ void CreateManyPyramids( b3WorldId worldId )
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
 		b3BoxHull box = b3MakeBoxHull( groundExtent, 1.0f, groundExtent );
-		b3CreateHullShape( groundId, &shapeDef, &box.base );
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
 	float baseWidth = 2.0f * extent * baseCount;
@@ -532,7 +544,7 @@ void CreateWasher( b3WorldId worldId )
 
 		b3BoxHull box = b3MakeBoxHull( 60.0f, 1.0f, 60.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateHullShape( groundId, &shapeDef, &box.base );
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
 	{
@@ -794,7 +806,7 @@ void CreateJunkyard( b3WorldId worldId )
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		{
 			b3BoxHull box = b3MakeBoxHull( 120.0f, 1.0f, 120.0f );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
+			g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 		{
 			b3Vec3 offset = { -50.0f, 8.0f, 0.0f };

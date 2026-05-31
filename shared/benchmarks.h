@@ -15,6 +15,11 @@ extern "C"
 {
 #endif
 
+// This is used by the sample app to draw a ground grid. Should only
+// be used for box hulls.
+b3ShapeId GetGroundShapeId( void );
+void ResetGroundShapeId( void );
+
 void CreateTrees25( b3WorldId worldId );
 void CreateTrees50( b3WorldId worldId );
 void CreateTrees100( b3WorldId worldId );
