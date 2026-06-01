@@ -56,9 +56,6 @@ struct SampleContext
 	int subStepCount = 4;
 	int workerCount = 1;
 	bool transparentDynamic = false;
-	bool drawCounters = false;
-	bool drawProfile = false;
-	bool frameTime = false;
 	bool transparent = false;
 	bool enableWarmStarting = true;
 	bool enableContinuous = true;
@@ -66,6 +63,19 @@ struct SampleContext
 	bool pause = false;
 	int singleStep = 0;
 	bool restart = false;
+
+	// UI visibility (Tab / View > Hide UI). When hidden only the minimal HUD shows.
+	bool showUI = true;
+
+	// Bottom diagnostics drawer (M), set by Ctrl+O for the fuzzy picker.
+	bool showMetrics = false;
+	bool openSamplePicker = false;
+
+	// Render toggles fed into FrameInput each frame. They live here, not in
+	// main.cpp, so the Render menu and the frame loop share one source.
+	bool enableShadows = true;
+	bool enableGtao = true;
+	int debugView = 0;
 
 	int sampleIndex = 0;
 };
@@ -84,6 +94,9 @@ public:
 	virtual void Render();
 
 	virtual void UpdateUI();
+
+	// Bottom diagnostics drawer (Profile / Counters / Renderer / Frame Time).
+	void DrawMetrics();
 
 	virtual void Keyboard( int key, int action, int modifiers )
 	{
@@ -168,15 +181,19 @@ public:
 
 	void CreateSample();
 
-	// The single host UI callback: tools panel + the active sample's panel.
+	// The single host UI callback: menu bar, sample picker, info panel, and
+	// the active sample's own panel plus the bottom diagnostics drawer.
 	void UpdateUI();
+	void DrawMenuBar();
+	void DrawSamplePicker();
+	void DrawInfoPanel();
+	void DrawHud();
 
 	static SampleEntry sEntries[MAX_SAMPLES];
 	static int sEntryCount;
 
 	SampleContext m_context;
 	Sample* m_sample = nullptr;
-	bool m_showMenu = true;
 };
 
 struct CastClosestContext
@@ -191,8 +208,8 @@ struct CastClosestContext
 	bool hit;
 };
 
-float CastClosestCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t materialId,
-							  int triangleIndex, int childIndex, void* context );
+float CastClosestCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t materialId, int triangleIndex,
+						   int childIndex, void* context );
 
 struct MoverShapeUserData
 {

@@ -1,10 +1,9 @@
 // Dear ImGui shell - implementation.
 //
-// Owns the simgui setup and renders the built-in left "Renderer" window
-// (Stats + Render Settings collapsing sections) plus the app's UI draw callback
-// (the right "Scene" window). All renderer state changes flow through the
-// public Set* setters; the panel never reads or writes renderer
-// internals.
+// Owns the simgui setup and the ImGui pass, runs the app's UI draw callback
+// (the menu bar, panels, and diagnostics drawn by the SampleManager), and
+// drains the in-world text overlay. Panels are anchored with BeginPanel /
+// EndPanel; the menu bar and drawer the app draws itself.
 //
 // Render path: ImGui draws on a NEW swapchain pass opened in RenderUI,
 // LOADed on top of the already-tonemapped swapchain image. The simgui
@@ -14,7 +13,6 @@
 #include "gui.h"
 
 #include "gfx/draw.h"
-#include "gfx/gtao.h"
 #include "gfx/projection.h"
 #include "gfx/renderer.h"
 #include "gfx/text.h"
@@ -28,11 +26,6 @@
 #include <stdio.h>
 
 static bool s_uiInitialized = false;
-
-// TAB toggles this. When false we skip the ImGui panels (Stats / Render
-// Settings / the UI draw callback) but still run simgui_new_frame and
-// RenderText, so scene labels stay visible.
-static bool s_panelsVisible = false;
 
 // Display scale (sapp_dpi_scale) latched once in InitUI. ImGui runs in
 // physical framebuffer pixels, so panel code multiplies explicit pixel sizes
@@ -131,9 +124,8 @@ static void guiApplyStyle( void )
 	c[ImGuiCol_PlotHistogramHovered] = accentHi;
 }
 
-void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn, bool showInterface )
+void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn )
 {
-	s_panelsVisible = showInterface;
 	s_uiCallback = drawGuiFcn;
 
 	simgui_desc_t desc = {};
@@ -192,14 +184,6 @@ bool HandleEvent( const sapp_event* e )
 {
 	if ( !s_uiInitialized )
 		return false;
-	// TAB toggles panel visibility. Handled before simgui_handle_event so
-	// ImGui's nav system doesn't also act on the key. Suppressed while a
-	// text widget is focused so the user can still TAB between fields.
-	if ( e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_TAB && !ImGui::GetIO().WantTextInput )
-	{
-		s_panelsVisible = !s_panelsVisible;
-		return true;
-	}
 	const bool handled = simgui_handle_event( e );
 	const ImGuiIO& io = ImGui::GetIO();
 	// simgui_handle_event tracks every event for ImGui's input state, but
@@ -233,7 +217,9 @@ static bool s_panelOpen = false;
 static void ResetUIPanelLayout( void )
 {
 	const ImGuiViewport* vp = ImGui::GetMainViewport();
-	const float top = vp->WorkPos.y + PANEL_GAP * s_uiScale;
+	// Clear the main menu bar. Without docking the bar does not shrink the
+	// viewport work area, so panels would otherwise start under it.
+	const float top = vp->WorkPos.y + ImGui::GetFrameHeight() + PANEL_GAP * s_uiScale;
 	s_panelCursorY[GUI_ANCHOR_LEFT] = top;
 	s_panelCursorY[GUI_ANCHOR_RIGHT] = top;
 	s_panelOpen = false;
@@ -290,404 +276,6 @@ void EndPanel( void )
 	ImGui::End();
 }
 
-// One row of the Stats panel: label in the fixed left column, value in the
-// right. Replaces space-padded ImGui::Text - that only aligned under the old
-// monospace font and goes ragged under a proportional one.
-static void StatRow( const char* label, const char* fmt, ... )
-{
-	ImGui::TableNextColumn();
-	ImGui::TextUnformatted( label );
-	ImGui::TableNextColumn();
-	va_list args;
-	va_start( args, fmt );
-	ImGui::TextV( fmt, args );
-	va_end( args );
-}
-
-// The Stats section of the left "Renderer" window - a collapsing header over
-// the live frame / instance / overlay counts. Renders no window of its own:
-// LeftPanel owns the window and stacks this above SettingsSection.
-static void StatsSection( void )
-{
-	if ( !ImGui::CollapsingHeader( "Stats", ImGuiTreeNodeFlags_DefaultOpen ) )
-		return;
-	ImGui::Indent();
-
-	const RenderStats st = GetRenderStats();
-
-	// Headline frame time is sokol's display-link-derived value (real
-	// present-to-present interval). CPU is the RenderFrame submit cost.
-	// Both EMA-smoothed (factor 0.1 -> ~10-frame time constant) to keep the
-	// readout from flickering.
-	const float frameMs = (float)( sapp_frame_duration() * 1000.0 );
-	static float s_smoothedFrameMs = 0.0f;
-	static float s_smoothedCpuMs = 0.0f;
-	s_smoothedFrameMs = ( s_smoothedFrameMs <= 0.0f ) ? frameMs : s_smoothedFrameMs * 0.9f + frameMs * 0.1f;
-	s_smoothedCpuMs = ( s_smoothedCpuMs <= 0.0f ) ? st.frameTimeMs : s_smoothedCpuMs * 0.9f + st.frameTimeMs * 0.1f;
-	const float fps = ( s_smoothedFrameMs > 0.0f ) ? ( 1000.0f / s_smoothedFrameMs ) : 0.0f;
-
-	const char* backend = "?";
-	switch ( sg_query_backend() )
-	{
-		case SG_BACKEND_D3D11:
-			backend = "D3D11";
-			break;
-		case SG_BACKEND_METAL_MACOS:
-			backend = "Metal";
-			break;
-		case SG_BACKEND_METAL_IOS:
-			backend = "Metal (iOS)";
-			break;
-		case SG_BACKEND_METAL_SIMULATOR:
-			backend = "Metal (Sim)";
-			break;
-		case SG_BACKEND_GLCORE:
-			backend = "GLCORE";
-			break;
-		case SG_BACKEND_GLES3:
-			backend = "GLES3";
-			break;
-		case SG_BACKEND_WGPU:
-			backend = "WGPU";
-			break;
-		default:
-			break;
-	}
-
-	// Fixed label-column width so the value column lines up across every
-	// table in the panel. GetFontSize is already DPI-scaled.
-	const float labelW = ImGui::GetFontSize() * 8.0f;
-	const ImGuiTableFlags tableFlags = ImGuiTableFlags_NoSavedSettings;
-
-	if ( ImGui::BeginTable( "##stats_top", 2, tableFlags ) )
-	{
-		ImGui::TableSetupColumn( "##l", ImGuiTableColumnFlags_WidthFixed, labelW );
-		ImGui::TableSetupColumn( "##v", ImGuiTableColumnFlags_WidthStretch );
-		StatRow( "Backend", "%s", backend );
-		StatRow( "Frame", "%.2f ms  (%.0f FPS)", s_smoothedFrameMs, fps );
-		StatRow( "CPU", "%.2f ms", s_smoothedCpuMs );
-		StatRow( "Draw calls", "%d  (approx)", st.drawCallCount );
-		ImGui::EndTable();
-	}
-
-	if ( ImGui::CollapsingHeader( "Opaque instances", ImGuiTreeNodeFlags_DefaultOpen ) )
-	{
-		if ( ImGui::BeginTable( "##stats_opaque", 2, tableFlags ) )
-		{
-			ImGui::TableSetupColumn( "##l", ImGuiTableColumnFlags_WidthFixed, labelW );
-			ImGui::TableSetupColumn( "##v", ImGuiTableColumnFlags_WidthStretch );
-			StatRow( "Cubes", "%d", st.cubeCount );
-			StatRow( "Spheres", "%d", st.sphereCount );
-			StatRow( "Capsules", "%d", st.capsuleCount );
-			StatRow( "Geom", "%d  (%d spans)", st.geomInstanceCount, st.geomSpanCount );
-			ImGui::EndTable();
-		}
-	}
-	if ( ImGui::CollapsingHeader( "Transparent instances" ) )
-	{
-		if ( ImGui::BeginTable( "##stats_xp", 2, tableFlags ) )
-		{
-			ImGui::TableSetupColumn( "##l", ImGuiTableColumnFlags_WidthFixed, labelW );
-			ImGui::TableSetupColumn( "##v", ImGuiTableColumnFlags_WidthStretch );
-			StatRow( "Cubes", "%d", st.cubeCountXp );
-			StatRow( "Spheres", "%d", st.sphereCountXp );
-			StatRow( "Capsules", "%d", st.capsuleCountXp );
-			StatRow( "Geom", "%d", st.geomInstanceCountXp );
-			ImGui::EndTable();
-		}
-	}
-	if ( ImGui::CollapsingHeader( "Overlays" ) )
-	{
-		if ( ImGui::BeginTable( "##stats_overlay", 2, tableFlags ) )
-		{
-			ImGui::TableSetupColumn( "##l", ImGuiTableColumnFlags_WidthFixed, labelW );
-			ImGui::TableSetupColumn( "##v", ImGuiTableColumnFlags_WidthStretch );
-			StatRow( "Lines", "%d", st.lineCount );
-			StatRow( "Points", "%d", st.pointCount );
-			ImGui::EndTable();
-		}
-	}
-	ImGui::Unindent();
-}
-
-// A dimmed "(?)" placed after a widget; hovering it reveals wrapped help
-// text. Keeps long explanatory strings out of the panel body, where as inline
-// TextDisabled lines they clipped against the window's right edge.
-static void HelpMarker( const char* text )
-{
-	ImGui::SameLine();
-	ImGui::TextDisabled( "(?)" );
-	if ( ImGui::BeginItemTooltip() )
-	{
-		ImGui::PushTextWrapPos( ImGui::GetFontSize() * 26.0f );
-		ImGui::TextUnformatted( text );
-		ImGui::PopTextWrapPos();
-		ImGui::EndTooltip();
-	}
-}
-
-// The Render Settings section of the left "Renderer" window. Like
-// StatsSection, a bare collapsing header with no window of its own.
-static void SettingsSection( GuiToggles t )
-{
-	if ( !ImGui::CollapsingHeader( "Render Settings", ImGuiTreeNodeFlags_DefaultOpen ) )
-		return;
-	ImGui::Indent();
-
-	// Reserve room on the right for the slider's value label - just enough
-	// for the longest GTAO knob name ("Depth-MIP samp offset") to clear the
-	// window edge. PushItemWidth with a negative value sets widget width to
-	// (available - X); GetFontSize returns already-DPI-scaled pixels so
-	// this stays correct at any monitor scale.
-	ImGui::PushItemWidth( -ImGui::GetFontSize() * 12.0f );
-
-	if ( ImGui::CollapsingHeader( "Tonemap", ImGuiTreeNodeFlags_DefaultOpen ) )
-	{
-		float ev = GetExposure();
-		if ( ImGui::SliderFloat( "EV", &ev, -8.0f, +4.0f, "%.2f" ) )
-		{
-			SetExposure( ev );
-		}
-		float sat = GetToneMapSaturation();
-		if ( ImGui::SliderFloat( "Saturation", &sat, 0.0f, 2.0f, "%.2f" ) )
-		{
-			SetToneMapSaturation( sat );
-		}
-		HelpMarker( "1.0 = stock AgX; raise to undo desaturation." );
-	}
-
-	if ( ImGui::CollapsingHeader( "Sun", ImGuiTreeNodeFlags_DefaultOpen ) )
-	{
-		Sun sun = GetSun();
-		bool changed = false;
-		float dir[3] = { sun.dirToSun.x, sun.dirToSun.y, sun.dirToSun.z };
-		float color[3] = { sun.color.x, sun.color.y, sun.color.z };
-		// %.2f (not %.3f): the three components share one slider width, so
-		// at the panel's width a 3-decimal value crowds the slider grab. Two
-		// decimals is plenty for a direction the renderer renormalizes anyway.
-		if ( ImGui::SliderFloat3( "Direction", dir, -1.0f, 1.0f, "%.2f" ) )
-		{
-			sun.dirToSun = b3Vec3{ dir[0], dir[1], dir[2] };
-			changed = true;
-		}
-		// HDR color with no upper cap on the slider - sun strength sits in
-		// the 7-8 range under AgX. ColorEdit3 with HDR flag gets a wider
-		// picker. NoInputs drops the inline RGB fields (just a swatch; click
-		// to open the picker) - consistent with the other color editors here.
-		if ( ImGui::ColorEdit3( "Color", color,
-								ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoInputs ) )
-		{
-			sun.color = b3Vec3{ color[0], color[1], color[2] };
-			changed = true;
-		}
-		if ( ImGui::SliderFloat( "Ambient", &sun.ambient, 0.0f, 1.0f, "%.3f" ) )
-		{
-			changed = true;
-		}
-		if ( changed )
-		{
-			SetSun( sun );
-		}
-	}
-
-	if ( ImGui::CollapsingHeader( "Sky", ImGuiTreeNodeFlags_DefaultOpen ) )
-	{
-		float t_turb = GetSkyTurbidity();
-		if ( ImGui::SliderFloat( "Turbidity", &t_turb, 1.5f, 10.0f, "%.2f" ) )
-		{
-			SetSkyTurbidity( t_turb );
-		}
-		HelpMarker( "Lower = clearer; higher = hazier." );
-	}
-
-	if ( ImGui::CollapsingHeader( "IBL", ImGuiTreeNodeFlags_DefaultOpen ) )
-	{
-		bool ibl = GetIblEnabled();
-		if ( ImGui::Checkbox( "Enable##ibl", &ibl ) )
-		{
-			SetIblEnabled( ibl );
-		}
-		HelpMarker( "Off = flat ambient (base color x Sun ambient)." );
-	}
-
-	if ( ImGui::CollapsingHeader( "Shadows", ImGuiTreeNodeFlags_DefaultOpen ) )
-	{
-		if ( t.shadowsOn )
-		{
-			// "##shadows" label for uniqueness from the GTAO Enable below 
-			ImGui::Checkbox( "Enable##shadows", t.shadowsOn );
-		}
-		else
-		{
-			ImGui::TextDisabled( "(no toggle wired)" );
-		}
-	}
-
-	if ( ImGui::CollapsingHeader( "GTAO", ImGuiTreeNodeFlags_DefaultOpen ) )
-	{
-		if ( t.gtaoOn )
-		{
-			ImGui::Checkbox( "Enable##gtao", t.gtaoOn );
-		}
-		GtaoTraceParams p = GetGtaoTraceParams();
-		bool changed = false;
-
-		// Quality preset (trace slice/step counts - the dominant ALU cost).
-		static const char* k_qualityNames[] = { "Medium", "High", "Ultra" };
-		const int k_qualityCount = (int)( sizeof( k_qualityNames ) / sizeof( k_qualityNames[0] ) );
-		int quality = AO_QUALITY_HIGH;
-		for ( int q = 0; q < k_qualityCount; ++q )
-		{
-			GtaoTraceParams preset = GetGtaoTraceParamsPreset( (AmbientOcclusionQuality)q );
-			if ( preset.sliceCount == p.sliceCount && preset.stepsPerSlice == p.stepsPerSlice )
-			{
-				quality = q;
-				break;
-			}
-		}
-		if ( ImGui::Combo( "Quality", &quality, k_qualityNames, k_qualityCount ) )
-		{
-			GtaoTraceParams preset = GetGtaoTraceParamsPreset( (AmbientOcclusionQuality)quality );
-			p.sliceCount = preset.sliceCount;
-			p.stepsPerSlice = preset.stepsPerSlice;
-			changed = true;
-		}
-
-		changed |= ImGui::SliderFloat( "Radius", &p.radius, 0.05f, 4.0f, "%.3f" );
-		changed |= ImGui::SliderFloat( "Falloff range", &p.falloff, 0.05f, 1.0f, "%.3f" );
-		changed |= ImGui::SliderFloat( "Radius multiplier", &p.radiusMul, 0.5f, 3.0f, "%.3f" );
-		changed |= ImGui::SliderFloat( "Final value power", &p.finalValuePow, 0.5f, 4.0f, "%.3f" );
-		changed |= ImGui::SliderFloat( "Denoise blur beta", &p.denoiseBlurBeta, 0.0f, 4.0f, "%.3f" );
-		changed |= ImGui::SliderInt( "Denoise passes", &p.denoisePassCount, 1, GTAO_MAX_DENOISE_PASSES );
-		changed |= ImGui::SliderFloat( "Sample dist. power", &p.sampleDistPow, 0.5f, 4.0f, "%.3f" );
-		changed |= ImGui::SliderFloat( "Thin occluder comp.", &p.thinOcclComp, 0.0f, 1.0f, "%.3f" );
-		changed |= ImGui::SliderFloat( "Depth-MIP samp offset", &p.depthMipSampOffset, 0.0f, 5.0f, "%.3f" );
-		if ( changed )
-		{
-			SetGtaoTraceParams( p );
-		}
-		if ( ImGui::Button( "Reset to defaults (High)" ) )
-		{
-			SetGtaoTraceParams( GetDefaultGtaoTraceParams() );
-		}
-	}
-
-	if ( ImGui::CollapsingHeader( "Debug view" ) )
-	{
-		if ( t.debugViewMode )
-		{
-			static const char* k_names[] = {
-				"0 - lit", "1 - view-space distance", "2 - CSM cascade index", "3 - view-space normal", "4 - raw GTAO",
-			};
-			for ( int i = 0; i < 5; ++i )
-			{
-				if ( ImGui::RadioButton( k_names[i], *t.debugViewMode == i ) )
-				{
-					*t.debugViewMode = i;
-				}
-			}
-		}
-		else
-		{
-			ImGui::TextDisabled( "(no toggle wired)" );
-		}
-	}
-
-	if ( ImGui::CollapsingHeader( "Edge overlay" ) )
-	{
-		EdgeOverlayParams ep = GetEdgeOverlayParams();
-		bool changed = false;
-		changed |= ImGui::Checkbox( "Enable##edges", &ep.enabled );
-		changed |= ImGui::Checkbox( "Show hull edges (transparent only)", &ep.showHulls );
-		changed |= ImGui::Checkbox( "Show mesh edges", &ep.showMeshes );
-		changed |= ImGui::Checkbox( "Show heightfield edges", &ep.showHeightfields );
-		changed |= ImGui::SliderFloat( "Thickness (px)", &ep.thicknessPx, 0.5f, 6.0f, "%.1f" );
-		changed |= ImGui::SliderFloat( "Z-bias", &ep.zBias, 0.0f, 1.0e-3f, "%.6f" );
-		float cv[3] = { ep.convexColor.x, ep.convexColor.y, ep.convexColor.z };
-		float cc[3] = { ep.concaveColor.x, ep.concaveColor.y, ep.concaveColor.z };
-		float cf[3] = { ep.flatColor.x, ep.flatColor.y, ep.flatColor.z };
-		if ( ImGui::ColorEdit3( "Convex color", cv, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoInputs ) )
-		{
-			ep.convexColor = MakeVec4( cv[0], cv[1], cv[2], ep.convexColor.w );
-			changed = true;
-		}
-		if ( ImGui::ColorEdit3( "Flat color", cf, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoInputs ) )
-		{
-			ep.flatColor = MakeVec4( cf[0], cf[1], cf[2], ep.flatColor.w );
-			changed = true;
-		}
-		if ( ImGui::ColorEdit3( "Concave color", cc, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoInputs ) )
-		{
-			ep.concaveColor = MakeVec4( cc[0], cc[1], cc[2], ep.concaveColor.w );
-			changed = true;
-		}
-		changed |= ImGui::SliderFloat( "Convex alpha", &ep.convexColor.w, 0.0f, 1.0f, "%.2f" );
-		changed |= ImGui::SliderFloat( "Flat alpha", &ep.flatColor.w, 0.0f, 1.0f, "%.2f" );
-		changed |= ImGui::SliderFloat( "Concave alpha", &ep.concaveColor.w, 0.0f, 1.0f, "%.2f" );
-		if ( ImGui::Button( "Reset to defaults##edges" ) )
-		{
-			ep = GetDefaultEdgeParams();
-			ep.enabled = true; // Reset keeps the panel useful by leaving the master on.
-			changed = true;
-		}
-		if ( changed )
-		{
-			SetEdgeOverlayParams( &ep );
-		}
-	}
-
-	if ( ImGui::CollapsingHeader( "Highlight outline" ) )
-	{
-		HighlightParams hp = GetHighlightParams();
-		bool changed = false;
-		changed |= ImGui::Checkbox( "Enable##highlight", &hp.enabled );
-		changed |= ImGui::SliderFloat( "Hover thickness (px)", &hp.hoverThicknessPx, 1.0f, 4.0f, "%.1f" );
-		changed |= ImGui::SliderFloat( "Select thickness (px)", &hp.selectThicknessPx, 1.0f, 4.0f, "%.1f" );
-		float hc[3] = { hp.hoverColor.x, hp.hoverColor.y, hp.hoverColor.z };
-		float sc[3] = { hp.selectColor.x, hp.selectColor.y, hp.selectColor.z };
-		if ( ImGui::ColorEdit3( "Hover color", hc, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoInputs ) )
-		{
-			hp.hoverColor = MakeVec4( hc[0], hc[1], hc[2], hp.hoverColor.w );
-			changed = true;
-		}
-		if ( ImGui::ColorEdit3( "Select color", sc, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoInputs ) )
-		{
-			hp.selectColor = MakeVec4( sc[0], sc[1], sc[2], hp.selectColor.w );
-			changed = true;
-		}
-		changed |= ImGui::SliderFloat( "Hover alpha", &hp.hoverColor.w, 0.0f, 1.0f, "%.2f" );
-		changed |= ImGui::SliderFloat( "Select alpha", &hp.selectColor.w, 0.0f, 1.0f, "%.2f" );
-		if ( ImGui::Button( "Reset to defaults##highlight" ) )
-		{
-			hp = GetDefaultHighlightParams();
-			changed = true;
-		}
-		if ( changed )
-		{
-			SetHighlightParams( &hp );
-		}
-	}
-
-	ImGui::PopItemWidth();
-	ImGui::Unindent();
-}
-
-// The left "Renderer" window - Stats stacked over Render Settings, anchored
-// to the left edge. The two are collapsing-header sections within one window.
-// Width is sized to the Render Settings sliders (the widest content); Stats
-// fits comfortably inside it.
-static void LeftPanel( GuiToggles t )
-{
-	if ( !BeginPanel( "Renderer", GUI_ANCHOR_LEFT, 300.0f ) )
-	{
-		EndPanel();
-		return;
-	}
-	StatsSection();
-	SettingsSection( t );
-	EndPanel();
-}
-
 // Text overlay. Drain the per-frame label arena (filled by DrawString /
 // DrawScreenString and the Box3D adapter's DrawString callback). World
 // entries project to screen pixels with the last rendered camera, screen
@@ -742,7 +330,7 @@ static void RenderText()
 	}
 }
 
-void StartUIFrame( float dtSec, GuiToggles toggles )
+void StartUIFrame( float dtSec )
 {
 	if ( !s_uiInitialized )
 	{
@@ -775,14 +363,11 @@ void StartUIFrame( float dtSec, GuiToggles toggles )
 	// per panel within this frame and must start fresh each frame.
 	ResetUIPanelLayout();
 
-	if ( s_panelsVisible )
+	// The callback runs every frame; it branches on the sample context's showUI
+	// (full UI vs the minimal HUD) the way Box2D's DrawUI does.
+	if ( s_uiCallback != nullptr )
 	{
-		LeftPanel( toggles );
-
-		if ( s_uiCallback != nullptr )
-		{
-			s_uiCallback();
-		}
+		s_uiCallback();
 	}
 
 	RenderText();

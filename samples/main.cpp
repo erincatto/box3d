@@ -15,18 +15,15 @@
 // --frames N runs N frames then exits with status = sokol validation-error
 // count, the automated regression net for the port.
 
-#include "sample.h"
-
 #include "gfx/debug_adapter.h"
 #include "gfx/keycodes.h"
 #include "gfx/renderer.h"
-
 #include "host/gui.h"
-
-#include "box3d/math_functions.h"
-
+#include "sample.h"
 #include "sokol_app.h"
 #include "sokol_glue.h"
+
+#include "box3d/math_functions.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,21 +32,20 @@
 #if defined( _WIN32 )
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+// clang-format off
 #include <windows.h>
-#include <timeapi.h>				   // timeBeginPeriod for fine sleep granularity
-#pragma comment( lib, "winmm.lib" )	   // MSVC auto-link
+#include <timeapi.h> // timeBeginPeriod for fine sleep granularity
+// clang-format on
+#pragma comment( lib, "winmm.lib" ) // MSVC auto-link
 #endif
 
 static SampleManager s_manager;
 static int s_frame = 0;
 static int s_frameLimit = -1;
 static int s_sampleOverride = -1;
-static bool s_shadowsOn = true;
-static bool s_gtaoOn = true;
-static int s_debugView = 0;
 
-// Single host UI callback fired from inside StartUIFrame: the tools panel plus
-// the active sample's own panel, both drawn by the manager.
+// Single host UI callback fired from inside StartUIFrame: menu bar, panels, and
+// the active sample's drawer, all drawn by the manager.
 static void DrawUI( void )
 {
 	s_manager.UpdateUI();
@@ -63,7 +59,7 @@ static void OnInit( void )
 
 	const sg_environment env = sglue_environment();
 	InitRenderer( &env );
-	InitUI( &env, DrawUI, true );
+	InitUI( &env, DrawUI );
 	InitAdapter();
 
 	constexpr float DEG = 3.14159265358979323846f / 180.0f;
@@ -198,20 +194,16 @@ static void OnFrame( void )
 	fi.projInv = camera.ProjInverse();
 	fi.cameraPosition = camera.Position();
 	fi.time = (float)sapp_frame_count() / 60.0f;
-	fi.debugMode = s_debugView;
-	fi.disableShadows = !s_shadowsOn;
-	fi.disableAmbientOcclusion = !s_gtaoOn;
+	fi.debugMode = s_manager.m_context.debugView;
+	fi.disableShadows = !s_manager.m_context.enableShadows;
+	fi.disableAmbientOcclusion = !s_manager.m_context.enableGtao;
 
 	const sg_swapchain sc = sglue_swapchain();
 	RenderFrame( &sc, &fi );
 
 	// StartUIFrame runs after RenderFrame: it drains the text arena with the
 	// camera state RenderFrame just latched and runs the UI draw callback.
-	GuiToggles tg{};
-	tg.shadowsOn = &s_shadowsOn;
-	tg.gtaoOn = &s_gtaoOn;
-	tg.debugViewMode = &s_debugView;
-	StartUIFrame( dt, tg );
+	StartUIFrame( dt );
 
 	RenderUI( &sc );
 	sg_commit();

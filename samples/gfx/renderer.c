@@ -1240,7 +1240,7 @@ void InitRenderer( const sg_environment* env )
 	s_gfx.sun.ambient = 0.10f;
 	// Default exposure: Preetham at physical strength is bright, -2 EV
 	// brings the integrated sky+sun into AgX's sweet spot.
-	s_gfx.exposureEv = -2.0f;
+	s_gfx.exposureEv = -3.0f;
 	// 1.0 is AgX's stock Standard look (identity), the Render Settings
 	// panel raises it to counteract AgX's path-to-white desaturation.
 	s_gfx.tonemapSaturation = 1.4f;

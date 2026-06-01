@@ -1,14 +1,13 @@
 // Dear ImGui shell.
 //
-// Wraps sokol_imgui.h and renders the built-in Stats + Render Settings
-// panels on top of the live scene. Also runs the app's UI draw callback
-// (the DrawUiFcn passed to InitUI). Used only by the renderer binary; the
-// visual-test targets call RenderFrameOffscreen directly and never
-// instantiate ImGui.
+// Wraps sokol_imgui.h, runs the app's UI draw callback (the DrawUiFcn passed
+// to InitUI) on top of the live scene, and drains the in-world text overlay.
+// Used only by the renderer binary; the visual-test targets call
+// RenderFrameOffscreen directly and never instantiate ImGui.
 //
 // Lifecycle from main.cpp's sapp callbacks:
 //
-//   OnInit:    InitRenderer(&env); InitUI(&env, DrawUI, showInterface);
+//   OnInit:    InitRenderer(&env); InitUI(&env, DrawUI);
 //   OnEvent:   if (HandleEvent(e)) return;     // skip camera if ImGui ate it
 //   OnFrame:   ResetFrameArena();
 //              scene draws...
@@ -26,17 +25,6 @@
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 
-// App-owned per-frame toggles the Render Settings panel mirrors. Pointers
-// (not values) so the panel and the existing keyboard shortcuts in
-// main.cpp stay in lockstep: a click in the panel updates the same bool
-// the key handler flips. NULL pointers disable the corresponding slider.
-typedef struct GuiToggles
-{
-	bool* shadowsOn;
-	bool* gtaoOn;
-	int* debugViewMode; // 0..4
-} GuiToggles;
-
 // Screen edge a panel anchors to. Panels sharing a side stack top-down in
 // the order they call guiBeginPanel within a frame.
 typedef enum GuiPanelAnchor
@@ -47,12 +35,12 @@ typedef enum GuiPanelAnchor
 
 typedef void DrawUiFcn( void );
 
-void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn, bool showInterface );
+void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn );
 void ShutdownUI( void );
 
 bool HandleEvent( const sapp_event* e );
 
-void StartUIFrame( float dtSec, GuiToggles toggles );
+void StartUIFrame( float dtSec );
 void RenderUI( const sg_swapchain* swapchain );
 
 // Begin an edge-anchored panel. A thin wrapper over ImGui::Begin. Pins the

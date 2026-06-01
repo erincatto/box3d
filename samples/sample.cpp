@@ -8,16 +8,16 @@
 #include "sample.h"
 
 #include "benchmarks.h"
-#include "human.h"
-#include "sample_draw.h"
-#include "utils.h"
-
 #include "gfx/debug_adapter.h"
+#include "gfx/gtao.h"
 #include "gfx/keycodes.h"
+#include "gfx/renderer.h"
 #include "gfx/text.h"
-
+#include "human.h"
 #include "imgui.h"
 #include "jsmn.h"
+#include "sample_draw.h"
+#include "utils.h"
 
 // ImPlot backs only the optional Frame Time chart. It is not yet wired into the
 // ported build, so the chart is compiled out until implot is added back.
@@ -29,6 +29,7 @@
 
 #include "box3d/box3d.h"
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,8 +95,7 @@ void SampleContext::Save()
 	fprintf( file, "  \"drawShapes\": %s,\n", gd->drawShapes ? "true" : "false" );
 	fprintf( file, "  \"drawJoints\": %s,\n", gd->drawJoints ? "true" : "false" );
 	fprintf( file, "  \"drawContacts\": %s,\n", gd->drawContacts ? "true" : "false" );
-	fprintf( file, "  \"drawCounters\": %s,\n", drawCounters ? "true" : "false" );
-	fprintf( file, "  \"drawProfile\": %s\n", drawProfile ? "true" : "false" );
+	fprintf( file, "  \"showDiagnostics\": %s\n", showMetrics ? "true" : "false" );
 	fprintf( file, "}\n" );
 	fclose( file );
 }
@@ -155,14 +155,22 @@ void SampleContext::Load()
 		else if ( jsoneq( data, &tokens[i], "drawShapes" ) == 0 )
 		{
 			const char* s = data + tokens[i + 1].start;
-			if ( strncmp( s, "true", 4 ) == 0 )
-			{
-				GetGuiDraw()->drawShapes = true;
-			}
-			else if ( strncmp( s, "false", 5 ) == 0 )
-			{
-				GetGuiDraw()->drawShapes = false;
-			}
+			GetGuiDraw()->drawShapes = strncmp( s, "true", 4 ) == 0;
+		}
+		else if ( jsoneq( data, &tokens[i], "drawJoints" ) == 0 )
+		{
+			const char* s = data + tokens[i + 1].start;
+			GetGuiDraw()->drawJoints = strncmp( s, "true", 4 ) == 0;
+		}
+		else if ( jsoneq( data, &tokens[i], "drawContacts" ) == 0 )
+		{
+			const char* s = data + tokens[i + 1].start;
+			GetGuiDraw()->drawContacts = strncmp( s, "true", 4 ) == 0;
+		}
+		else if ( jsoneq( data, &tokens[i], "showDiagnostics" ) == 0 )
+		{
+			const char* s = data + tokens[i + 1].start;
+			showMetrics = strncmp( s, "true", 4 ) == 0;
 		}
 	}
 
@@ -364,13 +372,38 @@ b3BodyId Sample::AddGroundBox( float extent )
 
 void Sample::UpdateUI()
 {
-	float fontSize = ImGui::GetFontSize();
+}
 
-	if ( m_context->drawProfile )
+// Bottom diagnostics drawer (M). Tabs: Profile, Counters, Renderer, and the
+// optional ImPlot frame-time chart. Anchored along the window bottom, clear
+// of the right info panel.
+void Sample::DrawMetrics()
+{
+	if ( m_context->showMetrics == false )
 	{
-		ImGui::SetNextWindowPos( { fontSize, 8.0f * fontSize }, ImGuiCond_FirstUseEver );
-		ImGui::Begin( "Profile (ms)", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize );
+		return;
+	}
 
+	float fontSize = ImGui::GetFontSize();
+	float menuWidth = 14.0f * fontSize;
+	float drawerHeight = 16.0f * fontSize;
+	float drawerWidth = m_camera->m_width - menuWidth - 1.5f * fontSize;
+
+	ImGui::SetNextWindowPos( { 0.5f * fontSize, m_camera->m_height - drawerHeight - 0.5f * fontSize } );
+	ImGui::SetNextWindowSize( { drawerWidth, drawerHeight } );
+
+	ImGui::Begin( "Metrics", nullptr,
+				  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+					  ImGuiWindowFlags_NoTitleBar );
+
+	if ( ImGui::BeginTabBar( "MetricsTabs", ImGuiTabBarFlags_None ) == false )
+	{
+		ImGui::End();
+		return;
+	}
+
+	if ( ImGui::BeginTabItem( "Profile" ) )
+	{
 		const int count = static_cast<int>( m_profileWriteIndex - m_profileReadIndex );
 
 		// Unroll ring buffer into per-field histories.
@@ -522,10 +555,12 @@ void Sample::UpdateUI()
 		ImGui::SameLine();
 		ImGui::Checkbox( "Show plots", &s_showPlots );
 
-		const ImGuiTableFlags tableFlags = ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit;
+		const ImGuiTableFlags tableFlags =
+			ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollY;
 
 		const int colCount = s_showPlots ? 6 : 5;
-		if ( ImGui::BeginTable( "profile", colCount, tableFlags ) )
+		ImVec2 tableSize = ImGui::GetContentRegionAvail();
+		if ( ImGui::BeginTable( "profile", colCount, tableFlags, tableSize ) )
 		{
 			ImGui::TableSetupColumn( "section", ImGuiTableColumnFlags_WidthFixed, 8.0f * fontSize );
 			ImGui::TableSetupColumn( "now", ImGuiTableColumnFlags_WidthFixed, 3.0f * fontSize );
@@ -624,11 +659,12 @@ void Sample::UpdateUI()
 			ImGui::EndTable();
 		}
 
-		ImGui::End();
+		ImGui::EndTabItem();
 	}
 
-	if ( m_context->drawCounters )
+	if ( ImGui::BeginTabItem( "Counters" ) )
 	{
+		ImGui::BeginChild( "##counters_scroll" );
 		b3Counters s = b3World_GetCounters( m_worldId );
 		constexpr int colorCount = sizeof( s.colorCounts ) / sizeof( s.colorCounts[0] );
 		const int overflowIndex = colorCount - 1;
@@ -657,9 +693,6 @@ void Sample::UpdateUI()
 				maxManifolds = s.manifoldCounts[i];
 			}
 		}
-
-		ImGui::SetNextWindowPos( { fontSize, 8.0f * fontSize }, ImGuiCond_FirstUseEver );
-		ImGui::Begin( "Counters", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize );
 
 		ImGui::Text( "bodies/shapes/contacts/joints = %d/%d/%d/%d", s.bodyCount, s.shapeCount, s.contactCount, s.jointCount );
 		{
@@ -779,22 +812,60 @@ void Sample::UpdateUI()
 			ImGui::EndTable();
 		}
 
-		ImGui::End();
+		ImGui::EndChild();
+		ImGui::EndTabItem();
+	}
+
+	if ( ImGui::BeginTabItem( "Renderer" ) )
+	{
+		const RenderStats st = GetRenderStats();
+
+		// Display-link frame time vs the RenderFrame submit cost, both
+		// EMA-smoothed so the readout doesn't flicker.
+		const float frameMs = (float)( sapp_frame_duration() * 1000.0 );
+		static float smoothedFrameMs = 0.0f;
+		static float smoothedCpuMs = 0.0f;
+		smoothedFrameMs = ( smoothedFrameMs <= 0.0f ) ? frameMs : smoothedFrameMs * 0.9f + frameMs * 0.1f;
+		smoothedCpuMs = ( smoothedCpuMs <= 0.0f ) ? st.frameTimeMs : smoothedCpuMs * 0.9f + st.frameTimeMs * 0.1f;
+		const float fps = ( smoothedFrameMs > 0.0f ) ? ( 1000.0f / smoothedFrameMs ) : 0.0f;
+
+		const char* backend = "?";
+		switch ( sg_query_backend() )
+		{
+			case SG_BACKEND_D3D11:
+				backend = "D3D11";
+				break;
+			case SG_BACKEND_METAL_MACOS:
+				backend = "Metal";
+				break;
+			case SG_BACKEND_GLCORE:
+				backend = "GLCORE";
+				break;
+			case SG_BACKEND_GLES3:
+				backend = "GLES3";
+				break;
+			case SG_BACKEND_WGPU:
+				backend = "WGPU";
+				break;
+			default:
+				break;
+		}
+
+		ImGui::Text( "%s   %.2f ms  (%.0f FPS)   CPU %.2f ms", backend, smoothedFrameMs, fps, smoothedCpuMs );
+		ImGui::Text( "draw calls %d  (approx)", st.drawCallCount );
+		ImGui::Separator();
+		ImGui::Text( "opaque   cubes %d  spheres %d  capsules %d  geom %d (%d spans)", st.cubeCount, st.sphereCount,
+					 st.capsuleCount, st.geomInstanceCount, st.geomSpanCount );
+		ImGui::Text( "transp.  cubes %d  spheres %d  capsules %d  geom %d", st.cubeCountXp, st.sphereCountXp, st.capsuleCountXp,
+					 st.geomInstanceCountXp );
+		ImGui::Text( "overlays lines %d  points %d", st.lineCount, st.pointCount );
+
+		ImGui::EndTabItem();
 	}
 
 #ifdef BOX3D_USE_IMPLOT
-	if ( m_context->frameTime )
+	if ( ImGui::BeginTabItem( "Frame Time" ) )
 	{
-		float frameTimeHeight = 400.0f;
-		float frameTimeWidth = 800.0f;
-
-		ImGui::SetNextWindowPos( { 30.0f, 30.0f }, ImGuiCond_FirstUseEver );
-		ImGui::SetNextWindowSize( { frameTimeWidth, frameTimeHeight }, ImGuiCond_FirstUseEver );
-
-		ImGui::Begin( "Frame Time", nullptr, ImGuiWindowFlags_NoCollapse );
-
-		ImGui::PushItemWidth( ImGui::GetWindowWidth() - 20.0f );
-
 		float maxValue = 0.0f;
 		float times[m_profileCapacity];
 		float stepTimes[m_profileCapacity];
@@ -811,11 +882,9 @@ void Sample::UpdateUI()
 			maxValue = b3MaxFloat( stepTimes[i], maxValue );
 		}
 
-		// This is the pixel size, not the range.
-		ImVec2 plotSize = { -1, 22.0f * ImGui::GetTextLineHeight() };
+		ImVec2 plotSize = ImGui::GetContentRegionAvail();
 		if ( ImPlot::BeginPlot( "Profile", plotSize, ImPlotFlags_NoTitle ) )
 		{
-			ImPlot::SetupAxes( "t", "ms" );
 			ImPlot::SetupAxes( "t", "ms", 0, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit );
 			ImPlot::SetupAxesLimits( 0, m_profileCapacity / 60.0, 0.0, maxValue );
 			ImPlot::PlotLine( "step", times, stepTimes, count );
@@ -824,10 +893,12 @@ void Sample::UpdateUI()
 			ImPlot::EndPlot();
 		}
 
-		ImGui::PopItemWidth();
-		ImGui::End();
+		ImGui::EndTabItem();
 	}
 #endif
+
+	ImGui::EndTabBar();
+	ImGui::End();
 }
 
 void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
@@ -1030,13 +1101,23 @@ void SampleManager::Step()
 {
 	SetTransparentDynamic( m_context.transparentDynamic );
 
-	const SampleEntry* entry = sEntries + m_context.sampleIndex;
-	DrawScreenStringFormat( 5, m_sample->m_textIncrement, MakeColor( b3_colorCyan ), "%s : %s", entry->Category, entry->Name );
-	m_sample->m_textLine = 2 * m_sample->m_textIncrement;
+	// Sample screen text starts below the menu bar when the UI shows; hidden, the
+	// minimal HUD owns the top-left, so text starts lower. Matches Box2D ResetText.
+	float fontSize = ImGui::GetFontSize();
+	if ( m_context.showUI )
+	{
+		m_sample->m_textLine = (int)( ImGui::GetFrameHeight() + 0.5f * fontSize );
+	}
+	else
+	{
+		m_sample->m_textLine = (int)( 3.0f * fontSize );
+	}
 
-	if ( m_context.pause )
+	// Pause banner only with the UI up, matching Box2D.
+	if ( m_context.pause && m_context.showUI )
 	{
 		m_sample->DrawTextLine( "****PAUSED****" );
+		m_sample->DrawTextLine( "" );
 	}
 
 	m_sample->Step();
@@ -1080,15 +1161,28 @@ void SampleManager::Keyboard( int key, int action, int modifiers )
 	switch ( key )
 	{
 		case KEY_TAB:
-			m_showMenu = !m_showMenu;
+			m_context.showUI = !m_context.showUI;
 			break;
 
 		case KEY_O:
-			m_context.singleStep += ( modifiers & MOD_SHIFT ) ? 5 : 1;
+			if ( modifiers & MOD_CTRL )
+			{
+				// Ctrl+O opens the fuzzy picker. Force the UI visible so it shows.
+				m_context.showUI = true;
+				m_context.openSamplePicker = true;
+			}
+			else
+			{
+				m_context.singleStep += ( modifiers & MOD_SHIFT ) ? 5 : 1;
+			}
 			break;
 
 		case KEY_P:
 			m_context.pause = !m_context.pause;
+			break;
+
+		case KEY_M:
+			m_context.showMetrics = !m_context.showMetrics;
 			break;
 
 		case KEY_R:
@@ -1109,6 +1203,7 @@ void SampleManager::Keyboard( int key, int action, int modifiers )
 			break;
 
 		case KEY_F:
+		case KEY_HOME:
 		{
 			// Frame the selection, or the whole world when nothing is selected.
 			b3BodyId bodyId = GetSelectedBody();
@@ -1160,151 +1255,328 @@ void SampleManager::CreateSample()
 	m_sample = sEntries[m_context.sampleIndex].CreateFcn( &m_context );
 }
 
-void SampleManager::UpdateUI()
+// Subsequence fuzzy match. Returns a score (higher is better) or -1 if the
+// needle is not a subsequence of the haystack. Bonuses for a prefix match, a
+// word start, and a contiguous run, so "stack" ranks Pyramid > Stack sensibly.
+static int FuzzyScore( const char* needle, const char* haystack )
 {
-	if ( m_showMenu == false )
+	if ( needle == nullptr || needle[0] == '\0' )
 	{
-		return;
+		return 0;
 	}
 
-	b3DebugDraw* gd = GetGuiDraw();
-	int maxWorkers = B3_MAX_WORKERS;
+	int score = 0;
+	int hi = 0;
+	int prevMatchHi = -2;
 
-	int savedTestIndex = m_context.sampleIndex;
-	float menuWidth = 220.0f;
-	b3WorldId worldId = m_sample->m_worldId;
-
-	ImGui::SetNextWindowPos( { m_context.camera.m_width - menuWidth - 10.0f, 10.0f } );
-	ImGui::SetNextWindowSize( { menuWidth, m_context.camera.m_height - 20.0f } );
-
-	ImGui::Begin( "Tools", &m_showMenu, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse );
-
-	if ( ImGui::BeginTabBar( "ControlTabs", ImGuiTabBarFlags_None ) )
+	for ( int ni = 0; needle[ni] != '\0'; ++ni )
 	{
-		if ( ImGui::BeginTabItem( "Controls" ) )
+		int nc = tolower( (unsigned char)needle[ni] );
+		while ( haystack[hi] != '\0' && tolower( (unsigned char)haystack[hi] ) != nc )
 		{
-			ImGui::SliderInt( "Sub-steps", &m_context.subStepCount, 1, 50 );
-			ImGui::SliderFloat( "Hertz", &m_context.hertz, 5.0f, 2000.0f, "%.0f hz" );
+			++hi;
+		}
+		if ( haystack[hi] == '\0' )
+		{
+			return -1;
+		}
 
-			if ( ImGui::SliderInt( "Workers", &m_context.workerCount, 1, maxWorkers ) )
+		int bonus = 1;
+		if ( hi == 0 )
+		{
+			bonus += 10; // prefix
+		}
+		else if ( !isalnum( (unsigned char)haystack[hi - 1] ) )
+		{
+			bonus += 5; // word start
+		}
+		if ( hi == prevMatchHi + 1 )
+		{
+			bonus += 3; // contiguous run
+		}
+
+		score += bonus;
+		prevMatchHi = hi;
+		++hi;
+	}
+
+	return score;
+}
+
+struct Scored
+{
+	int idx;
+	int score;
+};
+
+// Filter and rank the sample registry against the picker query. Name matches
+// outweigh category-only matches. Equal scores keep the sorted registry order.
+static void RebuildPicker( const char* q, int* outFiltered, int* outCount )
+{
+	static Scored scored[MAX_SAMPLES];
+	int n = 0;
+	for ( int i = 0; i < SampleManager::sEntryCount; ++i )
+	{
+		int nameScore = FuzzyScore( q, SampleManager::sEntries[i].Name );
+		int catScore = FuzzyScore( q, SampleManager::sEntries[i].Category );
+		int best = -1;
+		if ( nameScore >= 0 )
+		{
+			best = nameScore * 2;
+		}
+		if ( catScore >= 0 && catScore > best )
+		{
+			best = catScore;
+		}
+		if ( best < 0 )
+		{
+			continue;
+		}
+		scored[n].idx = i;
+		scored[n].score = best;
+		n += 1;
+	}
+
+	// Stable insertion sort by score descending.
+	for ( int i = 1; i < n; ++i )
+	{
+		Scored tmp = scored[i];
+		int j = i - 1;
+		while ( j >= 0 && scored[j].score < tmp.score )
+		{
+			scored[j + 1] = scored[j];
+			--j;
+		}
+		scored[j + 1] = tmp;
+	}
+
+	for ( int i = 0; i < n; ++i )
+	{
+		outFiltered[i] = scored[i].idx;
+	}
+	*outCount = n;
+}
+
+static void DrawRow( const char* key, const char* desc )
+{
+	ImGui::TableNextRow();
+	ImGui::TableSetColumnIndex( 0 );
+	ImGui::TextUnformatted( key );
+	ImGui::TableSetColumnIndex( 1 );
+	ImGui::TextUnformatted( desc );
+}
+
+// b3HexColor (0xRRGGBB) to an opaque ImVec4 for panel text. Distinct from
+// sample_draw.h's MakeColor, which returns the renderer's linear Vec4.
+static ImVec4 HexColor( b3HexColor hexColor )
+{
+	uint32_t h = (uint32_t)hexColor;
+	ImU32 color = IM_COL32( ( h >> 16 ) & 0xFF, ( h >> 8 ) & 0xFF, h & 0xFF, 255 );
+	return ImGui::ColorConvertU32ToFloat4( color );
+}
+
+// Abbreviated render controls: mostly visualization/debug toggles plus a single
+// exposure slider. The deep GTAO knobs and the edge/outline parameters keep
+// their renderer defaults and are intentionally not exposed.
+static void DrawRenderMenu( SampleContext& ctx )
+{
+	ImGui::MenuItem( "Shadows", nullptr, &ctx.enableShadows );
+
+	if ( ImGui::BeginMenu( "GTAO" ) )
+	{
+		ImGui::MenuItem( "Enable", nullptr, &ctx.enableGtao );
+
+		// Match the live slice/step counts back to a preset for the combo.
+		GtaoTraceParams p = GetGtaoTraceParams();
+		int quality = AO_QUALITY_HIGH;
+		for ( int q = 0; q < 3; ++q )
+		{
+			GtaoTraceParams preset = GetGtaoTraceParamsPreset( (AmbientOcclusionQuality)q );
+			if ( preset.sliceCount == p.sliceCount && preset.stepsPerSlice == p.stepsPerSlice )
 			{
-				m_context.workerCount = b3ClampInt( m_context.workerCount, 1, maxWorkers );
+				quality = q;
+				break;
+			}
+		}
+		static const char* qualityNames[] = { "Medium", "High", "Ultra" };
+		if ( ImGui::Combo( "Quality", &quality, qualityNames, 3 ) )
+		{
+			GtaoTraceParams preset = GetGtaoTraceParamsPreset( (AmbientOcclusionQuality)quality );
+			p.sliceCount = preset.sliceCount;
+			p.stepsPerSlice = preset.stepsPerSlice;
+			SetGtaoTraceParams( p );
+		}
+		ImGui::EndMenu();
+	}
+
+	bool ibl = GetIblEnabled();
+	if ( ImGui::MenuItem( "IBL", nullptr, &ibl ) )
+	{
+		SetIblEnabled( ibl );
+	}
+
+	ImGui::Separator();
+
+	ImGui::PushItemWidth( 8.0f * ImGui::GetFontSize() );
+	float ev = GetExposure();
+	if ( ImGui::SliderFloat( "Exposure", &ev, -8.0f, 4.0f, "%.2f EV" ) )
+	{
+		SetExposure( ev );
+	}
+	ImGui::PopItemWidth();
+
+	ImGui::Separator();
+
+	if ( ImGui::BeginMenu( "Debug View" ) )
+	{
+		static const char* viewNames[] = {
+			"0 - lit", "1 - view-space distance", "2 - CSM cascade", "3 - view-space normal", "4 - raw GTAO",
+		};
+		for ( int i = 0; i < 5; ++i )
+		{
+			if ( ImGui::RadioButton( viewNames[i], ctx.debugView == i ) )
+			{
+				ctx.debugView = i;
+			}
+		}
+		ImGui::EndMenu();
+	}
+}
+
+void SampleManager::DrawMenuBar()
+{
+	b3DebugDraw* gd = GetGuiDraw();
+	float fontSize = ImGui::GetFontSize();
+
+	if ( ImGui::BeginMainMenuBar() )
+	{
+		if ( ImGui::BeginMenu( "Sim" ) )
+		{
+			ImGui::MenuItem( "Pause", "P", &m_context.pause );
+			if ( ImGui::MenuItem( "Single Step", "O" ) )
+			{
+				m_context.singleStep += 1;
+			}
+			if ( ImGui::MenuItem( "Restart", "R" ) )
+			{
 				m_context.restart = true;
 				CreateSample();
 			}
-
 			ImGui::Separator();
-
-			ImGui::Checkbox( "Sleep", &m_context.enableSleep );
-			ImGui::Checkbox( "Warm Starting", &m_context.enableWarmStarting );
-			ImGui::Checkbox( "Continuous", &m_context.enableContinuous );
-
-			ImGui::PushItemWidth( 100.0f );
-			float recyclingCentimeters = 100.0f * m_context.recycleDistance;
-			if ( ImGui::SliderFloat( "Recycle", &recyclingCentimeters, 0.0f, 10.0f, "%.1f cm" ) )
+			if ( ImGui::MenuItem( "Previous Sample", "[" ) )
 			{
-				m_context.recycleDistance = 0.01f * recyclingCentimeters;
-				b3World_SetContactRecycleDistance( worldId, m_context.recycleDistance );
-			}
-			ImGui::PopItemWidth();
-
-			ImGui::Separator();
-
-			ImGui::Checkbox( "Shapes", &gd->drawShapes );
-			ImGui::Checkbox( "Transparent", &m_context.transparentDynamic );
-			ImGui::Checkbox( "Joints", &gd->drawJoints );
-			ImGui::Checkbox( "Joint Extras", &gd->drawJointExtras );
-			ImGui::Checkbox( "Bounds", &gd->drawBounds );
-
-			ImGui::Separator();
-
-			ImGui::Checkbox( "Contact Points", &gd->drawContacts );
-			ImGui::RadioButton( "Anchor A", &gd->drawAnchorA, 1 );
-			ImGui::SameLine();
-			ImGui::RadioButton( "Anchor B", &gd->drawAnchorA, 0 );
-			ImGui::Checkbox( "Contact Normals", &gd->drawContactNormals );
-			ImGui::Checkbox( "Contact Forces", &gd->drawContactForces );
-			ImGui::Checkbox( "Contact Features", &gd->drawContactFeatures );
-			ImGui::Checkbox( "Friction Forces", &gd->drawFrictionForces );
-
-			ImGui::Separator();
-
-			ImGui::Checkbox( "Mass", &gd->drawMass );
-			ImGui::Checkbox( "Body Names", &gd->drawBodyNames );
-			ImGui::Checkbox( "Graph Colors", &gd->drawGraphColors );
-			ImGui::Checkbox( "Draw Islands", &gd->drawIslands );
-			ImGui::Checkbox( "Counters", &m_context.drawCounters );
-			ImGui::Checkbox( "Profile", &m_context.drawProfile );
-			ImGui::Checkbox( "Frame Time", &m_context.frameTime );
-
-			ImGui::PushItemWidth( 80.0f );
-			ImGui::InputFloat( "Joint Scale", &gd->jointScale );
-			ImGui::InputFloat( "Force Scale", &gd->forceScale );
-			ImGui::PopItemWidth();
-
-			ImGui::Separator();
-
-			if ( ImGui::Button( "Pause", ImVec2( -1, 0 ) ) )
-			{
-				m_context.pause = !m_context.pause;
-			}
-
-			if ( ImGui::Button( "Restart", ImVec2( -1, 0 ) ) )
-			{
-				m_context.restart = true;
+				m_context.sampleIndex = b3MaxInt( 0, m_context.sampleIndex - 1 );
+				m_context.restart = false;
 				CreateSample();
 			}
-
-			if ( ImGui::Button( "Dump", ImVec2( -1, 0 ) ) )
+			if ( ImGui::MenuItem( "Next Sample", "]" ) )
+			{
+				m_context.sampleIndex = b3MinInt( sEntryCount - 1, m_context.sampleIndex + 1 );
+				m_context.restart = false;
+				CreateSample();
+			}
+			ImGui::Separator();
+			if ( ImGui::MenuItem( "Reset Profile" ) )
+			{
+				m_sample->ResetProfile();
+			}
+			if ( ImGui::MenuItem( "Dump" ) )
 			{
 				b3World_Dump( m_sample->m_worldId );
 			}
-
-			if ( ImGui::Button( "Dump Awake", ImVec2( -1, 0 ) ) )
+			if ( ImGui::MenuItem( "Dump Awake" ) )
 			{
 				b3World_DumpAwake( m_sample->m_worldId );
 			}
-
-			if ( ImGui::Button( "Quit", ImVec2( -1, 0 ) ) )
+			ImGui::Separator();
+			if ( ImGui::MenuItem( "Quit", "Esc" ) )
 			{
 				sapp_request_quit();
 			}
-
-			ImGui::EndTabItem();
+			ImGui::EndMenu();
 		}
 
-		ImGuiTreeNodeFlags leafNodeFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-		leafNodeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-
-		ImGuiTreeNodeFlags nodeFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-
-		if ( ImGui::BeginTabItem( "Tests" ) )
+		if ( ImGui::BeginMenu( "View" ) )
 		{
-			const char* category = sEntries[0].Category;
+			if ( ImGui::MenuItem( "Hide UI", "Tab" ) )
+			{
+				m_context.showUI = false;
+			}
+			if ( ImGui::MenuItem( "Frame Camera", "Home" ) )
+			{
+				b3AABB aabb = b3World_GetBounds( m_sample->m_worldId );
+				Camera& cam = m_context.camera;
+				float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
+				cam.Frame( aabb, aspect, 0.75f );
+			}
+			ImGui::Separator();
+			ImGui::MenuItem( "Shapes", nullptr, &gd->drawShapes );
+			ImGui::MenuItem( "Transparent", nullptr, &m_context.transparentDynamic );
+			ImGui::MenuItem( "Joints", nullptr, &gd->drawJoints );
+			ImGui::MenuItem( "Joint Extras", nullptr, &gd->drawJointExtras );
+			ImGui::MenuItem( "Bounds", nullptr, &gd->drawBounds );
+			ImGui::MenuItem( "Mass", nullptr, &gd->drawMass );
+			ImGui::MenuItem( "Body Names", nullptr, &gd->drawBodyNames );
+			ImGui::MenuItem( "Graph Colors", nullptr, &gd->drawGraphColors );
+			ImGui::MenuItem( "Islands", nullptr, &gd->drawIslands );
+			ImGui::Separator();
+			ImGui::MenuItem( "Contact Points", nullptr, &gd->drawContacts );
+			ImGui::MenuItem( "Contact Normals", nullptr, &gd->drawContactNormals );
+			ImGui::MenuItem( "Contact Features", nullptr, &gd->drawContactFeatures );
+			ImGui::MenuItem( "Contact Forces", nullptr, &gd->drawContactForces );
+			ImGui::MenuItem( "Friction Forces", nullptr, &gd->drawFrictionForces );
+			if ( ImGui::BeginMenu( "Anchor" ) )
+			{
+				if ( ImGui::MenuItem( "Anchor A", nullptr, gd->drawAnchorA != 0 ) )
+				{
+					gd->drawAnchorA = 1;
+				}
+				if ( ImGui::MenuItem( "Anchor B", nullptr, gd->drawAnchorA == 0 ) )
+				{
+					gd->drawAnchorA = 0;
+				}
+				ImGui::EndMenu();
+			}
+			ImGui::Separator();
+			ImGui::MenuItem( "Diagnostics", "M", &m_context.showMetrics );
+			ImGui::Separator();
+			if ( ImGui::BeginMenu( "Scale" ) )
+			{
+				ImGui::PushItemWidth( 6.0f * fontSize );
+				ImGui::InputFloat( "Joint", &gd->jointScale );
+				ImGui::InputFloat( "Force", &gd->forceScale );
+				ImGui::PopItemWidth();
+				ImGui::EndMenu();
+			}
+			ImGui::EndMenu();
+		}
+
+		if ( ImGui::BeginMenu( "Render" ) )
+		{
+			DrawRenderMenu( m_context );
+			ImGui::EndMenu();
+		}
+
+		if ( ImGui::BeginMenu( "Samples" ) )
+		{
 			int i = 0;
 			while ( i < sEntryCount )
 			{
-				bool categorySelected = strcmp( category, sEntries[m_context.sampleIndex].Category ) == 0;
-				ImGuiTreeNodeFlags nodeSelectionFlags = categorySelected ? ImGuiTreeNodeFlags_Selected : 0;
-				bool nodeOpen = ImGui::TreeNodeEx( category, nodeFlags | nodeSelectionFlags );
-
-				if ( nodeOpen )
+				const char* category = sEntries[i].Category;
+				if ( ImGui::BeginMenu( category ) )
 				{
 					while ( i < sEntryCount && strcmp( category, sEntries[i].Category ) == 0 )
 					{
-						ImGuiTreeNodeFlags selectionFlags = 0;
-						if ( m_context.sampleIndex == i )
-						{
-							selectionFlags = ImGuiTreeNodeFlags_Selected;
-						}
-						ImGui::TreeNodeEx( (void*)(intptr_t)i, leafNodeFlags | selectionFlags, "%s", sEntries[i].Name );
-						if ( ImGui::IsItemClicked() )
+						bool selected = ( i == m_context.sampleIndex );
+						if ( ImGui::MenuItem( sEntries[i].Name, nullptr, selected ) )
 						{
 							m_context.sampleIndex = i;
+							m_context.restart = false;
+							CreateSample();
 						}
 						++i;
 					}
-					ImGui::TreePop();
+					ImGui::EndMenu();
 				}
 				else
 				{
@@ -1313,27 +1585,264 @@ void SampleManager::UpdateUI()
 						++i;
 					}
 				}
+			}
+			ImGui::EndMenu();
+		}
 
-				if ( i < sEntryCount )
+		static bool showHelp = false;
+		static bool showAbout = false;
+		if ( ImGui::BeginMenu( "Help" ) )
+		{
+			ImGui::MenuItem( "Controls", nullptr, &showHelp );
+			ImGui::MenuItem( "About", nullptr, &showAbout );
+			ImGui::EndMenu();
+		}
+
+		ImGui::EndMainMenuBar();
+
+		if ( showHelp )
+		{
+			ImGui::SetNextWindowPos( { m_context.camera.m_width * 0.5f, m_context.camera.m_height * 0.5f }, ImGuiCond_Appearing,
+									 { 0.5f, 0.5f } );
+			ImGui::SetNextWindowSize( { 26.0f * fontSize, 0.0f }, ImGuiCond_Appearing );
+
+			if ( ImGui::Begin( "Controls", &showHelp, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize ) )
+			{
+				ImGui::SeparatorText( "Keyboard" );
+				if ( ImGui::BeginTable( "keys", 2, ImGuiTableFlags_SizingFixedFit ) )
 				{
-					category = sEntries[i].Category;
+					DrawRow( "Tab", "Show / hide UI" );
+					DrawRow( "M", "Show / hide diagnostics" );
+					DrawRow( "P", "Pause / resume" );
+					DrawRow( "O", "Single step (Shift: 5)" );
+					DrawRow( "R", "Restart sample" );
+					DrawRow( "[  ]", "Previous / next sample" );
+					DrawRow( "Ctrl+O", "Open sample picker" );
+					DrawRow( "F / Home", "Frame selection / world" );
+					DrawRow( "Esc", "Quit" );
+					ImGui::EndTable();
+				}
+
+				ImGui::SeparatorText( "Mouse" );
+				if ( ImGui::BeginTable( "mouse", 2, ImGuiTableFlags_SizingFixedFit ) )
+				{
+					DrawRow( "Left drag", "Move bodies (mouse joint)" );
+					DrawRow( "Alt + left drag", "Orbit camera" );
+					DrawRow( "Alt + middle drag", "Pan camera" );
+					DrawRow( "Right drag", "Fly look (WASD to move)" );
+					DrawRow( "Scroll", "Zoom" );
+					DrawRow( "Shift + left", "Shoot (Ctrl spin, Alt ragdoll)" );
+					ImGui::EndTable();
 				}
 			}
-			ImGui::EndTabItem();
+			ImGui::End();
 		}
-		ImGui::EndTabBar();
+
+		if ( showAbout )
+		{
+			ImGui::SetNextWindowPos( { m_context.camera.m_width * 0.5f, m_context.camera.m_height * 0.5f }, ImGuiCond_Appearing,
+									 { 0.5f, 0.5f } );
+			ImGui::SetNextWindowSize( { 22.0f * fontSize, 0.0f }, ImGuiCond_Appearing );
+
+			if ( ImGui::Begin( "About", &showAbout, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize ) )
+			{
+				b3Version version = b3GetVersion();
+				ImGui::Text( "Box3D %d.%d.%d", version.major, version.minor, version.revision );
+				ImGui::Spacing();
+				ImGui::TextLinkOpenURL( "github.com/erincatto/box3d", "https://github.com/erincatto/box3d" );
+			}
+			ImGui::End();
+		}
+	}
+}
+
+void SampleManager::DrawSamplePicker()
+{
+	float fontSize = ImGui::GetFontSize();
+
+	// Opens a transient popup; type to filter by name or category, Up/Down to
+	// navigate, Enter to select, Esc / click-outside to dismiss.
+	static char query[64] = {};
+	static char prevQuery[64] = {};
+	static int highlight = 0;
+	static int prevHighlight = 0;
+	static int filtered[MAX_SAMPLES];
+	static int filteredCount = 0;
+	static bool justOpened = false;
+	static bool forceScroll = false;
+
+	if ( m_context.openSamplePicker )
+	{
+		ImGui::OpenPopup( "##sample_picker" );
+		m_context.openSamplePicker = false;
+		query[0] = '\0';
+		prevQuery[0] = '\0';
+		highlight = 0;
+		prevHighlight = 0;
+		RebuildPicker( query, filtered, &filteredCount );
+		justOpened = true;
+		forceScroll = true;
+	}
+
+	ImGui::SetNextWindowPos( { m_context.camera.m_width * 0.5f, m_context.camera.m_height * 0.35f }, ImGuiCond_Appearing,
+							 { 0.5f, 0.5f } );
+	ImGui::SetNextWindowSize( { 32.0f * fontSize, 0.0f }, ImGuiCond_Appearing );
+
+	if ( ImGui::BeginPopup( "##sample_picker",
+							ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoSavedSettings ) )
+	{
+		if ( justOpened )
+		{
+			ImGui::SetKeyboardFocusHere();
+			justOpened = false;
+		}
+
+		ImGui::PushItemWidth( -1.0f );
+		ImGui::InputTextWithHint( "##q", "Search by name or category...", query, sizeof( query ) );
+		ImGui::PopItemWidth();
+
+		if ( strcmp( query, prevQuery ) != 0 )
+		{
+			RebuildPicker( query, filtered, &filteredCount );
+			strncpy( prevQuery, query, sizeof( prevQuery ) );
+			prevQuery[sizeof( prevQuery ) - 1] = '\0';
+			highlight = 0;
+			forceScroll = true;
+		}
+
+		if ( filteredCount > 0 )
+		{
+			if ( ImGui::IsKeyPressed( ImGuiKey_DownArrow, true ) )
+			{
+				highlight = ( highlight + 1 ) % filteredCount;
+			}
+			if ( ImGui::IsKeyPressed( ImGuiKey_UpArrow, true ) )
+			{
+				highlight = ( highlight + filteredCount - 1 ) % filteredCount;
+			}
+		}
+		bool commit = ImGui::IsKeyPressed( ImGuiKey_Enter, false ) || ImGui::IsKeyPressed( ImGuiKey_KeypadEnter, false );
+
+		ImGui::BeginChild( "##results", { 0.0f, 14.0f * fontSize }, ImGuiChildFlags_Borders );
+		for ( int row = 0; row < filteredCount; ++row )
+		{
+			int i = filtered[row];
+			char label[160];
+			snprintf( label, sizeof( label ), "%s  >  %s", sEntries[i].Category, sEntries[i].Name );
+			bool sel = ( row == highlight );
+			if ( ImGui::Selectable( label, sel ) )
+			{
+				highlight = row;
+				commit = true;
+			}
+			if ( sel && ( forceScroll || highlight != prevHighlight ) )
+			{
+				ImGui::SetScrollHereY();
+			}
+		}
+		ImGui::EndChild();
+		prevHighlight = highlight;
+		forceScroll = false;
+
+		if ( commit && filteredCount > 0 )
+		{
+			m_context.sampleIndex = filtered[highlight];
+			m_context.restart = false;
+			CreateSample();
+			ImGui::CloseCurrentPopup();
+		}
+
+		ImGui::EndPopup();
+	}
+}
+
+void SampleManager::DrawInfoPanel()
+{
+	const SampleEntry& entry = sEntries[m_context.sampleIndex];
+	float fontSize = ImGui::GetFontSize();
+	float menuWidth = 14.0f * fontSize;
+	float menuBarHeight = ImGui::GetFrameHeight();
+
+	// Full-height panel pinned under the menu bar at the right edge, matching Box2D.
+	ImGui::SetNextWindowPos( { m_context.camera.m_width - menuWidth - 0.5f * fontSize, menuBarHeight + 0.5f * fontSize } );
+	ImGui::SetNextWindowSize( { menuWidth, m_context.camera.m_height - menuBarHeight - fontSize } );
+
+	ImGui::Begin( "Info", nullptr,
+				  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+					  ImGuiWindowFlags_NoTitleBar );
+
+	ImGui::TextColored( HexColor( b3_colorGoldenRod ), "%s", entry.Name );
+	ImGui::TextColored( HexColor( b3_colorLightGray ), "%s", entry.Category );
+	ImGui::Separator();
+
+	const float frameMs = (float)( sapp_frame_duration() * 1000.0 );
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "%.1f ms", frameMs );
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", m_sample->m_stepCount );
+	ImGui::Separator();
+
+	b3Vec3 p = m_context.camera.Position();
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "cam (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "radius %.1f", m_context.camera.m_radius );
+
+	ImGui::Separator();
+
+	if ( ImGui::CollapsingHeader( "Solver", ImGuiTreeNodeFlags_DefaultOpen ) )
+	{
+		ImGui::PushItemWidth( 6.0f * fontSize );
+		ImGui::SliderInt( "Sub-steps", &m_context.subStepCount, 1, 50 );
+		ImGui::SliderFloat( "Hertz", &m_context.hertz, 5.0f, 240.0f, "%.0f hz" );
+
+		if ( ImGui::SliderInt( "Workers", &m_context.workerCount, 1, B3_MAX_WORKERS ) )
+		{
+			m_context.workerCount = b3ClampInt( m_context.workerCount, 1, B3_MAX_WORKERS );
+			m_context.restart = true;
+			CreateSample();
+		}
+
+		float recyclingCentimeters = 100.0f * m_context.recycleDistance;
+		if ( ImGui::SliderFloat( "Recycle", &recyclingCentimeters, 0.0f, 10.0f, "%.1f cm" ) )
+		{
+			m_context.recycleDistance = 0.01f * recyclingCentimeters;
+			b3World_SetContactRecycleDistance( m_sample->m_worldId, m_context.recycleDistance );
+		}
+		ImGui::PopItemWidth();
+
+		ImGui::Checkbox( "Sleep", &m_context.enableSleep );
+		ImGui::Checkbox( "Warm Starting", &m_context.enableWarmStarting );
+		ImGui::Checkbox( "Continuous", &m_context.enableContinuous );
 	}
 
 	ImGui::End();
+}
 
-	m_sample->UpdateUI();
+// Minimal in-world HUD shown only when the UI is hidden: sample identity at the
+// top-left, frame time and step count at the bottom-left. Matches Box2D DrawHud.
+void SampleManager::DrawHud()
+{
+	const SampleEntry& entry = sEntries[m_context.sampleIndex];
+	float fontSize = ImGui::GetFontSize();
 
-	// todo wrong place for this
-	if ( m_context.sampleIndex != savedTestIndex )
+	DrawScreenStringFormat( 5, (int)( 1.5f * fontSize ), MakeColor( b3_colorYellow ), "%s : %s", entry.Category, entry.Name );
+	DrawScreenStringFormat( 5, m_context.camera.m_height - (int)( 1.5f * fontSize ), MakeColor( b3_colorSeaGreen ),
+							"%.1f ms  step %d", 1000.0f * (float)sapp_frame_duration(), m_sample->m_stepCount );
+}
+
+void SampleManager::UpdateUI()
+{
+	// Mirrors Box2D's DrawUI: hidden shows only the minimal in-world HUD.
+	if ( m_context.showUI == false )
 	{
-		m_context.restart = false;
-		CreateSample();
+		DrawHud();
+		return;
 	}
+
+	DrawMenuBar();
+	DrawSamplePicker();
+	DrawInfoPanel();
+
+	// The active sample's own controls window, then the diagnostics drawer.
+	m_sample->UpdateUI();
+	m_sample->DrawMetrics();
 }
 
 void Sample::ToggleThirdPerson()
