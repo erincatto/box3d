@@ -206,6 +206,14 @@ int GetMeshDrawSpanCount( void );
 
 MeshDrawSpan GetMeshDrawSpan( int i );
 
+// Mirror spans carry negative-determinant (mirror-scaled) instances. Their
+// flipped winding needs the opposite cull face, so the renderer draws them
+// with a front-cull pipeline after the back-cull pass over the normal spans.
+// Usually empty, only a few sample scenes mirror a mesh.
+int GetMeshMirrorDrawSpanCount( void );
+
+MeshDrawSpan GetMeshMirrorDrawSpan( int i );
+
 // Bound to the geom pipeline by the renderer. Exposed so renderer.c can
 // bind a single view across all draws without recreating it per span.
 sg_view GetMeshInstanceView( void );

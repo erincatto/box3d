@@ -32,6 +32,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined( _WIN32 )
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <timeapi.h>				   // timeBeginPeriod for fine sleep granularity
+#pragma comment( lib, "winmm.lib" )	   // MSVC auto-link
+#endif
+
 static SampleManager s_manager;
 static int s_frame = 0;
 static int s_frameLimit = -1;
@@ -49,6 +57,10 @@ static void DrawUI( void )
 
 static void OnInit( void )
 {
+#if defined( _WIN32 )
+	timeBeginPeriod( 1 );
+#endif
+
 	const sg_environment env = sglue_environment();
 	InitRenderer( &env );
 	InitUI( &env, DrawUI, true );
@@ -134,6 +146,26 @@ static void OnEvent( const sapp_event* e )
 	}
 }
 
+// Pace the loop to 60 Hz so the fixed 1/60 physics step plays at real time on any
+// display. Sleep the bulk of the idle time, then spin the last bit since sleep wakes
+// are only accurate to about a millisecond.
+static void LimitFrameRate( uint64_t frameStart )
+{
+	const float targetMs = 1000.0f / 60.0f;
+	const float spinMs = 2.0f;
+
+	int sleepMs = (int)( targetMs - spinMs - b3GetMilliseconds( frameStart ) );
+	if ( sleepMs > 0 )
+	{
+		b3Sleep( sleepMs );
+	}
+
+	while ( b3GetMilliseconds( frameStart ) < targetMs )
+	{
+		b3Yield();
+	}
+}
+
 static void OnFrame( void )
 {
 	if ( s_frameLimit >= 0 && s_frame >= s_frameLimit )
@@ -141,6 +173,8 @@ static void OnFrame( void )
 		sapp_quit();
 		return;
 	}
+
+	const uint64_t frameStart = b3GetTicks();
 
 	const float dt = (float)sapp_frame_duration();
 	const int W = sapp_width();
@@ -182,6 +216,11 @@ static void OnFrame( void )
 	RenderUI( &sc );
 	sg_commit();
 	++s_frame;
+
+	if ( s_frameLimit < 0 )
+	{
+		LimitFrameRate( frameStart );
+	}
 }
 
 static void OnCleanup( void )
@@ -192,6 +231,11 @@ static void OnCleanup( void )
 
 	const int errors = GetRenderErrorCount();
 	fprintf( stderr, "samples: %d frames, %d sokol errors\n", s_frame, errors );
+
+#if defined( _WIN32 )
+	timeEndPeriod( 1 );
+#endif
+
 	exit( errors == 0 ? 0 : 1 );
 }
 
@@ -226,7 +270,10 @@ sapp_desc sokol_main( int argc, char** argv )
 	desc.sample_count = 1;
 
 	desc.window_title = "Box3D Samples";
-	desc.swap_interval = 1;
+
+	// Vsync off: the software limiter in OnFrame owns the cadence. A hard 60 Hz
+	// cap under vsync would beat against a non-60 display and pace to the wrong rate.
+	desc.swap_interval = 0;
 	desc.high_dpi = true;
 
 	return desc;

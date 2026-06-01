@@ -158,6 +158,9 @@ B3_API float b3GetMillisecondsAndReset( uint64_t* ticks );
 /// Yield to be used in a busy loop.
 B3_API void b3Yield( void );
 
+/// Sleep the current thread for a number of milliseconds.
+B3_API void b3Sleep( int milliseconds );
+
 // Simple djb2 hash function for determinism testing
 #define B3_HASH_INIT 5381
 B3_API uint32_t b3Hash( uint32_t hash, const uint8_t* data, int count );

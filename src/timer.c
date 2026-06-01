@@ -78,6 +78,11 @@ void b3Yield( void )
 	SwitchToThread();
 }
 
+void b3Sleep( int milliseconds )
+{
+	Sleep( (DWORD)milliseconds );
+}
+
 typedef struct b3Mutex
 {
 	CRITICAL_SECTION cs;
@@ -250,6 +255,14 @@ void b3Yield( void )
 	sched_yield();
 }
 
+void b3Sleep( int milliseconds )
+{
+	struct timespec ts;
+	ts.tv_sec = milliseconds / 1000;
+	ts.tv_nsec = ( milliseconds % 1000 ) * 1000000L;
+	nanosleep( &ts, NULL );
+}
+
 #include <pthread.h>
 typedef struct b3Mutex
 {
@@ -373,6 +386,7 @@ void b3JoinThread( b3Thread* t )
 #include <mach/mach_time.h>
 #include <sched.h>
 #include <sys/time.h>
+#include <time.h>
 
 static double s_invFrequency = 0.0;
 
@@ -416,6 +430,14 @@ float b3GetMillisecondsAndReset( uint64_t* ticks )
 void b3Yield( void )
 {
 	sched_yield();
+}
+
+void b3Sleep( int milliseconds )
+{
+	struct timespec ts;
+	ts.tv_sec = milliseconds / 1000;
+	ts.tv_nsec = ( milliseconds % 1000 ) * 1000000L;
+	nanosleep( &ts, NULL );
 }
 
 #include <pthread.h>
@@ -558,6 +580,11 @@ float b3GetMillisecondsAndReset( uint64_t* ticks )
 
 void b3Yield( void )
 {
+}
+
+void b3Sleep( int milliseconds )
+{
+	( (void)( milliseconds ) );
 }
 
 typedef struct b3Mutex

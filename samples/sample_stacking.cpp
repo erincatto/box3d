@@ -1,15 +1,12 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "sample.h"
-
-#include "mesh_loader.h"
-#include "sample_draw.h"
-
 #include "gfx/debug_adapter.h"
 #include "gfx/keycodes.h"
-
 #include "imgui.h"
+#include "mesh_loader.h"
+#include "sample.h"
+#include "sample_draw.h"
 
 #include "box3d/box3d.h"
 
@@ -22,8 +19,9 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 25.0f, 10.0f, { 0.0f, 2.0f, 0.0f } );
-			
 		}
+
+		AddGroundBox( 10.0f );
 
 		const float alpha = 25.0f * B3_DEG_TO_RAD;
 		const float width = 0.38f;
@@ -32,13 +30,6 @@ public:
 
 		float offsetX = 0.5f * height * b3Sin( alpha ) + 0.045f;
 		float offsetY = 0.5f * height * b3Cos( alpha ) + 0.035f;
-
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-		b3BoxHull mGround = b3MakeOffsetBoxHull( 10.0f, 1.0f, 10.0f, {0.0f, -1.0f, 0.0f} );
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-		b3CreateHullShape( groundBody, &shapeDef, &mGround.base );
 
 		b3BoxHull box = b3MakeBoxHull( 0.5f * depth, 0.5f * height, 0.5f * width );
 		AddVerticalRow( 4, -6.0f * offsetX, offsetX, offsetY, alpha, box );
@@ -108,18 +99,12 @@ public:
 		{
 			b3Vec3 pivot = { 0.75, 1.0, 0.4f };
 			m_camera->SetView( 0.0f, 15.0f, 3.0f, pivot );
-			
 		}
 
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -2.0f };
-		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+		AddGroundBox( 10.0f );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.friction = 0.7f;
-
-		b3BoxHull groundBox = b3MakeBoxHull( 40.0f, 2.0f, 40.0f );
-		b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
 
 		float cardHeight = 0.2f;
 		float cardThickness = 0.001f;
@@ -131,6 +116,7 @@ public:
 
 		// todo box hull is limiting the minimum thickness, breaking this test
 		b3BoxHull cardBox = b3MakeBoxHull( cardThickness, cardHeight, cardDepth );
+		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 
 		int Nb = 5;
@@ -185,8 +171,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 50.0f, {0.0f, 10.0f, 0.0f} );
-			
+			m_camera->SetView( 0.0f, 15.0f, 50.0f, { 0.0f, 10.0f, 0.0f } );
 		}
 
 		AddGroundBox( 15.0f );
@@ -204,7 +189,7 @@ public:
 		for ( int i = 0; i < 30; ++i )
 		{
 			bodyDef.name = "sphere";
-			//bodyDef.position.x = 0.1f * i;
+			// bodyDef.position.x = 0.1f * i;
 			bodyDef.position.y = y;
 			bodyDef.angularVelocity = { 0.0f, 0.0f, 0.0f };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
@@ -248,7 +233,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 50.0f, { 0.0f, 10.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 40.0f );
@@ -261,7 +245,7 @@ public:
 		bodyDef.motionLocks.angularZ = true;
 
 		float r = 0.5f;
-		b3Capsule capsule = { {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, r };
+		b3Capsule capsule = { { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, r };
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
 		float y = 1.5f * r;
@@ -293,7 +277,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 25.0f, 10.0f, b3Vec3_zero );
-			
 		}
 
 		AddGroundBox( 20.0f );
@@ -305,7 +288,7 @@ public:
 			bodyDef.name = "cube";
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.position = { 0.0f, 0.5f, 0.0f };
-			//bodyDef.linearVelocity = { 4.0f, 0.0f, 0.0f };
+			// bodyDef.linearVelocity = { 4.0f, 0.0f, 0.0f };
 			bodyDef.angularVelocity = { 0.0f, 10.0f, 0.0f };
 			m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
@@ -354,7 +337,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 10.0f, b3Vec3_zero );
-			
 		}
 
 		AddGroundBox( 10.0f );
@@ -405,8 +387,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 15.0f, {0.0f, 5.0f, 0.0f} );
-			
+			m_camera->SetView( 0.0f, 15.0f, 15.0f, { 0.0f, 5.0f, 0.0f } );
 		}
 
 		AddGroundBox( 10.0f );
@@ -429,7 +410,7 @@ public:
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			//shapeDef.baseMaterial.rollingResistance = 0.1f;
+			// shapeDef.baseMaterial.rollingResistance = 0.1f;
 			b3CreateTransformedHullShape( bodyId, &shapeDef, m_hull, b3Transform_identity, scales[i % 4] );
 		}
 
@@ -464,8 +445,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 50.0f, {0.0f, 20.0f, 0.0f} );
-			
+			m_camera->SetView( 0.0f, 15.0f, 50.0f, { 0.0f, 20.0f, 0.0f } );
 		}
 
 		AddGroundBox( 40.0f );
@@ -521,7 +501,6 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 35.0f, 15.0f, 30.0f, { 0.0f, 10.0f, 0.0f } );
-			
 		}
 
 		m_shapeType = b3_hullShape;
@@ -530,15 +509,7 @@ public:
 
 	void CreateStack()
 	{
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
-		}
+		AddGroundBox( 60.0f );
 
 		{
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -628,16 +599,9 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 50.0f, b3Vec3_zero );
-			
 		}
 
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-		b3BoxHull groundBox = b3MakeBoxHull( 80.0f, 1.0f, 80.0f );
-		b3CreateHullShape( groundBody, &shapeDef, &groundBox.base );
+		AddGroundBox( 80.0f );
 
 		constexpr int n = m_isDebug ? 2 : 30;
 
@@ -699,16 +663,10 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 77.0f, 10.0f, 5.0f );
+			m_camera->SetView( 75.0f, 10.0f, 10.0f );
 		}
 
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3BoxHull groundBox = b3MakeBoxHull( 25.0f, 1.0f, 25.0f );
-		b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
+		AddGroundBox( 20.0f );
 
 		b3Vec3 vertices[] = {
 			{ -1.0, 1.0f, -0.1f }, { 1.0, 1.0f, -0.1f }, { -1.0, 1.0f, 0.1f },
@@ -717,9 +675,12 @@ public:
 
 		m_wedgeHull = b3CreateHull( vertices, 6, 6 );
 
+		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.0f, 1.0f, 0.0f };
 		b3BodyId wedgeBody = b3CreateBody( m_worldId, &bodyDef );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		b3CreateHullShape( wedgeBody, &shapeDef, m_wedgeHull );
 	}
 
@@ -791,8 +752,9 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 30.0f, { 0.0f, 5.0f, 0.0f } );
-			
 		}
+
+		AddGroundBox( 40.0f );
 
 		b3Vec3 ps1[9] = { { 16.0f, 0.0f, 0.0f },
 						  { 14.93803712795643f, 5.133601056842984f, 0.0f },
@@ -826,15 +788,6 @@ public:
 		const float halfDepth = 0.5f;
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-			b3BoxHull groundBox = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
-		}
-
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 
@@ -842,10 +795,10 @@ public:
 		{
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3Vec3 ps[8] = {
-				{ ps1[i].x, ps1[i].y, -halfDepth },		{ ps2[i].x, ps2[i].y, -halfDepth },
+				{ ps1[i].x, ps1[i].y, -halfDepth },			{ ps2[i].x, ps2[i].y, -halfDepth },
 				{ ps2[i + 1].x, ps2[i + 1].y, -halfDepth }, { ps1[i + 1].x, ps1[i + 1].y, -halfDepth },
-				{ ps1[i].x, ps1[i].y, halfDepth },		  { ps2[i].x, ps2[i].y, halfDepth },
-				{ ps2[i + 1].x, ps2[i + 1].y, halfDepth },  { ps1[i + 1].x, ps1[i + 1].y, halfDepth },
+				{ ps1[i].x, ps1[i].y, halfDepth },			{ ps2[i].x, ps2[i].y, halfDepth },
+				{ ps2[i + 1].x, ps2[i + 1].y, halfDepth },	{ ps1[i + 1].x, ps1[i + 1].y, halfDepth },
 			};
 			b3Hull* hull = b3CreateHull( ps, 8, 8 );
 			b3CreateHullShape( bodyId, &shapeDef, hull );
@@ -856,10 +809,10 @@ public:
 		{
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3Vec3 ps[8] = {
-				{ -ps2[i].x, ps2[i].y, -halfDepth },		{ -ps1[i].x, ps1[i].y, -halfDepth },
+				{ -ps2[i].x, ps2[i].y, -halfDepth },		 { -ps1[i].x, ps1[i].y, -halfDepth },
 				{ -ps1[i + 1].x, ps1[i + 1].y, -halfDepth }, { -ps2[i + 1].x, ps2[i + 1].y, -halfDepth },
-				{ -ps2[i].x, ps2[i].y, halfDepth },		 { -ps1[i].x, ps1[i].y, halfDepth },
-				{ -ps1[i + 1].x, ps1[i + 1].y, halfDepth },  { -ps2[i + 1].x, ps2[i + 1].y, halfDepth },
+				{ -ps2[i].x, ps2[i].y, halfDepth },			 { -ps1[i].x, ps1[i].y, halfDepth },
+				{ -ps1[i + 1].x, ps1[i + 1].y, halfDepth },	 { -ps2[i + 1].x, ps2[i + 1].y, halfDepth },
 			};
 			b3Hull* hull = b3CreateHull( ps, 8, 8 );
 			b3CreateHullShape( bodyId, &shapeDef, hull );
@@ -869,10 +822,9 @@ public:
 		{
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3Vec3 ps[8] = {
-				{ ps1[8].x, ps1[8].y, -halfDepth },  { ps2[8].x, ps2[8].y, -halfDepth },
-				{ -ps2[8].x, ps2[8].y, -halfDepth }, { -ps1[8].x, ps1[8].y, -halfDepth },
-				{ ps1[8].x, ps1[8].y, halfDepth },   { ps2[8].x, ps2[8].y, halfDepth },
-				{ -ps2[8].x, ps2[8].y, halfDepth },  { -ps1[8].x, ps1[8].y, halfDepth },
+				{ ps1[8].x, ps1[8].y, -halfDepth },	 { ps2[8].x, ps2[8].y, -halfDepth }, { -ps2[8].x, ps2[8].y, -halfDepth },
+				{ -ps1[8].x, ps1[8].y, -halfDepth }, { ps1[8].x, ps1[8].y, halfDepth },	 { ps2[8].x, ps2[8].y, halfDepth },
+				{ -ps2[8].x, ps2[8].y, halfDepth },	 { -ps1[8].x, ps1[8].y, halfDepth },
 			};
 			b3Hull* hull = b3CreateHull( ps, 8, 8 );
 			b3CreateHullShape( bodyId, &shapeDef, hull );
@@ -907,15 +859,7 @@ public:
 			m_camera->SetView( 0.0f, 15.0f, 20.0f, { 0.0f, 4.0f, 0.0f } );
 		}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3BoxHull groundBox = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
-		}
+		AddGroundBox( 20.0f );
 
 		b3BoxHull box = b3MakeBoxHull( 0.125f, 0.5f, 0.25f );
 
@@ -961,17 +905,7 @@ public:
 			m_camera->SetView( 0.0f, 30.0f, 50.0f, { 0.0f, 5.0f, 0.0f } );
 		}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3BoxHull groundBox = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			// shapeDef.filter = { 1, ~0u, 0 };
-
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
-		}
+		AddGroundBox( 40.0f );
 
 		float a = 1.0f;
 		b3BoxHull box = b3MakeBoxHull( a, a, a );
@@ -987,7 +921,7 @@ public:
 		{
 			for ( int column = 0; column < m_size - row; ++column )
 			{
-				bodyDef.position = { ( -20.0f + 2.0f * column + row ) * a, ( 1.5f + 2.5f * row ) * a, 0.0f };
+				bodyDef.position = { ( -10.0f + 2.0f * column + row ) * a, ( 1.5f + 2.5f * row ) * a, 0.0f };
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 				b3CreateHullShape( bodyId, &shapeDef, &box.base );
@@ -1004,4 +938,3 @@ public:
 };
 
 static int samplePyramid2D = SampleManager::Register( "Stacking", "Pyramid2D", Pyramid2D::Create );
-

@@ -71,6 +71,8 @@ static struct
 	// storage and per-geometry vbo/ibo live inside the geometry_registry.
 	sg_shader geomShader;
 	sg_pipeline geomPipeline;
+	// Front-cull sibling for mirror-scaled (negative determinant) instances.
+	sg_pipeline geomPipelineMirror;
 
 	// Shadow caster pipeline (cube). Reuses cubeInstBuf, caster and lit
 	// pipelines share the same per-instance data, just sample different
@@ -83,6 +85,7 @@ static struct
 	// mirroring the lit geom path.
 	sg_shader shadowGeomShader;
 	sg_pipeline shadowGeomPipeline;
+	sg_pipeline shadowGeomPipelineMirror;
 
 	// Shadow caster pipeline (sphere). The lit sphere pipeline is an
 	// analytic impostor, too expensive for the shadow pass, so the
@@ -117,6 +120,7 @@ static struct
 	sg_pipeline depthOnlyCapsulePipeline;
 	sg_shader depthOnlyGeomShader;
 	sg_pipeline depthOnlyGeomPipeline;
+	sg_pipeline depthOnlyGeomPipelineMirror;
 
 	int errorCount;
 
@@ -816,14 +820,20 @@ void InitRenderer( const sg_environment* env )
 	geomPdesc.depth.pixel_format = env->defaults.depth_format;
 	geomPdesc.depth.compare = SG_COMPAREFUNC_GREATER;
 	geomPdesc.depth.write_enabled = true;
-	// Meshes may carry a per-instance scale with negative determinant, which
-	// mirrors the geometry and flips winding. Scale is per instance within one
-	// instanced draw, so cull nothing and shade two sided in the FS.
-	geomPdesc.cull_mode = SG_CULLMODE_NONE;
+	// Back-cull the common case. A mesh instance may carry a negative
+	// determinant scale that flips winding, those are partitioned out by the
+	// registry and drawn with the front-cull sibling below. The FS faces the
+	// shading normal toward the camera, so both pipelines shade correctly.
+	geomPdesc.cull_mode = SG_CULLMODE_BACK;
 	geomPdesc.face_winding = SG_FACEWINDING_CCW;
 	geomPdesc.sample_count = SCENE_SAMPLE_COUNT;
 	geomPdesc.label = "geom_pipeline";
 	s_gfx.geomPipeline = sg_make_pipeline( &geomPdesc );
+
+	sg_pipeline_desc geomMirrorPdesc = geomPdesc;
+	geomMirrorPdesc.cull_mode = SG_CULLMODE_FRONT;
+	geomMirrorPdesc.label = "geom_pipeline_mirror";
+	s_gfx.geomPipelineMirror = sg_make_pipeline( &geomMirrorPdesc );
 
 	InitShadows();
 
@@ -879,11 +889,16 @@ void InitRenderer( const sg_environment* env )
 	shadowGeomPdesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
 	shadowGeomPdesc.depth.compare = SG_COMPAREFUNC_LESS;
 	shadowGeomPdesc.depth.write_enabled = true;
-	shadowGeomPdesc.cull_mode = SG_CULLMODE_NONE; // match geom pipeline, mesh scale may mirror
+	shadowGeomPdesc.cull_mode = SG_CULLMODE_BACK; // match geom pipeline, mirror runs use the front-cull sibling
 	shadowGeomPdesc.face_winding = SG_FACEWINDING_CCW;
 	shadowGeomPdesc.sample_count = 1;
 	shadowGeomPdesc.label = "shadow_geom_pipeline";
 	s_gfx.shadowGeomPipeline = sg_make_pipeline( &shadowGeomPdesc );
+
+	sg_pipeline_desc shadowGeomMirrorPdesc = shadowGeomPdesc;
+	shadowGeomMirrorPdesc.cull_mode = SG_CULLMODE_FRONT;
+	shadowGeomMirrorPdesc.label = "shadow_geom_pipeline_mirror";
+	s_gfx.shadowGeomPipelineMirror = sg_make_pipeline( &shadowGeomMirrorPdesc );
 
 	// Shadow caster pipeline: spheres
 	// Build the ico-sphere proxy once and upload to a
@@ -1053,11 +1068,16 @@ void InitRenderer( const sg_environment* env )
 	dnGeomPdesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
 	dnGeomPdesc.depth.compare = SG_COMPAREFUNC_GREATER;
 	dnGeomPdesc.depth.write_enabled = true;
-	dnGeomPdesc.cull_mode = SG_CULLMODE_NONE; // match geom pipeline, mesh scale may mirror
+	dnGeomPdesc.cull_mode = SG_CULLMODE_BACK; // match geom pipeline, mirror runs use the front-cull sibling
 	dnGeomPdesc.face_winding = SG_FACEWINDING_CCW;
 	dnGeomPdesc.sample_count = 1;
 	dnGeomPdesc.label = "depth_only_geom_pipeline";
 	s_gfx.depthOnlyGeomPipeline = sg_make_pipeline( &dnGeomPdesc );
+
+	sg_pipeline_desc dnGeomMirrorPdesc = dnGeomPdesc;
+	dnGeomMirrorPdesc.cull_mode = SG_CULLMODE_FRONT;
+	dnGeomMirrorPdesc.label = "depth_only_geom_pipeline_mirror";
+	s_gfx.depthOnlyGeomPipelineMirror = sg_make_pipeline( &dnGeomMirrorPdesc );
 
 	// transparent pipelines + per-shape transparent buffers
 	// Same shaders as the opaque variants (cubeShader, sphereShader,
@@ -1147,6 +1167,8 @@ void InitRenderer( const sg_environment* env )
 	geomXpDesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
 	geomXpDesc.depth.compare = SG_COMPAREFUNC_GREATER;
 	geomXpDesc.depth.write_enabled = false;
+	// Only hulls are drawn transparent and they never have negative scale
+	geomXpDesc.cull_mode = SG_CULLMODE_BACK;
 	geomXpDesc.sample_count = 1;
 	geomXpDesc.colors[0].blend = cubeXpDesc.colors[0].blend;
 	geomXpDesc.label = "geom_pipeline_xp";
@@ -1426,7 +1448,8 @@ static void DrawShadowCascade( int cascade )
 	// One draw per registry entry, same per-entry bindings as the lit
 	// pipeline, just a different (depth-only) shader and ub_frame.
 	const int geomSpanCount = GetMeshDrawSpanCount();
-	if ( geomSpanCount > 0 )
+	const int geomMirrorSpanCount = GetMeshMirrorDrawSpanCount();
+	if ( geomSpanCount > 0 || geomMirrorSpanCount > 0 )
 	{
 		sg_push_debug_group( "caster_geom" );
 		if ( !viewportApplied )
@@ -1434,28 +1457,37 @@ static void DrawShadowCascade( int cascade )
 			sg_apply_viewport( 0, 0, SHADOW_RESOLUTION, SHADOW_RESOLUTION, true );
 			viewportApplied = true;
 		}
-		sg_apply_pipeline( s_gfx.shadowGeomPipeline );
 
 		shadow_geom_ub_frame_t gub = { 0 };
 		gub.light_view_proj = lightVP;
-		sg_apply_uniforms( UB_shadow_geom_ub_frame, &SG_RANGE( gub ) );
 
 		const sg_view geomInstView = GetMeshInstanceView();
-		for ( int i = 0; i < geomSpanCount; ++i )
+		for ( int pass = 0; pass < 2; ++pass )
 		{
-			const MeshDrawSpan span = GetMeshDrawSpan( i );
+			const int spanCount = ( pass == 0 ) ? geomSpanCount : geomMirrorSpanCount;
+			if ( spanCount == 0 )
+			{
+				continue;
+			}
+			sg_apply_pipeline( ( pass == 0 ) ? s_gfx.shadowGeomPipeline : s_gfx.shadowGeomPipelineMirror );
+			sg_apply_uniforms( UB_shadow_geom_ub_frame, &SG_RANGE( gub ) );
 
-			sg_bindings bindings = { 0 };
-			bindings.vertex_buffers[0] = span.vbo;
-			bindings.index_buffer = span.ibo;
-			bindings.views[VIEW_shadow_geom_instances] = geomInstView;
-			sg_apply_bindings( &bindings );
+			for ( int i = 0; i < spanCount; ++i )
+			{
+				const MeshDrawSpan span = ( pass == 0 ) ? GetMeshDrawSpan( i ) : GetMeshMirrorDrawSpan( i );
 
-			shadow_geom_ub_draw_t gud = { 0 };
-			gud.inst_base[0] = span.firstInstance;
-			sg_apply_uniforms( UB_shadow_geom_ub_draw, &SG_RANGE( gud ) );
+				sg_bindings bindings = { 0 };
+				bindings.vertex_buffers[0] = span.vbo;
+				bindings.index_buffer = span.ibo;
+				bindings.views[VIEW_shadow_geom_instances] = geomInstView;
+				sg_apply_bindings( &bindings );
 
-			sg_draw( 0, span.indexCount, span.instanceCount );
+				shadow_geom_ub_draw_t gud = { 0 };
+				gud.inst_base[0] = span.firstInstance;
+				sg_apply_uniforms( UB_shadow_geom_ub_draw, &SG_RANGE( gud ) );
+
+				sg_draw( 0, span.indexCount, span.instanceCount );
+			}
 		}
 		sg_pop_debug_group();
 	}
@@ -1805,11 +1837,13 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 	// Triangle geometries (hulls, meshes, heightfields)
 	// The registry produced one draw span per geometry that had at least one
 	// instance this frame. Each span carries its own vbo+ibo and a base
-	// offset into the shared instance buffer. The pipeline, instance view,
-	// and FS ub_pass are bound once and reused, only the bindings (vbo/ibo)
-	// and ub_draw (inst_base) change per span.
+	// offset into the shared instance buffer. Normal spans back-cull, mirror
+	// spans front-cull, drawn in two passes so the pipeline binds at most
+	// twice. Uniforms re-apply after each pipeline switch, only the bindings
+	// (vbo/ibo) and ub_draw (inst_base) change per span.
 	const int geomSpanCount = GetMeshDrawSpanCount();
-	if ( geomSpanCount > 0 )
+	const int geomMirrorSpanCount = GetMeshMirrorDrawSpanCount();
+	if ( geomSpanCount > 0 || geomMirrorSpanCount > 0 )
 	{
 		geom_ub_frame_t gub = { 0 };
 		gub.view_proj = view_proj;
@@ -1829,34 +1863,42 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		}
 		gup.ibl_params = MakeVec4( iblMaxLod, iblEnabledFlag, 0.0f, 0.0f );
 
-		sg_apply_pipeline( s_gfx.geomPipeline );
-		sg_apply_uniforms( UB_geom_ub_frame, &SG_RANGE( gub ) );
-		sg_apply_uniforms( UB_geom_ub_pass, &SG_RANGE( gup ) );
-
 		const sg_view geomInstView = GetMeshInstanceView();
-		for ( int i = 0; i < geomSpanCount; ++i )
+		for ( int pass = 0; pass < 2; ++pass )
 		{
-			const MeshDrawSpan span = GetMeshDrawSpan( i );
+			const int spanCount = ( pass == 0 ) ? geomSpanCount : geomMirrorSpanCount;
+			if ( spanCount == 0 )
+			{
+				continue;
+			}
+			sg_apply_pipeline( ( pass == 0 ) ? s_gfx.geomPipeline : s_gfx.geomPipelineMirror );
+			sg_apply_uniforms( UB_geom_ub_frame, &SG_RANGE( gub ) );
+			sg_apply_uniforms( UB_geom_ub_pass, &SG_RANGE( gup ) );
 
-			sg_bindings bindings = { 0 };
-			bindings.vertex_buffers[0] = span.vbo;
-			bindings.index_buffer = span.ibo;
-			bindings.views[VIEW_geom_instances] = geomInstView;
-			bindings.views[VIEW_geom_tex_shadow] = shadowSampleView;
-			bindings.views[VIEW_geom_tex_ibl_spec] = iblSpecView;
-			bindings.views[VIEW_geom_tex_brdf_lut] = iblLutView;
-			bindings.views[VIEW_geom_tex_ao] = aoView;
-			bindings.samplers[SMP_geom_smp_shadow] = shadowSampler;
-			bindings.samplers[SMP_geom_smp_ibl_spec] = iblSpecSampler;
-			bindings.samplers[SMP_geom_smp_brdf_lut] = iblLutSampler;
-			bindings.samplers[SMP_geom_smp_ao] = aoSampler;
-			sg_apply_bindings( &bindings );
+			for ( int i = 0; i < spanCount; ++i )
+			{
+				const MeshDrawSpan span = ( pass == 0 ) ? GetMeshDrawSpan( i ) : GetMeshMirrorDrawSpan( i );
 
-			geom_ub_draw_t gud = { 0 };
-			gud.inst_base[0] = span.firstInstance;
-			sg_apply_uniforms( UB_geom_ub_draw, &SG_RANGE( gud ) );
+				sg_bindings bindings = { 0 };
+				bindings.vertex_buffers[0] = span.vbo;
+				bindings.index_buffer = span.ibo;
+				bindings.views[VIEW_geom_instances] = geomInstView;
+				bindings.views[VIEW_geom_tex_shadow] = shadowSampleView;
+				bindings.views[VIEW_geom_tex_ibl_spec] = iblSpecView;
+				bindings.views[VIEW_geom_tex_brdf_lut] = iblLutView;
+				bindings.views[VIEW_geom_tex_ao] = aoView;
+				bindings.samplers[SMP_geom_smp_shadow] = shadowSampler;
+				bindings.samplers[SMP_geom_smp_ibl_spec] = iblSpecSampler;
+				bindings.samplers[SMP_geom_smp_brdf_lut] = iblLutSampler;
+				bindings.samplers[SMP_geom_smp_ao] = aoSampler;
+				sg_apply_bindings( &bindings );
 
-			sg_draw( 0, span.indexCount, span.instanceCount );
+				geom_ub_draw_t gud = { 0 };
+				gud.inst_base[0] = span.firstInstance;
+				sg_apply_uniforms( UB_geom_ub_draw, &SG_RANGE( gud ) );
+
+				sg_draw( 0, span.indexCount, span.instanceCount );
+			}
 		}
 	}
 
@@ -1972,31 +2014,40 @@ static void DepthPrepass( int targetWidth, int targetHeight, Mat4 view, Mat4 vie
 
 	// Triangle geometries (hulls/meshes/heightfields)
 	const int geomSpanCount = GetMeshDrawSpanCount();
-	if ( geomSpanCount > 0 )
+	const int geomMirrorSpanCount = GetMeshMirrorDrawSpanCount();
+	if ( geomSpanCount > 0 || geomMirrorSpanCount > 0 )
 	{
-		sg_apply_pipeline( s_gfx.depthOnlyGeomPipeline );
-
 		depth_only_geom_ub_frame_t gub = { 0 };
 		gub.view_proj = view_proj;
 		gub.view = view;
-		sg_apply_uniforms( UB_depth_only_geom_ub_frame, &SG_RANGE( gub ) );
 
 		const sg_view geomInstView = GetMeshInstanceView();
-		for ( int i = 0; i < geomSpanCount; ++i )
+		for ( int pass = 0; pass < 2; ++pass )
 		{
-			const MeshDrawSpan span = GetMeshDrawSpan( i );
+			const int spanCount = ( pass == 0 ) ? geomSpanCount : geomMirrorSpanCount;
+			if ( spanCount == 0 )
+			{
+				continue;
+			}
+			sg_apply_pipeline( ( pass == 0 ) ? s_gfx.depthOnlyGeomPipeline : s_gfx.depthOnlyGeomPipelineMirror );
+			sg_apply_uniforms( UB_depth_only_geom_ub_frame, &SG_RANGE( gub ) );
 
-			sg_bindings bindings = { 0 };
-			bindings.vertex_buffers[0] = span.vbo;
-			bindings.index_buffer = span.ibo;
-			bindings.views[VIEW_depth_only_geom_instances] = geomInstView;
-			sg_apply_bindings( &bindings );
+			for ( int i = 0; i < spanCount; ++i )
+			{
+				const MeshDrawSpan span = ( pass == 0 ) ? GetMeshDrawSpan( i ) : GetMeshMirrorDrawSpan( i );
 
-			depth_only_geom_ub_draw_t gud = { 0 };
-			gud.inst_base[0] = span.firstInstance;
-			sg_apply_uniforms( UB_depth_only_geom_ub_draw, &SG_RANGE( gud ) );
+				sg_bindings bindings = { 0 };
+				bindings.vertex_buffers[0] = span.vbo;
+				bindings.index_buffer = span.ibo;
+				bindings.views[VIEW_depth_only_geom_instances] = geomInstView;
+				sg_apply_bindings( &bindings );
 
-			sg_draw( 0, span.indexCount, span.instanceCount );
+				depth_only_geom_ub_draw_t gud = { 0 };
+				gud.inst_base[0] = span.firstInstance;
+				sg_apply_uniforms( UB_depth_only_geom_ub_draw, &SG_RANGE( gud ) );
+
+				sg_draw( 0, span.indexCount, span.instanceCount );
+			}
 		}
 	}
 
@@ -2478,11 +2529,16 @@ static void PopulateStats( float frameTimeMs )
 	st.capsuleCountXp = (int)s_gfx.capsuleCountXp;
 
 	const int geomSpans = GetMeshDrawSpanCount();
-	st.geomSpanCount = geomSpans;
+	const int geomMirrorSpans = GetMeshMirrorDrawSpanCount();
+	st.geomSpanCount = geomSpans + geomMirrorSpans;
 	int geomInstSum = 0;
 	for ( int i = 0; i < geomSpans; ++i )
 	{
 		geomInstSum += GetMeshDrawSpan( i ).instanceCount;
+	}
+	for ( int i = 0; i < geomMirrorSpans; ++i )
+	{
+		geomInstSum += GetMeshMirrorDrawSpan( i ).instanceCount;
 	}
 	st.geomInstanceCount = geomInstSum;
 	st.geomInstanceCountXp = GetTransparentMeshInstanceCount();
@@ -2767,6 +2823,7 @@ void ShutdownRenderer( void )
 	ShutdownToneMap();
 	ShutdownSceneTarget();
 	ShutdownAmbientOcclusion();
+	sg_destroy_pipeline( s_gfx.depthOnlyGeomPipelineMirror );
 	sg_destroy_pipeline( s_gfx.depthOnlyGeomPipeline );
 	sg_destroy_shader( s_gfx.depthOnlyGeomShader );
 	sg_destroy_pipeline( s_gfx.depthOnlyCapsulePipeline );
@@ -2785,12 +2842,14 @@ void ShutdownRenderer( void )
 	sg_destroy_shader( s_gfx.shadowSphereShader );
 	sg_destroy_buffer( s_gfx.icosphereIbuf );
 	sg_destroy_buffer( s_gfx.icosphereVbuf );
+	sg_destroy_pipeline( s_gfx.shadowGeomPipelineMirror );
 	sg_destroy_pipeline( s_gfx.shadowGeomPipeline );
 	sg_destroy_shader( s_gfx.shadowGeomShader );
 	sg_destroy_pipeline( s_gfx.shadowCubePipeline );
 	sg_destroy_shader( s_gfx.shadowCubeShader );
 	ShutdownShadows();
 	sg_destroy_pipeline( s_gfx.geomPipelineXp );
+	sg_destroy_pipeline( s_gfx.geomPipelineMirror );
 	sg_destroy_pipeline( s_gfx.geomPipeline );
 	sg_destroy_shader( s_gfx.geomShader );
 	DestroyMeshRegistry();

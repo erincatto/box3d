@@ -66,9 +66,14 @@ static struct
 	geom_instance_t* uploadScratch;
 	int uploadScratchCap;
 
-	// Draw spans for the frame. Rebuilt by UploadMeshInstances.
+	// Draw spans for the frame. Rebuilt by UploadMeshInstances. drawSpans
+	// holds positive-determinant runs (back-culled), mirrorDrawSpans holds
+	// negative-determinant runs (front-culled). A mesh entry with a mix of
+	// both contributes one span to each, so each list caps at one per entry.
 	MeshDrawSpan drawSpans[MAX_REGISTRY_ENTRIES];
 	int drawSpanCount;
+	MeshDrawSpan mirrorDrawSpans[MAX_REGISTRY_ENTRIES];
+	int mirrorDrawSpanCount;
 
 	// transparent path. xpInstBuf holds at most
 	// MAX_GEOM_XP_INSTANCES_GLOBAL instances, xpDraws[] is the per-
@@ -118,6 +123,7 @@ void CreateMeshRegistry( void )
 	s_geom.xpUploadScratchCap = 0;
 	s_geom.entryCount = 0;
 	s_geom.drawSpanCount = 0;
+	s_geom.mirrorDrawSpanCount = 0;
 	s_geom.xpDrawCount = 0;
 	s_geom.edgeBatchCount = 0;
 }
@@ -413,6 +419,7 @@ void ResetFrameForMeshes( void )
 		s_geom.entries[i].xpCount = 0;
 	}
 	s_geom.drawSpanCount = 0;
+	s_geom.mirrorDrawSpanCount = 0;
 	s_geom.xpDrawCount = 0;
 	s_geom.edgeBatchCount = 0;
 }
@@ -540,17 +547,56 @@ int UploadMeshInstances( void )
 			{
 				take = total - opaqueCursor;
 			}
-			memcpy( &s_geom.uploadScratch[opaqueCursor], e->instances, (size_t)take * sizeof( geom_instance_t ) );
-			e->firstInstance = opaqueCursor;
-			MeshDrawSpan span;
-			span.vbo = e->vbo;
-			span.ibo = e->ibo;
-			span.indexCount = e->indexCount;
-			span.firstInstance = opaqueCursor;
-			span.instanceCount = take;
-			s_geom.drawSpans[s_geom.drawSpanCount++] = span;
 
-			// Edge batch for this entry's opaque run, if edges are registered.
+			// Stable-partition the run, positive-determinant instances first
+			// then mirror-scaled ones. Rotation is proper so sign(scale.x*y*z)
+			// is the winding sign. The two sub-runs stay contiguous, the
+			// renderer draws the front part back-culled and the tail (mirror)
+			// front-culled.
+			geom_instance_t* dst = &s_geom.uploadScratch[opaqueCursor];
+			int posCount = 0;
+			for ( int k = 0; k < take; ++k )
+			{
+				const geom_instance_t* inst = &e->instances[k];
+				if ( inst->scale.x * inst->scale.y * inst->scale.z >= 0.0f )
+				{
+					dst[posCount++] = *inst;
+				}
+			}
+			int negCount = 0;
+			for ( int k = 0; k < take; ++k )
+			{
+				const geom_instance_t* inst = &e->instances[k];
+				if ( inst->scale.x * inst->scale.y * inst->scale.z < 0.0f )
+				{
+					dst[posCount + negCount++] = *inst;
+				}
+			}
+			e->firstInstance = opaqueCursor;
+
+			if ( posCount > 0 )
+			{
+				MeshDrawSpan span;
+				span.vbo = e->vbo;
+				span.ibo = e->ibo;
+				span.indexCount = e->indexCount;
+				span.firstInstance = opaqueCursor;
+				span.instanceCount = posCount;
+				s_geom.drawSpans[s_geom.drawSpanCount++] = span;
+			}
+			if ( negCount > 0 )
+			{
+				MeshDrawSpan span;
+				span.vbo = e->vbo;
+				span.ibo = e->ibo;
+				span.indexCount = e->indexCount;
+				span.firstInstance = opaqueCursor + posCount;
+				span.instanceCount = negCount;
+				s_geom.mirrorDrawSpans[s_geom.mirrorDrawSpanCount++] = span;
+			}
+
+			// Edge batch covers the whole run, partition order is irrelevant
+			// to the edge pass (each instance draws via firstInstance + index).
 			if ( e->edgeCount > 0 )
 			{
 				MeshEdgeBatch eb;
@@ -674,6 +720,17 @@ MeshDrawSpan GetMeshDrawSpan( int i )
 {
 	assert( i >= 0 && i < s_geom.drawSpanCount );
 	return s_geom.drawSpans[i];
+}
+
+int GetMeshMirrorDrawSpanCount( void )
+{
+	return s_geom.mirrorDrawSpanCount;
+}
+
+MeshDrawSpan GetMeshMirrorDrawSpan( int i )
+{
+	assert( i >= 0 && i < s_geom.mirrorDrawSpanCount );
+	return s_geom.mirrorDrawSpans[i];
 }
 
 sg_view GetMeshInstanceView( void )
