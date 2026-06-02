@@ -79,6 +79,8 @@ void SetKeyDown( int key, bool down )
 void SampleContext::Save()
 {
 	const b3DebugDraw* gd = GetGuiDraw();
+	int gtaoQuality = GetGtaoTraceParams().quality;
+
 	FILE* file = fopen( settingsFileName, "w" );
 	if ( file == nullptr )
 	{
@@ -89,12 +91,18 @@ void SampleContext::Save()
 	fprintf( file, "  \"drawShapes\": %s,\n", gd->drawShapes ? "true" : "false" );
 	fprintf( file, "  \"drawJoints\": %s,\n", gd->drawJoints ? "true" : "false" );
 	fprintf( file, "  \"drawContacts\": %s,\n", gd->drawContacts ? "true" : "false" );
-	fprintf( file, "  \"showDiagnostics\": %s\n", showMetrics ? "true" : "false" );
+	fprintf( file, "  \"showDiagnostics\": %s,\n", showMetrics ? "true" : "false" );
+	fprintf( file, "  \"enableShadows\": %s,\n", enableShadows ? "true" : "false" );
+	fprintf( file, "  \"enableGtao\": %s,\n", enableGtao ? "true" : "false" );
+	fprintf( file, "  \"gtaoQuality\": %d,\n", gtaoQuality );
+	fprintf( file, "  \"enableIbl\": %s,\n", GetIblEnabled() ? "true" : "false" );
+	fprintf( file, "  \"exposure\": %g,\n", GetExposure() );
+	fprintf( file, "  \"debugView\": %d\n", debugView );
 	fprintf( file, "}\n" );
 	fclose( file );
 }
 
-#define MAX_TOKENS 32
+#define MAX_TOKENS 64
 
 static int jsoneq( const char* json, jsmntok_t* tok, const char* s )
 {
@@ -165,6 +173,52 @@ void SampleContext::Load()
 		{
 			const char* s = data + tokens[i + 1].start;
 			showMetrics = strncmp( s, "true", 4 ) == 0;
+		}
+		else if ( jsoneq( data, &tokens[i], "enableShadows" ) == 0 )
+		{
+			const char* s = data + tokens[i + 1].start;
+			enableShadows = strncmp( s, "true", 4 ) == 0;
+		}
+		else if ( jsoneq( data, &tokens[i], "enableGtao" ) == 0 )
+		{
+			const char* s = data + tokens[i + 1].start;
+			enableGtao = strncmp( s, "true", 4 ) == 0;
+		}
+		else if ( jsoneq( data, &tokens[i], "gtaoQuality" ) == 0 )
+		{
+			int count = tokens[i + 1].end - tokens[i + 1].start;
+			assert( count < 32 );
+			const char* s = data + tokens[i + 1].start;
+			strncpy( buffer, s, count );
+			buffer[count] = 0;
+			int quality = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 0, 2 );
+
+			GtaoTraceParams p = GetGtaoTraceParams();
+			p.quality = (AmbientOcclusionQuality)quality;
+			SetGtaoTraceParams( p );
+		}
+		else if ( jsoneq( data, &tokens[i], "enableIbl" ) == 0 )
+		{
+			const char* s = data + tokens[i + 1].start;
+			SetIblEnabled( strncmp( s, "true", 4 ) == 0 );
+		}
+		else if ( jsoneq( data, &tokens[i], "exposure" ) == 0 )
+		{
+			int count = tokens[i + 1].end - tokens[i + 1].start;
+			assert( count < 32 );
+			const char* s = data + tokens[i + 1].start;
+			strncpy( buffer, s, count );
+			buffer[count] = 0;
+			SetExposure( strtof( buffer, nullptr ) );
+		}
+		else if ( jsoneq( data, &tokens[i], "debugView" ) == 0 )
+		{
+			int count = tokens[i + 1].end - tokens[i + 1].start;
+			assert( count < 32 );
+			const char* s = data + tokens[i + 1].start;
+			strncpy( buffer, s, count );
+			buffer[count] = 0;
+			debugView = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 0, 4 );
 		}
 	}
 
@@ -1219,24 +1273,12 @@ static void DrawRenderMenu( SampleContext& ctx )
 	{
 		ImGui::MenuItem( "Enable", nullptr, &ctx.enableGtao );
 
-		// Match the live slice/step counts back to a preset for the combo.
 		GtaoTraceParams p = GetGtaoTraceParams();
-		int quality = AO_QUALITY_HIGH;
-		for ( int q = 0; q < 3; ++q )
-		{
-			GtaoTraceParams preset = GetGtaoTraceParamsPreset( (AmbientOcclusionQuality)q );
-			if ( preset.sliceCount == p.sliceCount && preset.stepsPerSlice == p.stepsPerSlice )
-			{
-				quality = q;
-				break;
-			}
-		}
+		int quality = p.quality;
 		static const char* qualityNames[] = { "Medium", "High", "Ultra" };
 		if ( ImGui::Combo( "Quality", &quality, qualityNames, 3 ) )
 		{
-			GtaoTraceParams preset = GetGtaoTraceParamsPreset( (AmbientOcclusionQuality)quality );
-			p.sliceCount = preset.sliceCount;
-			p.stepsPerSlice = preset.stepsPerSlice;
+			p.quality = (AmbientOcclusionQuality)quality;
 			SetGtaoTraceParams( p );
 		}
 		ImGui::EndMenu();

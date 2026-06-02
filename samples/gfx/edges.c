@@ -37,10 +37,9 @@ EdgeOverlayParams GetDefaultEdgeParams( void )
 	p.showHeightfields = true;
 	p.thicknessPx = 1.5f;
 	p.zBias = 1.0e-6f;
-	p.convexColor = MakeVec4( 1.0f, 1.0f, 1.0f, 0.75f );
-	p.concaveColor = MakeVec4( 0.50f, 0.10f, 0.10f, 1.0f );
-	p.flatColor = MakeColor( b3_colorPaleGreen );
-	p.flatColor.w = 0.3f;
+	p.convexColor = MakeVec4( 0.1f, 0.8f, 0.1f, 0.75f );
+	p.concaveColor = MakeVec4( 0.8f, 0.10f, 0.10f, 0.75f );
+	p.flatColor = MakeVec4( 1.0f, 1.0f, 1.0f, 0.3f );
 	return p;
 }
 

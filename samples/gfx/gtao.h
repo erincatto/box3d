@@ -80,16 +80,13 @@ typedef struct GtaoTraceParams
 	float sampleDistPow;	  // SampleDistributionPower, exponent on the slice-sampling distribution
 	float thinOcclComp;		  // ThinOccluderCompensation, extra weight for thin features
 	float depthMipSampOffset; // DepthMIPSamplingOffset, bias on the prefilter MIP selection
-	int sliceCount;			  // GTAO slice count, trace outer-loop bound
-	int stepsPerSlice;		  // GTAO steps per slice, trace inner-loop bound
+	AmbientOcclusionQuality quality; // Trace quality tier, picks the slice and step counts internally
 	int denoisePassCount;	  // Total denoise dispatches, >=1 (final apply), clamped to GTAO_MAX_DENOISE_PASSES
 } GtaoTraceParams;
 
 GtaoTraceParams GetGtaoTraceParams( void );
 void SetGtaoTraceParams( GtaoTraceParams p );
 GtaoTraceParams GetDefaultGtaoTraceParams( void );
-
-GtaoTraceParams GetGtaoTraceParamsPreset( AmbientOcclusionQuality quality );
 
 AmbientOcclusionQuality GetAOQualityForPixelScale( float dpiScale );
 

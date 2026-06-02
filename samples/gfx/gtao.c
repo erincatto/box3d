@@ -101,9 +101,8 @@ static struct
 
 // XeGTAO continuous-knob defaults from XeGTAO_Types.esh:107-114, mirrored
 // here so a "reset" button in the panel can restore them without
-// recompiling. sliceCount/stepsPerSlice default to the HIGH preset (3 x 3),
-// not XeGTAO's Ultra (9 x 3), High is the new ship default. Ultra is one
-// combo step away.
+// recompiling. Quality defaults to High (3 x 3 slices/steps), not XeGTAO's
+// Ultra (9 x 3), High is the ship default. Ultra is one combo step away.
 static const GtaoTraceParams k_gtao_default_params = {
 	.radius = 0.5f,
 	.falloff = 0.615f,
@@ -113,10 +112,30 @@ static const GtaoTraceParams k_gtao_default_params = {
 	.sampleDistPow = 2.0f,
 	.thinOcclComp = 0.0f,
 	.depthMipSampOffset = 3.30f,
-	.sliceCount = 3,
-	.stepsPerSlice = 3,
+	.quality = AO_QUALITY_HIGH,
 	.denoisePassCount = 3,
 };
+
+// Slice and step counts per quality tier. Internal, the public knob is quality.
+static void GtaoQualityToCounts( AmbientOcclusionQuality quality, int* sliceCount, int* stepsPerSlice )
+{
+	switch ( quality )
+	{
+		case AO_QUALITY_MEDIUM:
+			*sliceCount = 2;
+			*stepsPerSlice = 2;
+			break;
+		case AO_QUALITY_ULTRA:
+			*sliceCount = 9;
+			*stepsPerSlice = 3;
+			break;
+		case AO_QUALITY_HIGH:
+		default:
+			*sliceCount = 3;
+			*stepsPerSlice = 3;
+			break;
+	}
+}
 
 void InitAmbientOcclusion( void )
 {
@@ -654,8 +673,10 @@ static gtao_main_pass_ub_gtao_t MakeMainPassUbo( const GtaoUboInputs* in )
 	c.SampleDistributionPower = in->params.sampleDistPow;
 	c.ThinOccluderCompensation = in->params.thinOcclComp;
 	c.DepthMIPSamplingOffset = in->params.depthMipSampOffset;
-	c.SliceCount = (float)in->params.sliceCount;
-	c.StepsPerSlice = (float)in->params.stepsPerSlice;
+	int sliceCount, stepsPerSlice;
+	GtaoQualityToCounts( in->params.quality, &sliceCount, &stepsPerSlice );
+	c.SliceCount = (float)sliceCount;
+	c.StepsPerSlice = (float)stepsPerSlice;
 	return c;
 }
 
@@ -688,27 +709,6 @@ void SetGtaoTraceParams( GtaoTraceParams p )
 GtaoTraceParams GetDefaultGtaoTraceParams( void )
 {
 	return k_gtao_default_params;
-}
-
-GtaoTraceParams GetGtaoTraceParamsPreset( AmbientOcclusionQuality quality )
-{
-	GtaoTraceParams p = k_gtao_default_params;
-	switch ( quality )
-	{
-		case AO_QUALITY_MEDIUM:
-			p.sliceCount = 2;
-			p.stepsPerSlice = 2;
-			break;
-		case AO_QUALITY_HIGH:
-			p.sliceCount = 3;
-			p.stepsPerSlice = 3;
-			break;
-		case AO_QUALITY_ULTRA:
-			p.sliceCount = 9;
-			p.stepsPerSlice = 3;
-			break;
-	}
-	return p;
 }
 
 AmbientOcclusionQuality GetAOQualityForPixelScale( float dpiScale )
