@@ -31,6 +31,7 @@ typedef enum
 	Box3DUS_Hull,
 	Box3DUS_Mesh,
 	Box3DUS_HeightField,
+	Box3DUS_Compound,
 } DebugShapeKind;
 
 typedef struct
@@ -66,11 +67,21 @@ typedef struct
 	Vec4 color;
 	float metallic;
 	float roughness;
+
+	// Compound children are flattened into their own pool slots. A child links
+	// to its sibling through nextChild and is placed by childTransform under the
+	// owning body transform. Identity transform and no sibling for top-level shapes.
+	int nextChild;
+	b3Transform childTransform;
 	union
 	{
 		DebugSphere sphere;
 		DebugCapsule capsule;
 		DebugMesh geom;
+		struct
+		{
+			int firstChild;
+		} compound;
 	};
 } DebugShape;
 
@@ -383,6 +394,81 @@ static void PopulateCommonFields( DebugShape* us, const b3DebugShape* debugShape
 	RefreshMaterialFromOverride( us );
 }
 
+// Resolve one compound child into its own pool slot, mirroring the top-level
+// create path. Hull and mesh children take a mesh reference released on destroy.
+// Common fields are inherited from the parent so material and highlight stay
+// keyed to the compound's single shape. Returns the pool index, or -1 if the
+// pool is full or the geometry could not be registered.
+static int CreateCompoundChild( const b3ChildShape* child, const DebugShape* parent )
+{
+	const bool needsHandle = ( child->type == b3_hullShape || child->type == b3_meshShape );
+	MeshHandle handle = InvalidMeshHandle();
+	if ( child->type == b3_hullShape )
+	{
+		handle = FindOrAddHull( child->hull );
+	}
+	else if ( child->type == b3_meshShape )
+	{
+		handle = FindOrAddMesh( child->mesh.data );
+	}
+	if ( needsHandle && !IsMeshHandleValid( handle ) )
+	{
+		return -1;
+	}
+
+	const int index = AllocDebugShape();
+	if ( index < 0 )
+	{
+		if ( needsHandle )
+		{
+			ReleaseMeshReference( handle );
+		}
+		return -1;
+	}
+
+	DebugShape* us = &s_adapter.pool[index];
+	us->bodyType = parent->bodyType;
+	us->isGround = parent->isGround;
+	us->shapeId = parent->shapeId;
+	us->bodyId = parent->bodyId;
+	us->hasMaterial = parent->hasMaterial;
+	us->color = parent->color;
+	us->metallic = parent->metallic;
+	us->roughness = parent->roughness;
+
+	switch ( child->type )
+	{
+		case b3_sphereShape:
+			us->kind = Box3DUS_Sphere;
+			us->sphere.center = child->sphere.center;
+			us->sphere.radius = child->sphere.radius;
+			break;
+		case b3_capsuleShape:
+			us->kind = Box3DUS_Capsule;
+			us->capsule.localFrame =
+				GetCapsuleLocalFrame( child->capsule.center1, child->capsule.center2, &us->capsule.halfLength );
+			us->capsule.radius = child->capsule.radius;
+			break;
+		case b3_hullShape:
+			us->kind = Box3DUS_Hull;
+			us->geom.handle = handle;
+			us->geom.scale = b3Vec3_one;
+			break;
+		case b3_meshShape:
+			us->kind = Box3DUS_Mesh;
+			us->geom.handle = handle;
+			us->geom.scale = (b3Vec3){ child->mesh.scale.x, child->mesh.scale.y, child->mesh.scale.z };
+			break;
+		default:
+			assert( false );
+			break;
+	}
+
+	us->childTransform = child->transform;
+	us->nextChild = -1;
+	return index;
+}
+
 static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* context )
 {
 	(void)context;
@@ -485,8 +571,45 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 		return us;
 	}
 
-	// Compound shape: traverse the children in DrawShapeFcn rather than
-	// flattening here. Out of scope for return NULL so Box3D skips it.
+	if ( debugShape->type == b3_compoundShape )
+	{
+		const int index = AllocDebugShape();
+		if ( index < 0 )
+		{
+			return NULL;
+		}
+		DebugShape* us = &s_adapter.pool[index];
+		us->kind = Box3DUS_Compound;
+		PopulateCommonFields( us, debugShape );
+		us->compound.firstChild = -1;
+
+		// Flatten the children once. The fixed pool never relocates, so the
+		// parent pointer stays valid while children are allocated.
+		const b3Compound* compound = debugShape->compound;
+		const int total = compound->capsuleCount + compound->hullCount + compound->meshCount + compound->sphereCount;
+		int prev = -1;
+		for ( int i = 0; i < total; ++i )
+		{
+			b3ChildShape child = b3GetCompoundChild( compound, i );
+			const int childIndex = CreateCompoundChild( &child, us );
+			if ( childIndex < 0 )
+			{
+				continue; // skip a child we couldn't register, keep the rest
+			}
+			if ( prev < 0 )
+			{
+				us->compound.firstChild = childIndex;
+			}
+			else
+			{
+				s_adapter.pool[prev].nextChild = childIndex;
+			}
+			prev = childIndex;
+		}
+		return us;
+	}
+
+	// Unknown shape type. Return NULL so Box3D skips drawing it.
 	return NULL;
 }
 
@@ -499,7 +622,22 @@ static void DestroyDebugShape( void* userShape, void* context )
 	}
 	DebugShape* us = (DebugShape*)userShape;
 
-	if ( us->kind == Box3DUS_Hull || us->kind == Box3DUS_Mesh || us->kind == Box3DUS_HeightField )
+	if ( us->kind == Box3DUS_Compound )
+	{
+		int ci = us->compound.firstChild;
+		while ( ci != -1 )
+		{
+			DebugShape* child = &s_adapter.pool[ci];
+			const int next = child->nextChild;
+			if ( child->kind == Box3DUS_Hull || child->kind == Box3DUS_Mesh || child->kind == Box3DUS_HeightField )
+			{
+				ReleaseMeshReference( child->geom.handle );
+			}
+			FreeDebugShape( ci );
+			ci = next;
+		}
+	}
+	else if ( us->kind == Box3DUS_Hull || us->kind == Box3DUS_Mesh || us->kind == Box3DUS_HeightField )
 	{
 		ReleaseMeshReference( us->geom.handle );
 	}
@@ -514,6 +652,43 @@ static void DestroyDebugShape( void* userShape, void* context )
 
 // Alpha applied to non-static shapes when box3dAdapterSetTransparentDynamic is on.
 #define BOX3D_TRANSPARENT_DYNAMIC_ALPHA 0.5f
+
+// Emit one resolved primitive at baseTransform. The per-kind offset (sphere
+// center, capsule frame) layers on top of baseTransform, so the same path
+// serves a top-level shape (base = body transform) and a compound child
+// (base = body transform composed with the child transform).
+static void AppendResolvedShape( const DebugShape* us, b3Transform baseTransform, Vec4 c, float metallic, float roughness,
+								 TransparentShadowCast shadowCast, HighlightKind hk )
+{
+	if ( us->kind == Box3DUS_Sphere )
+	{
+		b3Transform transform = { b3TransformPoint( baseTransform, us->sphere.center ), baseTransform.q };
+		AppendSphere( transform, us->sphere.radius, c, metallic, roughness, shadowCast );
+		if ( hk != HIGHLIGHT_KIND_NONE )
+		{
+			AppendHighlightSphere( transform, us->sphere.radius, hk );
+		}
+	}
+	else if ( us->kind == Box3DUS_Capsule )
+	{
+		b3Transform transform = b3MulTransforms( baseTransform, us->capsule.localFrame );
+		AppendCapsule( transform, us->capsule.halfLength, us->capsule.radius, c, metallic, roughness, shadowCast );
+		if ( hk != HIGHLIGHT_KIND_NONE )
+		{
+			AppendHighlightCapsule( transform, us->capsule.halfLength, us->capsule.radius, hk );
+		}
+	}
+	else if ( us->kind == Box3DUS_Hull || us->kind == Box3DUS_Mesh || us->kind == Box3DUS_HeightField )
+	{
+		MeshMaterialMode mode = us->isGround ? MESH_MATERIAL_MODE_GROUND_GRID : MESH_MATERIAL_MODE_SOLID;
+		float cell = us->isGround ? BOX3D_GROUND_GRID_CELL_SIZE : 0.0f;
+		AppendMesh( us->geom.handle, baseTransform, us->geom.scale, c, metallic, roughness, mode, cell, shadowCast );
+		if ( hk != HIGHLIGHT_KIND_NONE && us->kind == Box3DUS_Hull )
+		{
+			AppendHighlightHull( us->geom.handle, baseTransform, us->geom.scale, hk );
+		}
+	}
+}
 
 static bool DrawShape( void* userShape, b3Transform shapeTransform, b3HexColor color, void* context )
 {
@@ -551,39 +726,21 @@ static bool DrawShape( void* userShape, b3Transform shapeTransform, b3HexColor c
 
 	TransparentShadowCast shadowCast = TRANSPARENT_SHADOW_FULL;
 
-	// Resolve hover/select state once so the matching shape kinds
-	// can fork into the highlight mask alongside the regular append.
-	// Body-keyed: every supported shape on a hovered/selected body
-	// outlines together. Mesh / heightfield shapes are excluded.
+	// Resolve hover/select state once. Body-keyed, so every supported shape on
+	// a hovered/selected body outlines together, compound children included.
 	HighlightKind hk = ResolveHighlightKind( us->bodyId );
 
-	if ( us->kind == Box3DUS_Sphere )
+	if ( us->kind == Box3DUS_Compound )
 	{
-		b3Transform transform = { b3TransformPoint( shapeTransform, us->sphere.center ), shapeTransform.q };
-		AppendSphere( transform, us->sphere.radius, c, metallic, roughness, shadowCast );
-		if ( hk != HIGHLIGHT_KIND_NONE )
+		for ( int ci = us->compound.firstChild; ci != -1; ci = s_adapter.pool[ci].nextChild )
 		{
-			AppendHighlightSphere( transform, us->sphere.radius, hk );
+			b3Transform base = b3MulTransforms( shapeTransform, s_adapter.pool[ci].childTransform );
+			AppendResolvedShape( &s_adapter.pool[ci], base, c, metallic, roughness, shadowCast, hk );
 		}
 	}
-	else if ( us->kind == Box3DUS_Capsule )
+	else
 	{
-		b3Transform transform = b3MulTransforms( shapeTransform, us->capsule.localFrame );
-		AppendCapsule( transform, us->capsule.halfLength, us->capsule.radius, c, metallic, roughness, shadowCast );
-		if ( hk != HIGHLIGHT_KIND_NONE )
-		{
-			AppendHighlightCapsule( transform, us->capsule.halfLength, us->capsule.radius, hk );
-		}
-	}
-	else if ( us->kind == Box3DUS_Hull || us->kind == Box3DUS_Mesh || us->kind == Box3DUS_HeightField )
-	{
-		MeshMaterialMode mode = us->isGround ? MESH_MATERIAL_MODE_GROUND_GRID : MESH_MATERIAL_MODE_SOLID;
-		float cell = us->isGround ? BOX3D_GROUND_GRID_CELL_SIZE : 0.0f;
-		AppendMesh( us->geom.handle, shapeTransform, us->geom.scale, c, metallic, roughness, mode, cell, shadowCast );
-		if ( hk != HIGHLIGHT_KIND_NONE && us->kind == Box3DUS_Hull )
-		{
-			AppendHighlightHull( us->geom.handle, shapeTransform, us->geom.scale, hk );
-		}
+		AppendResolvedShape( us, shapeTransform, c, metallic, roughness, shadowCast, hk );
 	}
 
 	return true;
