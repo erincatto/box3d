@@ -485,8 +485,8 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
+		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
+		DrawAxes( transform, 1.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -626,7 +626,7 @@ public:
 						{
 							b3Transform transform = b3Transform_identity;
 							transform.p = rayOrigin + result.fraction * rayTranslation;
-							DrawSolidSphere( transform, sphere, MakeColor( b3_colorPurple ) );
+							DrawSolidSphere( transform, sphere, MakeColorAlpha( b3_colorPurple, 0.5f ) );
 						}
 
 						b3Vec3 rayEnd = rayOrigin + result.fraction * rayTranslation;

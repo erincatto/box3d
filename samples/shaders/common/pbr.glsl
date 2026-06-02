@@ -224,5 +224,15 @@ vec3 proceduralGrid(vec2 world_xz, vec3 base_color, float cell_size)
 	
 	vec3 result = mix(base_color, minor_color, line_minor);
 	result = mix(result, major_color, line_major);
+
+	// Colored axes: red along +X, blue along +Z. Pixel-wide like the grid
+	// lines, gated to the positive half so the origin reads as a corner.
+	// Saturated primaries are identical in linear and sRGB, so they need no
+	// encoding fixup before the BRDF.
+	vec2 d_axis = max(fwidth(world_xz), vec2(1.0e-6));
+	float axis_x = (1.0 - clamp(abs(world_xz.y) / d_axis.y, 0.0, 1.0)) * step(0.0, world_xz.x);
+	float axis_z = (1.0 - clamp(abs(world_xz.x) / d_axis.x, 0.0, 1.0)) * step(0.0, world_xz.y);
+	result = mix(result, vec3(1.0, 0.0, 0.0), axis_x);
+	result = mix(result, vec3(0.0, 0.0, 1.0), axis_z);
 	return result;
 }

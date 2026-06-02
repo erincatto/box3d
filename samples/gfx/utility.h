@@ -216,3 +216,13 @@ static inline Vec4 MakeColor( b3HexColor hexColor )
 	float b = (float)( v & 0xFFu ) * k;
 	return MakeVec4( SrgbToLinear( r ), SrgbToLinear( g ), SrgbToLinear( b ), 1.0f );
 }
+
+static inline Vec4 MakeColorAlpha( b3HexColor hexColor, float alpha )
+{
+	uint32_t v = (uint32_t)hexColor;
+	float k = 1.0f / 255.0f;
+	float r = (float)( ( v >> 16 ) & 0xFFu ) * k;
+	float g = (float)( ( v >> 8 ) & 0xFFu ) * k;
+	float b = (float)( v & 0xFFu ) * k;
+	return MakeVec4( SrgbToLinear( r ), SrgbToLinear( g ), SrgbToLinear( b ), alpha );
+}

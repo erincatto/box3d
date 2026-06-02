@@ -13,7 +13,7 @@
 #define DEFAULT_ROUGHNESS 0.5f
 
 // Thickness/size defaults for the short-form overlay calls
-#define DEFAULT_LINE_THICKNESS_PX 1.5f
+#define DEFAULT_LINE_THICKNESS_PX 2.5f
 #define DEFAULT_POINT_SIZE_PX 4.0f
 
 // Arrow head length as a fraction of the shaft length
