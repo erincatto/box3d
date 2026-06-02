@@ -811,14 +811,8 @@ public:
 		m_shapeId = b3CreateSphereShape( m_bodyId, &shapeDef, &sphere );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 120.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_context->camera.m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 120.0f, height ) );
-
-		ImGui::Begin( "Sensor Hit", nullptr, ImGuiWindowFlags_NoResize );
-
 		ImGui::Checkbox( "Bullet", &m_isBullet );
 
 		if ( ImGui::Button( "Launch" ) || IsKeyDown( KEY_B ) )
@@ -826,7 +820,7 @@ public:
 			Launch();
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void CollectTransforms( b3ShapeId sensorShapeId )

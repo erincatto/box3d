@@ -108,14 +108,9 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
 		float fontSize = ImGui::GetFontSize();
-		float height = 20.0f * fontSize;
-		ImGui::SetNextWindowPos( { 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 18.0f * fontSize, height } );
-
-		ImGui::Begin( "Distance Joint", nullptr, ImGuiWindowFlags_NoResize );
 		ImGui::PushItemWidth( 10.0f * fontSize );
 
 		if ( ImGui::SliderFloat( "Length", &m_length, 0.1f, 4.0f, "%3.1f" ) )
@@ -212,7 +207,7 @@ public:
 		}
 
 		ImGui::PopItemWidth();
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -395,15 +390,8 @@ public:
 		m_time = 0.0f;
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 180.0f;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 240.0f, height ) );
-
-		ImGui::Begin( "Motor Joint", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::SliderFloat( "Speed", &m_speed, -5.0f, 5.0f, "%.0f" ) )
 		{
 		}
@@ -423,7 +411,7 @@ public:
 			b3Body_ApplyLinearImpulseToCenter( m_bodyId, { 100000.0f, 0.0f }, true );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Step() override
@@ -559,15 +547,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 180.0f;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 240.0f, height ) );
-
-		ImGui::Begin( "Top Down Friction", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::Button( "Explode" ) )
 		{
 			b3Sphere sphere = { { 0.0f, 10.0f, 0.0 }, 10.0f };
@@ -581,7 +562,7 @@ public:
 			DrawSolidSphere( b3Transform_identity, sphere, MakeColor( b3_colorWhite ) );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -657,14 +638,8 @@ public:
 		m_jointId = b3CreatePrismaticJoint( m_worldId, &jointDef );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 320.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 300.0f, height ) );
-
-		ImGui::Begin( "Prismatic Joint", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::Checkbox( "Limit", &m_enableLimit ) )
 		{
 			b3PrismaticJoint_EnableLimit( m_jointId, m_enableLimit );
@@ -736,7 +711,7 @@ public:
 			}
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -820,14 +795,8 @@ public:
 		m_jointId = b3CreateSphericalJoint( m_worldId, &jointDef );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 360.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 300.0f, height ) );
-
-		ImGui::Begin( "Spherical Joint", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::Checkbox( "Cone Limit", &m_enableConeLimit ) )
 		{
 			b3SphericalJoint_EnableConeLimit( m_jointId, m_enableConeLimit );
@@ -920,7 +889,7 @@ public:
 			}
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -1046,15 +1015,8 @@ public:
 		m_jointId = b3CreateParallelJoint( m_worldId, &jointDef );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 20.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 20.0f * fontSize, height } );
-
-		ImGui::Begin( "Parallel Joint", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::SliderFloat( "Hertz", &m_hertz, 0.0f, 5.0f, "%.1f" ) )
 		{
 			b3ParallelJoint_SetSpringHertz( m_jointId, m_hertz );
@@ -1067,7 +1029,7 @@ public:
 			b3Joint_WakeBodies( m_jointId );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -1147,14 +1109,8 @@ public:
 		m_jointId = b3CreateRevoluteJoint( m_worldId, &jointDef );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 320.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 300.0f, height ) );
-
-		ImGui::Begin( "Revolute Joint", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::Checkbox( "Limit", &m_enableLimit ) )
 		{
 			b3RevoluteJoint_EnableLimit( m_jointId, m_enableLimit );
@@ -1226,7 +1182,7 @@ public:
 			}
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -1316,15 +1272,9 @@ public:
 		m_jointId = b3CreateWeldJoint( m_worldId, &jointDef );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 150.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 350.0f, height ) );
-
-		ImGui::Begin( "Weld Joint", nullptr, ImGuiWindowFlags_NoResize );
-
-		ImGui::PushItemWidth( 200.0f );
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
 		if ( ImGui::SliderFloat( "Linear Hertz", &m_linearHertz, 0.0f, 10.0f, "%.1f" ) )
 		{
@@ -1352,7 +1302,7 @@ public:
 
 		ImGui::PopItemWidth();
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -1460,15 +1410,8 @@ public:
 		m_jointId = b3CreateWheelJoint( m_worldId, &jointDef );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 30.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 25.0f * fontSize, height } );
-
-		ImGui::Begin( "Wheel Joint", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::Checkbox( "Suspension Limit", &m_enableSuspensionLimit ) )
 		{
 			b3WheelJoint_EnableSuspensionLimit( m_jointId, m_enableSuspensionLimit );
@@ -1584,7 +1527,7 @@ public:
 			}
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -1838,15 +1781,9 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 220.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 350.0f, height ) );
-
-		ImGui::Begin( "Door", nullptr, ImGuiWindowFlags_NoResize );
-
-		ImGui::PushItemWidth( 200.0f );
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
 		if ( ImGui::Button( "impulse" ) )
 		{
@@ -1895,7 +1832,7 @@ public:
 
 		ImGui::PopItemWidth();
 
-		ImGui::End();
+		return true;
 	}
 
 	void Step() override
@@ -2032,16 +1969,9 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 80.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_context->camera.m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 240.0f, height ) );
-
-		ImGui::Begin( "Bridge", nullptr, ImGuiWindowFlags_NoResize );
-
-		// Slider takes half the window
-		ImGui::PushItemWidth( ImGui::GetWindowWidth() * 0.5f );
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
 		if ( ImGui::SliderFloat( "Gravity scale", &m_gravityScale, -1.0f, 1.0f, "%.1f" ) )
 		{
@@ -2051,7 +1981,8 @@ public:
 			}
 		}
 
-		ImGui::End();
+		ImGui::PopItemWidth();
+		return true;
 	}
 
 	void Render() override
@@ -2279,15 +2210,8 @@ public:
 #endif
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 13.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 10.0f * fontSize, height ) );
-
-		ImGui::Begin( "Motion Locks", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::Checkbox( "Lock Linear X", &m_motionLocks.linearX ) )
 		{
 			for ( int i = 0; i < m_count; ++i )
@@ -2342,12 +2266,12 @@ public:
 			}
 		}
 
-		ImGui::End();
-
 		if ( IsKeyDown( KEY_L ) )
 		{
 			b3Body_ApplyLinearImpulseToCenter( m_bodyIds[0], { 100.0f, 0.0f }, true );
 		}
+
+		return true;
 	}
 
 	void Render() override
@@ -2580,15 +2504,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 22.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 25.0f * fontSize, height } );
-
-		ImGui::Begin( "Driving", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::SliderFloat( "Lower Translation", &m_lowerTranslation, -10.0f, 10.0f, "%.1f" ) )
 		{
 			m_lowerTranslation = b3MinFloat( m_lowerTranslation, m_upperTranslation );
@@ -2666,7 +2583,7 @@ public:
 			ToggleThirdPerson();
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override

@@ -69,14 +69,14 @@ public:
 		m_box = b3MakeScaledBoxHull( h, transform, postScale );
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float height = 180.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 350.0f, height ) );
-		ImGui::Begin( "Box Hull", nullptr, 0 );
+		return false;
+	}
 
-		ImGui::PushItemWidth( 320.0f );
+	bool DrawControls() override
+	{
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
 		if ( ImGui::SliderFloat3( "h", &m_halfWidths.x, 0.1f, 2.0f, "%.1f" ) )
 		{
@@ -106,7 +106,7 @@ public:
 			CreateHulls( m_halfWidths, m_transform, m_postScale );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -301,15 +301,13 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 12.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 16.0f * fontSize, height } );
+		return false;
+	}
 
-		ImGui::Begin( "Hull Reduction", nullptr, ImGuiWindowFlags_NoResize );
-
+	bool DrawControls() override
+	{
 		if ( ImGui::RadioButton( "Box", m_type == e_box ) )
 		{
 			m_type = e_box;
@@ -329,7 +327,7 @@ public:
 			GenerateHull();
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -418,15 +416,13 @@ public:
 		Sample::Render();
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 18.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 18.0f * fontSize, height } );
+		return false;
+	}
 
-		ImGui::Begin( "Hull Scale", nullptr, ImGuiWindowFlags_NoResize );
-
+	bool DrawControls() override
+	{
 		if ( ImGui::SliderFloat( "sx", &m_scale.x, -2.0f, 2.0f, "%.1f" ) )
 		{
 			UpdateHull();
@@ -472,7 +468,7 @@ public:
 			UpdateHull();
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* sampleContext )
@@ -618,19 +614,19 @@ public:
 		Sample::Render();
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float height = 180.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 350.0f, height ) );
-		ImGui::Begin( "Mass Data", nullptr, 0 );
+		return false;
+	}
 
+	bool DrawControls() override
+	{
 		if ( ImGui::SliderInt( "sides", &m_sides, 3, m_maxSides ) )
 		{
 			CreateCapsuleHull( m_sides );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* sampleContext )

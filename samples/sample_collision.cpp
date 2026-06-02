@@ -519,14 +519,13 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float height = 360.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 210.0f, height ) );
+		return false;
+	}
 
-		ImGui::Begin( "Options", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
+	bool DrawControls() override
+	{
 		const char* castTypes[] = { "Ray", "Sphere", "Capsule", "Box" };
 		if ( ImGui::Combo( "Cast Type", &m_castType, castTypes, IM_ARRAYSIZE( castTypes ) ) )
 		{
@@ -574,8 +573,15 @@ public:
 			DestroyBody();
 		}
 
-		ImGui::End();
+		return true;
+	}
 
+	void Render() override
+	{
+		DrawTextLine( "Ctrl + left mouse to cast through cursor" );
+		DrawTextLine( "Shapes drawn in yellow boxes are ignored by the ray" );
+
+		// Outline the bodies the cast ignores
 		for ( int i = 0; i < m_maxCount; ++i )
 		{
 			if ( ( i & m_ignoreBase ) == m_ignoreBase && B3_IS_NULL( m_bodies[i] ) == false )
@@ -584,12 +590,6 @@ public:
 				DrawBounds( bounds, 0.0f, MakeColor( b3_colorYellow ) );
 			}
 		}
-	}
-
-	void Render() override
-	{
-		DrawTextLine( "Ctrl + left mouse to cast through cursor" );
-		DrawTextLine( "Shapes drawn in yellow boxes are ignored by the ray" );
 
 		switch ( m_mode )
 		{
@@ -813,14 +813,13 @@ public:
 		b3DestroyMesh( m_mesh );
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float height = 200.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 200.0f, height ) );
+		return false;
+	}
 
-		ImGui::Begin( "Mesh Scale", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
+	bool DrawControls() override
+	{
 		b3Vec3 scale = m_scale;
 		bool changed = false;
 		changed = changed || ImGui::SliderFloat( "Scale X", &scale.x, -2.0f, 2.0f, "%.1f" );
@@ -838,7 +837,7 @@ public:
 
 		ImGui::Checkbox( "sphere Cast", &m_sphereCast );
 
-		ImGui::End();
+		return true;
 	}
 
 	void Step() override
@@ -1066,14 +1065,15 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float height = 80.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 210.0f, height ) );
-		ImGui::Begin( "Shape Cast", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
+		return false;
+	}
+
+	bool DrawControls() override
+	{
 		ImGui::Checkbox( "Initial Overlap", &m_initialOverlap );
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -1385,14 +1385,15 @@ public:
 		DrawAxes( b3Transform_identity, 1.0f );
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float height = 80.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 200.0f, height ) );
-		ImGui::Begin( "Initial Overlap", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
+		return false;
+	}
+
+	bool DrawControls() override
+	{
 		ImGui::Checkbox( "initial overlap", &m_initialOverlap );
-		ImGui::End();
+		return true;
 	}
 
 	void Step() override
@@ -1621,17 +1622,16 @@ public:
 		DrawAxes( b3Transform_identity, 1.0f );
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float height = 80.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 240.0f, height ) );
+		return false;
+	}
 
-		ImGui::Begin( "Distance Debug", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
+	bool DrawControls() override
+	{
 		ImGui::SliderInt( "simplex index", &m_simplexIndex, 0, m_simplexCount - 1 );
 
-		ImGui::End();
+		return true;
 	}
 
 	static void BuildWitnessPoints( const b3Simplex* simplex, b3Vec3& vertexA, b3Vec3& vertexB )
@@ -1966,15 +1966,13 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 16.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 19.0f * fontSize, height ) );
+		return false;
+	}
 
-		ImGui::Begin( "Shape Distance", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
+	bool DrawControls() override
+	{
 		const char* shapeTypes[] = { "point", "segment", "triangle", "box" };
 		int shapeType = int( m_typeA );
 		if ( ImGui::Combo( "shape A", &shapeType, shapeTypes, IM_ARRAYSIZE( shapeTypes ) ) )
@@ -2018,7 +2016,7 @@ public:
 			m_simplexIndex = b3ClampInt( m_simplexIndex, 0, m_simplexCount - 1 );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void MouseDown( b3Vec2 ps, int button, int mods ) override
@@ -2378,15 +2376,13 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 16.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 19.0f * fontSize, height ) );
+		return false;
+	}
 
-		ImGui::Begin( "Time of Impact", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
+	bool DrawControls() override
+	{
 		const char* shapeTypes[] = { "point", "segment", "triangle", "box" };
 		int shapeType = int( m_typeA );
 		if ( ImGui::Combo( "shape A", &shapeType, shapeTypes, IM_ARRAYSIZE( shapeTypes ) ) )
@@ -2402,9 +2398,7 @@ public:
 			m_proxyB = MakeProxy( m_typeB );
 		}
 
-		ImGui::Separator();
-
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override

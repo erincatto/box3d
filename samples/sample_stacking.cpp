@@ -549,15 +549,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 6.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 8.0f * fontSize, height ) );
-
-		ImGui::Begin( "Jenga Stack", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		b3Capacity capacity = {};
 
 		if ( ImGui::RadioButton( "Capsule", m_shapeType == b3_capsuleShape ) )
@@ -574,9 +567,7 @@ public:
 			CreateStack();
 		}
 
-		ImGui::End();
-
-		Sample::UpdateUI();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* context )

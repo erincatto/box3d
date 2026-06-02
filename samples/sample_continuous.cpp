@@ -25,13 +25,10 @@ public:
 			m_camera->SetView( 45.0f, 30.0f, 30.0f, b3Vec3_zero );
 		}
 
+		AddGroundBox( 40.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-		b3BoxHull groundBox = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-		b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
 
 		bodyDef.position = { 0.0f, 10.0f, 0.0f };
 		bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 90.0f * B3_DEG_TO_RAD );
@@ -157,20 +154,17 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 25.0f, 50.0f, { 0.0f, 2.0f, 0.0f } );
+			m_camera->SetView( 45.0f, 25.0f, 220.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
+		AddGroundBox( 10.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-		bodyDef.position = { 0.0f, -0.1f, 0.0f };
-		b3BodyId groundBodyId = b3CreateBody( m_worldId, &bodyDef );
-		b3BoxHull groundBox = b3MakeBoxHull( 10.0f, 0.1f, 10.0f );
-		b3CreateHullShape( groundBodyId, &shapeDef, &groundBox.base );
-
 		bodyDef.position = { 0.0f, 0.5f, 0.0f };
 		b3BodyId wallBodyId = b3CreateBody( m_worldId, &bodyDef );
+
 		b3BoxHull wallBox = b3MakeBoxHull( 0.125f, 0.5f, 10.0f );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		b3CreateHullShape( wallBodyId, &shapeDef, &wallBox.base );
 
 		bodyDef.type = b3_dynamicBody;
@@ -271,15 +265,9 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 80.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 150.0f, height ) );
-
-		ImGui::Begin( "Bullet vs Stack", nullptr, ImGuiWindowFlags_NoResize );
-
-		ImGui::PushItemWidth( 200.0f );
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
 		if ( ImGui::Button( "Launch" ) )
 		{
@@ -288,7 +276,7 @@ public:
 
 		ImGui::PopItemWidth();
 
-		ImGui::End();
+		return true;
 	}
 
 	b3BodyId m_bulletId;
@@ -630,17 +618,8 @@ public:
 		assert( bodyIndex == m_bodyCount );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		Sample::UpdateUI();
-
-		float fontSize = ImGui::GetFontSize();
-		float height = 9.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 19.0f * fontSize, height ) );
-
-		ImGui::Begin( "Mesh Drop", nullptr, ImGuiWindowFlags_NoResize );
-
 		const char* shapeTypes[] = { "box", "capsule", "cylinder", "sphere" };
 		int shapeType = (int)m_shapeType;
 		if ( ImGui::Combo( "Type", &shapeType, shapeTypes, IM_ARRAYSIZE( shapeTypes ) ) )
@@ -667,7 +646,7 @@ public:
 			m_stepCount = 0;
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Step() override

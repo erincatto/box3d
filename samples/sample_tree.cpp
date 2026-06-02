@@ -615,7 +615,12 @@ public:
 		m_closestTime = b3GetMilliseconds( ticks );
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
+	{
+		return false;
+	}
+
+	bool DrawControls() override
 	{
 		DrawTextLine( "leaves = %d, height = %d, area = %g", m_tree.proxyCount, m_height, m_areaRatio );
 		DrawTextLine( "build time = %g ms", m_buildTime );
@@ -623,13 +628,6 @@ public:
 
 		float s = 1000.0f / m_testCount;
 		DrawTextLine( "ave: ray = %g us, overlap = %g us, closest = %g us", s * m_rayTime, s * m_overlapTime, s * m_closestTime );
-
-		float fontSize = ImGui::GetFontSize();
-		float height = 23.0f * fontSize;
-		ImGui::SetNextWindowPos( { 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 18.0f * fontSize, height } );
-
-		ImGui::Begin( "Tree", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
 
 		if ( ImGui::Combo( "File", &m_fileIndex, m_fileNames, m_fileCount ) )
 		{
@@ -672,7 +670,7 @@ public:
 
 		ImGui::SliderFloat( "Load Scale", &m_loadScale, 0.01f, 1.0f );
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override

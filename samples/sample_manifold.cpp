@@ -91,13 +91,13 @@ public:
 		Sample::Render();
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 12.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 10.0f * fontSize, height ) );
-		ImGui::Begin( "Manifold", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
+		return false;
+	}
+
+	bool DrawControls() override
+	{
 		ImGui::Checkbox( "Use cache", &m_useCache );
 		if ( m_useCache )
 		{
@@ -107,7 +107,7 @@ public:
 			ImGui::RadioButton( "edgePair", &m_manualFeature, 3 );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override
@@ -267,14 +267,13 @@ public:
 		Sample::Render();
 	}
 
-	void UpdateUI() override
+	bool HasSolverControls() const override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 12.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 10.0f * fontSize, height ) );
+		return false;
+	}
 
-		ImGui::Begin( "Triangle Manifold", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
+	bool DrawControls() override
+	{
 		ImGui::Checkbox( "Use cache", &m_useCache );
 		if ( m_useCache )
 		{
@@ -284,7 +283,7 @@ public:
 			ImGui::RadioButton( "edgePair", &m_manualFeature, 3 );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override

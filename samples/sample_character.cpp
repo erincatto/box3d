@@ -63,18 +63,14 @@ public:
 		DrawLine( b3Vec3_zero, 2.0f * b3Vec3_axisZ, MakeColor( b3_colorBlue ) );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, 600.0f ) );
-		ImGui::SetNextWindowSize( ImVec2( 240.0f, 80.0f ) );
-		ImGui::Begin( "Capsule Plane", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::Button( "Solve" ) )
 		{
 			Solve();
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	static bool PlaneResultFcn( b3ShapeId shape, const b3PlaneResult* results, int planeCount, void* context )
@@ -294,15 +290,11 @@ public:
 		DrawTextLine( "planes: %d   degenerate normals: %d", m_planeCount, m_zeroNormalCount );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, 600.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 18.0f * fontSize, 5.0f * fontSize ) );
-		ImGui::Begin( "Mover Overlap", nullptr, ImGuiWindowFlags_NoResize );
 		ImGui::Text( "planes: %d", m_planeCount );
 		ImGui::Text( "degenerate normals: %d", m_zeroNormalCount );
-		ImGui::End();
+		return true;
 	}
 
 	static constexpr int m_planeCapacity = 32;
@@ -550,15 +542,8 @@ public:
 		DrawAxes( { { 0.0f, 0.0f, 0.02f }, b3Quat_identity }, 2.0f );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 9.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 19.0f * fontSize, height ) );
-
-		ImGui::Begin( "Mover", nullptr, ImGuiWindowFlags_NoResize );
-
 		bool thirdPerson = m_camera->m_thirdPerson;
 		if ( ImGui::Checkbox( "Third Person (Key: T)", &thirdPerson ) )
 		{
@@ -567,7 +552,7 @@ public:
 
 		ImGui::Checkbox( "Clip Velocity", &m_clipVelocity );
 
-		ImGui::End();
+		return true;
 	}
 
 	void Keyboard( int key, int action, int mods ) override
@@ -1651,15 +1636,8 @@ public:
 		DrawAxes( { { 0.0f, 0.0f, 0.02f }, b3Quat_identity }, 2.0f );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 12.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 22.0f * fontSize, height ) );
-
-		ImGui::Begin( "Rigidbody Character", nullptr, ImGuiWindowFlags_NoResize );
-
 		bool thirdPerson = m_camera->m_thirdPerson;
 		if ( ImGui::Checkbox( "Third Person (Key: T)", &thirdPerson ) )
 		{
@@ -1680,7 +1658,7 @@ public:
 		b3Vec3 pos = b3Body_GetPosition( m_character.m_bodyId );
 		ImGui::Text( "Mass center offset: %.2f", mc.y - pos.y );
 
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* context )

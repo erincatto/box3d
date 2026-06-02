@@ -90,14 +90,8 @@ public:
 		b3DestroyMesh( m_gridMesh );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 320.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 300.0f, height ) );
-
-		ImGui::Begin( "Crash", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::Button( "Add Joint" ) )
 		{
 			b3WeldJointDef jointDef = b3DefaultWeldJointDef();
@@ -106,7 +100,7 @@ public:
 			b3CreateWeldJoint( m_worldId, &jointDef );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* context )

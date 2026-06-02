@@ -88,7 +88,18 @@ public:
 
 	virtual void Render();
 
-	virtual void UpdateUI();
+	// Draw sample controls into the shared info panel. Return true if any widget
+	// was drawn so the panel can add a separator.
+	virtual bool DrawControls()
+	{
+		return false;
+	}
+
+	// Let a debug sample hide the Solver section.
+	virtual bool HasSolverControls() const
+	{
+		return true;
+	}
 
 	// Bottom diagnostics drawer (Profile / Counters / Renderer / Frame Time).
 	void DrawMetrics();
@@ -176,7 +187,7 @@ public:
 	void CreateSample();
 
 	// The single host UI callback: menu bar, sample picker, info panel, and
-	// the active sample's own panel plus the bottom diagnostics drawer.
+	// the bottom diagnostics drawer.
 	void UpdateUI();
 	void DrawMenuBar();
 	void DrawSamplePicker();

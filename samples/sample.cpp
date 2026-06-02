@@ -365,10 +365,6 @@ b3BodyId Sample::AddGroundBox( float extent )
 	return groundId;
 }
 
-void Sample::UpdateUI()
-{
-}
-
 // Bottom diagnostics drawer (M). Tabs: Profile, Counters, Renderer, and the
 // optional ImPlot frame-time chart. Anchored along the window bottom, clear
 // of the right info panel.
@@ -1782,7 +1778,12 @@ void SampleManager::DrawInfoPanel()
 
 	ImGui::Separator();
 
-	if ( ImGui::CollapsingHeader( "Solver", ImGuiTreeNodeFlags_DefaultOpen ) )
+	if ( m_sample->DrawControls() )
+	{
+		ImGui::Separator();
+	}
+
+	if ( m_sample->HasSolverControls() && ImGui::CollapsingHeader( "Solver", ImGuiTreeNodeFlags_DefaultOpen ) )
 	{
 		ImGui::PushItemWidth( 6.0f * fontSize );
 		ImGui::SliderInt( "Sub-steps", &m_context.subStepCount, 1, 50 );
@@ -1836,8 +1837,7 @@ void SampleManager::UpdateUI()
 	DrawSamplePicker();
 	DrawInfoPanel();
 
-	// The active sample's own controls window, then the diagnostics drawer.
-	m_sample->UpdateUI();
+	// Bottom diagnostics drawer. Sample controls now live in the info panel.
 	m_sample->DrawMetrics();
 }
 

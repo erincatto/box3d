@@ -312,14 +312,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 100.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 240.0f, height ) );
-
-		ImGui::Begin( "Restitution", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::RadioButton( "Sphere", m_shapeType == e_sphereShape ) )
 		{
 			m_shapeType = e_sphereShape;
@@ -332,7 +326,7 @@ public:
 			CreateBodies();
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -396,14 +390,8 @@ public:
 		b3CreateSphereShape( m_bodyId, &shapeDef, &sphere );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 150.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 240.0f, height ) );
-
-		ImGui::Begin( "Restitution", nullptr, ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::RadioButton( "Invoke", m_invoke == true ) )
 		{
 			m_invoke = true;
@@ -430,7 +418,7 @@ public:
 			}
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -797,14 +785,9 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
 		float fontSize = ImGui::GetFontSize();
-		float height = 15.0f * fontSize;
-		ImGui::SetNextWindowPos( { 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 24.0f * fontSize, height } );
-
-		ImGui::Begin( "Wind", nullptr, ImGuiWindowFlags_NoResize );
 		ImGui::PushItemWidth( 18.0f * fontSize );
 
 		const char* shapeTypes[] = { "Circle", "Capsule", "Box" };
@@ -824,7 +807,7 @@ public:
 		}
 
 		ImGui::PopItemWidth();
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override

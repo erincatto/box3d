@@ -470,17 +470,8 @@ public:
 		b3World_Explode( m_worldId, &def );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		Sample::UpdateUI();
-
-		float fontSize = ImGui::GetFontSize();
-		float height = 10.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 20.0f * fontSize, height } );
-
-		ImGui::Begin( "Explosion", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		ImGui::SliderFloat( "impulse", &m_impulse, 0.0f, 2000.0f, "%.0f" );
 
 		if ( ImGui::Button( "explode" ) )
@@ -488,7 +479,7 @@ public:
 			Explode();
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -563,16 +554,10 @@ public:
 		b3DestroyHeightField( m_heightField );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 4.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 20.0f * fontSize, height } );
-
-		ImGui::Begin( "Height Field", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
 		ImGui::SliderFloat( "radius", &m_radius, 0.0f, 1.0f, "%.1f" );
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -730,17 +715,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		Sample::UpdateUI();
-
-		float fontSize = ImGui::GetFontSize();
-		float height = 10.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 20.0f * fontSize, height } );
-
-		ImGui::Begin( "Falling Trees", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::RadioButton( "100cm", &m_gridSize, 100 ) )
 		{
 			Generate();
@@ -756,7 +732,7 @@ public:
 			Generate();
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* context )

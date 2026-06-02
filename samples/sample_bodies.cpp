@@ -176,14 +176,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 11.0f * fontSize;
-		ImGui::SetNextWindowPos( ImVec2( 0.5f * fontSize, m_camera->m_height - height - 2.0f * fontSize ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 9.0f * fontSize, height ) );
-		ImGui::Begin( "Body Type", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::RadioButton( "Static", m_type == b3_staticBody ) )
 		{
 			m_type = b3_staticBody;
@@ -236,7 +230,7 @@ public:
 			}
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Step() override
@@ -419,13 +413,8 @@ public:
 		m_explosionMagnitude = 10000.0f;
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 120.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 200.0f, height ) );
-
-		ImGui::Begin( "Weeble", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
 		if ( ImGui::Button( "Teleport" ) )
 		{
 			b3Body_SetTransform( m_weebleId, { 0.0f, 5.0f, 0.0f }, b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.95f * B3_PI ) );
@@ -441,12 +430,12 @@ public:
 			def.impulsePerArea = m_explosionMagnitude;
 			b3World_Explode( m_worldId, &def );
 		}
-		ImGui::PushItemWidth( 100.0f );
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
 		ImGui::SliderFloat( "Magnitude", &m_explosionMagnitude, -100000.0f, 100000.0f, "%.0f" );
 
 		ImGui::PopItemWidth();
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -539,14 +528,8 @@ public:
 		b3CreateSphereShape( m_ballId, &shapeDef, &sphere );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 100.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 200.0f, height ) );
-
-		ImGui::Begin( "Distance", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		{
 			bool enabled = b3Body_IsEnabled( m_bodyIds[2] );
 			if ( ImGui::Checkbox( "Enable Link", &enabled ) )
@@ -577,7 +560,7 @@ public:
 			}
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Step() override

@@ -37,14 +37,9 @@ public:
 		// Human_ApplyRandomAngularImpulse( &m_human, 10.0f );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 140.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 350.0f, height ) );
-
-		ImGui::Begin( "Ragdoll on Box", nullptr, ImGuiWindowFlags_NoResize );
-		ImGui::PushItemWidth( 200.0f );
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
 		if ( ImGui::SliderFloat( "Joint Friction", &m_jointFrictionTorque, 0.0f, 20.0f, "%3.0f" ) )
 		{
@@ -67,7 +62,7 @@ public:
 			Spawn();
 		}
 		ImGui::PopItemWidth();
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -166,14 +161,9 @@ public:
 		Human_CreateParallelAnchors( &m_human, m_worldId );
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 140.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 350.0f, height ) );
-
-		ImGui::Begin( "Ragdoll", nullptr, ImGuiWindowFlags_NoResize );
-		ImGui::PushItemWidth( 200.0f );
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
 		if ( ImGui::SliderFloat( "Joint Friction", &m_jointFrictionTorque, 0.0f, 20.0f, "%3.0f" ) )
 		{
@@ -196,7 +186,7 @@ public:
 			Spawn();
 		}
 		ImGui::PopItemWidth();
-		ImGui::End();
+		return true;
 	}
 
 	static Sample* Create( SampleContext* context )

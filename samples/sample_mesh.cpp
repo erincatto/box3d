@@ -125,13 +125,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 220.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 280.0f, height ) );
-		ImGui::Begin( "Mesh Grid", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::RadioButton( "Sphere", m_shapeType == ShapeType::sphere ) )
 		{
 			m_shapeType = ShapeType::sphere;
@@ -167,7 +162,7 @@ public:
 			b3Shape_SetMesh( m_gridShapeId, m_gridMesh, m_scale );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -306,13 +301,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 220.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 280.0f, height ) );
-		ImGui::Begin( "Mesh Grid", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::RadioButton( "Sphere", m_shapeType == ShapeType::sphere ) )
 		{
 			m_shapeType = ShapeType::sphere;
@@ -348,7 +338,7 @@ public:
 			b3Shape_SetMesh( m_gridShapeId, m_boxMesh, m_scale );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -487,13 +477,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float height = 220.0f;
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, m_camera->m_height - height - 50.0f ), ImGuiCond_Once );
-		ImGui::SetNextWindowSize( ImVec2( 280.0f, height ) );
-		ImGui::Begin( "Box Mesh", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::RadioButton( "Sphere", m_shapeType == ShapeType::sphere ) )
 		{
 			m_shapeType = ShapeType::sphere;
@@ -529,7 +514,7 @@ public:
 			b3Shape_SetMesh( m_boxShapeId, m_boxMesh, m_scale );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -682,12 +667,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		ImGui::SetNextWindowPos( ImVec2( 10.0f, 600.0f ) );
-		ImGui::SetNextWindowSize( ImVec2( 200.0f, 150.0f ) );
-		ImGui::Begin( "Mesh Reflection", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		bool changed = false;
 		b3Vec3 scale = m_scale;
 		if ( ImGui::RadioButton( "Neg X", scale.x < 0.0f ) )
@@ -739,7 +720,7 @@ public:
 			b3Shape_SetMesh( m_meshShapeId, m_buildingMesh, m_scale );
 		}
 
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -883,16 +864,9 @@ public:
 #endif
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 18.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 40.0f * fontSize, height } );
-
-		ImGui::Begin( "Height Field", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
-		ImGui::PushItemWidth( 500.0f );
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
 		if ( ImGui::SliderInt( "columns", &m_columnCount, 1, 500 ) )
 		{
@@ -925,7 +899,7 @@ public:
 		ImGui::SliderFloat( "radius", &m_radius, 0.0f, 1.0f );
 
 		ImGui::PopItemWidth();
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
@@ -1217,15 +1191,8 @@ public:
 		}
 	}
 
-	void UpdateUI() override
+	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		float height = 14.0f * fontSize;
-		ImGui::SetNextWindowPos( { 1.0f * fontSize, m_camera->m_height - height - 3.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 20.0f * fontSize, height } );
-
-		ImGui::Begin( "Mesh Viewer", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
-
 		if ( ImGui::SliderInt( "index", &m_meshIndex, 0, m_meshCount - 1 ) )
 		{
 			LoadMesh();
@@ -1259,7 +1226,7 @@ public:
 		}
 
 		ImGui::SliderInt( "draw level", &m_drawLevel, -1, m_height );
-		ImGui::End();
+		return true;
 	}
 
 	void Render() override
