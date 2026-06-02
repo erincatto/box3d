@@ -257,16 +257,9 @@ public:
 			
 		}
 
+		AddGroundBox( 40.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-		bodyDef.type = b3_staticBody;
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-
-		b3BoxHull groundBox = b3MakeBoxHull( 40.0f, 1.0f, 40.0f );
-		b3CreateHullShape( groundBody, &shapeDef, &groundBox.base );
-
 		b3Vec3 pivot = { 0.0f, 1.0f, 0.0f };
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = pivot;
@@ -275,6 +268,7 @@ public:
 
 		m_localPivot = b3Body_GetLocalPoint( m_bodyId, pivot );
 
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.enableHitEvents = true;
 		b3BoxHull dynamicBox = b3MakeTransformedBoxHull( 0.5f, 10.0f, 0.5f, { { 0.0f, 10.0f, 0.0f }, b3Quat_identity } );
 		b3CreateHullShape( m_bodyId, &shapeDef, &dynamicBox.base );
@@ -295,8 +289,6 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
 
 		b3Vec3 vp = b3Body_GetLocalPointVelocity( m_bodyId, m_localPivot );
 		b3Vec3 v = b3Body_GetLinearVelocity( m_bodyId );

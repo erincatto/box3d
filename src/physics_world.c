@@ -1131,59 +1131,77 @@ static bool DrawQueryCallback( int proxyId, uint64_t userData, void* context )
 
 		if ( shape->materials[0].customColor != 0 )
 		{
+			// May already carry a packed material preset, pass through unchanged
 			color = (b3HexColor)shape->materials[0].customColor;
-		}
-		else if ( body->type == b3_dynamicBody && body->mass == 0.0f )
-		{
-			// Bad body
-			color = b3_colorRed;
-		}
-		else if ( body->setIndex == b3_disabledSet )
-		{
-			color = b3_colorSlateGray;
-		}
-		else if ( shape->sensorIndex != B3_NULL_INDEX )
-		{
-			color = b3_colorWheat;
-		}
-		else if ( body->flags & b3_hadTimeOfImpact )
-		{
-			color = b3_colorLime;
-		}
-		else if ( ( bodySim->flags & b3_isBullet ) && body->setIndex == b3_awakeSet )
-		{
-			color = b3_colorTurquoise;
-		}
-		else if ( body->flags & b3_isSpeedCapped )
-		{
-			color = b3_colorYellow;
-		}
-		else if ( bodySim->flags & b3_isFast )
-		{
-			color = b3_colorSalmon;
-		}
-		else if ( body->type == b3_staticBody )
-		{
-			color = b3_colorLightGray;
-		}
-		else if ( body->type == b3_kinematicBody )
-		{
-			if ( body->setIndex == b3_awakeSet )
-			{
-				color = b3_colorRoyalBlue;
-			}
-			else
-			{
-				color = b3_colorDarkBlue;
-			}
-		}
-		else if ( body->setIndex == b3_awakeSet )
-		{
-			color = b3_colorPink;
 		}
 		else
 		{
-			color = b3_colorGray;
+			// Hue carries the state, material carries its energy. Calm matte for the
+			// resting masses, glossy for fast bodies, metallic for the driven kinematic.
+			// Diagnostic states keep a saturated hue and the default material so they pop.
+			b3HexColor rgb;
+			b3DebugMaterial material = b3_debugMaterialDefault;
+
+			if ( body->type == b3_dynamicBody && body->mass == 0.0f )
+			{
+				// Bad body
+				rgb = b3_colorRed;
+			}
+			else if ( body->setIndex == b3_disabledSet )
+			{
+				rgb = b3_colorSlateGray;
+			}
+			else if ( shape->sensorIndex != B3_NULL_INDEX )
+			{
+				rgb = b3_colorWheat;
+			}
+			else if ( body->flags & b3_hadTimeOfImpact )
+			{
+				rgb = b3_colorLime;
+			}
+			else if ( ( bodySim->flags & b3_isBullet ) && body->setIndex == b3_awakeSet )
+			{
+				rgb = b3_colorTurquoise;
+			}
+			else if ( body->flags & b3_isSpeedCapped )
+			{
+				rgb = b3_colorYellow;
+			}
+			else if ( bodySim->flags & b3_isFast )
+			{
+				rgb = b3_colorOrange;
+				material = b3_debugMaterialGlossy;
+			}
+			else if ( body->type == b3_staticBody )
+			{
+				rgb = b3_colorLightGray;
+				material = b3_debugMaterialMatte;
+			}
+			else if ( body->type == b3_kinematicBody )
+			{
+				if ( body->setIndex == b3_awakeSet )
+				{
+					rgb = b3_colorSteelBlue;
+					material = b3_debugMaterialMetallic;
+				}
+				else
+				{
+					rgb = b3_colorDarkBlue;
+					material = b3_debugMaterialMatte;
+				}
+			}
+			else if ( body->setIndex == b3_awakeSet )
+			{
+				rgb = b3_colorTan;
+				material = b3_debugMaterialSoft;
+			}
+			else
+			{
+				rgb = b3_colorLightSlateGray;
+				material = b3_debugMaterialDead;
+			}
+
+			color = (b3HexColor)b3MakeDebugColor( rgb, material );
 		}
 
 		if ( shape->userShape == NULL && world->createDebugShape != NULL )

@@ -9,6 +9,7 @@
 
 #include "benchmarks.h"
 #include "gfx/debug_adapter.h"
+#include "gfx/draw.h"
 #include "gfx/gtao.h"
 #include "gfx/keycodes.h"
 #include "gfx/renderer.h"
@@ -17,7 +18,6 @@
 #include "imgui.h"
 #include "implot.h"
 #include "jsmn.h"
-#include "gfx/draw.h"
 #include "sokol_app.h"
 #include "utils.h"
 
@@ -1052,6 +1052,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			b3Vec3 position = pickRay.origin + 2.0f * direction;
 			Human human = {};
 			CreateHuman( &human, m_worldId, position, 1.0f, 1.0f, 1.0f, 0, nullptr, true );
+			Human_SetBullet( &human, true );
 			Human_SetVelocity( &human, ( 5.0f * m_launchSpeedScale ) * direction );
 		}
 		else
@@ -1085,6 +1086,8 @@ void Sample::MouseUp( b3Vec2 p, int button )
 	m_mouseJointId = b3_nullJointId;
 	m_mouseBodyId = b3_nullBodyId;
 	m_mouseFraction = 0.0f;
+
+	ClearSelection();
 }
 
 void Sample::MouseMove( b3Vec2 p )
@@ -2056,7 +2059,6 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 	// throttle = { 0.0f, 0.0f, -1.0f };
 
 	SolveMove( timeStep, forward, right, throttle, clipVelocity );
-
 
 	int count = m_planeCount;
 	for ( int i = 0; i < count; ++i )

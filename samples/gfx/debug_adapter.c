@@ -123,6 +123,12 @@ static AdapterState s_adapter;
 static const float kBodyTypeMetallic[3] = { 0.0f, 0.0f, 0.0f };
 static const float kBodyTypeRoughness[3] = { 0.70f, 0.55f, 0.40f };
 
+// PBR presets packed into the debug color high byte. Indexed by b3DebugMaterial.
+// Default (0) is unused here, the caller falls back to the per-bodyType table.
+//                                                  default matte soft dead glossy metal
+static const float kDebugMaterialMetallic[6] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.85f };
+static const float kDebugMaterialRoughness[6] = { 0.50f, 0.85f, 0.65f, 0.95f, 0.30f, 0.35f };
+
 void InitAdapter( void )
 {
 	for ( int i = 0; i < BOX3D_USER_SHAPE_CAPACITY; ++i )
@@ -714,9 +720,21 @@ static bool DrawShape( void* userShape, b3Transform shapeTransform, b3HexColor c
 	else
 	{
 		c = HexColorToLinear( color );
-		int type = (int)us->bodyType;
-		metallic = ( type >= 0 && type < 3 ) ? kBodyTypeMetallic[type] : 0.0f;
-		roughness = ( type >= 0 && type < 3 ) ? kBodyTypeRoughness[type] : 0.5f;
+
+		// State-driven preset rides in the color high byte. Default falls back to
+		// the per-bodyType material.
+		b3DebugMaterial preset = (b3DebugMaterial)( ( (uint32_t)color >> 24 ) & 0xFFu );
+		if ( preset > b3_debugMaterialDefault && preset <= b3_debugMaterialMetallic )
+		{
+			metallic = kDebugMaterialMetallic[preset];
+			roughness = kDebugMaterialRoughness[preset];
+		}
+		else
+		{
+			int type = (int)us->bodyType;
+			metallic = ( type >= 0 && type < 3 ) ? kBodyTypeMetallic[type] : 0.0f;
+			roughness = ( type >= 0 && type < 3 ) ? kBodyTypeRoughness[type] : 0.5f;
+		}
 	}
 
 	if ( s_adapter.transparentDynamic && us->bodyType == b3_dynamicBody )

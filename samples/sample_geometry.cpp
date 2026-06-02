@@ -578,7 +578,7 @@ public:
 
 	void Render() override
 	{
-		DrawSolidCapsule( b3Transform_identity, m_capsule, MakeColor( b3_colorAqua ) );
+		DrawSolidCapsule( b3Transform_identity, m_capsule, MakeColorAlpha( b3_colorAqua, 0.8f ) );
 		DrawHull( b3Transform_identity, &m_box.base, MakeColor( b3_colorBlueViolet ) );
 
 		if ( m_hull != nullptr )

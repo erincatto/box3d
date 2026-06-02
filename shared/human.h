@@ -73,6 +73,8 @@ void Human_AlignSpring( Human* human, b3WorldId worldId, b3BodyId groundId, floa
 void Human_CreateMotorAnchors( Human* human, b3WorldId worldId );
 void Human_CreateParallelAnchors( Human* human, b3WorldId worldId );
 
+void Human_SetBullet( Human* human, bool flag );
+
 // void Human_EnablePoseControl( Human* human, float springHertz, bool enablePoseControl );
 // void Human_AdjustPoseControl( Human* human, float springHertz );
 // void Human_DriveBase( Human* human, b3Transform transform, float timeStep );

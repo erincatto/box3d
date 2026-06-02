@@ -491,13 +491,6 @@ public:
 		}
 	}
 
-	void Render() override
-	{
-		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
-	}
-
 	static Sample* Create( SampleContext* context )
 	{
 		return new ConveyorBelt( context );
@@ -902,14 +895,6 @@ public:
 		m_shapeId = b3CreateHullShape( bodyId, &shapeDef, &box.base );
 	}
 
-	void Render() override
-	{
-		Sample::Render();
-
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 1.0f );
-	}
-
 	void Step() override
 	{
 		bool shouldStep = m_context->pause == false || m_context->singleStep > 0;
@@ -941,7 +926,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, -10.0f, 20.0f, { 0.0f, 5.0f, 0.0f } );
+			m_camera->SetView( -35.0f, 15.0f, 65.0f, { 0.0f, 5.0f, 10.0f } );
 		}
 
 		AddGroundBox( 50.0f );
@@ -1009,14 +994,6 @@ public:
 		b3CreateFilterJoint( m_worldId, &filterDef );
 
 		m_time = 0.0f;
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 1.0f );
 	}
 
 	void Step() override

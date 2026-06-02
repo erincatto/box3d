@@ -97,8 +97,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			b3Vec3 pivot = { 0.75, 1.0, 0.4f };
-			m_camera->SetView( 0.0f, 15.0f, 3.0f, pivot );
+			m_camera->SetView( 30.0f, 10.0f, 3.0f, { 0.75, 1.0, 0.4f } );
 		}
 
 		AddGroundBox( 10.0f );
@@ -742,7 +741,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 30.0f, { 0.0f, 5.0f, 0.0f } );
+			m_camera->SetView( 25.0f, 10.0f, 30.0f, { 0.0f, 5.0f, 0.0f } );
 		}
 
 		AddGroundBox( 40.0f );
@@ -779,6 +778,8 @@ public:
 		const float halfDepth = 0.5f;
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.density = 200.0f;
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 
@@ -847,7 +848,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 20.0f, { 0.0f, 4.0f, 0.0f } );
+			m_camera->SetView( 0.0f, 15.0f, 15.0f, { 0.0f, 0.5f, 1.0f } );
 		}
 
 		AddGroundBox( 20.0f );

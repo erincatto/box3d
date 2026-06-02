@@ -393,14 +393,14 @@ public:
 			
 		}
 
+		AddGroundBox( 20.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.position = { 0.0f, -1.0f, 0.0f };
 		bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 0.25f * B3_PI );
 		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3BoxHull box = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-		b3CreateHullShape( groundId, &shapeDef, &box.base );
 
 		m_boxMesh = b3CreateBoxMesh( { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, true );
 		// m_scale = { -0.6f, 1.0f, 2.0f };
@@ -515,13 +515,6 @@ public:
 		}
 
 		return true;
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 2.0f );
 	}
 
 	void Step() override

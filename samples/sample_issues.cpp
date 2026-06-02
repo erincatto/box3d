@@ -123,7 +123,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 0.0f, 65.0f, { 0.0f, 0.0f, 0.0f } );
+			m_camera->SetView( 0.0f, 0.0f, 25.0f, { 0.0f, 5.0f, 0.0f } );
 		}
 
 		b3BodyId groundId;
@@ -284,17 +284,7 @@ public:
 			
 		}
 
-#if 1
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeBoxHull( 10.0f, 1.0f, 10.0f );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
-		}
-#endif
+		AddGroundBox( 10.0f );
 
 		float s = 0.01f;
 
@@ -478,7 +468,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 120.0f, 30.0f, 10.0f, { 0.0f, 2.0f, 0.0f } );
+			m_camera->SetView( 20.0f, 10.0f, 30.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
 		// --- Ground plane ---

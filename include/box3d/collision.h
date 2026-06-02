@@ -31,7 +31,8 @@ typedef struct b3SurfaceMaterial
 	/// combining functions. It is not used internally.
 	uint64_t userMaterialId;
 
-	/// Custom debug draw color. Ignored if 0.
+	/// Custom debug draw color. Ignored if 0. The low 24 bits are RGB. The high byte may
+	/// carry a b3DebugMaterial preset, see b3MakeDebugColor.
 	/// @see b3HexColor
 	uint32_t customColor;
 } b3SurfaceMaterial;

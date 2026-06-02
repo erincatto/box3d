@@ -136,7 +136,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 20.0f, 50.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 20.0f, 15.0f, b3Vec3_zero );
 		}
 
 		m_bodyIds = nullptr;

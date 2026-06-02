@@ -623,6 +623,15 @@ void Human_CreateParallelAnchors( Human* human, b3WorldId worldId )
 	}
 }
 
+void Human_SetBullet(Human* human, bool flag)
+{
+	for ( int i = 0; i < bone_count; ++i )
+	{
+		Bone* bone = human->bones + i;
+		b3Body_SetBullet( bone->bodyId, flag );
+	}
+}
+
 #if 0
 void Human::EnablePoseControl( b3World* world, float springHertz, bool poseControl )
 {

@@ -250,16 +250,7 @@ public:
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
-		b3BodyId groundId;
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
-		}
+		AddGroundBox( 20.0f );
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
@@ -278,15 +269,6 @@ public:
 		jointDef.base.bodyIdA = bodyId1;
 		jointDef.base.bodyIdB = bodyId2;
 		b3CreateFilterJoint( m_worldId, &jointDef );
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-
-		b3Transform transform = b3Transform_identity;
-		transform.p.y += 0.05f;
-		DrawAxes( transform, 2.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -308,18 +290,17 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 0.0f, 40.0f, { 0.0f, 10.0f, 0.0f } );
+			m_camera->SetView( 0.0f, 0.0f, 25.0f, { 0.0f, 8.0f, 0.0f } );
 			
 		}
+
+		AddGroundBox( 20.0f );
 
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position.y = -1.0f;
 			groundId = b3CreateBody( m_worldId, &bodyDef );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 
 		m_transform = { .p = { 0.0f, 10.0f, 0.0f }, .q = b3Quat_identity };
@@ -1648,14 +1629,12 @@ public:
 			
 		}
 
+		AddGroundBox( 20.0f );
+
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { 0.0f, -1.0f, 0.0f };
 			m_groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( m_groundId, &shapeDef, &groundBox.base );
 		}
 
 		{
@@ -1842,8 +1821,6 @@ public:
 		b3Vec3 p = b3Body_GetWorldPoint( m_doorId, { 0.75f, 0.0f, 0.0f } );
 		DrawPoint( p, 10.0f, MakeColor( b3_colorDarkKhaki ) );
 
-		DrawAxes( b3Transform_identity, 1.0f );
-
 		float translationError1 = b3Joint_GetLinearSeparation( m_jointId1 );
 		m_translationError1 = b3MaxFloat( m_translationError1, translationError1 );
 		DrawTextLine( "translation error 1 = %g", m_translationError1 );
@@ -1887,6 +1864,8 @@ public:
 		{
 			m_camera->SetView( 0.0f, 20.0f, 35.0, { 0.0f, 10.0f, 0.0f } );
 		}
+
+		AddGroundBox( 60.0f );
 
 		b3BodyId groundId = b3_nullBodyId;
 		{
@@ -1985,13 +1964,6 @@ public:
 		return true;
 	}
 
-	void Render() override
-	{
-		Sample::Render();
-
-		DrawGroundGrid( 20 );
-	}
-
 	static Sample* Create( SampleContext* context )
 	{
 		return new Bridge( context );
@@ -2017,13 +1989,13 @@ public:
 			
 		}
 
+		AddGroundBox( 20.0f );
+
+
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			groundId = b3CreateBody( m_worldId, &bodyDef );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeTransformedBoxHull( 20.0f, 1.0f, 20.0f, { { 0.0f, -1.0f, 0.0f }, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 
 		m_motionLocks = {};
@@ -2272,14 +2244,6 @@ public:
 		}
 
 		return true;
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 1.0f );
 	}
 
 	static Sample* Create( SampleContext* context )

@@ -1457,6 +1457,27 @@ typedef enum b3HexColor
 	b3_colorBox2DYellow = 0xFFEE8C
 } b3HexColor;
 
+/// Debug draw material preset. Optionally packed into the unused high byte of a
+/// b3HexColor (or b3SurfaceMaterial::customColor) to drive the renderer's PBR
+/// roughness and metalness. The low 24 bits stay RGB, so a plain 0xRRGGBB color
+/// reads as b3_debugMaterialDefault and keeps the renderer's per-body-type look.
+typedef enum b3DebugMaterial
+{
+	b3_debugMaterialDefault = 0,
+	b3_debugMaterialMatte,
+	b3_debugMaterialSoft,
+	b3_debugMaterialDead,
+	b3_debugMaterialGlossy,
+	b3_debugMaterialMetallic
+} b3DebugMaterial;
+
+/// Pack an RGB color with a material preset for debug draw. The preset rides in
+/// the high byte where the color converters ignore it.
+B3_INLINE uint32_t b3MakeDebugColor( b3HexColor rgb, b3DebugMaterial material )
+{
+	return ( (uint32_t)rgb & 0x00FFFFFFu ) | ( (uint32_t)material << 24 );
+}
+
 /// Get the visualization color assigned to a constraint graph color slot. The last index
 /// (B3_GRAPH_COLOR_COUNT - 1) is the overflow color.
 B3_API b3HexColor b3GetGraphColor( int index );
