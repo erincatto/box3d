@@ -719,7 +719,7 @@ public:
 				else if ( m_castType == e_sphereCast )
 				{
 					DrawLine( point, head, MakeColor( color1 ) );
-					DrawSolidSphere( transform, sphere, MakeColor( colors[i] ) );
+					DrawSolidSphere( transform, sphere, MakeColorAlpha( colors[i], 0.5f ) );
 				}
 				else if ( m_castType == e_capsuleCast )
 				{
@@ -753,7 +753,7 @@ public:
 			}
 		}
 
-		DrawPoint( m_origin, 2.0f, MakeColor( green ) );
+		DrawPoint( m_origin, 10.0f, MakeColor( green ) );
 	}
 
 	static constexpr int m_maxCount = 64;

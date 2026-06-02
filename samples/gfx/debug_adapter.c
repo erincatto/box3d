@@ -724,7 +724,7 @@ static bool DrawShape( void* userShape, b3Transform shapeTransform, b3HexColor c
 		c.w = BOX3D_TRANSPARENT_DYNAMIC_ALPHA;
 	}
 
-	TransparentShadowCast shadowCast = TRANSPARENT_SHADOW_FULL;
+	TransparentShadowCast shadowCast = TRANSPARENT_SHADOW_NONE;
 
 	// Resolve hover/select state once. Body-keyed, so every supported shape on
 	// a hovered/selected body outlines together, compound children included.

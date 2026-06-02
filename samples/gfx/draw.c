@@ -3,7 +3,6 @@
 
 #include "gfx/draw.h"
 
-#include "gfx/debug_shapes.h"
 #include "gfx/overlay.h"
 #include "gfx/renderer.h"
 #include "gfx/text.h"

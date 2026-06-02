@@ -355,7 +355,7 @@ b3BodyId Sample::AddGroundBox( float extent )
 	b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	shapeDef.baseMaterial.customColor = b3_colorWhite;
+	shapeDef.baseMaterial.customColor = b3_colorLightGray;
 	b3BoxHull hull = b3MakeBoxHull( extent, 1.0f, extent );
 	b3ShapeId shapeId = b3CreateHullShape( groundId, &shapeDef, &hull.base );
 
@@ -892,7 +892,7 @@ void Sample::DrawMetrics()
 
 void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 {
-	if ( modifiers == 0 )
+	if ( button == 0 && modifiers == 0 )
 	{
 		PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 

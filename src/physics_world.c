@@ -1164,7 +1164,7 @@ static bool DrawQueryCallback( int proxyId, uint64_t userData, void* context )
 		}
 		else if ( body->type == b3_staticBody )
 		{
-			color = b3_colorPaleGreen;
+			color = b3_colorLightGray;
 		}
 		else if ( body->type == b3_kinematicBody )
 		{

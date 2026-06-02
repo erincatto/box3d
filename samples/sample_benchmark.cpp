@@ -92,13 +92,6 @@ public:
 		SetGroundShape( GetGroundShapeId() );
 	}
 
-	void Render() override
-	{
-		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
-	}
-
 	static Sample* Create( SampleContext* context )
 	{
 		return new BenchmarkManyPyramids( context );
@@ -626,7 +619,7 @@ public:
 						{
 							b3Transform transform = b3Transform_identity;
 							transform.p = rayOrigin + result.fraction * rayTranslation;
-							DrawSolidSphere( transform, sphere, MakeColorAlpha( b3_colorPurple, 0.5f ) );
+							DrawSphereEx( transform, m_radius, MakeColorAlpha( b3_colorPurple, 0.5f ), 0.0f, 0.5f, TRANSPARENT_SHADOW_NONE );
 						}
 
 						b3Vec3 rayEnd = rayOrigin + result.fraction * rayTranslation;

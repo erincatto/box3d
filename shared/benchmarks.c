@@ -222,6 +222,7 @@ void CreateManyPyramids( b3WorldId worldId )
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.customColor = b3_colorLightGray;
 
 		b3BoxHull box = b3MakeBoxHull( groundExtent, 1.0f, groundExtent );
 		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
@@ -544,6 +545,7 @@ void CreateWasher( b3WorldId worldId )
 
 		b3BoxHull box = b3MakeBoxHull( 60.0f, 1.0f, 60.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.customColor = b3_colorLightGray;
 		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
