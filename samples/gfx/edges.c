@@ -35,6 +35,7 @@ EdgeOverlayParams GetDefaultEdgeParams( void )
 	p.showHulls = true;
 	p.showMeshes = true;
 	p.showHeightfields = true;
+	p.showEdgeConvexity = false;
 	p.thicknessPx = 1.5f;
 	p.zBias = 1.0e-6f;
 	p.convexColor = MakeVec4( 0.1f, 0.8f, 0.1f, 0.75f );
@@ -154,9 +155,20 @@ static void SubmitBatches( int width, int height, const Mat4* view, const Mat4* 
 	sg_apply_uniforms( UB_edge_ub_frame, &SG_RANGE( uf ) );
 
 	edge_ub_pass_t up = { 0 };
-	up.convex_color = Premultiply( params->convexColor );
-	up.concave_color = Premultiply( params->concaveColor );
-	up.flat_color = Premultiply( params->flatColor );
+	if ( params->showEdgeConvexity )
+	{
+		up.convex_color = Premultiply( params->convexColor );
+		up.concave_color = Premultiply( params->concaveColor );
+		up.flat_color = Premultiply( params->flatColor );
+	}
+	else
+	{
+		// Map every convexity class to the flat color
+		Vec4 flat = Premultiply( params->flatColor );
+		up.convex_color = flat;
+		up.concave_color = flat;
+		up.flat_color = flat;
+	}
 	sg_apply_uniforms( UB_edge_ub_pass, &SG_RANGE( up ) );
 
 	sg_view currentEdgeView = { SG_INVALID_ID };

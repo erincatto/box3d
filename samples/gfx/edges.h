@@ -37,6 +37,7 @@ typedef struct EdgeOverlayParams
 	bool showHulls; // Honored only on TRANSPARENT hull instances
 	bool showMeshes;
 	bool showHeightfields;
+	bool showEdgeConvexity; // Off collapses every edge to flatColor, on uses the per-edge convex/concave/flat colors
 	float thicknessPx;
 	float zBias;	  // reverse-Z nudge toward camera, ~5e-5 is a good start
 	Vec4 convexColor; // straight (non-premultiplied) linear RGBA, premultiplied inside

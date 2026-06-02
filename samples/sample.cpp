@@ -97,7 +97,8 @@ void SampleContext::Save()
 	fprintf( file, "  \"gtaoQuality\": %d,\n", gtaoQuality );
 	fprintf( file, "  \"enableIbl\": %s,\n", GetIblEnabled() ? "true" : "false" );
 	fprintf( file, "  \"exposure\": %g,\n", GetExposure() );
-	fprintf( file, "  \"debugView\": %d\n", debugView );
+	fprintf( file, "  \"debugView\": %d,\n", debugView );
+	fprintf( file, "  \"showEdgeConvexity\": %s\n", GetEdgeOverlayParams().showEdgeConvexity ? "true" : "false" );
 	fprintf( file, "}\n" );
 	fclose( file );
 }
@@ -219,6 +220,13 @@ void SampleContext::Load()
 			strncpy( buffer, s, count );
 			buffer[count] = 0;
 			debugView = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 0, 4 );
+		}
+		else if ( jsoneq( data, &tokens[i], "showEdgeConvexity" ) == 0 )
+		{
+			const char* s = data + tokens[i + 1].start;
+			EdgeOverlayParams p = GetEdgeOverlayParams();
+			p.showEdgeConvexity = strncmp( s, "true", 4 ) == 0;
+			SetEdgeOverlayParams( &p );
 		}
 	}
 
@@ -1263,8 +1271,8 @@ static ImVec4 HexColor( b3HexColor hexColor )
 }
 
 // Abbreviated render controls: mostly visualization/debug toggles plus a single
-// exposure slider. The deep GTAO knobs and the edge/outline parameters keep
-// their renderer defaults and are intentionally not exposed.
+// exposure slider. The deep GTAO knobs and most edge/outline parameters keep
+// their renderer defaults, only the edge convexity coloring is exposed.
 static void DrawRenderMenu( SampleContext& ctx )
 {
 	ImGui::MenuItem( "Shadows", nullptr, &ctx.enableShadows );
@@ -1288,6 +1296,12 @@ static void DrawRenderMenu( SampleContext& ctx )
 	if ( ImGui::MenuItem( "IBL", nullptr, &ibl ) )
 	{
 		SetIblEnabled( ibl );
+	}
+
+	EdgeOverlayParams edgeParams = GetEdgeOverlayParams();
+	if ( ImGui::MenuItem( "Edge Convexity", nullptr, &edgeParams.showEdgeConvexity ) )
+	{
+		SetEdgeOverlayParams( &edgeParams );
 	}
 
 	ImGui::Separator();
