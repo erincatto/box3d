@@ -25,7 +25,7 @@ OverflowColorPileData CreateOverflowColorPile( b3WorldId worldId )
 
 		b3BoxHull box = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateHullShape( groundId, &shapeDef, &box.base );
+		data.groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
 	// Tall, heavy hub. Tall so neighbors can ring around it in multiple

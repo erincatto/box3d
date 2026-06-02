@@ -1000,7 +1000,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 20.0f, 60.0, { 0.0f, 15.0f, 0.0f } );
+			m_camera->SetView( 15.0f, 20.0f, 60.0, { 0.0f, 15.0f, 0.0f } );
 			
 		}
 
@@ -1028,7 +1028,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 60.0f, 80.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 10.0f, 250.0f, b3Vec3_zero );
 		}
 
 		b3Capacity capacity = {};

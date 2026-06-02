@@ -1,24 +1,20 @@
-# Box3D samples: sokol_app + sokol_gfx host
-#
-# Builds the ported renderer (gfx/), its shaders (shaders/), the sokol_app
-# host glue (host/), and the full sample set on the new renderer. box3d
-# itself is the in-tree target, not a FetchContent copy.
+# Box3D samples
 
-include(FetchContent)
-
-# render3d's gfx/CMakeLists references these per-target interfaces. Box3D
-# applies its own warning policy globally, so keep them empty for now.
-add_library(render3d_warnings INTERFACE)
-add_library(render3d_sanitizers INTERFACE)
-
-# --- Dependencies: imgui core (always) + sokol-shdc (only to recompile shaders).
 FetchContent_Declare(imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG        v1.92.8
+    GIT_TAG        v1.92.7
     GIT_SHALLOW    TRUE
     GIT_PROGRESS   TRUE
 )
 FetchContent_MakeAvailable(imgui)
+
+FetchContent_Declare(implot
+    GIT_REPOSITORY https://github.com/epezent/implot.git
+    GIT_TAG        v0.17
+    GIT_SHALLOW    TRUE
+    GIT_PROGRESS   TRUE
+)
+FetchContent_MakeAvailable(implot)
 
 # The shader compiler is only needed when recompiling shaders. A fresh clone
 # with BOX3D_BUILD_SHADERS=OFF builds from the committed headers and skips this.
@@ -26,7 +22,8 @@ if(BOX3D_BUILD_SHADERS)
     FetchContent_Declare(sokol_tools_bin
         GIT_REPOSITORY https://github.com/floooh/sokol-tools-bin.git
         GIT_TAG        1a9a4e54090fec42c5d13169b638f09f25474953
-        GIT_SHALLOW    TRUE
+        # unfortunately cannot be shallow when using a SHA
+        # GIT_SHALLOW    TRUE
         GIT_PROGRESS   TRUE
     )
     FetchContent_MakeAvailable(sokol_tools_bin)
@@ -43,6 +40,22 @@ add_library(imgui STATIC
 )
 target_include_directories(imgui SYSTEM PUBLIC "${imgui_SOURCE_DIR}")
 set_target_properties(imgui PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
+)
+
+add_library(implot STATIC
+    "${implot_SOURCE_DIR}/implot.cpp"
+    "${implot_SOURCE_DIR}/implot_items.cpp"
+    "${implot_SOURCE_DIR}/implot_demo.cpp"
+    "${implot_SOURCE_DIR}/implot.h"
+    "${implot_SOURCE_DIR}/implot_internal.h"
+)
+target_link_libraries(implot PUBLIC imgui)
+target_include_directories(implot SYSTEM PUBLIC "${implot_SOURCE_DIR}")
+set_target_properties(implot PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
@@ -109,10 +122,6 @@ endif()
 add_subdirectory(shaders)
 add_subdirectory(gfx)
 
-# --- Samples executable: sokol_app host + SampleManager + samples. -----------
-# The samples build on the new renderer through the draw compatibility layer.
-# The Frame Time chart (ImPlot) is gated off via BOX3D_USE_IMPLOT pending its
-# re-add.
 set(SAMPLE_FILES
     main.cpp
 
@@ -176,7 +185,7 @@ target_include_directories(samples PRIVATE
 
 # gfx: the renderer + Draw*/adapter. shared: human, utils (Random*), the
 # benchmark/determinism helpers the samples lean on.
-target_link_libraries(samples PRIVATE gfx shared imgui sokol)
+target_link_libraries(samples PRIVATE gfx shared imgui implot sokol)
 
 set_target_properties(samples PROPERTIES
     CXX_STANDARD 20

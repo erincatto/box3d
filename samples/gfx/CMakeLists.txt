@@ -57,7 +57,7 @@ endif()
 target_include_directories(gfx PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
 target_link_libraries(gfx
     PUBLIC  sokol box3d
-    PRIVATE shader_gen render3d_warnings render3d_sanitizers
+    PRIVATE shader_gen
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${GFX_FILES})

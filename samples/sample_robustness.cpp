@@ -7,6 +7,7 @@
 
 #include "box3d/box3d.h"
 #include "box3d/constants.h"
+#include "gfx/debug_adapter.h"
 
 #include <imgui.h>
 #include <stdlib.h>
@@ -24,15 +25,9 @@ public:
 			
 		}
 
-		float extent = 1.0f;
+		AddGroundBox( 50.0f );
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeTransformedBoxHull( 50.0f, 1.0f, 50.0f, { { 0.0f, -1.0f, 0.0f }, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
-		}
+		float extent = 1.0f;
 
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -85,17 +80,10 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 20.0f, 2.5f, { 0.0f, 0.75f, 0.0f } );
-			
+			m_camera->SetView( 0.0f, 20.0f, 3.0f, { 0.0f, 0.5f, 0.0f } );
 		}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeTransformedBoxHull( 40.0f, 1.0f, 40.0f, { { 0.0f, -1.0f, 0.0f }, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
-		}
+		AddGroundBox( 20.0f );
 
 		{
 			m_extent = 0.025f;
@@ -149,7 +137,6 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 20.0f, 50.0f, b3Vec3_zero );
-			
 		}
 
 		m_bodyIds = nullptr;
@@ -161,13 +148,7 @@ public:
 		m_hertz = 30.0f;
 		m_dampingRatio = 10.0f;
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeTransformedBoxHull( 20.0f, 1.0f, 20.0f, { { 0.0f, -1.0f, 0.0f }, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
-		}
+		AddGroundBox( 20.0f );
 
 		CreateScene();
 	}
@@ -483,11 +464,13 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 5.0f, 3.0f, 6.0f, b3Vec3_zero );
+			m_camera->SetView( 15.0f, 10.0f, 15.0f, b3Vec3_zero );
 			
 		}
 
 		m_data = CreateOverflowColorPile( m_worldId );
+
+		SetGroundShape( m_data.groundShapeId );
 	}
 
 	void Step() override

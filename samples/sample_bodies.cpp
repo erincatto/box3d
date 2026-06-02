@@ -503,14 +503,10 @@ public:
 			m_camera->SetView( 45.0f, 25.0f, 10.0f, b3Vec3_zero );
 		}
 
+		AddGroundBox( 20.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3BoxHull box = b3MakeBoxHull( 25.0f, 1.0f, 25.0f );
-		b3CreateHullShape( groundBody, &shapeDef, &box.base );
 
 		float linkRadius = 0.1f;
 		float linkLength = 5.0f * linkRadius;
@@ -964,16 +960,7 @@ public:
 			m_camera->SetView( 0.0f, 15.0f, 10.0f, b3Vec3_zero );
 		}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull hull = b3MakeBoxHull( 15.0f, 1.0f, 15.0f );
-			b3CreateHullShape( groundId, &shapeDef, &hull.base );
-		}
+		AddGroundBox( 20.0f );
 
 		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 0.3f };
 		b3ShapeDef shapeDef = b3DefaultShapeDef();

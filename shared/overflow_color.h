@@ -15,6 +15,7 @@ extern "C"
 // exercising the b3*_Overflow solver path that no other scene reaches.
 typedef struct OverflowColorPileData
 {
+	b3ShapeId groundShapeId;
 	b3BodyId hubId;
 	int neighborCount;
 } OverflowColorPileData;

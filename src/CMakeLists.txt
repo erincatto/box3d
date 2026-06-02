@@ -1,5 +1,4 @@
 include(GNUInstallDirs)
-include(FetchContent)
 
 set(BOX3D_SOURCE_FILES
 	aabb.c

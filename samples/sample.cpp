@@ -15,17 +15,11 @@
 #include "gfx/text.h"
 #include "human.h"
 #include "imgui.h"
+#include "implot.h"
 #include "jsmn.h"
 #include "sample_draw.h"
-#include "utils.h"
-
-// ImPlot backs only the optional Frame Time chart. It is not yet wired into the
-// ported build, so the chart is compiled out until implot is added back.
-#ifdef BOX3D_USE_IMPLOT
-#include "implot.h"
-#endif
-
 #include "sokol_app.h"
+#include "utils.h"
 
 #include "box3d/box3d.h"
 
@@ -863,7 +857,6 @@ void Sample::DrawMetrics()
 		ImGui::EndTabItem();
 	}
 
-#ifdef BOX3D_USE_IMPLOT
 	if ( ImGui::BeginTabItem( "Frame Time" ) )
 	{
 		float maxValue = 0.0f;
@@ -895,7 +888,6 @@ void Sample::DrawMetrics()
 
 		ImGui::EndTabItem();
 	}
-#endif
 
 	ImGui::EndTabBar();
 	ImGui::End();
@@ -1780,8 +1772,11 @@ void SampleManager::DrawInfoPanel()
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", m_sample->m_stepCount );
 	ImGui::Separator();
 
-	b3Vec3 p = m_context.camera.Position();
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "cam (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
+	b3Vec3 p = m_context.camera.m_pivot;
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "pivot (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
+	float yawDeg = B3_RAD_TO_DEG * m_context.camera.m_yaw;
+	float pitchDeg = B3_RAD_TO_DEG * m_context.camera.m_pitch;
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "yaw/pitch (%.1f, %.1f)", yawDeg, pitchDeg );
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "radius %.1f", m_context.camera.m_radius );
 
 	ImGui::Separator();

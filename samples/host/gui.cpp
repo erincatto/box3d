@@ -17,6 +17,7 @@
 #include "gfx/renderer.h"
 #include "gfx/text.h"
 #include "imgui.h"
+#include "implot.h"
 #include "sokol_app.h"
 #include "sokol_imgui.h"
 #include "sokol_log.h"
@@ -138,6 +139,9 @@ void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn )
 	desc.no_default_font = true;
 	simgui_setup( &desc );
 
+	// simgui_setup creates the ImGui context, so ImPlot has to come after it.
+	ImPlot::CreateContext();
+
 	// DPI handling mirrors the Box2D sample app, which gets crisp text at
 	// fractional Windows display scales. ImGui runs in physical framebuffer
 	// pixels: StartUIFrame feeds simgui dpi_scale=1.0, so DisplaySize is the
@@ -176,6 +180,8 @@ void ShutdownUI( void )
 {
 	if ( !s_uiInitialized )
 		return;
+	
+	ImPlot::DestroyContext();
 	simgui_shutdown();
 	s_uiInitialized = false;
 }

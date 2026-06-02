@@ -22,19 +22,14 @@ public:
 			
 		}
 
+		AddGroundBox( 50.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.baseMaterial.friction = 1.0f;
-		b3BoxHull groundBox = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-		b3CreateHullShape( groundBody, &shapeDef, &groundBox.base );
-
 		bodyDef.position = { 0.0f, 7.5f, -5.0f };
 		bodyDef.rotation = b3MakeQuatFromAxisAngle( { 1.0f, 0.0f, 0.0f }, 40.0f * B3_DEG_TO_RAD );
 		b3BodyId planeBody = b3CreateBody( m_worldId, &bodyDef );
 		b3BoxHull planeBox = b3MakeBoxHull( 16.0f, 0.5f, 10.0f );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.friction = 1.0f;
 		b3CreateHullShape( planeBody, &shapeDef, &planeBox.base );
 
@@ -71,21 +66,17 @@ public:
 			
 		}
 
+		AddGroundBox( 50.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-
-		b3BoxHull mGround = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-		b3CreateHullShape( groundBody, &shapeDef, &mGround.base );
 
 		bodyDef.position = { 0.0f, 2.0f, -20.0f };
 		bodyDef.rotation = b3MakeQuatFromAxisAngle( { 1.0f, 0.0f, 0.0f }, 10.0f * B3_DEG_TO_RAD );
 		b3BodyId planeBody = b3CreateBody( m_worldId, &bodyDef );
 
-		b3BoxHull mPlane = b3MakeBoxHull( 32.0f, 0.5f, 15.0f );
-		b3CreateHullShape( planeBody, &shapeDef, &mPlane.base );
+		b3BoxHull plane = b3MakeBoxHull( 32.0f, 0.5f, 15.0f );
+		b3CreateHullShape( planeBody, &shapeDef, &plane.base );
 
 		b3Sphere sphere = { b3Vec3_zero, 1.0f };
 		bodyDef.type = b3_dynamicBody;
@@ -132,14 +123,10 @@ public:
 			
 		}
 
+		AddGroundBox( 50.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-
-		b3BoxHull mGround = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-		b3CreateHullShape( groundBody, &shapeDef, &mGround.base );
 
 		b3Capsule capsule = { { 0.0f, -1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 0.5f };
 		bodyDef.type = b3_dynamicBody;
@@ -176,17 +163,12 @@ public:
 			
 		}
 
+		AddGroundBox( 100.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3BoxHull mGround = b3MakeBoxHull( 75.0f, 1.0f, 75.0f );
-		shapeDef.baseMaterial.friction = 1.0f;
-		b3CreateHullShape( groundBody, &shapeDef, &mGround.base );
-
 		b3BoxHull box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
 		bodyDef.type = b3_dynamicBody;
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.friction = 0.6f;
 		for ( int index = 0; index < m_boxCount; ++index )
 		{
@@ -223,28 +205,25 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( -30.0f, 17.0f, 22.0f, { 0.0f, 5.0f, 0.0f } );
+			m_camera->SetView( -30.0f, 17.0f, 30.0f, { 0.0f, 5.0f, 0.0f } );
 			
 		}
+
+		AddGroundBox( 50.0f );
 
 		b3Quat orientation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 20.0f * B3_DEG_TO_RAD );
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.friction = 1.0f;
-		b3BoxHull mGround = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
-		b3CreateHullShape( groundBody, &shapeDef, &mGround.base );
 
 		bodyDef.position = { 0.0f, 4.0f, 0.0f };
 		bodyDef.rotation = orientation;
 		b3BodyId planeBody = b3CreateBody( m_worldId, &bodyDef );
 
-		b3BoxHull mPlane = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
+		b3BoxHull plane = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
 		shapeDef.baseMaterial.friction = 0.6f;
-		b3CreateHullShape( planeBody, &shapeDef, &mPlane.base );
+		b3CreateHullShape( planeBody, &shapeDef, &plane.base );
 
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.0f, 5.0f, 0.0f };
@@ -282,12 +261,7 @@ public:
 			
 		}
 
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-		b3BoxHull groundBox = b3MakeBoxHull( 50.0f, 1.0f, 20.0f );
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateHullShape( groundBody, &shapeDef, &groundBox.base );
+		AddGroundBox( 50.0f );
 
 		m_shapeType = e_sphereShape;
 
@@ -388,17 +362,14 @@ public:
 			
 		}
 
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-		b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateHullShape( groundBody, &shapeDef, &groundBox.base );
+		AddGroundBox( 20.0f );
 
+		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.25f, 1.0f, 0.0f };
 		b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.rollingResistance = 0.2f;
 		b3Sphere sphere = { b3Vec3_zero, 0.5f };
 		b3CreateSphereShape( bodyId, &shapeDef, &sphere );
@@ -499,19 +470,9 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 25.0f, 40.0f, { 0.0f, 1.0f, 0.0f } );
-			
 		}
-
-		// Ground
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
-		}
+		
+		AddGroundBox( 20.0f );
 
 		// Platform
 		{
@@ -569,16 +530,7 @@ public:
 			
 		}
 
-		// Ground
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
-		}
+		AddGroundBox( 20.0f );
 
 		// Mesh
 		{

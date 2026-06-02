@@ -10,5 +10,4 @@ CMakeUserPresets.json
 .idea/
 .claude/
 .tmp/
-AGENTS.md
-GEMINI.md
+.fetchcontent-cache/

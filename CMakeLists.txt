@@ -1,5 +1,4 @@
 ﻿cmake_minimum_required(VERSION 3.22)
-include(FetchContent)
 include(CMakeDependentOption)
 
 project(box3d
@@ -90,6 +89,15 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # Needed for samples.exe to find box2d.dll
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
+
+# Collect FetchContent downloads outside the build dir so a clean rebuild reuses them.
+# Must precede the first include(FetchContent)
+if(NOT FETCHCONTENT_BASE_DIR)
+	set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/.fetchcontent-cache"
+		CACHE PATH "Shared FetchContent populate cache")
+endif()
+
+include(FetchContent)
 
 add_subdirectory(src)
 
