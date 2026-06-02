@@ -53,13 +53,12 @@ typedef struct Sun
 
 void InitRenderer( const sg_environment* env );
 
-
+// Sun settings
 void SetSun( Sun sun );
 Sun GetSun( void );
 
 // Exposure stop applied by the AgX tone map pass (final image multiplied
-// by pow(2, ev) before tone map). Default is -2.0 (spec), set in InitRenderer.
-// Callers can override per-scene to deviate from the spec calibration.
+// by pow(2, ev) before tone map).
 void SetExposure( float ev );
 float GetExposure( void );
 
@@ -70,7 +69,6 @@ void SetToneMapSaturation( float saturation );
 float GetToneMapSaturation( void );
 
 // Preetham turbidity, fed to both the sky pass and the IBL cube map rebuild.
-// Default is 2.2. Setting marks IBL dirty so the cube map regenerates next frame.
 void SetSkyTurbidity( float t );
 float GetSkyTurbidity( void );
 
