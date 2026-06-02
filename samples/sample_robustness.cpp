@@ -67,7 +67,7 @@ public:
 	}
 };
 
-static int sampleHighMassRatio1 = SampleManager::Register( "Robustness", "HighMassRatio1", HighMassRatio1::Create );
+static int sampleHighMassRatio1 = RegisterSample( "Robustness", "HighMassRatio1", HighMassRatio1::Create );
 
 // A pyramid of 5cm boxes. Stacking tiny objects is challenging for physics engines due to rotational effects.
 // This is also challenging for Box3D because of the AABB margin and linear slop are close to the shape size. This
@@ -126,7 +126,7 @@ public:
 	float m_extent;
 };
 
-static int sampleTinyPyramid = SampleManager::Register( "Robustness", "Tiny Pyramid", TinyPyramid::Create );
+static int sampleTinyPyramid = RegisterSample( "Robustness", "Tiny Pyramid", TinyPyramid::Create );
 
 class OverlapRecovery : public Sample
 {
@@ -238,7 +238,7 @@ public:
 	float m_dampingRatio;
 };
 
-static int sampleOverlapRecovery = SampleManager::Register( "Robustness", "Overlap Recovery", OverlapRecovery::Create );
+static int sampleOverlapRecovery = RegisterSample( "Robustness", "Overlap Recovery", OverlapRecovery::Create );
 
 class Cart : public Sample
 {
@@ -439,7 +439,7 @@ public:
 	float m_constraintDampingRatio;
 };
 
-static int sampleCart = SampleManager::Register( "Robustness", "Cart", Cart::Create );
+static int sampleCart = RegisterSample( "Robustness", "Cart", Cart::Create );
 
 // Drives the b3*_Overflow solver path. A heavy hub touches more dynamic
 // neighbors than B3_DYNAMIC_COLOR_COUNT (= 20), so several contacts land in
@@ -483,4 +483,4 @@ public:
 	OverflowColorPileData m_data;
 };
 
-static int sampleOverflowColorPile = SampleManager::Register( "Robustness", "Overflow Color Pile", OverflowColorPile::Create );
+static int sampleOverflowColorPile = RegisterSample( "Robustness", "Overflow Color Pile", OverflowColorPile::Create );

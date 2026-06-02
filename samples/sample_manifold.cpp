@@ -383,7 +383,7 @@ public:
 	b3Sphere m_sphere;
 };
 
-static int sampleCollideSpheres = SampleManager::Register( "Manifold", "Sphere vs Sphere", SphereAndSphere::Create );
+static int sampleCollideSpheres = RegisterSample( "Manifold", "Sphere vs Sphere", SphereAndSphere::Create );
 
 class CapsuleAndSphere : public Manifold
 {
@@ -421,7 +421,7 @@ public:
 	b3Capsule m_capsule;
 };
 
-static int sampleSphereAndCapsule = SampleManager::Register( "Manifold", "Capsule vs Sphere", CapsuleAndSphere::Create );
+static int sampleSphereAndCapsule = RegisterSample( "Manifold", "Capsule vs Sphere", CapsuleAndSphere::Create );
 
 class HullAndSphere : public Manifold
 {
@@ -464,7 +464,7 @@ public:
 	b3BoxHull m_hull;
 };
 
-static int sampleSphereAndHull = SampleManager::Register( "Manifold", "Hull vs Sphere", HullAndSphere::Create );
+static int sampleSphereAndHull = RegisterSample( "Manifold", "Hull vs Sphere", HullAndSphere::Create );
 
 class TriangleAndSphere : public TriangleManifold
 {
@@ -524,7 +524,7 @@ public:
 	b3Sphere m_sphere;
 };
 
-static int sampleSphereAndTriangle = SampleManager::Register( "Manifold", "Triangle vs Sphere", TriangleAndSphere::Create );
+static int sampleSphereAndTriangle = RegisterSample( "Manifold", "Triangle vs Sphere", TriangleAndSphere::Create );
 
 class CapsuleAndCapsule : public Manifold
 {
@@ -560,7 +560,7 @@ public:
 	b3Capsule m_capsule;
 };
 
-static int sampleCapsuleAndCapsule = SampleManager::Register( "Manifold", "Capsule vs Capsule", CapsuleAndCapsule::Create );
+static int sampleCapsuleAndCapsule = RegisterSample( "Manifold", "Capsule vs Capsule", CapsuleAndCapsule::Create );
 
 class CapsuleAndHull : public Manifold
 {
@@ -619,7 +619,7 @@ public:
 	b3Capsule m_capsule;
 };
 
-static int sampleCapsuleAndHull = SampleManager::Register( "Manifold", "Capsule vs Hull", CapsuleAndHull::Create );
+static int sampleCapsuleAndHull = RegisterSample( "Manifold", "Capsule vs Hull", CapsuleAndHull::Create );
 
 class TriangleAndCapsule : public TriangleManifold
 {
@@ -686,7 +686,7 @@ public:
 	b3Capsule m_capsule;
 };
 
-static int sampleCapsuleAndTriangle = SampleManager::Register( "Manifold", "Triangle vs Capsule", TriangleAndCapsule::Create );
+static int sampleCapsuleAndTriangle = RegisterSample( "Manifold", "Triangle vs Capsule", TriangleAndCapsule::Create );
 
 class HullAndHull : public Manifold
 {
@@ -819,7 +819,7 @@ public:
 	b3Hull* m_hullB;
 };
 
-static int sampleCollideHulls = SampleManager::Register( "Manifold", "Hull vs Hull", HullAndHull::Create );
+static int sampleCollideHulls = RegisterSample( "Manifold", "Hull vs Hull", HullAndHull::Create );
 
 class TriangleAndHull : public TriangleManifold
 {
@@ -935,4 +935,4 @@ public:
 	b3Hull* m_hull;
 };
 
-static int sampleHullAndTriangle = SampleManager::Register( "Manifold", "Triangle vs Hull", TriangleAndHull::Create );
+static int sampleHullAndTriangle = RegisterSample( "Manifold", "Triangle vs Hull", TriangleAndHull::Create );

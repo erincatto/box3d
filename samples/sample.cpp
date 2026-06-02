@@ -141,9 +141,9 @@ void SampleContext::Load()
 			{
 				sampleIndex = 0;
 			}
-			else if ( sampleIndex >= SampleManager::sEntryCount )
+			else if ( sampleIndex >= g_sampleCount )
 			{
-				sampleIndex = SampleManager::sEntryCount - 1;
+				sampleIndex = g_sampleCount - 1;
 			}
 		}
 		else if ( jsoneq( data, &tokens[i], "drawShapes" ) == 0 )
@@ -236,6 +236,21 @@ void Sample::CreateWorld( b3Capacity* capacity )
 	m_worldId = b3CreateWorld( &worldDef );
 
 	b3World_SetContactRecycleDistance( m_worldId, m_context->recycleDistance );
+}
+
+void Sample::ResetText()
+{
+	// Below the menu bar when the UI shows. Hidden, the minimal HUD owns the
+	// top-left, so start lower.
+	float fontSize = ImGui::GetFontSize();
+	if ( m_context->showUI )
+	{
+		m_textLine = (int)( ImGui::GetFrameHeight() + 0.5f * fontSize );
+	}
+	else
+	{
+		m_textLine = (int)( 3.0f * fontSize );
+	}
 }
 
 void Sample::Step()
@@ -1042,206 +1057,35 @@ void Sample::DrawTextLine( const char* text, ... )
 	m_textLine += m_textIncrement;
 }
 
-SampleEntry SampleManager::sEntries[MAX_SAMPLES];
-int SampleManager::sEntryCount = 0;
+SampleEntry g_sampleEntries[MAX_SAMPLES];
+int g_sampleCount = 0;
 
-int SampleManager::Register( const char* category, const char* name, SampleCreateFcn* fcn )
+int RegisterSample( const char* category, const char* name, SampleCreateFcn* fcn )
 {
-	int index = sEntryCount;
+	int index = g_sampleCount;
 	if ( index < MAX_SAMPLES )
 	{
-		sEntries[index] = { category, name, fcn };
-		sEntryCount += 1;
+		g_sampleEntries[index] = { category, name, fcn };
+		g_sampleCount += 1;
 		return index;
 	}
 
 	return -1;
 }
 
-static int CompareSamples( const void* a, const void* b )
+void SelectSample( SampleContext* context, int selection, bool restart )
 {
-	SampleEntry* entryA = (SampleEntry*)a;
-	SampleEntry* entryB = (SampleEntry*)b;
+	// delete tolerates the first selection, before any sample exists.
+	delete context->sample;
+	context->sample = nullptr;
 
-	int result = strcmp( entryA->Category, entryB->Category );
-	if ( result == 0 )
-	{
-		result = strcmp( entryA->Name, entryB->Name );
-	}
+	context->sampleIndex = selection;
+	context->restart = restart;
+	context->sample = g_sampleEntries[selection].CreateFcn( context );
 
-	return result;
-}
-
-void SampleManager::Startup( int width, int height )
-{
-	m_context.Load();
-
-	int cores = (int)std::thread::hardware_concurrency();
-	m_context.workerCount = b3ClampInt( cores / 2, 1, 8 );
-	m_context.windowWidth = width;
-	m_context.windowHeight = height;
-
-	qsort( sEntries, sEntryCount, sizeof( SampleEntry ), CompareSamples );
-
-	m_sample = sEntries[m_context.sampleIndex].CreateFcn( &m_context );
-}
-
-void SampleManager::Step()
-{
-	SetTransparentDynamic( m_context.transparentDynamic );
-
-	// Sample screen text starts below the menu bar when the UI shows; hidden, the
-	// minimal HUD owns the top-left, so text starts lower. Matches Box2D ResetText.
-	float fontSize = ImGui::GetFontSize();
-	if ( m_context.showUI )
-	{
-		m_sample->m_textLine = (int)( ImGui::GetFrameHeight() + 0.5f * fontSize );
-	}
-	else
-	{
-		m_sample->m_textLine = (int)( 3.0f * fontSize );
-	}
-
-	// Pause banner only with the UI up, matching Box2D.
-	if ( m_context.pause && m_context.showUI )
-	{
-		m_sample->DrawTextLine( "****PAUSED****" );
-		m_sample->DrawTextLine( "" );
-	}
-
-	m_sample->Step();
-}
-
-// Submit the sample's debug geometry. Runs after Step and before RenderFrame so
-// the instance and overlay arenas are full when the renderer consumes them.
-void SampleManager::Draw()
-{
-	m_sample->Render();
-}
-
-void SampleManager::Resize( int width, int height )
-{
-	m_context.minimized = ( width == 0 || height == 0 );
-	if ( m_context.minimized )
-	{
-		return;
-	}
-
-	m_context.windowWidth = width;
-	m_context.windowHeight = height;
-}
-
-void SampleManager::Shutdown()
-{
-	// Must destroy sample first because it will destroy debug shapes.
-	delete m_sample;
-	m_sample = nullptr;
-
-	m_context.Save();
-}
-
-void SampleManager::Keyboard( int key, int action, int modifiers )
-{
-	if ( action != ACTION_PRESS )
-	{
-		return;
-	}
-
-	switch ( key )
-	{
-		case KEY_TAB:
-			m_context.showUI = !m_context.showUI;
-			break;
-
-		case KEY_O:
-			if ( modifiers & MOD_CTRL )
-			{
-				// Ctrl+O opens the fuzzy picker. Force the UI visible so it shows.
-				m_context.showUI = true;
-				m_context.openSamplePicker = true;
-			}
-			else
-			{
-				m_context.singleStep += ( modifiers & MOD_SHIFT ) ? 5 : 1;
-			}
-			break;
-
-		case KEY_P:
-			m_context.pause = !m_context.pause;
-			break;
-
-		case KEY_M:
-			m_context.showMetrics = !m_context.showMetrics;
-			break;
-
-		case KEY_R:
-			m_context.restart = true;
-			CreateSample();
-			break;
-
-		case KEY_LEFT_BRACKET:
-			m_context.sampleIndex = b3MaxInt( 0, m_context.sampleIndex - 1 );
-			m_context.restart = false;
-			CreateSample();
-			break;
-
-		case KEY_RIGHT_BRACKET:
-			m_context.sampleIndex = b3MinInt( sEntryCount - 1, m_context.sampleIndex + 1 );
-			m_context.restart = false;
-			CreateSample();
-			break;
-
-		case KEY_F:
-		case KEY_HOME:
-		{
-			// Frame the selection, or the whole world when nothing is selected.
-			b3BodyId bodyId = GetSelectedBody();
-			b3AABB aabb;
-			float padding;
-			if ( B3_IS_NON_NULL( bodyId ) )
-			{
-				aabb = b3Body_ComputeAABB( bodyId );
-				padding = 1.5f;
-			}
-			else
-			{
-				aabb = b3World_GetBounds( m_sample->m_worldId );
-				padding = 0.75f;
-			}
-
-			Camera& cam = m_context.camera;
-			float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
-			cam.Frame( aabb, aspect, padding );
-		}
-		break;
-
-		default:
-			m_sample->Keyboard( key, action, modifiers );
-			break;
-	}
-}
-
-void SampleManager::MouseDown( b3Vec2 p, int button, int modifiers )
-{
-	m_sample->MouseDown( p, button, modifiers );
-}
-
-void SampleManager::MouseUp( b3Vec2 p, int button )
-{
-	m_sample->MouseUp( p, button );
-}
-
-void SampleManager::MouseMove( b3Vec2 p )
-{
-	m_sample->MouseMove( p );
-}
-
-void SampleManager::CreateSample()
-{
-	B3_ASSERT( m_sample );
-
-	delete m_sample;
-	m_sample = sEntries[m_context.sampleIndex].CreateFcn( &m_context );
+	// Samples read restart only while constructing, to keep the camera across a
+	// restart. Clear it so a later switch starts fresh.
+	context->restart = false;
 }
 
 // Subsequence fuzzy match. Returns a score (higher is better) or -1 if the
@@ -1304,10 +1148,10 @@ static void RebuildPicker( const char* q, int* outFiltered, int* outCount )
 {
 	static Scored scored[MAX_SAMPLES];
 	int n = 0;
-	for ( int i = 0; i < SampleManager::sEntryCount; ++i )
+	for ( int i = 0; i < g_sampleCount; ++i )
 	{
-		int nameScore = FuzzyScore( q, SampleManager::sEntries[i].Name );
-		int catScore = FuzzyScore( q, SampleManager::sEntries[i].Category );
+		int nameScore = FuzzyScore( q, g_sampleEntries[i].Name );
+		int catScore = FuzzyScore( q, g_sampleEntries[i].Category );
 		int best = -1;
 		if ( nameScore >= 0 )
 		{
@@ -1432,7 +1276,7 @@ static void DrawRenderMenu( SampleContext& ctx )
 	}
 }
 
-void SampleManager::DrawMenuBar()
+static void DrawMenuBar( SampleContext* context )
 {
 	b3DebugDraw* gd = GetGuiDraw();
 	float fontSize = ImGui::GetFontSize();
@@ -1441,41 +1285,36 @@ void SampleManager::DrawMenuBar()
 	{
 		if ( ImGui::BeginMenu( "Sim" ) )
 		{
-			ImGui::MenuItem( "Pause", "P", &m_context.pause );
+			ImGui::MenuItem( "Pause", "P", &context->pause );
 			if ( ImGui::MenuItem( "Single Step", "O" ) )
 			{
-				m_context.singleStep += 1;
+				context->singleStep += 1;
 			}
 			if ( ImGui::MenuItem( "Restart", "R" ) )
 			{
-				m_context.restart = true;
-				CreateSample();
+				SelectSample( context, context->sampleIndex, true );
 			}
 			ImGui::Separator();
 			if ( ImGui::MenuItem( "Previous Sample", "[" ) )
 			{
-				m_context.sampleIndex = b3MaxInt( 0, m_context.sampleIndex - 1 );
-				m_context.restart = false;
-				CreateSample();
+				SelectSample( context, b3MaxInt( 0, context->sampleIndex - 1 ), false );
 			}
 			if ( ImGui::MenuItem( "Next Sample", "]" ) )
 			{
-				m_context.sampleIndex = b3MinInt( sEntryCount - 1, m_context.sampleIndex + 1 );
-				m_context.restart = false;
-				CreateSample();
+				SelectSample( context, b3MinInt( g_sampleCount - 1, context->sampleIndex + 1 ), false );
 			}
 			ImGui::Separator();
 			if ( ImGui::MenuItem( "Reset Profile" ) )
 			{
-				m_sample->ResetProfile();
+				context->sample->ResetProfile();
 			}
 			if ( ImGui::MenuItem( "Dump" ) )
 			{
-				b3World_Dump( m_sample->m_worldId );
+				b3World_Dump( context->sample->m_worldId );
 			}
 			if ( ImGui::MenuItem( "Dump Awake" ) )
 			{
-				b3World_DumpAwake( m_sample->m_worldId );
+				b3World_DumpAwake( context->sample->m_worldId );
 			}
 			ImGui::Separator();
 			if ( ImGui::MenuItem( "Quit", "Esc" ) )
@@ -1489,18 +1328,18 @@ void SampleManager::DrawMenuBar()
 		{
 			if ( ImGui::MenuItem( "Hide UI", "Tab" ) )
 			{
-				m_context.showUI = false;
+				context->showUI = false;
 			}
 			if ( ImGui::MenuItem( "Frame Camera", "Home" ) )
 			{
-				b3AABB aabb = b3World_GetBounds( m_sample->m_worldId );
-				Camera& cam = m_context.camera;
+				b3AABB aabb = b3World_GetBounds( context->sample->m_worldId );
+				Camera& cam = context->camera;
 				float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
 				cam.Frame( aabb, aspect, 0.75f );
 			}
 			ImGui::Separator();
 			ImGui::MenuItem( "Shapes", nullptr, &gd->drawShapes );
-			ImGui::MenuItem( "Transparent", nullptr, &m_context.transparentDynamic );
+			ImGui::MenuItem( "Transparent", nullptr, &context->transparentDynamic );
 			ImGui::MenuItem( "Joints", nullptr, &gd->drawJoints );
 			ImGui::MenuItem( "Joint Extras", nullptr, &gd->drawJointExtras );
 			ImGui::MenuItem( "Bounds", nullptr, &gd->drawBounds );
@@ -1527,7 +1366,7 @@ void SampleManager::DrawMenuBar()
 				ImGui::EndMenu();
 			}
 			ImGui::Separator();
-			ImGui::MenuItem( "Diagnostics", "M", &m_context.showMetrics );
+			ImGui::MenuItem( "Diagnostics", "M", &context->showMetrics );
 			ImGui::Separator();
 			if ( ImGui::BeginMenu( "Scale" ) )
 			{
@@ -1542,26 +1381,24 @@ void SampleManager::DrawMenuBar()
 
 		if ( ImGui::BeginMenu( "Render" ) )
 		{
-			DrawRenderMenu( m_context );
+			DrawRenderMenu( *context );
 			ImGui::EndMenu();
 		}
 
 		if ( ImGui::BeginMenu( "Samples" ) )
 		{
 			int i = 0;
-			while ( i < sEntryCount )
+			while ( i < g_sampleCount )
 			{
-				const char* category = sEntries[i].Category;
+				const char* category = g_sampleEntries[i].Category;
 				if ( ImGui::BeginMenu( category ) )
 				{
-					while ( i < sEntryCount && strcmp( category, sEntries[i].Category ) == 0 )
+					while ( i < g_sampleCount && strcmp( category, g_sampleEntries[i].Category ) == 0 )
 					{
-						bool selected = ( i == m_context.sampleIndex );
-						if ( ImGui::MenuItem( sEntries[i].Name, nullptr, selected ) )
+						bool selected = ( i == context->sampleIndex );
+						if ( ImGui::MenuItem( g_sampleEntries[i].Name, nullptr, selected ) )
 						{
-							m_context.sampleIndex = i;
-							m_context.restart = false;
-							CreateSample();
+							SelectSample( context, i, false );
 						}
 						++i;
 					}
@@ -1569,7 +1406,7 @@ void SampleManager::DrawMenuBar()
 				}
 				else
 				{
-					while ( i < sEntryCount && strcmp( category, sEntries[i].Category ) == 0 )
+					while ( i < g_sampleCount && strcmp( category, g_sampleEntries[i].Category ) == 0 )
 					{
 						++i;
 					}
@@ -1591,7 +1428,7 @@ void SampleManager::DrawMenuBar()
 
 		if ( showHelp )
 		{
-			ImGui::SetNextWindowPos( { m_context.camera.m_width * 0.5f, m_context.camera.m_height * 0.5f }, ImGuiCond_Appearing,
+			ImGui::SetNextWindowPos( { context->camera.m_width * 0.5f, context->camera.m_height * 0.5f }, ImGuiCond_Appearing,
 									 { 0.5f, 0.5f } );
 			ImGui::SetNextWindowSize( { 26.0f * fontSize, 0.0f }, ImGuiCond_Appearing );
 
@@ -1629,7 +1466,7 @@ void SampleManager::DrawMenuBar()
 
 		if ( showAbout )
 		{
-			ImGui::SetNextWindowPos( { m_context.camera.m_width * 0.5f, m_context.camera.m_height * 0.5f }, ImGuiCond_Appearing,
+			ImGui::SetNextWindowPos( { context->camera.m_width * 0.5f, context->camera.m_height * 0.5f }, ImGuiCond_Appearing,
 									 { 0.5f, 0.5f } );
 			ImGui::SetNextWindowSize( { 22.0f * fontSize, 0.0f }, ImGuiCond_Appearing );
 
@@ -1645,7 +1482,7 @@ void SampleManager::DrawMenuBar()
 	}
 }
 
-void SampleManager::DrawSamplePicker()
+static void DrawSamplePicker( SampleContext* context )
 {
 	float fontSize = ImGui::GetFontSize();
 
@@ -1660,10 +1497,10 @@ void SampleManager::DrawSamplePicker()
 	static bool justOpened = false;
 	static bool forceScroll = false;
 
-	if ( m_context.openSamplePicker )
+	if ( context->openSamplePicker )
 	{
 		ImGui::OpenPopup( "##sample_picker" );
-		m_context.openSamplePicker = false;
+		context->openSamplePicker = false;
 		query[0] = '\0';
 		prevQuery[0] = '\0';
 		highlight = 0;
@@ -1673,7 +1510,7 @@ void SampleManager::DrawSamplePicker()
 		forceScroll = true;
 	}
 
-	ImGui::SetNextWindowPos( { m_context.camera.m_width * 0.5f, m_context.camera.m_height * 0.35f }, ImGuiCond_Appearing,
+	ImGui::SetNextWindowPos( { context->camera.m_width * 0.5f, context->camera.m_height * 0.35f }, ImGuiCond_Appearing,
 							 { 0.5f, 0.5f } );
 	ImGui::SetNextWindowSize( { 32.0f * fontSize, 0.0f }, ImGuiCond_Appearing );
 
@@ -1717,7 +1554,7 @@ void SampleManager::DrawSamplePicker()
 		{
 			int i = filtered[row];
 			char label[160];
-			snprintf( label, sizeof( label ), "%s  >  %s", sEntries[i].Category, sEntries[i].Name );
+			snprintf( label, sizeof( label ), "%s  >  %s", g_sampleEntries[i].Category, g_sampleEntries[i].Name );
 			bool sel = ( row == highlight );
 			if ( ImGui::Selectable( label, sel ) )
 			{
@@ -1735,9 +1572,7 @@ void SampleManager::DrawSamplePicker()
 
 		if ( commit && filteredCount > 0 )
 		{
-			m_context.sampleIndex = filtered[highlight];
-			m_context.restart = false;
-			CreateSample();
+			SelectSample( context, filtered[highlight], false );
 			ImGui::CloseCurrentPopup();
 		}
 
@@ -1745,16 +1580,16 @@ void SampleManager::DrawSamplePicker()
 	}
 }
 
-void SampleManager::DrawInfoPanel()
+static void DrawInfoPanel( SampleContext* context )
 {
-	const SampleEntry& entry = sEntries[m_context.sampleIndex];
+	const SampleEntry& entry = g_sampleEntries[context->sampleIndex];
 	float fontSize = ImGui::GetFontSize();
 	float menuWidth = 14.0f * fontSize;
 	float menuBarHeight = ImGui::GetFrameHeight();
 
 	// Full-height panel pinned under the menu bar at the right edge, matching Box2D.
-	ImGui::SetNextWindowPos( { m_context.camera.m_width - menuWidth - 0.5f * fontSize, menuBarHeight + 0.5f * fontSize } );
-	ImGui::SetNextWindowSize( { menuWidth, m_context.camera.m_height - menuBarHeight - fontSize } );
+	ImGui::SetNextWindowPos( { context->camera.m_width - menuWidth - 0.5f * fontSize, menuBarHeight + 0.5f * fontSize } );
+	ImGui::SetNextWindowSize( { menuWidth, context->camera.m_height - menuBarHeight - fontSize } );
 
 	ImGui::Begin( "Info", nullptr,
 				  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
@@ -1766,47 +1601,46 @@ void SampleManager::DrawInfoPanel()
 
 	const float frameMs = (float)( sapp_frame_duration() * 1000.0 );
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "%.1f ms", frameMs );
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", m_sample->m_stepCount );
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", context->sample->m_stepCount );
 	ImGui::Separator();
 
-	b3Vec3 p = m_context.camera.m_pivot;
+	b3Vec3 p = context->camera.m_pivot;
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "pivot (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
-	float yawDeg = B3_RAD_TO_DEG * m_context.camera.m_yaw;
-	float pitchDeg = B3_RAD_TO_DEG * m_context.camera.m_pitch;
+	float yawDeg = B3_RAD_TO_DEG * context->camera.m_yaw;
+	float pitchDeg = B3_RAD_TO_DEG * context->camera.m_pitch;
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "yaw/pitch (%.1f, %.1f)", yawDeg, pitchDeg );
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "radius %.1f", m_context.camera.m_radius );
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "radius %.1f", context->camera.m_radius );
 
 	ImGui::Separator();
 
-	if ( m_sample->DrawControls() )
+	if ( context->sample->DrawControls() )
 	{
 		ImGui::Separator();
 	}
 
-	if ( m_sample->HasSolverControls() && ImGui::CollapsingHeader( "Solver", ImGuiTreeNodeFlags_DefaultOpen ) )
+	if ( context->sample->HasSolverControls() && ImGui::CollapsingHeader( "Solver", ImGuiTreeNodeFlags_DefaultOpen ) )
 	{
 		ImGui::PushItemWidth( 6.0f * fontSize );
-		ImGui::SliderInt( "Sub-steps", &m_context.subStepCount, 1, 50 );
-		ImGui::SliderFloat( "Hertz", &m_context.hertz, 5.0f, 240.0f, "%.0f hz" );
+		ImGui::SliderInt( "Sub-steps", &context->subStepCount, 1, 50 );
+		ImGui::SliderFloat( "Hertz", &context->hertz, 5.0f, 240.0f, "%.0f hz" );
 
-		if ( ImGui::SliderInt( "Workers", &m_context.workerCount, 1, B3_MAX_WORKERS ) )
+		if ( ImGui::SliderInt( "Workers", &context->workerCount, 1, B3_MAX_WORKERS ) )
 		{
-			m_context.workerCount = b3ClampInt( m_context.workerCount, 1, B3_MAX_WORKERS );
-			m_context.restart = true;
-			CreateSample();
+			context->workerCount = b3ClampInt( context->workerCount, 1, B3_MAX_WORKERS );
+			SelectSample( context, context->sampleIndex, true );
 		}
 
-		float recyclingCentimeters = 100.0f * m_context.recycleDistance;
+		float recyclingCentimeters = 100.0f * context->recycleDistance;
 		if ( ImGui::SliderFloat( "Recycle", &recyclingCentimeters, 0.0f, 10.0f, "%.1f cm" ) )
 		{
-			m_context.recycleDistance = 0.01f * recyclingCentimeters;
-			b3World_SetContactRecycleDistance( m_sample->m_worldId, m_context.recycleDistance );
+			context->recycleDistance = 0.01f * recyclingCentimeters;
+			b3World_SetContactRecycleDistance( context->sample->m_worldId, context->recycleDistance );
 		}
 		ImGui::PopItemWidth();
 
-		ImGui::Checkbox( "Sleep", &m_context.enableSleep );
-		ImGui::Checkbox( "Warm Starting", &m_context.enableWarmStarting );
-		ImGui::Checkbox( "Continuous", &m_context.enableContinuous );
+		ImGui::Checkbox( "Sleep", &context->enableSleep );
+		ImGui::Checkbox( "Warm Starting", &context->enableWarmStarting );
+		ImGui::Checkbox( "Continuous", &context->enableContinuous );
 	}
 
 	ImGui::End();
@@ -1814,31 +1648,31 @@ void SampleManager::DrawInfoPanel()
 
 // Minimal in-world HUD shown only when the UI is hidden: sample identity at the
 // top-left, frame time and step count at the bottom-left. Matches Box2D DrawHud.
-void SampleManager::DrawHud()
+static void DrawHud( SampleContext* context )
 {
-	const SampleEntry& entry = sEntries[m_context.sampleIndex];
+	const SampleEntry& entry = g_sampleEntries[context->sampleIndex];
 	float fontSize = ImGui::GetFontSize();
 
 	DrawScreenStringFormat( 5, (int)( 1.5f * fontSize ), MakeColor( b3_colorYellow ), "%s : %s", entry.Category, entry.Name );
-	DrawScreenStringFormat( 5, m_context.camera.m_height - (int)( 1.5f * fontSize ), MakeColor( b3_colorSeaGreen ),
-							"%.1f ms  step %d", 1000.0f * (float)sapp_frame_duration(), m_sample->m_stepCount );
+	DrawScreenStringFormat( 5, context->camera.m_height - (int)( 1.5f * fontSize ), MakeColor( b3_colorSeaGreen ),
+							"%.1f ms  step %d", 1000.0f * (float)sapp_frame_duration(), context->sample->m_stepCount );
 }
 
-void SampleManager::UpdateUI()
+void DrawUI( SampleContext* context )
 {
-	// Mirrors Box2D's DrawUI: hidden shows only the minimal in-world HUD.
-	if ( m_context.showUI == false )
+	// Hidden shows only the minimal in-world HUD.
+	if ( context->showUI == false )
 	{
-		DrawHud();
+		DrawHud( context );
 		return;
 	}
 
-	DrawMenuBar();
-	DrawSamplePicker();
-	DrawInfoPanel();
+	DrawMenuBar( context );
+	DrawSamplePicker( context );
+	DrawInfoPanel( context );
 
-	// Bottom diagnostics drawer. Sample controls now live in the info panel.
-	m_sample->DrawMetrics();
+	// Bottom diagnostics drawer. Sample controls live in the info panel.
+	context->sample->DrawMetrics();
 }
 
 void Sample::ToggleThirdPerson()

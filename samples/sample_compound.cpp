@@ -103,7 +103,7 @@ public:
 	b3Compound* m_compound;
 };
 
-static int sampleSimple = SampleManager::Register( "Compound", "Simple", SimpleCompound::Create );
+static int sampleSimple = RegisterSample( "Compound", "Simple", SimpleCompound::Create );
 
 class CompoundSpheres : public Sample
 {
@@ -164,7 +164,7 @@ public:
 	b3Compound* m_compound;
 };
 
-static int sampleCompoundSpheres = SampleManager::Register( "Compound", "Spheres", CompoundSpheres::Create );
+static int sampleCompoundSpheres = RegisterSample( "Compound", "Spheres", CompoundSpheres::Create );
 
 class CompoundHulls : public Sample
 {
@@ -238,7 +238,7 @@ public:
 	b3Compound* m_compound;
 };
 
-static int sampleCompoundHulls = SampleManager::Register( "Compound", "Hulls", CompoundHulls::Create );
+static int sampleCompoundHulls = RegisterSample( "Compound", "Hulls", CompoundHulls::Create );
 
 class TileFloor : public Sample
 {
@@ -356,7 +356,7 @@ public:
 	b3Compound* m_compound;
 };
 
-static int sampleTileFloor = SampleManager::Register( "Compound", "Tile Floor", TileFloor::Create );
+static int sampleTileFloor = RegisterSample( "Compound", "Tile Floor", TileFloor::Create );
 
 class MeshTile : public Sample
 {
@@ -472,7 +472,7 @@ public:
 	b3Compound* m_compound;
 };
 
-static int sampleCompoundMesh = SampleManager::Register( "Compound", "Mesh Tile", MeshTile::Create );
+static int sampleCompoundMesh = RegisterSample( "Compound", "Mesh Tile", MeshTile::Create );
 
 static bool OverlapResultFcn( b3ShapeId shapeId, void* context )
 {
@@ -795,4 +795,4 @@ public:
 	b3Vec3 m_rayOrigin;
 };
 
-static int sampleVillage = SampleManager::Register( "Compound", "Village", Village::Create );
+static int sampleVillage = RegisterSample( "Compound", "Village", Village::Create );

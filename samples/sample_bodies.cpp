@@ -267,7 +267,7 @@ public:
 	bool m_isEnabled;
 };
 
-static int sampleBodyType = SampleManager::Register( "Bodies", "Body Type", BodyType::Create );
+static int sampleBodyType = RegisterSample( "Bodies", "Body Type", BodyType::Create );
 
 class SpinningBooks : public Sample
 {
@@ -319,7 +319,7 @@ public:
 	}
 };
 
-static int sampleBook = SampleManager::Register( "Bodies", "Spinning Book", SpinningBooks::Create );
+static int sampleBook = RegisterSample( "Bodies", "Spinning Book", SpinningBooks::Create );
 
 // Dzhanibekov effect
 class GyroscopicTorque : public Sample
@@ -362,16 +362,11 @@ public:
 	}
 };
 
-static int sampleGyroscopicTorque = SampleManager::Register( "Bodies", "Gyroscopic Torque", GyroscopicTorque::Create );
+static int sampleGyroscopicTorque = RegisterSample( "Bodies", "Gyroscopic Torque", GyroscopicTorque::Create );
 
 class Weeble : public Sample
 {
 public:
-	static Sample* Create( SampleContext* context )
-	{
-		return new Weeble( context );
-	}
-
 	explicit Weeble( SampleContext* context )
 		: Sample( context )
 	{
@@ -410,7 +405,7 @@ public:
 
 		m_explosionPosition = { 0.0f, -0.1f, 0.0f };
 		m_explosionRadius = 8.0f;
-		m_explosionMagnitude = 10000.0f;
+		m_explosionMagnitude = 20000.0f;
 	}
 
 	bool DrawControls() override
@@ -438,19 +433,12 @@ public:
 		return true;
 	}
 
-	void Render() override
-	{
-		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
-	}
-
 	void Step() override
 	{
 		Sample::Step();
 
 		b3Sphere sphere = { m_explosionPosition, m_explosionRadius };
-		DrawWireSphere(b3Transform_identity, &sphere, 32, MakeColor(b3_colorAzure) );
+		DrawWireSphere(b3Transform_identity, &sphere, 64, MakeColor(b3_colorAzure) );
 
 		// This shows how to get the velocity of a point on a body
 		b3Vec3 localPoint = { 0.0f, 2.0f, 0.0f };
@@ -464,13 +452,18 @@ public:
 		DrawLine( worldPoint + offset, worldPoint + v2 + offset, MakeColor( b3_colorGreen ) );
 	}
 
+	static Sample* Create( SampleContext* context )
+	{
+		return new Weeble( context );
+	}
+
 	b3BodyId m_weebleId;
 	b3Vec3 m_explosionPosition;
 	float m_explosionRadius;
 	float m_explosionMagnitude;
 };
 
-static int sampleWeeble = SampleManager::Register( "Bodies", "Weeble", Weeble::Create );
+static int sampleWeeble = RegisterSample( "Bodies", "Weeble", Weeble::Create );
 
 class DisableBody : public Sample
 {
@@ -579,7 +572,7 @@ public:
 	b3BodyId m_ballId;
 };
 
-static int sampleDisable = SampleManager::Register( "Bodies", "Disable", DisableBody::Create );
+static int sampleDisable = RegisterSample( "Bodies", "Disable", DisableBody::Create );
 
 class BodyCast : public Sample
 {
@@ -753,7 +746,7 @@ public:
 	bool m_tracking;
 };
 
-static int sampleBodyCast = SampleManager::Register( "Bodies", "Cast", BodyCast::Create );
+static int sampleBodyCast = RegisterSample( "Bodies", "Cast", BodyCast::Create );
 
 // This shows how to drive a kinematic body to reach a target
 class Kinematic : public Sample
@@ -834,7 +827,7 @@ public:
 	float m_time;
 };
 
-static int sampleKinematic = SampleManager::Register( "Bodies", "Kinematic", Kinematic::Create );
+static int sampleKinematic = RegisterSample( "Bodies", "Kinematic", Kinematic::Create );
 
 class LockMixing : public Sample
 {
@@ -916,7 +909,7 @@ public:
 	}
 };
 
-static int sampleLockMixing = SampleManager::Register( "Bodies", "Lock Mixing", LockMixing::Create );
+static int sampleLockMixing = RegisterSample( "Bodies", "Lock Mixing", LockMixing::Create );
 
 // A fully rotation locked body uses a zero inverse inertia tensor
 class FixedRotation : public Sample
@@ -965,4 +958,4 @@ public:
 	}
 };
 
-static int sampleFixedRotation = SampleManager::Register( "Bodies", "Fixed Rotation", FixedRotation::Create );
+static int sampleFixedRotation = RegisterSample( "Bodies", "Fixed Rotation", FixedRotation::Create );

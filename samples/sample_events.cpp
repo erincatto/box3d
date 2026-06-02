@@ -78,7 +78,7 @@ public:
 	b3ShapeId m_sensorShapeId;
 };
 
-static int sampleSensorVisit = SampleManager::Register( "Events", "Sensor Visit", SensorVisit::Create );
+static int sampleSensorVisit = RegisterSample( "Events", "Sensor Visit", SensorVisit::Create );
 
 class HitEvent : public Sample
 {
@@ -243,7 +243,7 @@ public:
 	int m_eventCount;
 };
 
-static int sampleHitEvent = SampleManager::Register( "Events", "Hit", HitEvent::Create );
+static int sampleHitEvent = RegisterSample( "Events", "Hit", HitEvent::Create );
 
 class MoveEvent : public Sample
 {
@@ -334,7 +334,7 @@ public:
 	b3Vec3 m_localPivot;
 };
 
-static int sampleMoveEvent = SampleManager::Register( "Events", "Move", MoveEvent::Create );
+static int sampleMoveEvent = RegisterSample( "Events", "Move", MoveEvent::Create );
 
 // This sample shows how to break joints when the internal reaction force becomes large. Instead of polling, this uses events.
 class JointEvent : public Sample
@@ -578,7 +578,7 @@ public:
 	b3JointId m_jointIds[e_count];
 };
 
-static int sampleJointEvent = SampleManager::Register( "Events", "Joint", JointEvent::Create );
+static int sampleJointEvent = RegisterSample( "Events", "Joint", JointEvent::Create );
 
 class PersistentContact : public Sample
 {
@@ -677,7 +677,7 @@ public:
 	b3MeshData* m_meshData;
 };
 
-static int samplePersistentContact = SampleManager::Register( "Events", "Persistent Contact", PersistentContact::Create );
+static int samplePersistentContact = RegisterSample( "Events", "Persistent Contact", PersistentContact::Create );
 
 class SensorHits : public Sample
 {
@@ -908,4 +908,4 @@ public:
 	int m_endCount;
 };
 
-static int sampleSensorHits = SampleManager::Register( "Events", "Sensor Hits", SensorHits::Create );
+static int sampleSensorHits = RegisterSample( "Events", "Sensor Hits", SensorHits::Create );

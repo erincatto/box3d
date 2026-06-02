@@ -70,7 +70,7 @@ public:
 	}
 };
 
-static int sampleThinWall = SampleManager::Register( "Continuous", "Thin Wall", ThinWall::Create );
+static int sampleThinWall = RegisterSample( "Continuous", "Thin Wall", ThinWall::Create );
 
 class BounceHouse : public Sample
 {
@@ -144,7 +144,7 @@ public:
 	b3MeshData* m_dummyMesh;
 };
 
-static int sampleBounceHouse = SampleManager::Register( "Continuous", "Bounce House", BounceHouse::Create );
+static int sampleBounceHouse = RegisterSample( "Continuous", "Bounce House", BounceHouse::Create );
 
 class SpinningStick : public Sample
 {
@@ -186,7 +186,7 @@ public:
 	}
 };
 
-static int sampleSpinningStick = SampleManager::Register( "Continuous", "Spinning Stick", SpinningStick::Create );
+static int sampleSpinningStick = RegisterSample( "Continuous", "Spinning Stick", SpinningStick::Create );
 
 // This tests bullets and chain reactions
 class BulletVersusStack : public Sample
@@ -276,7 +276,7 @@ public:
 	b3BodyId m_bulletId;
 };
 
-static int sampleContinuous6 = SampleManager::Register( "Continuous", "Bullet vs Stack", BulletVersusStack::Create );
+static int sampleContinuous6 = RegisterSample( "Continuous", "Bullet vs Stack", BulletVersusStack::Create );
 
 class NeedleMesh : public Sample
 {
@@ -387,7 +387,7 @@ public:
 	b3Hull* mConvex;
 };
 
-static int sampleNeedleMesh = SampleManager::Register( "Continuous", "Needle Mesh", NeedleMesh::Create );
+static int sampleNeedleMesh = RegisterSample( "Continuous", "Needle Mesh", NeedleMesh::Create );
 
 struct IndexPair
 {
@@ -742,7 +742,7 @@ public:
 	bool m_autoGenerate;
 };
 
-static int sampleMeshDrop = SampleManager::Register( "Continuous", "Mesh Drop", MeshDrop::Create );
+static int sampleMeshDrop = RegisterSample( "Continuous", "Mesh Drop", MeshDrop::Create );
 
 class MeshDropUnitTest : public Sample
 {
@@ -796,7 +796,7 @@ public:
 	bool m_failed;
 };
 
-static int sampleMeshDropUnitTest = SampleManager::Register( "Continuous", "Mesh Drop Unit Test", MeshDropUnitTest::Create );
+static int sampleMeshDropUnitTest = RegisterSample( "Continuous", "Mesh Drop Unit Test", MeshDropUnitTest::Create );
 
 // This sample shows that clustering based on the manifold normal can lead to clipping and/or tunneling.
 class HumpMesh : public Sample
@@ -913,7 +913,7 @@ public:
 	b3MeshData* m_hump;
 };
 
-static int sampleHumpMesh = SampleManager::Register( "Continuous", "Hump Mesh", HumpMesh::Create );
+static int sampleHumpMesh = RegisterSample( "Continuous", "Hump Mesh", HumpMesh::Create );
 
 class IsFast : public Sample
 {
@@ -1007,4 +1007,4 @@ public:
 	}
 };
 
-static int sampleIsFast = SampleManager::Register( "Continuous", "Is Fast", IsFast::Create );
+static int sampleIsFast = RegisterSample( "Continuous", "Is Fast", IsFast::Create );

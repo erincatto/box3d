@@ -47,7 +47,7 @@ public:
 	std::vector<b3MeshData*> m_meshes;
 };
 
-static int sampleDumpLoader = SampleManager::Register( "Issues", "Dump Loader", DumpLoader::Create );
+static int sampleDumpLoader = RegisterSample( "Issues", "Dump Loader", DumpLoader::Create );
 
 class Crash : public Sample
 {
@@ -113,7 +113,7 @@ public:
 	b3MeshData* m_gridMesh;
 };
 
-static int sampleCrash = SampleManager::Register( "Issues", "Crash", Crash::Create );
+static int sampleCrash = RegisterSample( "Issues", "Crash", Crash::Create );
 
 class MultiplePrismatic : public Sample
 {
@@ -169,7 +169,7 @@ public:
 	}
 };
 
-static int sampleMultiplePrismatic = SampleManager::Register( "Issues", "Multiple Prismatic", MultiplePrismatic::Create );
+static int sampleMultiplePrismatic = RegisterSample( "Issues", "Multiple Prismatic", MultiplePrismatic::Create );
 
 class HullCrash : public Sample
 {
@@ -270,7 +270,7 @@ public:
 	int m_count;
 };
 
-static int sampleHullCrash = SampleManager::Register( "Issues", "Hull Crash", HullCrash::Create );
+static int sampleHullCrash = RegisterSample( "Issues", "Hull Crash", HullCrash::Create );
 
 class ConvexJitter : public Sample
 {
@@ -390,7 +390,7 @@ public:
 	}
 };
 
-static int sampleConvexJitter = SampleManager::Register( "Issues", "Convex Jitter", ConvexJitter::Create );
+static int sampleConvexJitter = RegisterSample( "Issues", "Convex Jitter", ConvexJitter::Create );
 
 class SBoxMover : public Sample
 {
@@ -468,7 +468,7 @@ public:
 	b3MeshData* m_gridMesh;
 };
 
-static int sampleBoxMesh = SampleManager::Register( "Issues", "s&box mover", SBoxMover::Create );
+static int sampleBoxMesh = RegisterSample( "Issues", "s&box mover", SBoxMover::Create );
 
 class CapsuleMeshBug : public Sample
 {
@@ -539,4 +539,4 @@ public:
 	b3MeshData* m_building = nullptr;
 };
 
-static int sampleIndex = SampleManager::Register( "Issues", "Capsule Mesh", CapsuleMeshBug::Create );
+static int sampleIndex = RegisterSample( "Issues", "Capsule Mesh", CapsuleMeshBug::Create );

@@ -205,7 +205,7 @@ public:
 	b3Vec3 m_scale;
 };
 
-static int sampleGridMesh = SampleManager::Register( "Mesh", "Grid", GridMesh::Create );
+static int sampleGridMesh = RegisterSample( "Mesh", "Grid", GridMesh::Create );
 
 class BigBoxMesh : public Sample
 {
@@ -379,7 +379,7 @@ public:
 	b3Vec3 m_scale;
 };
 
-static int sampleBigBoxMesh = SampleManager::Register( "Mesh", "Big Box", BigBoxMesh::Create );
+static int sampleBigBoxMesh = RegisterSample( "Mesh", "Big Box", BigBoxMesh::Create );
 
 class BoxMesh : public Sample
 {
@@ -555,7 +555,7 @@ public:
 	b3Vec3 m_scale;
 };
 
-static int sampleBoxMesh = SampleManager::Register( "Mesh", "Box", BoxMesh::Create );
+static int sampleBoxMesh = RegisterSample( "Mesh", "Box", BoxMesh::Create );
 
 class MeshReflection : public Sample
 {
@@ -744,7 +744,7 @@ public:
 	Human m_humans[e_humanCount];
 };
 
-static int sampleMeshReflection = SampleManager::Register( "Mesh", "Reflection", MeshReflection::Create );
+static int sampleMeshReflection = RegisterSample( "Mesh", "Reflection", MeshReflection::Create );
 
 struct CastContext
 {
@@ -996,7 +996,7 @@ public:
 	bool m_holes;
 };
 
-static int sampleHeightField = SampleManager::Register( "Mesh", "Height Field", HeightField::Create );
+static int sampleHeightField = RegisterSample( "Mesh", "Height Field", HeightField::Create );
 
 static float ComputeInternalSurfaceArea( const b3MeshData* data )
 {
@@ -1296,7 +1296,7 @@ public:
 	bool m_weldVertices;
 };
 
-static int sampleMeshViewer = SampleManager::Register( "Mesh", "Viewer", MeshViewer::Create );
+static int sampleMeshViewer = RegisterSample( "Mesh", "Viewer", MeshViewer::Create );
 
 // Results 9/29/25
 // base median split: 0.222 ms per mesh
@@ -1377,7 +1377,7 @@ public:
 	float m_time;
 };
 
-static int sampleMeshCreationBenchmark = SampleManager::Register( "Mesh", "Creation Benchmark", MeshCreationBenchmark::Create );
+static int sampleMeshCreationBenchmark = RegisterSample( "Mesh", "Creation Benchmark", MeshCreationBenchmark::Create );
 
 class VoxelMesh : public Sample
 {
@@ -1493,7 +1493,7 @@ public:
 	Human m_human;
 };
 
-static int sampleVoxelMesh = SampleManager::Register( "Mesh", "Voxel", VoxelMesh::Create );
+static int sampleVoxelMesh = RegisterSample( "Mesh", "Voxel", VoxelMesh::Create );
 
 // Pause this to check contact manifolds for axis aligned collisions.
 class HollowBox : public Sample
@@ -1584,4 +1584,4 @@ public:
 	b3MeshData* m_mesh;
 };
 
-static int sampleHollowBox = SampleManager::Register( "Mesh", "Hollow Box", HollowBox::Create );
+static int sampleHollowBox = RegisterSample( "Mesh", "Hollow Box", HollowBox::Create );

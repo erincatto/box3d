@@ -86,7 +86,7 @@ public:
 	}
 };
 
-static int sampleCardHouseThick = SampleManager::Register( "Stacking", "Card House Thick", CardHouseThick::Create );
+static int sampleCardHouseThick = RegisterSample( "Stacking", "Card House Thick", CardHouseThick::Create );
 
 // From PEEL
 class CardHouse : public Sample
@@ -161,7 +161,7 @@ public:
 	}
 };
 
-static int sampleCardHouse = SampleManager::Register( "Stacking", "Card House", CardHouse::Create );
+static int sampleCardHouse = RegisterSample( "Stacking", "Card House", CardHouse::Create );
 
 class SphereStack : public Sample
 {
@@ -222,7 +222,7 @@ public:
 	b3BodyId m_bodyId;
 };
 
-static int sampleSphereStack = SampleManager::Register( "Stacking", "Sphere Stack", SphereStack::Create );
+static int sampleSphereStack = RegisterSample( "Stacking", "Sphere Stack", SphereStack::Create );
 
 class CapsuleStack : public Sample
 {
@@ -266,7 +266,7 @@ public:
 	}
 };
 
-static int sampleCapsuleStack = SampleManager::Register( "Stacking", "Capsule Stack", CapsuleStack::Create );
+static int sampleCapsuleStack = RegisterSample( "Stacking", "Capsule Stack", CapsuleStack::Create );
 
 class SingleBox : public Sample
 {
@@ -326,7 +326,7 @@ public:
 	b3BodyId m_bodyId;
 };
 
-static int sampleSingleBox = SampleManager::Register( "Stacking", "Single Box", SingleBox::Create );
+static int sampleSingleBox = RegisterSample( "Stacking", "Single Box", SingleBox::Create );
 
 class Cylinder : public Sample
 {
@@ -377,7 +377,7 @@ public:
 	b3Hull* m_hull;
 };
 
-static int sampleCylinder = SampleManager::Register( "Stacking", "Cylinder", Cylinder::Create );
+static int sampleCylinder = RegisterSample( "Stacking", "Cylinder", Cylinder::Create );
 
 class CylinderStack : public Sample
 {
@@ -435,7 +435,7 @@ public:
 	b3Hull* m_hull;
 };
 
-static int sampleCylinderStack = SampleManager::Register( "Stacking", "Cylinder Stack", CylinderStack::Create );
+static int sampleCylinderStack = RegisterSample( "Stacking", "Cylinder Stack", CylinderStack::Create );
 
 class BoxStack : public Sample
 {
@@ -490,7 +490,7 @@ public:
 	}
 };
 
-static int sampleBoxStack = SampleManager::Register( "Stacking", "Box Stack", BoxStack::Create );
+static int sampleBoxStack = RegisterSample( "Stacking", "Box Stack", BoxStack::Create );
 
 class JengaStack : public Sample
 {
@@ -579,7 +579,7 @@ public:
 	b3ShapeType m_shapeType;
 };
 
-static int sampleJengaStack = SampleManager::Register( "Stacking", "Jenga Stack", JengaStack::Create );
+static int sampleJengaStack = RegisterSample( "Stacking", "Jenga Stack", JengaStack::Create );
 
 class Dominoes : public Sample
 {
@@ -638,7 +638,7 @@ public:
 	}
 };
 
-static int sampleDominoes = SampleManager::Register( "Stacking", "Dominoes", Dominoes::Create );
+static int sampleDominoes = RegisterSample( "Stacking", "Dominoes", Dominoes::Create );
 
 // This wedge shape can have an incorrect manifold if not handled correctly
 class Wedge : public Sample
@@ -683,7 +683,7 @@ public:
 	b3Hull* m_wedgeHull;
 };
 
-static int sampleWedge = SampleManager::Register( "Stacking", "Wedge", Wedge::Create );
+static int sampleWedge = RegisterSample( "Stacking", "Wedge", Wedge::Create );
 
 // jitter
 /*
@@ -837,7 +837,7 @@ public:
 	}
 };
 
-static int sampleArch = SampleManager::Register( "Stacking", "Arch", Arch::Create );
+static int sampleArch = RegisterSample( "Stacking", "Arch", Arch::Create );
 
 class DoubleDomino : public Sample
 {
@@ -883,7 +883,7 @@ public:
 	}
 };
 
-static int sampleDoubleDomino = SampleManager::Register( "Stacking", "Double Domino", DoubleDomino::Create );
+static int sampleDoubleDomino = RegisterSample( "Stacking", "Double Domino", DoubleDomino::Create );
 
 class Pyramid2D : public Sample
 {
@@ -928,4 +928,4 @@ public:
 	static constexpr int m_size = 12;
 };
 
-static int samplePyramid2D = SampleManager::Register( "Stacking", "Pyramid2D", Pyramid2D::Create );
+static int samplePyramid2D = RegisterSample( "Stacking", "Pyramid2D", Pyramid2D::Create );

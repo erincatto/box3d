@@ -1,16 +1,15 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-// Box3D samples host: a sokol_app shell driving render3d's renderer through
-// the SampleManager. The four sokol_app callbacks own the window and input;
-// everything below the entry points (InitRenderer, RenderFrame, the Draw* API,
-// the b3DebugDraw adapter) is host-agnostic. See render3d's HOST_INTEGRATION.md
-// for the contract this fills in.
+// Box3D samples host: a sokol_app shell driving render3d's renderer. The four
+// sokol_app callbacks own the window and input; everything below the entry
+// points (InitRenderer, RenderFrame, the Draw* API, the b3DebugDraw adapter) is
+// host-agnostic. See render3d's HOST_INTEGRATION.md for the contract this fills.
 //
-//   OnInit:    InitRenderer -> InitUI -> InitAdapter -> SampleManager::Startup
+//   OnInit:    InitRenderer -> InitUI -> InitAdapter -> Load -> SelectSample
 //   OnEvent:   Esc quits; ImGui gate; else feed camera + dispatch to the sample
-//   OnFrame:   ResetFrameArena -> Step -> Draw -> RenderFrame -> UI -> commit
-//   OnCleanup: SampleManager::Shutdown -> ShutdownUI -> ShutdownRenderer
+//   OnFrame:   ResetFrameArena -> Step -> Render -> RenderFrame -> UI -> commit
+//   OnCleanup: destroy sample + Save -> ShutdownUI -> ShutdownRenderer
 //
 // --frames N runs N frames then exits with status = sokol validation-error
 // count, the automated regression net for the port.
@@ -23,11 +22,13 @@
 #include "sokol_app.h"
 #include "sokol_glue.h"
 
+#include "box3d/box3d.h"
 #include "box3d/math_functions.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <thread>
 
 #if defined( _WIN32 )
 #define WIN32_LEAN_AND_MEAN
@@ -39,16 +40,35 @@
 #pragma comment( lib, "winmm.lib" ) // MSVC auto-link
 #endif
 
-static SampleManager s_manager;
+static SampleContext s_context;
 static int s_frame = 0;
 static int s_frameLimit = -1;
 static int s_sampleOverride = -1;
 
-// Single host UI callback fired from inside StartUIFrame: menu bar, panels, and
-// the active sample's drawer, all drawn by the manager.
-static void DrawUI( void )
+static int CompareSamples( const void* a, const void* b )
 {
-	s_manager.UpdateUI();
+	SampleEntry* entryA = (SampleEntry*)a;
+	SampleEntry* entryB = (SampleEntry*)b;
+
+	int result = strcmp( entryA->Category, entryB->Category );
+	if ( result == 0 )
+	{
+		result = strcmp( entryA->Name, entryB->Name );
+	}
+
+	return result;
+}
+
+static void SortSamples()
+{
+	qsort( g_sampleEntries, g_sampleCount, sizeof( SampleEntry ), CompareSamples );
+}
+
+// Single host UI callback fired from inside StartUIFrame: menu bar, panels, and
+// the active sample's drawer.
+static void OnDrawUI( void )
+{
+	DrawUI( &s_context );
 }
 
 static void OnInit( void )
@@ -59,24 +79,31 @@ static void OnInit( void )
 
 	const sg_environment env = sglue_environment();
 	InitRenderer( &env );
-	InitUI( &env, DrawUI );
+	InitUI( &env, OnDrawUI );
 	InitAdapter();
 
 	constexpr float DEG = 3.14159265358979323846f / 180.0f;
-	Camera& camera = s_manager.m_context.camera;
-	camera.SetFov( 50.0f * DEG );
-	camera.SetClip( 0.1f, 1000.0f );
+	s_context.camera.SetFov( 50.0f * DEG );
+	s_context.camera.SetClip( 0.1f, 1000.0f );
 
-	s_manager.Startup( sapp_width(), sapp_height() );
+	s_context.Load();
+
+	int cores = (int)std::thread::hardware_concurrency();
+	s_context.workerCount = b3ClampInt( cores / 2, 1, 8 );
+	s_context.windowWidth = sapp_width();
+	s_context.windowHeight = sapp_height();
+
+	SortSamples();
 
 	// --sample N selects a registered sample by sorted index, overriding the
 	// persisted one. Lets a headless --frames run target a specific sample.
-	if ( s_sampleOverride >= 0 && s_sampleOverride < SampleManager::sEntryCount )
+	int index = s_context.sampleIndex;
+	if ( s_sampleOverride >= 0 && s_sampleOverride < g_sampleCount )
 	{
-		s_manager.m_context.sampleIndex = s_sampleOverride;
-		s_manager.m_context.restart = false;
-		s_manager.CreateSample();
+		index = s_sampleOverride;
 	}
+
+	SelectSample( &s_context, index, false );
 }
 
 static void OnEvent( const sapp_event* e )
@@ -93,8 +120,7 @@ static void OnEvent( const sapp_event* e )
 		return;
 	}
 
-	Camera& camera = s_manager.m_context.camera;
-	camera.OnEvent( e );
+	s_context.camera.OnEvent( e );
 
 	// Keep keyboard mods only. sokol packs the held mouse button into modifiers
 	// (SAPP_MODIFIER_LMB == 0x100), which would defeat the sample's modifiers == 0 checks.
@@ -104,38 +130,115 @@ static void OnEvent( const sapp_event* e )
 	{
 		case SAPP_EVENTTYPE_KEY_DOWN:
 			SetKeyDown( e->key_code, true );
+
+			// Global shortcuts on first press; repeats are ignored. The sokol
+			// analog of Box2D's KeyCallback.
 			if ( e->key_repeat == false )
 			{
-				s_manager.Keyboard( e->key_code, ACTION_PRESS, mods );
+				switch ( e->key_code )
+				{
+					case KEY_TAB:
+						s_context.showUI = !s_context.showUI;
+						break;
+
+					case KEY_O:
+						if ( mods & MOD_CTRL )
+						{
+							// Ctrl+O opens the fuzzy picker. Force the UI visible so it shows.
+							s_context.showUI = true;
+							s_context.openSamplePicker = true;
+						}
+						else
+						{
+							s_context.singleStep += ( mods & MOD_SHIFT ) ? 5 : 1;
+						}
+						break;
+
+					case KEY_P:
+						s_context.pause = !s_context.pause;
+						break;
+
+					case KEY_M:
+						s_context.showMetrics = !s_context.showMetrics;
+						break;
+
+					case KEY_R:
+						SelectSample( &s_context, s_context.sampleIndex, true );
+						break;
+
+					case KEY_LEFT_BRACKET:
+						SelectSample( &s_context, b3MaxInt( 0, s_context.sampleIndex - 1 ), false );
+						break;
+
+					case KEY_RIGHT_BRACKET:
+						SelectSample( &s_context, b3MinInt( g_sampleCount - 1, s_context.sampleIndex + 1 ), false );
+						break;
+
+					case KEY_F:
+					case KEY_HOME:
+					{
+						// Frame the selection, or the whole world when nothing is selected.
+						b3BodyId bodyId = GetSelectedBody();
+						b3AABB aabb;
+						float padding;
+						if ( B3_IS_NON_NULL( bodyId ) )
+						{
+							aabb = b3Body_ComputeAABB( bodyId );
+							padding = 1.5f;
+						}
+						else
+						{
+							aabb = b3World_GetBounds( s_context.sample->m_worldId );
+							padding = 0.75f;
+						}
+
+						Camera& cam = s_context.camera;
+						float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
+						cam.Frame( aabb, aspect, padding );
+					}
+					break;
+
+					default:
+						s_context.sample->Keyboard( e->key_code, ACTION_PRESS, mods );
+						break;
+				}
 			}
 			break;
 
 		case SAPP_EVENTTYPE_KEY_UP:
 			SetKeyDown( e->key_code, false );
-			s_manager.Keyboard( e->key_code, ACTION_RELEASE, mods );
 			break;
 
 		case SAPP_EVENTTYPE_MOUSE_DOWN:
-			s_manager.m_context.mouseX = e->mouse_x;
-			s_manager.m_context.mouseY = e->mouse_y;
-			s_manager.MouseDown( { e->mouse_x, e->mouse_y }, e->mouse_button, mods );
+			s_context.mouseX = e->mouse_x;
+			s_context.mouseY = e->mouse_y;
+			s_context.sample->MouseDown( { e->mouse_x, e->mouse_y }, e->mouse_button, mods );
 			break;
 
 		case SAPP_EVENTTYPE_MOUSE_UP:
-			s_manager.MouseUp( { e->mouse_x, e->mouse_y }, e->mouse_button );
+			s_context.sample->MouseUp( { e->mouse_x, e->mouse_y }, e->mouse_button );
 			break;
 
 		case SAPP_EVENTTYPE_MOUSE_MOVE:
-			s_manager.m_context.mouseX = e->mouse_x;
-			s_manager.m_context.mouseY = e->mouse_y;
-			s_manager.m_context.mouseDX = e->mouse_dx;
-			s_manager.m_context.mouseDY = e->mouse_dy;
-			s_manager.MouseMove( { e->mouse_x, e->mouse_y } );
+			s_context.mouseX = e->mouse_x;
+			s_context.mouseY = e->mouse_y;
+			s_context.mouseDX = e->mouse_dx;
+			s_context.mouseDY = e->mouse_dy;
+			s_context.sample->MouseMove( { e->mouse_x, e->mouse_y } );
 			break;
 
 		case SAPP_EVENTTYPE_RESIZED:
-			s_manager.Resize( sapp_width(), sapp_height() );
-			break;
+		{
+			int w = sapp_width();
+			int h = sapp_height();
+			s_context.minimized = ( w == 0 || h == 0 );
+			if ( s_context.minimized == false )
+			{
+				s_context.windowWidth = w;
+				s_context.windowHeight = h;
+			}
+		}
+		break;
 
 		default:
 			break;
@@ -176,16 +279,26 @@ static void OnFrame( void )
 	const int W = sapp_width();
 	const int H = sapp_height();
 
-	Camera& camera = s_manager.m_context.camera;
+	Camera& camera = s_context.camera;
 	camera.Update( dt, W, H );
 
 	ResetFrameArena();
 
-	// Physics + the sample's debug-draw submission. Step advances the world and
-	// queues the HUD text; Draw fills the instance and overlay arenas via the
+	// Apply the per-frame draw state the UI owns, then advance the sample. Step
+	// queues the HUD text; Render fills the instance and overlay arenas via the
 	// b3DebugDraw adapter and the sample's own Draw* calls.
-	s_manager.Step();
-	s_manager.Draw();
+	SetTransparentDynamic( s_context.transparentDynamic );
+	s_context.sample->ResetText();
+
+	// Pause banner only with the UI up, matching Box2D.
+	if ( s_context.pause && s_context.showUI )
+	{
+		s_context.sample->DrawTextLine( "****PAUSED****" );
+		s_context.sample->DrawTextLine( "" );
+	}
+
+	s_context.sample->Step();
+	s_context.sample->Render();
 
 	FrameInput fi{};
 	fi.view = camera.View();
@@ -194,9 +307,9 @@ static void OnFrame( void )
 	fi.projInv = camera.ProjInverse();
 	fi.cameraPosition = camera.Position();
 	fi.time = (float)sapp_frame_count() / 60.0f;
-	fi.debugMode = s_manager.m_context.debugView;
-	fi.disableShadows = !s_manager.m_context.enableShadows;
-	fi.disableAmbientOcclusion = !s_manager.m_context.enableGtao;
+	fi.debugMode = s_context.debugView;
+	fi.disableShadows = !s_context.enableShadows;
+	fi.disableAmbientOcclusion = !s_context.enableGtao;
 
 	const sg_swapchain sc = sglue_swapchain();
 	RenderFrame( &sc, &fi );
@@ -217,7 +330,11 @@ static void OnFrame( void )
 
 static void OnCleanup( void )
 {
-	s_manager.Shutdown();
+	// Destroy the sample first because it will destroy debug shapes.
+	delete s_context.sample;
+	s_context.sample = nullptr;
+	s_context.Save();
+
 	ShutdownUI();
 	ShutdownRenderer();
 

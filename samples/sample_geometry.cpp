@@ -132,7 +132,7 @@ public:
 	b3Hull* m_hull;
 };
 
-static int sampleBoxHull = SampleManager::Register( "Geometry", "Box Hull", BoxHull::Create );
+static int sampleBoxHull = RegisterSample( "Geometry", "Box Hull", BoxHull::Create );
 
 class Hull : public Sample
 {
@@ -227,7 +227,7 @@ public:
 	int m_count;
 };
 
-static int sampleHull = SampleManager::Register( "Geometry", "Hull", Hull::Create );
+static int sampleHull = RegisterSample( "Geometry", "Hull", Hull::Create );
 
 class HullReduction : public Sample
 {
@@ -356,7 +356,7 @@ public:
 	int m_count;
 };
 
-static int sampleHullReduction = SampleManager::Register( "Geometry", "Hull Reduction", HullReduction::Create );
+static int sampleHullReduction = RegisterSample( "Geometry", "Hull Reduction", HullReduction::Create );
 
 class HullScale : public Sample
 {
@@ -484,7 +484,7 @@ public:
 	b3Vec3 m_offset;
 };
 
-static int sampleHullScale = SampleManager::Register( "Geometry", "Hull Scale", HullScale::Create );
+static int sampleHullScale = RegisterSample( "Geometry", "Hull Scale", HullScale::Create );
 
 class CapsuleMass : public Sample
 {
@@ -644,4 +644,4 @@ public:
 	int m_sides;
 };
 
-static int sampleCapsuleMass = SampleManager::Register( "Geometry", "Capsule Mass", CapsuleMass::Create );
+static int sampleCapsuleMass = RegisterSample( "Geometry", "Capsule Mass", CapsuleMass::Create );

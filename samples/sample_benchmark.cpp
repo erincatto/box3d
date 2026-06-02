@@ -41,7 +41,7 @@ public:
 	}
 };
 
-static int sampleLargePyramid = SampleManager::Register( "Benchmark", "Large Pyramid", BenchmarkLargePyramid::Create );
+static int sampleLargePyramid = RegisterSample( "Benchmark", "Large Pyramid", BenchmarkLargePyramid::Create );
 
 class BenchmarkWidePyramid : public Sample
 {
@@ -65,7 +65,7 @@ public:
 	}
 };
 
-static int sampleWidePyramid = SampleManager::Register( "Benchmark", "Wide Pyramid", BenchmarkWidePyramid::Create );
+static int sampleWidePyramid = RegisterSample( "Benchmark", "Wide Pyramid", BenchmarkWidePyramid::Create );
 
 class BenchmarkManyPyramids : public Sample
 {
@@ -98,7 +98,7 @@ public:
 	}
 };
 
-static int sampleManyPyramids = SampleManager::Register( "Benchmark", "Many Pyramids", BenchmarkManyPyramids::Create );
+static int sampleManyPyramids = RegisterSample( "Benchmark", "Many Pyramids", BenchmarkManyPyramids::Create );
 
 class BenchmarkRain : public Sample
 {
@@ -151,7 +151,7 @@ public:
 	}
 };
 
-static int sampleRain = SampleManager::Register( "Benchmark", "Rain", BenchmarkRain::Create );
+static int sampleRain = RegisterSample( "Benchmark", "Rain", BenchmarkRain::Create );
 
 #if 0
 class BenchmarkLargeWorld : public Sample
@@ -200,7 +200,7 @@ public:
 	}
 };
 
-static int sampleLargeWorld = SampleManager::Register( "Benchmark", "Large World", BenchmarkLargeWorld::Create );
+static int sampleLargeWorld = RegisterSample( "Benchmark", "Large World", BenchmarkLargeWorld::Create );
 #endif
 
 class BenchmarkJointGrid : public Sample
@@ -245,7 +245,7 @@ public:
 	}
 };
 
-static int sampleJointGrid = SampleManager::Register( "Benchmark", "Joint Grid", BenchmarkJointGrid::Create );
+static int sampleJointGrid = RegisterSample( "Benchmark", "Joint Grid", BenchmarkJointGrid::Create );
 
 class FallingBoxes : public Sample
 {
@@ -289,7 +289,7 @@ public:
 	}
 };
 
-static int sampleFallingBoxes = SampleManager::Register( "Benchmark", "Falling Boxes", FallingBoxes::Create );
+static int sampleFallingBoxes = RegisterSample( "Benchmark", "Falling Boxes", FallingBoxes::Create );
 
 class CandyCups : public Sample
 {
@@ -366,7 +366,7 @@ public:
 	b3Hull* m_convex;
 };
 
-static int sampleSmallConvexes = SampleManager::Register( "Benchmark", "Candy Cups", CandyCups::Create );
+static int sampleSmallConvexes = RegisterSample( "Benchmark", "Candy Cups", CandyCups::Create );
 
 class BenchmarkExplosion : public Sample
 {
@@ -492,7 +492,7 @@ public:
 	float m_impulse;
 };
 
-static int sampleExplosion = SampleManager::Register( "Benchmark", "Explosion", BenchmarkExplosion::Create );
+static int sampleExplosion = RegisterSample( "Benchmark", "Explosion", BenchmarkExplosion::Create );
 
 class BenchmarkHeightField : public Sample
 {
@@ -662,7 +662,7 @@ public:
 	float m_radius;
 };
 
-static int sampleHeightFieldBenchmark = SampleManager::Register( "Benchmark", "Height Field", BenchmarkHeightField::Create );
+static int sampleHeightFieldBenchmark = RegisterSample( "Benchmark", "Height Field", BenchmarkHeightField::Create );
 
 class BenchmarkFallingTrees : public Sample
 {
@@ -736,7 +736,7 @@ public:
 	int m_gridSize;
 };
 
-static int sampleFallingTrees = SampleManager::Register( "Benchmark", "Falling Trees", BenchmarkFallingTrees::Create );
+static int sampleFallingTrees = RegisterSample( "Benchmark", "Falling Trees", BenchmarkFallingTrees::Create );
 
 struct ShapeUserData
 {
@@ -953,7 +953,7 @@ public:
 	int m_filterRow;
 };
 
-static int benchmarkSensor = SampleManager::Register( "Benchmark", "Sensor", BenchmarkSensor::Create );
+static int benchmarkSensor = RegisterSample( "Benchmark", "Sensor", BenchmarkSensor::Create );
 
 class BenchmarkWasher : public Sample
 {
@@ -980,7 +980,7 @@ public:
 	}
 };
 
-static int benchmarkWasher = SampleManager::Register( "Benchmark", "Washer", BenchmarkWasher::Create );
+static int benchmarkWasher = RegisterSample( "Benchmark", "Washer", BenchmarkWasher::Create );
 
 class BenchmarkLargeWorld : public Sample
 {
@@ -1012,7 +1012,7 @@ public:
 	}
 };
 
-static int sampleLargeWorld = SampleManager::Register( "Benchmark", "Large World", BenchmarkLargeWorld::Create );
+static int sampleLargeWorld = RegisterSample( "Benchmark", "Large World", BenchmarkLargeWorld::Create );
 
 class BenchmarkHull : public Sample
 {
@@ -1100,7 +1100,7 @@ public:
 	int m_count;
 };
 
-static int sampleBenchmarkHull = SampleManager::Register( "Benchmark", "Hull", BenchmarkHull::Create );
+static int sampleBenchmarkHull = RegisterSample( "Benchmark", "Hull", BenchmarkHull::Create );
 
 class BenchmarkChains : public Sample
 {
@@ -1212,7 +1212,7 @@ public:
 	b3Vec3 m_noise;
 };
 
-static int sampleBenchmarkChains = SampleManager::Register( "Benchmark", "Chains", BenchmarkChains::Create );
+static int sampleBenchmarkChains = RegisterSample( "Benchmark", "Chains", BenchmarkChains::Create );
 
 class BenchmarkDestruction : public Sample
 {
@@ -1407,7 +1407,7 @@ public:
 	float m_destroyMilliseconds;
 };
 
-static int sampleDestruction = SampleManager::Register( "Benchmark", "Destruction", BenchmarkDestruction::Create );
+static int sampleDestruction = RegisterSample( "Benchmark", "Destruction", BenchmarkDestruction::Create );
 
 class BenchmarkJunkyard : public Sample
 {
@@ -1438,4 +1438,4 @@ public:
 	}
 };
 
-static int sampleJunkyard = SampleManager::Register( "Benchmark", "Junkyard", BenchmarkJunkyard::Create );
+static int sampleJunkyard = RegisterSample( "Benchmark", "Junkyard", BenchmarkJunkyard::Create );

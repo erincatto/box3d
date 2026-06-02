@@ -56,4 +56,4 @@ public:
 	bool m_done;
 };
 
-static int sampleFallingRagdolls = SampleManager::Register( "Determinism", "Falling Ragdolls", FallingRagdolls::Create );
+static int sampleFallingRagdolls = RegisterSample( "Determinism", "Falling Ragdolls", FallingRagdolls::Create );

@@ -843,4 +843,4 @@ public:
 	bool m_doRay;
 };
 
-static int sampleTree = SampleManager::Register( "Tree", "Benchmark", TreeBenchmark::Create );
+static int sampleTree = RegisterSample( "Tree", "Benchmark", TreeBenchmark::Create );

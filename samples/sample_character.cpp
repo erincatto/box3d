@@ -144,7 +144,7 @@ public:
 	bool m_tracking;
 };
 
-static int sampleCapsulePlane = SampleManager::Register( "Character", "CapsulePlane", CapsulePlane::Create );
+static int sampleCapsulePlane = RegisterSample( "Character", "CapsulePlane", CapsulePlane::Create );
 
 // Exercises the deep-overlap path of b3World_CollideMover against each primitive
 // shape type: drag the mover capsule (yellow) into the static sphere, capsule,
@@ -310,7 +310,7 @@ public:
 	bool m_tracking;
 };
 
-static int sampleMoverOverlap = SampleManager::Register( "Character", "MoverOverlap", MoverOverlap::Create );
+static int sampleMoverOverlap = RegisterSample( "Character", "MoverOverlap", MoverOverlap::Create );
 
 class BasicMover : public Sample
 {
@@ -588,7 +588,7 @@ public:
 	bool m_clipVelocity;
 };
 
-static int sampleMover = SampleManager::Register( "Character", "Mover", BasicMover::Create );
+static int sampleMover = RegisterSample( "Character", "Mover", BasicMover::Create );
 
 struct ClosestShapeCastContext
 {
@@ -1676,4 +1676,4 @@ public:
 	bool m_showDebug;
 };
 
-static int sampleRBCharacter = SampleManager::Register( "Character", "Rigid Body", RigidBodyCharacter::Create );
+static int sampleRBCharacter = RegisterSample( "Character", "Rigid Body", RigidBodyCharacter::Create );

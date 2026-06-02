@@ -118,7 +118,7 @@ public:
 	b3MeshData* m_mesh;
 };
 
-static int sampleRayCurtain = SampleManager::Register( "Collision", "Ray Curtain", RayCurtain::Create );
+static int sampleRayCurtain = RegisterSample( "Collision", "Ray Curtain", RayCurtain::Create );
 
 // Context for ray cast callbacks. Do what you want with this.
 struct CastContext
@@ -778,7 +778,7 @@ public:
 	CastContext m_castContext;
 };
 
-static int sampleCastWorld = SampleManager::Register( "Collision", "Cast World", CastWorld::Create );
+static int sampleCastWorld = RegisterSample( "Collision", "Cast World", CastWorld::Create );
 
 class MeshScale : public Sample
 {
@@ -892,7 +892,7 @@ public:
 	bool m_sphereCast;
 };
 
-static int sampleMeshScale = SampleManager::Register( "Collision", "Mesh Scale", MeshScale::Create );
+static int sampleMeshScale = RegisterSample( "Collision", "Mesh Scale", MeshScale::Create );
 
 class ShapeCast : public Sample
 {
@@ -1146,7 +1146,7 @@ public:
 	bool m_initialOverlap;
 };
 
-static int sampleShapeCast = SampleManager::Register( "Collision", "Shape Cast", ShapeCast::Create );
+static int sampleShapeCast = RegisterSample( "Collision", "Shape Cast", ShapeCast::Create );
 
 // Tests shape overlap versus world
 class OverlapWorld : public Sample
@@ -1335,7 +1335,7 @@ public:
 	bool m_tracking;
 };
 
-static int sampleOverlapWorld = SampleManager::Register( "Collision", "Overlap World", OverlapWorld::Create );
+static int sampleOverlapWorld = RegisterSample( "Collision", "Overlap World", OverlapWorld::Create );
 
 class InitialOverlap : public Sample
 {
@@ -1442,7 +1442,7 @@ public:
 	bool m_initialOverlap;
 };
 
-static int sampleInitialOverlap = SampleManager::Register( "Collision", "Initial Overlap", InitialOverlap::Create );
+static int sampleInitialOverlap = RegisterSample( "Collision", "Initial Overlap", InitialOverlap::Create );
 
 // pointA[0] = {0.000000000, 0.000000000, 0.000000000}
 // pointA[1] = {0.000000000, -6400.000000000, 0.000000000}
@@ -1554,7 +1554,7 @@ public:
 	b3Vec3 m_triangle[3];
 };
 
-static int sampleShapeCastDebug = SampleManager::Register( "Collision", "Shape Cast Debug", ShapeCastDebug::Create );
+static int sampleShapeCastDebug = RegisterSample( "Collision", "Shape Cast Debug", ShapeCastDebug::Create );
 
 class DistanceDebug : public Sample
 {
@@ -1806,7 +1806,7 @@ public:
 	int m_simplexCount;
 };
 
-static int sampleDistanceDebug = SampleManager::Register( "Collision", "Distance Debug", DistanceDebug::Create );
+static int sampleDistanceDebug = RegisterSample( "Collision", "Distance Debug", DistanceDebug::Create );
 
 class ShapeDistance : public Sample
 {
@@ -2264,7 +2264,7 @@ public:
 	bool m_drawSimplex;
 };
 
-static int sampleShapeDistance = SampleManager::Register( "Collision", "Shape Distance", ShapeDistance::Create );
+static int sampleShapeDistance = RegisterSample( "Collision", "Shape Distance", ShapeDistance::Create );
 
 class TimeOfImpact : public Sample
 {
@@ -2492,7 +2492,7 @@ public:
 	b3Sweep m_sweepB;
 };
 
-static int sampleTimeOfImpact = SampleManager::Register( "Collision", "Time of Impact", TimeOfImpact::Create );
+static int sampleTimeOfImpact = RegisterSample( "Collision", "Time of Impact", TimeOfImpact::Create );
 
 class CapsuleCastRay : public Sample
 {
@@ -2565,4 +2565,4 @@ public:
 	float m_scale;
 };
 
-static int sampleCapsuleCastRay = SampleManager::Register( "Collision", "Capsule Cast Ray", CapsuleCastRay::Create );
+static int sampleCapsuleCastRay = RegisterSample( "Collision", "Capsule Cast Ray", CapsuleCastRay::Create );

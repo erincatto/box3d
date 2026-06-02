@@ -1,7 +1,7 @@
 // Dear ImGui shell - implementation.
 //
 // Owns the simgui setup and the ImGui pass, runs the app's UI draw callback
-// (the menu bar, panels, and diagnostics drawn by the SampleManager), and
+// (the menu bar, panels, and diagnostics drawn by DrawUI), and
 // drains the in-world text overlay. Panels are anchored with BeginPanel /
 // EndPanel; the menu bar and drawer the app draws itself.
 //

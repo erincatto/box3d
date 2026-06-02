@@ -76,7 +76,7 @@ public:
 	float m_jointDampingRatio;
 };
 
-static int sampleRagdollOnBox = SampleManager::Register( "Ragdoll", "Box", RagdollOnBox::Create );
+static int sampleRagdollOnBox = RegisterSample( "Ragdoll", "Box", RagdollOnBox::Create );
 
 class RagdollOnMesh : public Sample
 {
@@ -202,7 +202,7 @@ public:
 	float m_jointDampingRatio;
 };
 
-static int sampleRagdollMesh = SampleManager::Register( "Ragdoll", "Mesh", RagdollOnMesh::Create );
+static int sampleRagdollMesh = RegisterSample( "Ragdoll", "Mesh", RagdollOnMesh::Create );
 
 class RagdollPile : public Sample
 {
@@ -259,7 +259,7 @@ public:
 	Human m_humans[e_count] = {};
 };
 
-static int sampleRagdollPile = SampleManager::Register( "Ragdoll", "Pile", RagdollPile::Create );
+static int sampleRagdollPile = RegisterSample( "Ragdoll", "Pile", RagdollPile::Create );
 
 class RagdollIncline : public Sample
 {
@@ -334,7 +334,7 @@ public:
 	bool m_motorized;
 };
 
-static int sampleRagdollIncline = SampleManager::Register( "Ragdoll", "Incline", RagdollIncline::Create );
+static int sampleRagdollIncline = RegisterSample( "Ragdoll", "Incline", RagdollIncline::Create );
 
 #if 0
 class RagdollPose : public Sample
@@ -460,5 +460,5 @@ public:
 	bool m_poseControl;
 };
 
-static int sampleRagodllPose = SampleManager::Register( "Ragdoll", "Pose", RagdollPose::Create );
+static int sampleRagodllPose = RegisterSample( "Ragdoll", "Pose", RagdollPose::Create );
 #endif

@@ -83,6 +83,10 @@ public:
 
 	void CreateWorld( b3Capacity* capacity );
 
+	// Position the first HUD text line below the menu bar, or near the top when
+	// the UI is hidden. Mirrors Box2D ResetText.
+	void ResetText();
+
 	// Update and render are split to support pausing the simulation
 	virtual void Step();
 
@@ -168,38 +172,18 @@ struct SampleEntry
 	SampleCreateFcn* CreateFcn;
 };
 
-class SampleManager
-{
-public:
-	static int Register( const char* category, const char* name, SampleCreateFcn* fcn );
+extern SampleEntry g_sampleEntries[MAX_SAMPLES];
+extern int g_sampleCount;
 
-	void Startup( int width, int height );
-	void Step();
-	void Draw();
-	void Resize( int width, int height );
-	void Shutdown();
+int RegisterSample( const char* category, const char* name, SampleCreateFcn* fcn );
 
-	void Keyboard( int key, int action, int modifiers );
-	void MouseDown( b3Vec2 p, int button, int modifiers );
-	void MouseUp( b3Vec2 p, int button );
-	void MouseMove( b3Vec2 p );
+// Destroy the active sample and build the selected one. restart keeps the camera
+// by leaving the restart flag set while the new sample constructs.
+void SelectSample( SampleContext* context, int selection, bool restart );
 
-	void CreateSample();
-
-	// The single host UI callback: menu bar, sample picker, info panel, and
-	// the bottom diagnostics drawer.
-	void UpdateUI();
-	void DrawMenuBar();
-	void DrawSamplePicker();
-	void DrawInfoPanel();
-	void DrawHud();
-
-	static SampleEntry sEntries[MAX_SAMPLES];
-	static int sEntryCount;
-
-	SampleContext m_context;
-	Sample* m_sample = nullptr;
-};
+// The single host UI callback: menu bar, sample picker, info panel, and the
+// bottom diagnostics drawer.
+void DrawUI( SampleContext* context );
 
 struct CastClosestContext
 {

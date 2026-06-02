@@ -52,7 +52,7 @@ public:
 	static constexpr int m_boxCount = 5;
 };
 
-static int sampleInclinedPlane = SampleManager::Register( "Shapes", "Inclined Plane", InclinedPlane::Create );
+static int sampleInclinedPlane = RegisterSample( "Shapes", "Inclined Plane", InclinedPlane::Create );
 
 class RollingResistance : public Sample
 {
@@ -109,7 +109,7 @@ public:
 	}
 };
 
-static int sampleRollingResistance = SampleManager::Register( "Shapes", "Rolling Resistance", RollingResistance::Create );
+static int sampleRollingResistance = RegisterSample( "Shapes", "Rolling Resistance", RollingResistance::Create );
 
 class HighResistance : public Sample
 {
@@ -149,7 +149,7 @@ public:
 	static constexpr int m_count = 10;
 };
 
-static int sampleHighResistance = SampleManager::Register( "Shapes", "High Resistance", HighResistance::Create );
+static int sampleHighResistance = RegisterSample( "Shapes", "High Resistance", HighResistance::Create );
 
 class IsotropicFriction : public Sample
 {
@@ -194,7 +194,7 @@ public:
 	static constexpr int m_boxCount = 32;
 };
 
-static int sampleIsotropicFriction = SampleManager::Register( "Shapes", "Isotropic Friction", IsotropicFriction::Create );
+static int sampleIsotropicFriction = RegisterSample( "Shapes", "Isotropic Friction", IsotropicFriction::Create );
 
 // todo what is the point of this?
 class SlideTwist : public Sample
@@ -241,7 +241,7 @@ public:
 	}
 };
 
-static int sampleSlideTwist = SampleManager::Register( "Shapes", "Slide Twist", SlideTwist::Create );
+static int sampleSlideTwist = RegisterSample( "Shapes", "Slide Twist", SlideTwist::Create );
 
 class Restitution : public Sample
 {
@@ -340,7 +340,7 @@ public:
 	ShapeType m_shapeType;
 };
 
-static int sampleRestitution = SampleManager::Register( "Shapes", "Restitution", Restitution::Create );
+static int sampleRestitution = RegisterSample( "Shapes", "Restitution", Restitution::Create );
 
 // This shows an optimization when creating many static shapes you can skip having them invoke collision, assuming
 // dynamic bodies are added after the static bodies.
@@ -447,7 +447,7 @@ public:
 	bool m_invoke;
 };
 
-static int sampleStaticInvoke = SampleManager::Register( "Shapes", "Static Invoke", StaticInvoke::Create );
+static int sampleStaticInvoke = RegisterSample( "Shapes", "Static Invoke", StaticInvoke::Create );
 
 class ConveyorBelt : public Sample
 {
@@ -504,7 +504,7 @@ public:
 	}
 };
 
-static int sampleConveyorBelt = SampleManager::Register( "Shapes", "Conveyor Belt", ConveyorBelt::Create );
+static int sampleConveyorBelt = RegisterSample( "Shapes", "Conveyor Belt", ConveyorBelt::Create );
 
 class ConveyorMesh : public Sample
 {
@@ -689,7 +689,7 @@ public:
 	b3Vec3 m_velocities[7];
 };
 
-static int sampleConveyorMesh = SampleManager::Register( "Shapes", "Conveyor Mesh", ConveyorMesh::Create );
+static int sampleConveyorMesh = RegisterSample( "Shapes", "Conveyor Mesh", ConveyorMesh::Create );
 
 class Wind : public Sample
 {
@@ -862,7 +862,7 @@ public:
 	int m_count;
 };
 
-static int sampleWind = SampleManager::Register( "Shapes", "Wind", Wind::Create );
+static int sampleWind = RegisterSample( "Shapes", "Wind", Wind::Create );
 
 class WindDrop : public Sample
 {
@@ -931,7 +931,7 @@ public:
 	b3ShapeId m_shapeId;
 };
 
-static int sampleWindDrop = SampleManager::Register( "Shapes", "Wind Drop", WindDrop::Create );
+static int sampleWindDrop = RegisterSample( "Shapes", "Wind Drop", WindDrop::Create );
 
 class WindFlap : public Sample
 {
@@ -1055,4 +1055,4 @@ public:
 	b3JointId m_jointId2;
 };
 
-static int sampleWindFlap = SampleManager::Register( "Shapes", "Wind Flap", WindFlap::Create );
+static int sampleWindFlap = RegisterSample( "Shapes", "Wind Flap", WindFlap::Create );

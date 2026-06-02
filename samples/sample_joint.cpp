@@ -237,7 +237,7 @@ public:
 	bool m_enableLimit;
 };
 
-static int sampleDistanceJoint = SampleManager::Register( "Joints", "Distance Joint", DistanceJoint::Create );
+static int sampleDistanceJoint = RegisterSample( "Joints", "Distance Joint", DistanceJoint::Create );
 
 class FilterJoint : public Sample
 {
@@ -295,7 +295,7 @@ public:
 	}
 };
 
-static int sampleFilterJoint = SampleManager::Register( "Joints", "Filter", FilterJoint::Create );
+static int sampleFilterJoint = RegisterSample( "Joints", "Filter", FilterJoint::Create );
 
 /// This test shows how to use a motor joint. A motor joint
 /// can be used to animate a dynamic body. With finite motor forces
@@ -466,7 +466,7 @@ public:
 	float m_maxTorque;
 };
 
-static int sampleMotorJoint = SampleManager::Register( "Joints", "Motor Joint", MotorJoint::Create );
+static int sampleMotorJoint = RegisterSample( "Joints", "Motor Joint", MotorJoint::Create );
 
 class TopDownFriction : public Sample
 {
@@ -571,7 +571,7 @@ public:
 	}
 };
 
-static int sampleTopDownFriction = SampleManager::Register( "Joints", "Top Down Friction", TopDownFriction::Create );
+static int sampleTopDownFriction = RegisterSample( "Joints", "Top Down Friction", TopDownFriction::Create );
 
 class PrismaticJoint : public Sample
 {
@@ -738,7 +738,7 @@ public:
 	bool m_enableLimit;
 };
 
-static int samplePrismaticJoint = SampleManager::Register( "Joints", "Prismatic", PrismaticJoint::Create );
+static int samplePrismaticJoint = RegisterSample( "Joints", "Prismatic", PrismaticJoint::Create );
 
 class SphericalJoint : public Sample
 {
@@ -925,7 +925,7 @@ public:
 	bool m_enableConeLimit = false;
 };
 
-static int sampleSphericalJoint = SampleManager::Register( "Joints", "Spherical", SphericalJoint::Create );
+static int sampleSphericalJoint = RegisterSample( "Joints", "Spherical", SphericalJoint::Create );
 
 class ParallelJoint : public Sample
 {
@@ -1044,7 +1044,7 @@ public:
 	float m_dampingRatio;
 };
 
-static int sampleParallelJoint = SampleManager::Register( "Joints", "Parallel Spring", ParallelJoint::Create );
+static int sampleParallelJoint = RegisterSample( "Joints", "Parallel Spring", ParallelJoint::Create );
 
 class RevoluteJoint : public Sample
 {
@@ -1221,7 +1221,7 @@ public:
 	bool m_enableLimit;
 };
 
-static int sampleRevoluteJoint = SampleManager::Register( "Joints", "Revolute", RevoluteJoint::Create );
+static int sampleRevoluteJoint = RegisterSample( "Joints", "Revolute", RevoluteJoint::Create );
 
 class WeldJoint : public Sample
 {
@@ -1323,7 +1323,7 @@ public:
 	float m_angularDampingRatio = 0.7f;
 };
 
-static int sampleWeldJoint = SampleManager::Register( "Joints", "Weld", WeldJoint::Create );
+static int sampleWeldJoint = RegisterSample( "Joints", "Weld", WeldJoint::Create );
 
 class WheelJoint : public Sample
 {
@@ -1568,7 +1568,7 @@ public:
 	float m_targetSteeringDegrees;
 };
 
-static int sampleWheelJoint = SampleManager::Register( "Joints", "Wheel", WheelJoint::Create );
+static int sampleWheelJoint = RegisterSample( "Joints", "Wheel", WheelJoint::Create );
 
 class BallAndChain : public Sample
 {
@@ -1634,7 +1634,7 @@ public:
 	}
 };
 
-static int sampleBallAndChain = SampleManager::Register( "Joints", "Ball and Chain", BallAndChain::Create );
+static int sampleBallAndChain = RegisterSample( "Joints", "Ball and Chain", BallAndChain::Create );
 
 class Door : public Sample
 {
@@ -1874,7 +1874,7 @@ public:
 	bool m_twoJoints;
 };
 
-static int sampleDoor = SampleManager::Register( "Joints", "Door", Door::Create );
+static int sampleDoor = RegisterSample( "Joints", "Door", Door::Create );
 
 // A suspension bridge
 class Bridge : public Sample
@@ -2002,7 +2002,7 @@ public:
 	float m_gravityScale;
 };
 
-static int sampleBridgeIndex = SampleManager::Register( "Joints", "Bridge", Bridge::Create );
+static int sampleBridgeIndex = RegisterSample( "Joints", "Bridge", Bridge::Create );
 
 // This test ensures joints work correctly with bodies that have motion locks
 class MotionLocks : public Sample
@@ -2293,7 +2293,7 @@ public:
 	b3MotionLocks m_motionLocks;
 };
 
-static int sampleMotionLocks = SampleManager::Register( "Joints", "Motion Locks", MotionLocks::Create );
+static int sampleMotionLocks = RegisterSample( "Joints", "Motion Locks", MotionLocks::Create );
 
 class Driving : public Sample
 {
@@ -2695,4 +2695,4 @@ public:
 	bool m_haveMouseLast;
 };
 
-static int sampleDriving = SampleManager::Register( "Joints", "Driving", Driving::Create );
+static int sampleDriving = RegisterSample( "Joints", "Driving", Driving::Create );
