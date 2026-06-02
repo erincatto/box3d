@@ -84,6 +84,9 @@ void DrawGrid( b3Vec3 center, b3Vec3 normal, float halfExtent, int divisions, Ve
 // Wireframe triangle: three overlay lines a -> b -> c -> a.
 void DrawTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, Vec4 color );
 
+void DrawWireSphere( b3Transform transform, const b3Sphere* sphere, int segments, Vec4 color );
+void DrawWireCapsule( b3Transform transform, const b3Capsule* capsule, int segments, Vec4 color );
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

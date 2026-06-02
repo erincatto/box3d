@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 #include "benchmarks.h"
+#include "gfx/debug_adapter.h"
+#include "gfx/draw.h"
 #include "imgui.h"
 #include "sample.h"
 #include "sample_draw.h"
 #include "utils.h"
-
-#include "gfx/debug_adapter.h"
 
 #include "box3d/box3d.h"
 
@@ -29,7 +29,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
-			
 		}
 
 		CreateLargePyramid( m_worldId );
@@ -54,7 +53,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
-			
 		}
 
 		CreateWidePyramid( m_worldId );
@@ -79,7 +77,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
-			
 		}
 
 		CreateManyPyramids( m_worldId );
@@ -267,7 +264,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 45.0f, 250.0f, b3Vec3_zero );
-			
 		}
 
 		AddGroundBox( 200.0f );
@@ -312,7 +308,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 35.0f, 40.0f, b3Vec3_zero );
-			
 		}
 
 		AddGroundBox( 100.0f );
@@ -1001,7 +996,6 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 15.0f, 20.0f, 60.0, { 0.0f, 15.0f, 0.0f } );
-			
 		}
 
 		b3Capacity capacity = {};
@@ -1262,7 +1256,7 @@ public:
 		{
 			if ( m_small )
 			{
-				m_camera->SetView( 0.0f, 40.0f, 10.0f, { 0.0f, 0.0f, 0.0f } );
+				m_camera->SetView( 0.0f, 40.0f, 20.0f, { 0.0f, 0.0f, 0.0f } );
 			}
 			else
 			{
@@ -1286,6 +1280,7 @@ public:
 		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 		b3CreateMeshShape( groundId, &shapeDef, m_gridMesh, b3Vec3_one );
 
+#if 0
 		{
 			b3Transform transform;
 			transform.p = { 0.0f, 5.0f, -20.0f };
@@ -1321,6 +1316,7 @@ public:
 			shapeDef.name = "wall4";
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
+#endif
 
 		m_bodyIds = (b3BodyId*)malloc( bodyCapacity * sizeof( b3BodyId ) );
 		memset( m_bodyIds, 0, bodyCapacity * sizeof( b3BodyId ) );
@@ -1402,17 +1398,16 @@ public:
 	{
 		Sample::Render();
 
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
-
 		DrawTextLine( "spawn = %.2f ms", m_spawnMilliseconds );
 		DrawTextLine( "destroy = %.2f ms", m_destroyMilliseconds );
 
 		float r = m_explosionDef.radius;
-		DrawSphere( m_scene, b3Transform_identity, { m_explosionDef.position, r }, b3_colorAqua );
+		b3Sphere sphere1 = { m_explosionDef.position, r };
+		DrawWireSphere( b3Transform_identity, &sphere1, 24, MakeColor( b3_colorAqua ) );
 
 		float rf = r + m_explosionDef.falloff;
-		DrawSphere( m_scene, b3Transform_identity, { m_explosionDef.position, rf }, b3_colorCornsilk );
+		b3Sphere sphere2 = { m_explosionDef.position, rf };
+		DrawWireSphere( b3Transform_identity, &sphere2, 24, MakeColor( b3_colorCornsilk ) );
 	}
 
 	void Step() override
@@ -1456,7 +1451,6 @@ public:
 		{
 			m_camera->SetView( 45.0f, 30.0f, 100.0f, b3Vec3_zero );
 			GetGuiDraw()->drawJoints = false;
-			
 		}
 
 		CreateJunkyard( m_worldId );

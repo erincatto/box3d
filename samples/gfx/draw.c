@@ -7,7 +7,8 @@
 #include "gfx/overlay.h"
 #include "gfx/renderer.h"
 
-void DrawCubeEx( b3Transform transform, b3Vec3 scale, Vec4 baseColor, float metallic, float roughness, TransparentShadowCast shadowCast )
+void DrawCubeEx( b3Transform transform, b3Vec3 scale, Vec4 baseColor, float metallic, float roughness,
+				 TransparentShadowCast shadowCast )
 {
 	AppendCube( transform, scale, baseColor, metallic, roughness, shadowCast );
 }
@@ -17,7 +18,8 @@ void DrawCube( b3Transform transform, b3Vec3 scale, Vec4 baseColor )
 	DrawCubeEx( transform, scale, baseColor, DEFAULT_METALLIC, DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_FULL );
 }
 
-void DrawSphereEx( b3Transform transform, float radius, Vec4 baseColor, float metallic, float roughness, TransparentShadowCast shadowCast )
+void DrawSphereEx( b3Transform transform, float radius, Vec4 baseColor, float metallic, float roughness,
+				   TransparentShadowCast shadowCast )
 {
 	AppendSphere( transform, radius, baseColor, metallic, roughness, shadowCast );
 }
@@ -28,7 +30,7 @@ void DrawSphere( b3Transform transform, float radius, Vec4 baseColor )
 }
 
 void DrawCapsuleEx( b3Transform transform, float halfLength, float radius, Vec4 baseColor, float metallic, float roughness,
-				   TransparentShadowCast shadowCast )
+					TransparentShadowCast shadowCast )
 {
 	AppendCapsule( transform, halfLength, radius, baseColor, metallic, roughness, shadowCast );
 }
@@ -38,7 +40,8 @@ void DrawCapsule( b3Transform transform, float halfLength, float radius, Vec4 ba
 	DrawCapsuleEx( transform, halfLength, radius, baseColor, DEFAULT_METALLIC, DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_FULL );
 }
 
-void DrawLineEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit, OverlayOcclusionMode occlusionMode )
+void DrawLineEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
+				 OverlayOcclusionMode occlusionMode )
 {
 	OverlayAppendLine( a, b, color, thickness, thicknessUnit, occlusionMode );
 }
@@ -58,8 +61,8 @@ void DrawPoint( b3Vec3 p, Vec4 color )
 	DrawPointEx( p, color, DEFAULT_POINT_SIZE_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 }
 
-void DrawArrowEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit, OverlayOcclusionMode occlusionMode,
-				 float headLengthFrac )
+void DrawArrowEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
+				  OverlayOcclusionMode occlusionMode, float headLengthFrac )
 {
 	DrawLineEx( a, b, color, thickness, thicknessUnit, occlusionMode );
 
@@ -84,19 +87,19 @@ void DrawArrowEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThickn
 void DrawArrow( b3Vec3 a, b3Vec3 b, Vec4 color )
 {
 	DrawArrowEx( a, b, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE,
-				DEFAULT_ARROW_HEAD_FRAC );
+				 DEFAULT_ARROW_HEAD_FRAC );
 }
 
 void DrawCrossEx( b3Vec3 center, float size, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
-				 OverlayOcclusionMode occlusionMode )
+				  OverlayOcclusionMode occlusionMode )
 {
 	float h = size * 0.5f;
 	DrawLineEx( (b3Vec3){ center.x - h, center.y, center.z }, (b3Vec3){ center.x + h, center.y, center.z }, color, thickness,
-			   thicknessUnit, occlusionMode );
+				thicknessUnit, occlusionMode );
 	DrawLineEx( (b3Vec3){ center.x, center.y - h, center.z }, (b3Vec3){ center.x, center.y + h, center.z }, color, thickness,
-			   thicknessUnit, occlusionMode );
+				thicknessUnit, occlusionMode );
 	DrawLineEx( (b3Vec3){ center.x, center.y, center.z - h }, (b3Vec3){ center.x, center.y, center.z + h }, color, thickness,
-			   thicknessUnit, occlusionMode );
+				thicknessUnit, occlusionMode );
 }
 
 void DrawCross( b3Vec3 center, float size, Vec4 color )
@@ -105,7 +108,7 @@ void DrawCross( b3Vec3 center, float size, Vec4 color )
 }
 
 void DrawAabbEx( b3Vec3 mn, b3Vec3 mx, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
-				OverlayOcclusionMode occlusionMode )
+				 OverlayOcclusionMode occlusionMode )
 {
 	// 8 corners of the box.
 	b3Vec3 c000 = { mn.x, mn.y, mn.z };
@@ -139,16 +142,17 @@ void DrawAabb( b3Vec3 mn, b3Vec3 mx, Vec4 color )
 	DrawAabbEx( mn, mx, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 }
 
-void DrawAxesEx( b3Transform transform, float size, float thickness, OverlayThicknessUnit thicknessUnit, OverlayOcclusionMode occlusionMode )
+void DrawAxesEx( b3Transform transform, float size, float thickness, OverlayThicknessUnit thicknessUnit,
+				 OverlayOcclusionMode occlusionMode )
 {
 	b3Vec3 origin = transform.p;
 	b3Matrix3 basis = b3MakeMatrixFromQuat( transform.q );
 	DrawLineEx( origin, b3MulAdd( origin, size, basis.cx ), MakeVec4( 1.0f, 0.0f, 0.0f, 1.0f ), thickness, thicknessUnit,
-			   occlusionMode );
+				occlusionMode );
 	DrawLineEx( origin, b3MulAdd( origin, size, basis.cy ), MakeVec4( 0.0f, 1.0f, 0.0f, 1.0f ), thickness, thicknessUnit,
-			   occlusionMode );
+				occlusionMode );
 	DrawLineEx( origin, b3MulAdd( origin, size, basis.cz ), MakeVec4( 0.0f, 0.0f, 1.0f, 1.0f ), thickness, thicknessUnit,
-			   occlusionMode );
+				occlusionMode );
 }
 
 void DrawAxes( b3Transform transform, float size )
@@ -187,4 +191,97 @@ void DrawTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, Vec4 color )
 	DrawLineEx( a, b, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 	DrawLineEx( b, c, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 	DrawLineEx( c, a, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+}
+
+static void DrawDisc( b3Vec3 center, b3Vec3 normal, float radius, int segments, Vec4 color )
+{
+	b3Vec3 tangent1 = b3Perp( normal );
+	b3Vec3 tangent2 = b3Cross( normal, tangent1 );
+
+	float delta = 2.0f * B3_PI / segments;
+	float cosine = cosf( delta );
+	float sine = sinf( delta );
+
+	float x1 = radius, y1 = 0.0f;
+	b3Vec3 vertex1 = b3Add( center, b3Blend2( x1, tangent1, y1, tangent2 ) );
+
+	for ( int i = 0; i < segments; ++i )
+	{
+		float x2 = cosine * x1 - sine * y1;
+		float y2 = sine * x1 + cosine * y1;
+		b3Vec3 vertex2 = b3Add( center, b3Blend2( x2, tangent1, y2, tangent2 ) );
+
+		DrawLineEx( vertex1, vertex2, color, 2.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DIM );
+
+		x1 = x2;
+		y1 = y2;
+		vertex1 = vertex2;
+	}
+}
+
+static void DrawArc( b3Vec3 center, b3Vec3 normal, float radius, b3Vec3 start, float maxDegrees, int segments, Vec4 color )
+{
+	b3Vec3 tangent1 = b3Normalize( start );
+	b3Vec3 tangent2 = b3Cross( normal, tangent1 );
+
+	float deltaDegrees = maxDegrees / segments;
+	b3CosSin cs = b3ComputeCosSin( B3_DEG_TO_RAD * deltaDegrees );
+	float x1 = radius, y1 = 0.0f;
+
+	b3Vec3 vertex1 = b3Add( center, b3Blend2( x1, tangent1, y1, tangent2 ) );
+
+	for ( float angle = 0.0f; angle < maxDegrees - 0.001f; angle += deltaDegrees )
+	{
+		float x2 = cs.cosine * x1 - cs.sine * y1;
+		float y2 = cs.sine * x1 + cs.cosine * y1;
+		b3Vec3 vertex2 = b3Add( center, b3Blend2( x2, tangent1, y2, tangent2 ) );
+
+		DrawLineEx( vertex1, vertex2, color, 2.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+
+		x1 = x2;
+		y1 = y2;
+		vertex1 = vertex2;
+	}
+}
+
+void DrawWireSphere( b3Transform transform, const b3Sphere* sphere, int segments, Vec4 color )
+{
+	b3Vec3 center = b3TransformPoint( transform, sphere->center );
+	float radius = sphere->radius;
+
+	b3Vec3 axisX = b3RotateVector( transform.q, (b3Vec3){ 1.0f, 0.0f, 0.0f } );
+	b3Vec3 axisY = b3RotateVector( transform.q, (b3Vec3){ 0.0f, 1.0f, 0.0f } );
+	b3Vec3 axisZ = b3RotateVector( transform.q, (b3Vec3){ 0.0f, 0.0f, 1.0f } );
+
+	DrawDisc( center, axisX, radius, segments, color );
+	DrawDisc( center, axisY, radius, segments, color );
+	DrawDisc( center, axisZ, radius, segments, color );
+}
+
+void DrawWireCapsule( b3Transform transform, const b3Capsule* capsule, int segments, Vec4 color )
+{
+	b3Vec3 center1 = b3TransformPoint( transform, capsule->center1 );
+	b3Vec3 center2 = b3TransformPoint( transform, capsule->center2 );
+	float radius = capsule->radius;
+
+	b3Vec3 normal = b3Normalize( b3Sub( center2, center1 ) );
+	b3Vec3 tangent1 = b3Perp( normal );
+	b3Vec3 tangent2 = b3Cross( normal, tangent1 );
+
+	DrawLineEx( b3MulAdd( center1, radius, tangent1 ), b3MulAdd( center2, radius, tangent1 ), color, 2.0f,
+				OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+	DrawLineEx( b3MulAdd( center1, radius, tangent2 ), b3MulAdd( center2, radius, tangent2 ), color, 2.0f,
+				OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+	DrawLineEx( b3MulSub( center1, radius, tangent1 ), b3MulSub( center2, radius, tangent1 ), color, 2.0f,
+				OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+	DrawLineEx( b3MulSub( center1, radius, tangent2 ), b3MulSub( center2, radius, tangent2 ), color, 2.0f,
+				OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+
+	DrawArc( center1, b3Neg( tangent1 ), radius, tangent2, 180.0f, segments / 2, color );
+	DrawArc( center1, tangent2, radius, tangent1, 180.0f, segments / 2, color );
+	DrawArc( center2, tangent1, radius, tangent2, 180.0f, segments / 2, color );
+	DrawArc( center2, b3Neg( tangent2 ), radius, tangent1, 180.0f, segments / 2, color );
+
+	DrawDisc( center1, normal, radius, segments, color );
+	DrawDisc( center2, normal, radius, segments, color );
 }

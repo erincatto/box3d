@@ -8,6 +8,7 @@
 #include "gfx/keycodes.h"
 
 #include "box3d/box3d.h"
+#include "gfx/draw.h"
 
 class BodyType : public Sample
 {
@@ -386,19 +387,15 @@ public:
 			m_camera->SetView( 45.0f, 25.0f, 25.0f, b3Vec3_zero );
 		}
 
+		AddGroundBox( 30.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = { 0.0f, -1.0f, 0.0f };
-		b3BodyId groundBody = b3CreateBody( m_worldId, &bodyDef );
-
-		b3BoxHull box = b3MakeBoxHull( 32.0f, 1.0f, 32.0f );
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateHullShape( groundBody, &shapeDef, &box.base );
-
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.0f, 3.0f, 0.0f };
 		m_weebleId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.0f, -1.0f }, { 0.0f, 1.0f }, 1.0f };
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.rollingResistance = 0.1f;
 		b3CreateCapsuleShape( m_weebleId, &shapeDef, &capsule );
 
@@ -464,8 +461,8 @@ public:
 	{
 		Sample::Step();
 
-		b3Sphere sphere = { b3Vec3_zero, m_explosionRadius };
-		DrawSphere( m_scene, { m_explosionPosition, b3Quat_identity }, sphere, b3_colorAzure );
+		b3Sphere sphere = { m_explosionPosition, m_explosionRadius };
+		DrawWireSphere(b3Transform_identity, &sphere, 32, MakeColor(b3_colorAzure) );
 
 		// This shows how to get the velocity of a point on a body
 		b3Vec3 localPoint = { 0.0f, 2.0f, 0.0f };
