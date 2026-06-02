@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "sample.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 #include "utils.h"
 
 #include "box3d/box3d.h"
@@ -111,10 +111,10 @@ public:
 
 	void Render() override
 	{
-		DrawHull( m_scene, b3Transform_identity, m_hull, b3_colorYellow, true );
-		DrawHull( m_scene, b3Transform_identity, &m_box.base, b3_colorCyan, true );
+		DrawHull( b3Transform_identity, m_hull, MakeColor( b3_colorYellow ) );
+		DrawHull( b3Transform_identity, &m_box.base, MakeColor( b3_colorCyan ) );
 
-		DrawTransform( m_scene, b3Transform_identity, 1.0f );
+		DrawAxes( b3Transform_identity, 1.0f );
 
 		Sample::Render();
 	}
@@ -208,10 +208,10 @@ public:
 	{
 		if ( m_hull != nullptr )
 		{
-			DrawHull( m_scene, b3Transform_identity, m_hull, b3_colorYellow, true );
+			DrawHull( b3Transform_identity, m_hull, MakeColor( b3_colorYellow ) );
 		}
 
-		DrawTransform( m_scene, b3Transform_identity, 1.0f );
+		DrawAxes( b3Transform_identity, 1.0f );
 
 		Sample::Render();
 	}
@@ -336,12 +336,12 @@ public:
 	{
 		if ( m_hull != nullptr )
 		{
-			DrawHull( m_scene, b3Transform_identity, m_hull, b3_colorYellow, true );
+			DrawHull( b3Transform_identity, m_hull, MakeColor( b3_colorYellow ) );
 
 			DrawTextLine( "v/f/e = %d/%d/%d", m_hull->vertexCount, m_hull->faceCount, m_hull->edgeCount / 2 );
 		}
 
-		DrawTransform( m_scene, b3Transform_identity, 1.0f );
+		DrawAxes( b3Transform_identity, 1.0f );
 
 		Sample::Render();
 	}
@@ -407,9 +407,9 @@ public:
 		b3Transform transform1 = { { -2.0f, 0.0f, 0.0f }, b3Quat_identity };
 		b3Transform transform2 = { { 2.0f, 0.0f, 0.0f }, b3Quat_identity };
 
-		DrawHull( m_scene, transform1, m_original, b3_colorGreen, true );
-		DrawHull( m_scene, transform2, m_hull, b3_colorYellow, true );
-		DrawTransform( m_scene, b3Transform_identity, 1.0f );
+		DrawHull( transform1, m_original, MakeColor( b3_colorGreen ) );
+		DrawHull( transform2, m_hull, MakeColor( b3_colorYellow ) );
+		DrawAxes( b3Transform_identity, 1.0f );
 
 		DrawTextLine( "hull 1: area = %g, volume = %g, radius = %g", m_original->surfaceArea, m_original->volume,
 					  m_original->innerRadius );
@@ -582,15 +582,15 @@ public:
 
 	void Render() override
 	{
-		DrawCapsule( m_scene, b3Transform_identity, m_capsule, b3_colorAqua );
-		DrawHull( m_scene, b3Transform_identity, &m_box.base, b3_colorBlueViolet, true );
+		DrawSolidCapsule( b3Transform_identity, m_capsule, MakeColor( b3_colorAqua ) );
+		DrawHull( b3Transform_identity, &m_box.base, MakeColor( b3_colorBlueViolet ) );
 
 		if ( m_hull != nullptr )
 		{
-			DrawHull( m_scene, b3Transform_identity, m_hull, b3_colorYellow, true );
+			DrawHull( b3Transform_identity, m_hull, MakeColor( b3_colorYellow ) );
 		}
 
-		DrawTransform( m_scene, b3Transform_identity, 1.0f );
+		DrawAxes( b3Transform_identity, 1.0f );
 
 		if ( m_hull != nullptr )
 		{

@@ -4,7 +4,7 @@
 #include "imgui.h"
 #include "mesh_loader.h"
 #include "sample.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 
 #include "box3d/box3d.h"
 
@@ -250,17 +250,17 @@ public:
 	{
 		if ( m_hull != nullptr )
 		{
-			DrawHull( m_scene, b3Transform_identity, m_hull, b3_colorYellow, true );
+			DrawHull( b3Transform_identity, m_hull, MakeColor( b3_colorYellow ) );
 		}
 		else
 		{
 			for ( int i = 0; i < m_count; ++i )
 			{
-				DrawPoint( m_scene, m_points[i], 5.0f, b3_colorWhite );
+				DrawPoint( m_points[i], 5.0f, MakeColor( b3_colorWhite ) );
 			}
 		}
 
-		DrawTransform( m_scene, b3Transform_identity, 1.0f );
+		DrawAxes( b3Transform_identity, 1.0f );
 
 		Sample::Render();
 	}
@@ -461,7 +461,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 1.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 3.0f );
+		DrawAxes( transform, 3.0f );
 	}
 
 	static Sample* Create( SampleContext* context )

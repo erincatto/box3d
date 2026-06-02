@@ -133,20 +133,15 @@ set(SAMPLE_FILES
     host/imgui_impl.cpp
     host/sokol_app_impl.c
 
-    # Sample infrastructure + the old-API draw compatibility layer.
     sample.cpp
     sample.h
-    sample_draw.cpp
-    sample_draw.h
-    draw_bridge.cpp
-    draw_bridge.h
     mesh_loader.cpp
     mesh_loader.h
     jsmn.h
     tiny_obj_loader.h
     earcut.h
 
-    # Samples.
+    # Samples
     sample_stacking.cpp
     sample_character.cpp
     sample_collision.cpp

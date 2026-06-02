@@ -3,7 +3,7 @@
 
 #include "imgui.h"
 #include "sample.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 #include "utils.h"
 
 #include "gfx/keycodes.h"
@@ -53,7 +53,7 @@ public:
 
 	void Render() override
 	{
-		DrawGrid( m_scene, 10 );
+		DrawGroundGrid( 10 );
 		Sample::Render();
 	}
 
@@ -206,7 +206,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
+		DrawAxes( transform, 4.0f );
 
 		for ( int i = 0; i < m_eventCount; ++i )
 		{
@@ -214,12 +214,12 @@ public:
 			// void DrawPoint(Scene * Scene, b3Vector3 Point, b3Color Color, float Size);
 
 			b3Vec3 p1 = m_events[i].point;
-			DrawPoint( m_scene, m_events[i].point, 10.0f, b3_colorYellow );
+			DrawPoint( m_events[i].point, 10.0f, MakeColor( b3_colorYellow ) );
 
 			b3Vec3 p2 = p1 - m_events[i].approachSpeed * m_events[i].normal;
-			DrawLine( m_scene, p1, p2, b3_colorYellow );
+			DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
 
-			DrawWorldString( m_camera, p1, b3_colorWhite, "%.1f, %d", m_events[i].approachSpeed, m_events[i].userMaterialIdA );
+			DrawWorldString( p1, MakeColor( b3_colorWhite ), "%.1f, %d", m_events[i].approachSpeed, m_events[i].userMaterialIdA );
 		}
 
 		DrawTextLine( "event count = %d", m_eventCount );
@@ -296,7 +296,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
+		DrawAxes( transform, 4.0f );
 
 		b3Vec3 vp = b3Body_GetLocalPointVelocity( m_bodyId, m_localPivot );
 		b3Vec3 v = b3Body_GetLinearVelocity( m_bodyId );
@@ -656,9 +656,9 @@ public:
 					const b3ManifoldPoint* manifoldPoint = manifold->points + i;
 					b3Vec3 p1 = manifoldPoint->anchorA + centerOfMass;
 					b3Vec3 p2 = p1 + manifoldPoint->totalNormalImpulse * normal;
-					DrawLine( m_scene, p1, p2, b3_colorCrimson );
-					DrawPoint( m_scene, p1, 6.0f, b3_colorCrimson );
-					DrawWorldString( m_camera, p1, b3_colorGray, "%.2f", manifoldPoint->totalNormalImpulse );
+					DrawLine( p1, p2, MakeColor( b3_colorCrimson ) );
+					DrawPoint( p1, 6.0f, MakeColor( b3_colorCrimson ) );
+					DrawWorldString( p1, MakeColor( b3_colorGray ), "%.2f", manifoldPoint->totalNormalImpulse );
 				}
 			}
 		}
@@ -870,7 +870,7 @@ public:
 
 		for ( int i = 0; i < m_transformCount; ++i )
 		{
-			DrawTransform( m_scene, m_transforms[i], 0.1f );
+			DrawAxes( m_transforms[i], 0.1f );
 		}
 
 		b3SensorEvents sensorEvents = b3World_GetSensorEvents( m_worldId );

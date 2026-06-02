@@ -6,7 +6,6 @@
 #include "gfx/draw.h"
 #include "imgui.h"
 #include "sample.h"
-#include "sample_draw.h"
 #include "utils.h"
 
 #include "box3d/box3d.h"
@@ -97,7 +96,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
+		DrawAxes( transform, 4.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -150,7 +149,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 2.0f );
+		DrawAxes( transform, 2.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -199,7 +198,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 2.0f );
+		DrawAxes( transform, 2.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -229,7 +228,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
+		DrawAxes( transform, 4.0f );
 
 		// transform.p.y = 0.0f;
 		// transform.p.z = -5.0f;
@@ -496,7 +495,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
+		DrawAxes( transform, 4.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -580,9 +579,9 @@ public:
 	{
 		Sample::Render();
 
-		DrawLine( m_scene, b3Vec3_zero, 0.4f * b3Vec3_axisX, b3_colorRed );
-		DrawLine( m_scene, b3Vec3_zero, 0.4f * b3Vec3_axisY, b3_colorGreen );
-		DrawLine( m_scene, b3Vec3_zero, 0.4f * b3Vec3_axisZ, b3_colorBlue );
+		DrawLine( b3Vec3_zero, 0.4f * b3Vec3_axisX, MakeColor( b3_colorRed ) );
+		DrawLine( b3Vec3_zero, 0.4f * b3Vec3_axisY, MakeColor( b3_colorGreen ) );
+		DrawLine( b3Vec3_zero, 0.4f * b3Vec3_axisZ, MakeColor( b3_colorBlue ) );
 
 		int hitCount = 0;
 		int iterationCount = 0;
@@ -635,28 +634,28 @@ public:
 					if ( m_isDebug )
 					{
 						b3Vec3 point = result.point;
-						DrawLine( m_scene, point, point + 0.5f * result.normal, b3_colorGreen );
-						DrawPoint( m_scene, point, 10.0f, b3_colorGreen );
+						DrawLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGreen ) );
+						DrawPoint( point, 10.0f, MakeColor( b3_colorGreen ) );
 
 						if ( m_radius > 0.0f )
 						{
 							b3Transform transform = b3Transform_identity;
 							transform.p = rayOrigin + result.fraction * rayTranslation;
-							DrawSphere( m_scene, transform, sphere, b3_colorPurple );
+							DrawSolidSphere( transform, sphere, MakeColor( b3_colorPurple ) );
 						}
 
 						b3Vec3 rayEnd = rayOrigin + result.fraction * rayTranslation;
-						DrawLine( m_scene, rayOrigin, rayEnd, b3_colorYellow );
-						DrawPoint( m_scene, rayOrigin, 2.0f, b3_colorRed );
-						DrawPoint( m_scene, rayEnd, 2.0f, b3_colorRed );
+						DrawLine( rayOrigin, rayEnd, MakeColor( b3_colorYellow ) );
+						DrawPoint( rayOrigin, 2.0f, MakeColor( b3_colorRed ) );
+						DrawPoint( rayEnd, 2.0f, MakeColor( b3_colorRed ) );
 					}
 				}
 				else if ( m_isDebug )
 				{
 					b3Vec3 rayEnd = rayOrigin + rayTranslation;
-					DrawLine( m_scene, rayOrigin, rayEnd, b3_colorYellow );
-					DrawPoint( m_scene, rayOrigin, 2.0f, b3_colorRed );
-					DrawPoint( m_scene, rayEnd, 2.0f, b3_colorRed );
+					DrawLine( rayOrigin, rayEnd, MakeColor( b3_colorYellow ) );
+					DrawPoint( rayOrigin, 2.0f, MakeColor( b3_colorRed ) );
+					DrawPoint( rayEnd, 2.0f, MakeColor( b3_colorRed ) );
 				}
 			}
 		}
@@ -1081,8 +1080,8 @@ public:
 		b3Transform transform1 = { { -2.0f, 0.0f, 0.0f }, b3Quat_identity };
 		b3Transform transform2 = { { 2.0f, 0.0f, 0.0f }, b3Quat_identity };
 
-		DrawHull( m_scene, transform1, m_hull, b3_colorGreen, true );
-		DrawHull( m_scene, transform2, m_transformedHull, b3_colorYellow, true );
+		DrawHull( transform1, m_hull, MakeColor( b3_colorGreen ) );
+		DrawHull( transform2, m_transformedHull, MakeColor( b3_colorYellow ) );
 
 		Sample::Render();
 	}

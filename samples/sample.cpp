@@ -17,7 +17,7 @@
 #include "imgui.h"
 #include "implot.h"
 #include "jsmn.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 #include "sokol_app.h"
 #include "utils.h"
 
@@ -1360,7 +1360,7 @@ static void DrawRow( const char* key, const char* desc )
 }
 
 // b3HexColor (0xRRGGBB) to an opaque ImVec4 for panel text. Distinct from
-// sample_draw.h's MakeColor, which returns the renderer's linear Vec4.
+// gfx/utility.h's MakeColor, which returns the renderer's linear Vec4.
 static ImVec4 HexColor( b3HexColor hexColor )
 {
 	uint32_t h = (uint32_t)hexColor;
@@ -1993,7 +1993,6 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 	m_velocity.y -= m_gravity * timeStep;
 
 	b3WorldId worldId = m_sample->m_worldId;
-	Scene* scene = m_sample->m_scene;
 
 	float pogoRestLength = 3.0f * m_capsule.radius;
 	float rayLength = pogoRestLength + m_capsule.radius;
@@ -2007,7 +2006,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		m_onGround = false;
 		m_pogoVelocity = 0.0f;
 
-		DrawLine( scene, rayOrigin, rayOrigin + rayTranslation, b3_colorGray );
+		DrawLine( rayOrigin, rayOrigin + rayTranslation, MakeColor( b3_colorGray ) );
 	}
 	else
 	{
@@ -2021,7 +2020,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 
 		m_pogoVelocity = ( m_pogoVelocity - omega * omegaH * ( pogoCurrentLength - pogoRestLength ) ) /
 						 ( 1.0f + 2.0f * zeta * omegaH + omegaH * omegaH );
-		DrawLine( scene, rayOrigin, rayResult.point, b3_colorGreen );
+		DrawLine( rayOrigin, rayResult.point, MakeColor( b3_colorGreen ) );
 	}
 
 	b3Vec3 startPosition = m_transform.p;
@@ -2168,7 +2167,6 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 
 	SolveMove( timeStep, forward, right, throttle, clipVelocity );
 
-	Scene* scene = m_sample->m_scene;
 
 	int count = m_planeCount;
 	for ( int i = 0; i < count; ++i )
@@ -2176,12 +2174,12 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 		b3Plane plane = m_planes[i].plane;
 		b3Vec3 p1 = m_transform.p + ( plane.offset - m_capsule.radius ) * plane.normal;
 		b3Vec3 p2 = p1 + 0.1f * plane.normal;
-		DrawPoint( scene, p1, 5.0f, b3_colorYellow );
-		DrawLine( scene, p1, p2, b3_colorYellow );
+		DrawPoint( p1, 5.0f, MakeColor( b3_colorYellow ) );
+		DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
 	}
 
-	DrawCapsule( scene, m_transform, m_capsule, b3_colorBlue );
-	DrawLine( scene, m_transform.p, m_transform.p + m_velocity, b3_colorPurple );
+	DrawSolidCapsule( m_transform, m_capsule, MakeColor( b3_colorBlue ) );
+	DrawLine( m_transform.p, m_transform.p + m_velocity, MakeColor( b3_colorPurple ) );
 
 	b3Vec3 p = m_transform.p;
 	// m_sample->DrawTextLine( "position %.2f %.2f %.2f", p.x, p.y, p.z );

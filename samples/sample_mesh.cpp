@@ -4,7 +4,7 @@
 #include "human.h"
 #include "mesh_loader.h"
 #include "sample.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 
 #include "gfx/debug_adapter.h"
 
@@ -176,7 +176,7 @@ public:
 
 		DrawTextLine( "triangle count = %d, bytes = %d", m_gridMesh->triangleCount, m_gridMesh->byteCount );
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 1.0f );
+		DrawAxes( transform, 1.0f );
 	}
 
 	void Step() override
@@ -355,7 +355,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 1.0f );
+		DrawAxes( transform, 1.0f );
 	}
 
 	void Step() override
@@ -536,7 +536,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 2.0f );
+		DrawAxes( transform, 2.0f );
 	}
 
 	void Step() override
@@ -932,7 +932,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 0.5f );
+		DrawAxes( transform, 0.5f );
 	}
 
 	// This callback finds the closest hit.
@@ -968,15 +968,15 @@ public:
 
 			b3RayResult result = b3World_CastRayClosest( m_worldId, m_rayOrigin, m_rayTranslation, b3DefaultQueryFilter() );
 
-			DrawPoint( m_scene, m_rayOrigin, 6.0f, b3_colorGreenYellow );
-			DrawPoint( m_scene, m_rayOrigin + m_rayTranslation, 6.0f, b3_colorRed );
-			DrawLine( m_scene, m_rayOrigin, m_rayOrigin + m_rayTranslation, b3_colorGray );
+			DrawPoint( m_rayOrigin, 6.0f, MakeColor( b3_colorGreenYellow ) );
+			DrawPoint( m_rayOrigin + m_rayTranslation, 6.0f, MakeColor( b3_colorRed ) );
+			DrawLine( m_rayOrigin, m_rayOrigin + m_rayTranslation, MakeColor( b3_colorGray ) );
 
 			if ( result.hit )
 			{
 				b3Vec3 point = result.point;
-				DrawLine( m_scene, point, point + 0.5f * result.normal, b3_colorGray );
-				DrawPoint( m_scene, point, 10.0f, b3_colorOrange );
+				DrawLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGray ) );
+				DrawPoint( point, 10.0f, MakeColor( b3_colorOrange ) );
 			}
 		}
 		else
@@ -992,18 +992,18 @@ public:
 
 			b3World_CastShape( m_worldId, &proxy, m_rayTranslation, b3DefaultQueryFilter(), CastCallback, &result );
 
-			DrawPoint( m_scene, m_rayOrigin, 2.0f, b3_colorGreen );
-			DrawPoint( m_scene, m_rayOrigin + m_rayTranslation, 2.0f, b3_colorRed );
-			DrawLine( m_scene, m_rayOrigin, m_rayOrigin + m_rayTranslation, b3_colorYellow );
+			DrawPoint( m_rayOrigin, 2.0f, MakeColor( b3_colorGreen ) );
+			DrawPoint( m_rayOrigin + m_rayTranslation, 2.0f, MakeColor( b3_colorRed ) );
+			DrawLine( m_rayOrigin, m_rayOrigin + m_rayTranslation, MakeColor( b3_colorYellow ) );
 
 			b3Sphere sphere = { b3Vec3_zero, m_radius };
-			DrawSphere( m_scene, { m_rayOrigin + result.fraction * m_rayTranslation, b3Quat_identity }, sphere, b3_colorOrange );
+			DrawSolidSphere( { m_rayOrigin + result.fraction * m_rayTranslation, b3Quat_identity }, sphere, MakeColor( b3_colorOrange ) );
 
 			if ( result.hit )
 			{
 				b3Vec3 point = result.point;
-				DrawLine( m_scene, point, point + 0.5f * result.normal, b3_colorGreen );
-				DrawPoint( m_scene, point, 6.0f, b3_colorPurple );
+				DrawLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGreen ) );
+				DrawPoint( point, 6.0f, MakeColor( b3_colorPurple ) );
 			}
 		}
 	}
@@ -1178,25 +1178,25 @@ public:
 					node->lowerBound,
 					node->upperBound,
 				};
-				DrawBounds( m_scene, box, 0.0f, colors[level % colorCount] );
+				DrawBounds( box, 0.0f, MakeColor( colors[level % colorCount] ) );
 
 				int axis = node->data.asNode.axis;
 				b3Vec3 center = b3AABB_Center( box );
 				if ( axis == 0 )
 				{
-					DrawArrow( m_scene, center, center + 0.1f * b3Vec3_axisX, 0.02f, b3_colorRed );
+					DrawArrow( center, center + 0.1f * b3Vec3_axisX, MakeColor( b3_colorRed ) );
 				}
 				else if ( axis == 1 )
 				{
-					DrawArrow( m_scene, center, center + 0.1f * b3Vec3_axisY, 0.02f, b3_colorGreen );
+					DrawArrow( center, center + 0.1f * b3Vec3_axisY, MakeColor( b3_colorGreen ) );
 				}
 				else if ( axis == 2 )
 				{
-					DrawArrow( m_scene, center, center + 0.1f * b3Vec3_axisZ, 0.02f, b3_colorBlue );
+					DrawArrow( center, center + 0.1f * b3Vec3_axisZ, MakeColor( b3_colorBlue ) );
 				}
 				else
 				{
-					DrawSphere( m_scene, b3Transform_identity, { center, 0.03f }, b3_colorOrange );
+					DrawSolidSphere( b3Transform_identity, { center, 0.03f }, MakeColor( b3_colorOrange ) );
 				}
 			}
 
@@ -1265,7 +1265,7 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		DrawTransform( m_scene, b3Transform_identity, 1.0f );
+		DrawAxes( b3Transform_identity, 1.0f );
 
 		DrawTextLine( "triangle count = %d", m_mesh->triangleCount );
 		DrawTextLine( "vertex count = %d", m_mesh->vertexCount );
@@ -1291,18 +1291,18 @@ public:
 			(void)area;
 
 			b3Vec3 p = ( 1.0f / 3.0f ) * ( v1 + v2 + v3 );
-			DrawPoint( m_scene, p, 10.0f, b3_colorCyan );
+			DrawPoint( p, 10.0f, MakeColor( b3_colorCyan ) );
 
-			DrawWorldString( m_camera, p + offset, b3_colorOrange, "%d", triangleIndex );
+			DrawWorldString( p + offset, MakeColor( b3_colorOrange ), "%d", triangleIndex );
 
 			{
-				DrawPoint( m_scene, v1, 10.0f, b3_colorRed );
-				DrawPoint( m_scene, v2, 10.0f, b3_colorGreen );
-				DrawPoint( m_scene, v3, 10.0f, b3_colorBlue );
+				DrawPoint( v1, 10.0f, MakeColor( b3_colorRed ) );
+				DrawPoint( v2, 10.0f, MakeColor( b3_colorGreen ) );
+				DrawPoint( v3, 10.0f, MakeColor( b3_colorBlue ) );
 
-				DrawWorldString( m_camera, v1 + offset, b3_colorRed, "%d", i1 );
-				DrawWorldString( m_camera, v2 + offset, b3_colorGreen, "%d", i2 );
-				DrawWorldString( m_camera, v3 + offset, b3_colorBlue, "%d", i3 );
+				DrawWorldString( v1 + offset, MakeColor( b3_colorRed ), "%d", i1 );
+				DrawWorldString( v2 + offset, MakeColor( b3_colorGreen ), "%d", i2 );
+				DrawWorldString( v3 + offset, MakeColor( b3_colorBlue ), "%d", i3 );
 			}
 		}
 	}
@@ -1601,7 +1601,7 @@ public:
 		Sample::Render();
 
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 1.0f );
+		DrawAxes( transform, 1.0f );
 	}
 
 	void Step() override

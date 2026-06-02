@@ -6,7 +6,7 @@
 #include "mesh_loader.h"
 #include "utils.h"
 #include "sample.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 
 #include "box3d/box3d.h"
 
@@ -437,7 +437,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
+		DrawAxes( transform, 4.0f );
 	}
 
 	void Step() override
@@ -507,7 +507,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
+		DrawAxes( transform, 4.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -679,15 +679,15 @@ public:
 			b3Vec3 p = 1.0f / 3.0f * ( v1 + v2 + v3 );
 			p = b3TransformPoint( m_meshTransform, p );
 
-			DrawWorldString( m_camera, p, b3_colorAqua, "%d", i );
+			DrawWorldString( p, MakeColor( b3_colorAqua ), "%d", i );
 
 			int materialIndex = materialIndices[i];
 
 			b3Vec3 v = b3RotateVector( m_meshTransform.q, m_velocities[materialIndex] );
-			DrawLine( m_scene, p, p + v, b3_colorBlueViolet );
+			DrawLine( p, p + v, MakeColor( b3_colorBlueViolet ) );
 		}
 
-		DrawTransform( m_scene, b3Transform_identity, 0.5f );
+		DrawAxes( b3Transform_identity, 0.5f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -831,7 +831,7 @@ public:
 	{
 		Sample::Render();
 
-		DrawGrid( m_scene, 20 );
+		DrawGroundGrid( 20 );
 	}
 
 	void Step() override
@@ -858,7 +858,7 @@ public:
 			b3Vec3 rand = RandomVec3( { -0.3f, -0.3f, -0.3f }, { 0.3f, 0.3f, 0.3f } );
 			m_noise = b3Lerp( m_noise, rand, 0.05f );
 
-			DrawLine( m_scene, b3Vec3_zero, b3MulSV( 0.2f, wind ), b3_colorFuchsia );
+			DrawLine( b3Vec3_zero, b3MulSV( 0.2f, wind ), MakeColor( b3_colorFuchsia ) );
 		}
 	}
 
@@ -924,7 +924,7 @@ public:
 		Sample::Render();
 
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 1.0f );
+		DrawAxes( transform, 1.0f );
 	}
 
 	void Step() override
@@ -1033,7 +1033,7 @@ public:
 		Sample::Render();
 
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 1.0f );
+		DrawAxes( transform, 1.0f );
 	}
 
 	void Step() override

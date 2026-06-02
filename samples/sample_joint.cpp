@@ -3,7 +3,7 @@
 
 #include "imgui.h"
 #include "sample.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 
 #include "gfx/keycodes.h"
 
@@ -219,7 +219,7 @@ public:
 	{
 		Sample::Render();
 
-		DrawGrid( m_scene, 20 );
+		DrawGroundGrid( 20 );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -291,7 +291,7 @@ public:
 
 		b3Transform transform = b3Transform_identity;
 		transform.p.y += 0.05f;
-		DrawTransform( m_scene, transform, 2.0f );
+		DrawAxes( transform, 2.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -453,7 +453,7 @@ public:
 			b3Body_SetTargetTransform( m_targetId, m_transform, timeStep, true );
 		}
 
-		DrawTransform( m_scene, m_transform, 1.0f );
+		DrawAxes( m_transform, 1.0f );
 
 		Sample::Step();
 
@@ -578,7 +578,7 @@ public:
 			def.impulsePerArea = 10000.0f;
 			b3World_Explode( m_worldId, &def );
 
-			DrawSphere( m_scene, b3Transform_identity, sphere, b3_colorWhite );
+			DrawSolidSphere( b3Transform_identity, sphere, MakeColor( b3_colorWhite ) );
 		}
 
 		ImGui::End();
@@ -929,10 +929,10 @@ public:
 
 		b3Transform transform = b3Transform_identity;
 		transform.p.y += 0.05f;
-		DrawTransform( m_scene, transform, 2.0f );
+		DrawAxes( transform, 2.0f );
 
 		transform = b3Body_GetTransform( m_bodyId );
-		DrawTransform( m_scene, transform, 2.0f );
+		DrawAxes( transform, 2.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -1596,7 +1596,7 @@ public:
 
 		b3Transform transform = b3Transform_identity;
 		transform.p.y += 0.05f;
-		DrawTransform( m_scene, transform, 2.0f );
+		DrawAxes( transform, 2.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -1903,9 +1903,9 @@ public:
 		Sample::Step();
 
 		b3Vec3 p = b3Body_GetWorldPoint( m_doorId, { 0.75f, 0.0f, 0.0f } );
-		DrawPoint( m_scene, p, 10.0f, b3_colorDarkKhaki );
+		DrawPoint( p, 10.0f, MakeColor( b3_colorDarkKhaki ) );
 
-		DrawTransform( m_scene, b3Transform_identity, 1.0f );
+		DrawAxes( b3Transform_identity, 1.0f );
 
 		float translationError1 = b3Joint_GetLinearSeparation( m_jointId1 );
 		m_translationError1 = b3MaxFloat( m_translationError1, translationError1 );
@@ -2058,7 +2058,7 @@ public:
 	{
 		Sample::Render();
 
-		DrawGrid( m_scene, 20 );
+		DrawGroundGrid( 20 );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -2355,7 +2355,7 @@ public:
 		Sample::Render();
 
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 1.0f );
+		DrawAxes( transform, 1.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -2697,7 +2697,7 @@ public:
 
 		b3Transform transform = b3Transform_identity;
 		transform.p.y += 0.05f;
-		DrawTransform( m_scene, transform, 2.0f );
+		DrawAxes( transform, 2.0f );
 	}
 
 	void Step() override

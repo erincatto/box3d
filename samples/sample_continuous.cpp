@@ -3,7 +3,7 @@
 
 #include "imgui.h"
 #include "sample.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 #include "stability.h"
 #include "utils.h"
 
@@ -241,7 +241,7 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		DrawTransform( m_scene, { { 0.0f, 0.1f, 0.0f }, b3Quat_identity }, 1.0f );
+		DrawAxes( { { 0.0f, 0.1f, 0.0f }, b3Quat_identity }, 1.0f );
 	}
 
 	void Launch()
@@ -342,7 +342,7 @@ public:
 
 	void Render() override
 	{
-		DrawGrid( m_scene, 10 );
+		DrawGroundGrid( 10 );
 		Sample::Render();
 	}
 
@@ -862,7 +862,7 @@ public:
 
 	void Render() override
 	{
-		DrawGrid( m_scene, 10 );
+		DrawGroundGrid( 10 );
 		Sample::Render();
 	}
 

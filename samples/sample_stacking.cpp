@@ -6,7 +6,7 @@
 #include "imgui.h"
 #include "mesh_loader.h"
 #include "sample.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 
 #include "box3d/box3d.h"
 

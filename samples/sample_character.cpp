@@ -4,7 +4,7 @@
 #include "sample.h"
 
 #include "mesh_loader.h"
-#include "sample_draw.h"
+#include "gfx/draw.h"
 
 #include "gfx/keycodes.h"
 
@@ -57,10 +57,10 @@ public:
 	{
 		Sample::Render();
 
-		DrawGrid( m_scene, 10 );
-		DrawLine( m_scene, b3Vec3_zero, 2.0f * b3Vec3_axisX, b3_colorRed );
-		DrawLine( m_scene, b3Vec3_zero, 2.0f * b3Vec3_axisY, b3_colorGreen );
-		DrawLine( m_scene, b3Vec3_zero, 2.0f * b3Vec3_axisZ, b3_colorBlue );
+		DrawGroundGrid( 10 );
+		DrawLine( b3Vec3_zero, 2.0f * b3Vec3_axisX, MakeColor( b3_colorRed ) );
+		DrawLine( b3Vec3_zero, 2.0f * b3Vec3_axisY, MakeColor( b3_colorGreen ) );
+		DrawLine( b3Vec3_zero, 2.0f * b3Vec3_axisZ, MakeColor( b3_colorBlue ) );
 	}
 
 	void UpdateUI() override
@@ -118,7 +118,7 @@ public:
 	{
 		m_planeCount = 0;
 
-		DrawCapsule( m_scene, m_transform, m_capsule, b3_colorGreen );
+		DrawSolidCapsule( m_transform, m_capsule, MakeColor( b3_colorGreen ) );
 		b3QueryFilter filter = b3DefaultQueryFilter();
 
 		b3Capsule capsule = { m_capsule.center1 + m_transform.p, m_capsule.center2 + m_transform.p, m_capsule.radius };
@@ -129,8 +129,8 @@ public:
 			b3Plane plane = m_planes[i].plane;
 			b3Vec3 p1 = m_transform.p + ( plane.offset - m_capsule.radius ) * plane.normal;
 			b3Vec3 p2 = p1 + 0.1f * plane.normal;
-			DrawPoint( m_scene, p1, 5.0f, b3_colorYellow );
-			DrawLine( m_scene, p1, p2, b3_colorYellow );
+			DrawPoint( p1, 5.0f, MakeColor( b3_colorYellow ) );
+			DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
 		}
 	}
 
@@ -214,7 +214,7 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		DrawGrid( m_scene, 12 );
+		DrawGroundGrid( 12 );
 	}
 
 	static bool PlaneResultFcn( b3ShapeId /*shape*/, const b3PlaneResult* results, int planeCount, void* context )
@@ -265,7 +265,7 @@ public:
 		b3World_CollideMover( m_worldId, &worldMover, filter, PlaneResultFcn, this );
 
 		// Mover at the queried position.
-		DrawCapsule( m_scene, m_transform, m_capsule, b3_colorYellow );
+		DrawSolidCapsule( m_transform, m_capsule, MakeColor( b3_colorYellow ) );
 
 		// One arrow per returned plane, drawn from the contact point along the
 		// normal. A degenerate (zero) normal is drawn red to surface the bug.
@@ -275,8 +275,8 @@ public:
 			b3PlaneResult r = m_results[i];
 			bool valid = b3IsNormalized( r.plane.normal );
 			b3HexColor color = valid ? b3_colorLimeGreen : b3_colorRed;
-			DrawPoint( m_scene, r.point, 6.0f, color );
-			DrawArrow( m_scene, r.point, r.point + 0.5f * r.plane.normal, 0.05f, color );
+			DrawPoint( r.point, 6.0f, MakeColor( color ) );
+			DrawArrow( r.point, r.point + 0.5f * r.plane.normal, MakeColor( color ) );
 			if ( valid == false )
 			{
 				m_zeroNormalCount += 1;
@@ -287,7 +287,7 @@ public:
 		// Solve the planes and show the pushed-out capsule pose.
 		b3PlaneSolverResult solved = b3SolvePlanes( b3Vec3_zero, solverPlanes, m_planeCount );
 		b3Transform pushed = { m_transform.p + solved.delta, m_transform.q };
-		DrawCapsule( m_scene, pushed, m_capsule, b3_colorCyan );
+		DrawSolidCapsule( pushed, m_capsule, MakeColor( b3_colorCyan ) );
 
 		DrawTextLine( "drag the capsule with the left mouse to push it into the shapes" );
 		DrawTextLine( "yellow = queried pose, cyan = solved push-out, lime = valid plane normals" );
@@ -547,7 +547,7 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		DrawTransform( m_scene, { { 0.0f, 0.0f, 0.02f }, b3Quat_identity }, 2.0f );
+		DrawAxes( { { 0.0f, 0.0f, 0.02f }, b3Quat_identity }, 2.0f );
 	}
 
 	void UpdateUI() override
@@ -891,7 +891,6 @@ struct RigidbodyCharacter
 	// --- CategorizeGround: s&box-style box cast with radius shrinking ---
 	void CategorizeGround()
 	{
-		Scene* scene = m_sample->m_scene;
 		b3Vec3 feet = GetFeetPosition();
 
 		// s&box: from = WorldPosition + Up*4, to = WorldPosition + Down*2 (Source units)
@@ -908,7 +907,7 @@ struct RigidbodyCharacter
 			if ( radiusScale < 0.7f )
 			{
 				UpdateGround( false, b3Vec3_axisY );
-				DrawLine( scene, from, to, b3_colorRed );
+				DrawLine( from, to, MakeColor( b3_colorRed ) );
 				return;
 			}
 			tr = TraceBody( from, to, radiusScale, 0.5f );
@@ -917,13 +916,13 @@ struct RigidbodyCharacter
 		if ( !tr.startedSolid && tr.hit && IsStandableSurface( tr.normal ) && m_jumpCooldown <= 0.0f )
 		{
 			UpdateGround( true, tr.normal );
-			DrawLine( scene, from, tr.hitPoint, b3_colorGreen );
-			DrawPoint( scene, tr.hitPoint, 5.0f, b3_colorGreen );
+			DrawLine( from, tr.hitPoint, MakeColor( b3_colorGreen ) );
+			DrawPoint( tr.hitPoint, 5.0f, MakeColor( b3_colorGreen ) );
 		}
 		else
 		{
 			UpdateGround( false, b3Vec3_axisY );
-			DrawLine( scene, from, to, b3_colorGray );
+			DrawLine( from, to, MakeColor( b3_colorGray ) );
 		}
 	}
 
@@ -945,7 +944,6 @@ struct RigidbodyCharacter
 			return;
 		}
 
-		Scene* scene = m_sample->m_scene;
 		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
 
 		b3Vec3 from = { pos.x, pos.y + 0.05f, pos.z };
@@ -980,7 +978,7 @@ struct RigidbodyCharacter
 				b3Body_SetLinearVelocity( m_bodyId, vel );
 			}
 
-			DrawLine( scene, from, tr.endPosition, b3_colorCyan );
+			DrawLine( from, tr.endPosition, MakeColor( b3_colorCyan ) );
 		}
 	}
 
@@ -988,7 +986,6 @@ struct RigidbodyCharacter
 	// Returns true if a step was taken and m_stepPosition was set.
 	bool TryStep( float maxStepHeight )
 	{
-		Scene* scene = m_sample->m_scene;
 		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
 		b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
 
@@ -1021,7 +1018,7 @@ struct RigidbodyCharacter
 			radiusScale -= 0.1f;
 			if ( radiusScale < 0.6f )
 			{
-				DrawLine( scene, forwardFrom, forwardTo, b3_colorRed );
+				DrawLine( forwardFrom, forwardTo, MakeColor( b3_colorRed ) );
 				return false;
 			}
 			trForward = TraceBody( forwardFrom, forwardTo, radiusScale );
@@ -1033,7 +1030,7 @@ struct RigidbodyCharacter
 			return false;
 		}
 
-		DrawLine( scene, forwardFrom, trForward.endPosition, b3_colorYellow );
+		DrawLine( forwardFrom, trForward.endPosition, MakeColor( b3_colorYellow ) );
 
 		// Remaining velocity direction after hit
 		b3Vec3 hitPos = trForward.endPosition;
@@ -1045,7 +1042,7 @@ struct RigidbodyCharacter
 
 		if ( trUp.startedSolid )
 		{
-			DrawLine( scene, upFrom, upTo, b3_colorRed );
+			DrawLine( upFrom, upTo, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
@@ -1054,11 +1051,11 @@ struct RigidbodyCharacter
 		if ( upDistance < 0.005f )
 		{
 			// Too tight to step up
-			DrawLine( scene, upFrom, topPos, b3_colorRed );
+			DrawLine( upFrom, topPos, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
-		DrawLine( scene, upFrom, topPos, b3_colorYellow );
+		DrawLine( upFrom, topPos, MakeColor( b3_colorYellow ) );
 
 		// Phase 3 — ACROSS: from top position, trace in move direction
 		float acrossDist = forwardDist * ( 1.0f - trForward.fraction ) + m_bodyRadius * 0.5f;
@@ -1068,12 +1065,12 @@ struct RigidbodyCharacter
 
 		if ( trAcross.startedSolid )
 		{
-			DrawLine( scene, acrossFrom, acrossTo, b3_colorRed );
+			DrawLine( acrossFrom, acrossTo, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
 		b3Vec3 acrossPos = trAcross.hit ? trAcross.endPosition : acrossTo;
-		DrawLine( scene, acrossFrom, acrossPos, b3_colorYellow );
+		DrawLine( acrossFrom, acrossPos, MakeColor( b3_colorYellow ) );
 
 		// Phase 4 — DOWN: from across position, trace straight down
 		b3Vec3 downFrom = acrossPos;
@@ -1082,13 +1079,13 @@ struct RigidbodyCharacter
 
 		if ( !trDown.hit )
 		{
-			DrawLine( scene, downFrom, downTo, b3_colorRed );
+			DrawLine( downFrom, downTo, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
 		if ( !IsStandableSurface( trDown.normal ) )
 		{
-			DrawLine( scene, downFrom, trDown.endPosition, b3_colorRed );
+			DrawLine( downFrom, trDown.endPosition, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
@@ -1099,8 +1096,8 @@ struct RigidbodyCharacter
 			return false;
 		}
 
-		DrawLine( scene, downFrom, trDown.endPosition, b3_colorYellow );
-		DrawPoint( scene, trDown.endPosition, 8.0f, b3_colorYellow );
+		DrawLine( downFrom, trDown.endPosition, MakeColor( b3_colorYellow ) );
+		DrawPoint( trDown.endPosition, 8.0f, MakeColor( b3_colorYellow ) );
 
 		// Teleport body to step position
 		b3Vec3 stepPos = { trDown.endPosition.x, trDown.endPosition.y + 0.01f, trDown.endPosition.z };
@@ -1314,24 +1311,23 @@ struct RigidbodyCharacter
 
 	void DrawDebug() const
 	{
-		Scene* scene = m_sample->m_scene;
 		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
 		b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
 
 		// Draw velocity vector (purple)
-		DrawLine( scene, pos, pos + vel, b3_colorPurple );
+		DrawLine( pos, pos + vel, MakeColor( b3_colorPurple ) );
 
 		// Draw wish velocity (orange)
-		DrawLine( scene, pos, pos + m_lastWishVelocity, b3_colorOrange );
+		DrawLine( pos, pos + m_lastWishVelocity, MakeColor( b3_colorOrange ) );
 
 		// Draw mass center (yellow dot)
-		DrawPoint( scene, m_massCenterWorld, 8.0f, b3_colorYellow );
+		DrawPoint( m_massCenterWorld, 8.0f, MakeColor( b3_colorYellow ) );
 
 		// Draw ground indicator
 		if ( m_onGround )
 		{
 			b3Vec3 bottom = { pos.x, pos.y - m_totalHeight * 0.5f, pos.z };
-			DrawLine( scene, bottom, bottom + 0.3f * m_groundNormal, b3_colorGreen );
+			DrawLine( bottom, bottom + 0.3f * m_groundNormal, MakeColor( b3_colorGreen ) );
 		}
 	}
 };
@@ -1652,7 +1648,7 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		DrawTransform( m_scene, { { 0.0f, 0.0f, 0.02f }, b3Quat_identity }, 2.0f );
+		DrawAxes( { { 0.0f, 0.0f, 0.02f }, b3Quat_identity }, 2.0f );
 	}
 
 	void UpdateUI() override

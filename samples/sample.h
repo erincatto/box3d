@@ -7,11 +7,6 @@
 
 #include "box3d/types.h"
 
-// Vestigial handle from the old scene renderer. The render3d renderer owns
-// scene state now, so this stays null; it exists only so the sample draw
-// calls (DrawSphere(m_scene, ...), etc.) port unchanged through sample_draw.h.
-struct Scene;
-
 // Polled key state for samples that need continuous input (character movers).
 // Fed from the host event loop; read with the KEY_* aliases in gfx/keycodes.h.
 bool IsKeyDown( int key );
@@ -125,7 +120,6 @@ public:
 
 	SampleContext* m_context;
 	Camera* m_camera;
-	Scene* m_scene = nullptr;
 
 	b3WorldId m_worldId;
 	b3Vec3 m_mousePoint;

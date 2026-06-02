@@ -3,7 +3,6 @@
 
 #include "imgui.h"
 #include "sample.h"
-#include "sample_draw.h"
 
 #include "gfx/keycodes.h"
 
@@ -316,7 +315,7 @@ public:
 
 	void Render() override
 	{
-		DrawGrid( m_scene, 10 );
+		DrawGroundGrid( 10 );
 		Sample::Render();
 	}
 
@@ -360,7 +359,7 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		DrawGrid( m_scene, 10 );
+		DrawGroundGrid( 10 );
 	}
 
 	static Sample* Create( SampleContext* sampleContext )
@@ -454,7 +453,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
+		DrawAxes( transform, 4.0f );
 	}
 
 	void Step() override
@@ -472,8 +471,8 @@ public:
 		b3Vec3 v2 = b3Body_GetWorldPointVelocity( m_weebleId, worldPoint );
 
 		b3Vec3 offset = { 0.05f, 0.0f };
-		DrawLine( m_scene, worldPoint, worldPoint + v1, b3_colorRed );
-		DrawLine( m_scene, worldPoint + offset, worldPoint + v2 + offset, b3_colorGreen );
+		DrawLine( worldPoint, worldPoint + v1, MakeColor( b3_colorRed ) );
+		DrawLine( worldPoint + offset, worldPoint + v2 + offset, MakeColor( b3_colorGreen ) );
 	}
 
 	b3BodyId m_weebleId;
@@ -665,11 +664,11 @@ public:
 	{
 		Sample::Render();
 
-		DrawGrid( m_scene, 10 );
+		DrawGroundGrid( 10 );
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawTransform( m_scene, transform, 4.0f );
+		DrawAxes( transform, 4.0f );
 
-		DrawHull( m_scene, m_transform, m_cylinder, b3_colorBlue, false );
+		DrawHull( m_transform, m_cylinder, MakeColor( b3_colorBlue ) );
 	}
 
 	void Step() override
@@ -683,16 +682,16 @@ public:
 			input.maxFraction = 1.0f;
 			b3BodyCastResult result = b3Body_CastRay( m_bodyId, &input, m_transform );
 
-			DrawLine( m_scene, input.origin, input.origin + input.maxFraction * input.translation, b3_colorCyan );
+			DrawLine( input.origin, input.origin + input.maxFraction * input.translation, MakeColor( b3_colorCyan ) );
 
 			if ( result.hit )
 			{
-				DrawLine( m_scene, result.point, result.point + 0.2f * result.normal, b3_colorYellow );
-				DrawPoint( m_scene, result.point, 10.0f, b3_colorYellow );
+				DrawLine( result.point, result.point + 0.2f * result.normal, MakeColor( b3_colorYellow ) );
+				DrawPoint( result.point, 10.0f, MakeColor( b3_colorYellow ) );
 			}
 
-			DrawPoint( m_scene, input.origin, 10.0f, b3_colorGreen );
-			DrawPoint( m_scene, input.origin + input.translation, 10.0f, b3_colorRed );
+			DrawPoint( input.origin, 10.0f, MakeColor( b3_colorGreen ) );
+			DrawPoint( input.origin + input.translation, 10.0f, MakeColor( b3_colorRed ) );
 		}
 
 		// Cast sphere
@@ -710,18 +709,18 @@ public:
 			if ( result.hit )
 			{
 				b3Transform transform = { result.fraction * input.translation, b3Quat_identity };
-				DrawSphere( m_scene, transform, sphere, b3_colorGreen );
-				DrawLine( m_scene, result.point, result.point + 0.2f * result.normal, b3_colorYellow );
+				DrawSolidSphere( transform, sphere, MakeColor( b3_colorGreen ) );
+				DrawLine( result.point, result.point + 0.2f * result.normal, MakeColor( b3_colorYellow ) );
 			}
 			else
 			{
 				b3Transform transform = { input.maxFraction * input.translation, b3Quat_identity };
-				DrawSphere( m_scene, transform, sphere, b3_colorWhite );
+				DrawSolidSphere( transform, sphere, MakeColor( b3_colorWhite ) );
 			}
 
-			DrawLine( m_scene, sphere.center, sphere.center + input.maxFraction * input.translation, b3_colorWhite );
-			DrawPoint( m_scene, sphere.center, 10.0f, b3_colorGreen );
-			DrawPoint( m_scene, sphere.center + input.maxFraction * input.translation, 10.0f, b3_colorRed );
+			DrawLine( sphere.center, sphere.center + input.maxFraction * input.translation, MakeColor( b3_colorWhite ) );
+			DrawPoint( sphere.center, 10.0f, MakeColor( b3_colorGreen ) );
+			DrawPoint( sphere.center + input.maxFraction * input.translation, 10.0f, MakeColor( b3_colorRed ) );
 		}
 
 		// Overlap capsule
@@ -732,11 +731,11 @@ public:
 
 			if ( overlaps )
 			{
-				DrawCapsule( m_scene, b3Transform_identity, capsule, b3_colorGreen );
+				DrawSolidCapsule( b3Transform_identity, capsule, MakeColor( b3_colorGreen ) );
 			}
 			else
 			{
-				DrawCapsule( m_scene, b3Transform_identity, capsule, b3_colorGray );
+				DrawSolidCapsule( b3Transform_identity, capsule, MakeColor( b3_colorGray ) );
 			}
 		}
 
@@ -745,12 +744,12 @@ public:
 			b3Capsule capsule = { { -10.25f, 2.0f, -0.75f }, { -10.25f, 3.0f, -0.75f }, 0.3f };
 			b3BodyPlaneResult bodyPlanes[4];
 			int count = b3Body_CollideMover( m_bodyId, bodyPlanes, 4, &capsule, b3DefaultQueryFilter(), m_transform );
-			DrawCapsule( m_scene, b3Transform_identity, capsule, b3_colorPurple );
+			DrawSolidCapsule( b3Transform_identity, capsule, MakeColor( b3_colorPurple ) );
 
 			for ( int i = 0; i < count; ++i )
 			{
 				b3PlaneResult result = bodyPlanes[i].result;
-				DrawPlane( m_scene, result.plane.normal, result.point, b3_colorOrange );
+				DrawPlane( result.plane.normal, result.point, MakeColor( b3_colorOrange ) );
 			}
 		}
 	}
@@ -806,8 +805,8 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		DrawGrid( m_scene, 10 );
-		DrawTransform( m_scene, b3Transform_identity, 4.0f );
+		DrawGroundGrid( 10 );
+		DrawAxes( b3Transform_identity, 4.0f );
 	}
 
 	void Step() override
@@ -831,8 +830,8 @@ public:
 			b3Quat rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 2.0f * t );
 
 			b3Vec3 axis = b3RotateVector( rotation, { 0.0f, 1.0f, 0.0f } );
-			DrawLine( m_scene, point - 0.5f * axis, point + 0.5f * axis, b3_colorPlum );
-			DrawPoint( m_scene, point, 10.0f, b3_colorPlum );
+			DrawLine( point - 0.5f * axis, point + 0.5f * axis, MakeColor( b3_colorPlum ) );
+			DrawPoint( point, 10.0f, MakeColor( b3_colorPlum ) );
 
 			b3Body_SetTargetTransform( m_bodyId, { point, rotation }, timeStep, true );
 		}
@@ -865,16 +864,7 @@ public:
 			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Vec3_zero );
 		}
 
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-
-			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull hull = b3MakeBoxHull( 15.0f, 1.0f, 15.0f );
-			b3CreateHullShape( groundId, &shapeDef, &hull.base );
-		}
+		AddGroundBox( 20.0f );
 
 		b3BoxHull cube = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();

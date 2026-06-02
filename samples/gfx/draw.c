@@ -6,6 +6,10 @@
 #include "gfx/debug_shapes.h"
 #include "gfx/overlay.h"
 #include "gfx/renderer.h"
+#include "gfx/text.h"
+
+#include <stdarg.h>
+#include <stdio.h>
 
 void DrawCubeEx( b3Transform transform, b3Vec3 scale, Vec4 baseColor, float metallic, float roughness,
 				 TransparentShadowCast shadowCast )
@@ -40,6 +44,64 @@ void DrawCapsule( b3Transform transform, float halfLength, float radius, Vec4 ba
 	DrawCapsuleEx( transform, halfLength, radius, baseColor, DEFAULT_METALLIC, DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_FULL );
 }
 
+void DrawSolidSphere( b3Transform transform, b3Sphere sphere, Vec4 color )
+{
+	b3Transform world = { b3TransformPoint( transform, sphere.center ), transform.q };
+	DrawSphere( world, sphere.radius, color );
+}
+
+void DrawSolidCapsule( b3Transform transform, b3Capsule capsule, Vec4 color )
+{
+	b3Vec3 c1 = b3TransformPoint( transform, capsule.center1 );
+	b3Vec3 c2 = b3TransformPoint( transform, capsule.center2 );
+	b3Vec3 axis = b3Sub( c2, c1 );
+	float length = b3Length( axis );
+
+	// Impostor cylinder runs along local +X, so align +X with the capsule axis.
+	b3Quat q = transform.q;
+	if ( length > 1e-6f )
+	{
+		q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisX, b3MulSV( 1.0f / length, axis ) );
+	}
+
+	b3Transform world = { b3MulSV( 0.5f, b3Add( c1, c2 ) ), q };
+	DrawCapsule( world, 0.5f * length, capsule.radius, color );
+}
+
+void DrawHull( b3Transform transform, const b3Hull* hull, Vec4 color )
+{
+	const b3Vec3* points = b3GetHullPoints( hull );
+	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
+
+	// Half-edges come in twin pairs, so draw each undirected edge once.
+	for ( int i = 0; i < hull->edgeCount; ++i )
+	{
+		if ( i >= edges[i].twin )
+		{
+			continue;
+		}
+		b3Vec3 p1 = b3TransformPoint( transform, points[edges[i].origin] );
+		b3Vec3 p2 = b3TransformPoint( transform, points[edges[edges[i].twin].origin] );
+		DrawLine( p1, p2, color );
+	}
+}
+
+void DrawPlane( b3Vec3 normal, b3Vec3 point, Vec4 color )
+{
+	b3Vec3 perp1 = b3Perp( normal );
+	b3Vec3 perp2 = b3Cross( perp1, normal );
+	b3Vec3 p1 = b3Add( point, b3Add( perp1, perp2 ) );
+	b3Vec3 p2 = b3Add( point, b3Sub( perp2, perp1 ) );
+	b3Vec3 p3 = b3Sub( point, b3Add( perp1, perp2 ) );
+	b3Vec3 p4 = b3Add( point, b3Sub( perp1, perp2 ) );
+	DrawLine( p1, p2, color );
+	DrawLine( p2, p3, color );
+	DrawLine( p3, p4, color );
+	DrawLine( p4, p1, color );
+	DrawLine( point, b3Add( point, b3MulSV( 0.5f, normal ) ), color );
+	DrawPoint( point, 10.0f, color );
+}
+
 void DrawLineEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
 				 OverlayOcclusionMode occlusionMode )
 {
@@ -56,9 +118,9 @@ void DrawPointEx( b3Vec3 p, Vec4 color, float size, OverlayThicknessUnit sizeUni
 	OverlayAppendPoint( p, color, size, sizeUnit, occlusionMode );
 }
 
-void DrawPoint( b3Vec3 p, Vec4 color )
+void DrawPoint( b3Vec3 p, float size, Vec4 color )
 {
-	DrawPointEx( p, color, DEFAULT_POINT_SIZE_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	DrawPointEx( p, color, size, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DIM );
 }
 
 void DrawArrowEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
@@ -142,6 +204,12 @@ void DrawAabb( b3Vec3 mn, b3Vec3 mx, Vec4 color )
 	DrawAabbEx( mn, mx, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 }
 
+void DrawBounds( b3AABB bounds, float extension, Vec4 color )
+{
+	b3Vec3 e = { extension, extension, extension };
+	DrawAabb( b3Sub( bounds.lowerBound, e ), b3Add( bounds.upperBound, e ), color );
+}
+
 void DrawAxesEx( b3Transform transform, float size, float thickness, OverlayThicknessUnit thicknessUnit,
 				 OverlayOcclusionMode occlusionMode )
 {
@@ -184,6 +252,12 @@ void DrawGrid( b3Vec3 center, b3Vec3 normal, float halfExtent, int divisions, Ve
 		b3Vec3 vb = b3Add( center, b3Add( b3MulSV( o, u ), b3MulSV( halfExtent, v ) ) );
 		DrawLineEx( va, vb, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 	}
+}
+
+void DrawGroundGrid( int size )
+{
+	Vec4 color = MakeVec4( 0.3f, 0.3f, 0.3f, 1.0f );
+	DrawGrid( b3Vec3_zero, b3Vec3_axisY, (float)size, size, color );
 }
 
 void DrawTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, Vec4 color )
@@ -284,4 +358,14 @@ void DrawWireCapsule( b3Transform transform, const b3Capsule* capsule, int segme
 
 	DrawDisc( center1, normal, radius, segments, color );
 	DrawDisc( center2, normal, radius, segments, color );
+}
+
+void DrawWorldString( b3Vec3 point, Vec4 color, const char* format, ... )
+{
+	va_list args;
+	va_start( args, format );
+	char buffer[256];
+	vsnprintf( buffer, sizeof( buffer ), format, args );
+	va_end( args );
+	DrawString( point, color, buffer );
 }
