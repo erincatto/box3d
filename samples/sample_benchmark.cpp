@@ -255,18 +255,19 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 45.0f, 250.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 10.0f, 80.0f, {0.0f, 20.0f, 0.0f} );
 		}
 
-		AddGroundBox( 200.0f );
+		AddGroundBox( 100.0f );
 
 		{
 			constexpr int n = m_isDebug ? 4 : 50;
+			float a = 0.5f;
 
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
+			b3BoxHull box = b3MakeCubeHull( a );
 
 			for ( int i = 0; i < n; ++i )
 			{
@@ -274,7 +275,7 @@ public:
 				{
 					for ( int k = 0; k < 8; ++k )
 					{
-						bodyDef.position = { -16.0f + 4.0f * j, 4.0f * i + 5.0f, -16.0f + 4.0f * k };
+						bodyDef.position = { -16.0f * a + 4.0f * a*  j, 4.0f * a * i + 5.0f * a, -16.0f * a + 4.0f * a* k };
 						b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 						b3CreateHullShape( bodyId, &shapeDef, &box.base );
 					}
@@ -299,10 +300,11 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 35.0f, 40.0f, b3Vec3_zero );
+			float radius = m_isDebug ? 20.0f : 70.0f;
+			m_camera->SetView( 45.0f, 20.0f, radius, b3Vec3_zero );
 		}
 
-		AddGroundBox( 100.0f );
+		AddGroundBox( 60.0f );
 
 		{
 			constexpr int n = m_isDebug ? 4 : 16;
