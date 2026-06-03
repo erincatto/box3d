@@ -13,6 +13,7 @@
 #include "gfx/gtao.h"
 #include "gfx/keycodes.h"
 #include "gfx/renderer.h"
+#include "gfx/shadow.h"
 #include "gfx/text.h"
 #include "human.h"
 #include "imgui.h"
@@ -1155,6 +1156,11 @@ void SelectSample( SampleContext* context, int selection, bool restart )
 	context->sampleIndex = selection;
 	context->restart = restart;
 	context->sample = g_sampleEntries[selection].CreateFcn( context );
+
+	// Fit the shadow cascade range to the world bounds.
+	b3AABB bounds = b3World_GetBounds( context->sample->m_worldId );
+	float diagonal = b3Distance( bounds.lowerBound, bounds.upperBound );
+	SetShadowSplitFar( b3ClampFloat( diagonal, SHADOW_SPLIT_FAR, 200.0f ) );
 
 	// Samples read restart only while constructing, to keep the camera across a
 	// restart. Clear it so a later switch starts fresh.

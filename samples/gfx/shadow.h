@@ -45,6 +45,10 @@ extern "C"
 #define SHADOW_CASCADE_COUNT 3
 #define SHADOW_RESOLUTION 2048
 
+// Default cascade far split, view-space distance from the camera. Scenes
+// smaller than this keep the default range, larger ones widen it.
+#define SHADOW_SPLIT_FAR 50.0f
+
 void InitShadows( void );
 void ShutdownShadows( void );
 
@@ -52,10 +56,14 @@ void ShutdownShadows( void );
 void SetShadowSunDir( b3Vec3 dirToSun );
 
 // Override the view-space distance range PSSM splits over. Defaults to
-// (0.1, 50.0) which is sufficient for the reference scenes but too short
-// for larger scenes. Pass values matching the active scene's scale.
-// Pass (0, 0) to restore defaults.
+// (0.1, SHADOW_SPLIT_FAR), sufficient for the reference scenes but too short
+// for larger ones. The split blend is derived from the range, so a wider far
+// keeps the near cascade tight. Pass (0, 0) to restore defaults.
 void SetShadowSplits( float nearViewZ, float farViewZ );
+
+// Fit the cascade far split to a scene of this view-space depth, keeping the
+// current near and recomputing the split blend.
+void SetShadowSplitFar( float farViewZ );
 
 // Recompute per-cascade light-space matrices and split distances for the
 // camera frustum described by viewInv + proj. viewInv (the camera's world

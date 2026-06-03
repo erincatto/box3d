@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "gfx/draw.h"
 #include "human.h"
 #include "imgui.h"
 #include "mesh_loader.h"
-#include "utils.h"
 #include "sample.h"
-#include "gfx/draw.h"
+#include "utils.h"
 
 #include "box3d/box3d.h"
 
@@ -19,7 +19,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( -55.0f, 30.0f, 60.0f, { 0.0f, 7.5f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 50.0f );
@@ -63,7 +62,6 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( -140.0f, 17.0f, 60.0f, { 0.0f, 7.5f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 50.0f );
@@ -120,7 +118,6 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 5.0f, 40.0f, { 0.0f, 7.5f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 50.0f );
@@ -160,7 +157,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 150.0f, b3Vec3_zero );
-			
 		}
 
 		AddGroundBox( 100.0f );
@@ -206,7 +202,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( -30.0f, 17.0f, 30.0f, { 0.0f, 5.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 50.0f );
@@ -258,7 +253,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 25.0f, 85.0f, { 0.0f, 20.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 50.0f );
@@ -353,7 +347,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 25.0f, 10.0f, { 0.0f, 1.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 20.0f );
@@ -459,7 +452,7 @@ public:
 		{
 			m_camera->SetView( 0.0f, 25.0f, 40.0f, { 0.0f, 1.0f, 0.0f } );
 		}
-		
+
 		AddGroundBox( 20.0f );
 
 		// Platform
@@ -508,7 +501,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 65.0f, 25.0f, 28.0f, { 0.0f, 1.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 20.0f );
@@ -554,12 +546,18 @@ public:
 			materialIndices[24] = 6;
 			m_velocities[6] = { 0.0f, 0.0f, -1.3f };
 
+			b3HexColor colors[7] = {
+				b3_colorGreen,	   b3_colorGreenYellow, b3_colorHoneyDew, b3_colorHotPink,
+				b3_colorIndianRed, b3_colorIndigo,		b3_colorIvory,
+			};
+
 			b3SurfaceMaterial materials[7];
 			for ( int i = 0; i < 7; ++i )
 			{
 				materials[i] = b3DefaultSurfaceMaterial();
 				materials[i].friction = 0.8f;
 				materials[i].tangentVelocity = 2.0f * m_velocities[i];
+				materials[i].customColor = colors[i];
 			}
 
 			m_meshTransform.p = { 0.0f, 0.5f, 6.0f };
@@ -701,7 +699,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 0.0f, 5.0f, { 0.0f, 1.0f, 0.0f } );
-			
 		}
 
 		{
@@ -865,7 +862,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, -10.0f, 20.0f, { 0.0f, 5.0f, 0.0f } );
+			m_camera->SetView( -45.0f, 15.0f, 20.0f, { 0.0f, 5.0f, 0.0f } );
 		}
 
 		AddGroundBox( 15.0f );
@@ -940,10 +937,10 @@ public:
 		float a = 0.4f;
 		// b3BoxHull box = b3MakeBoxHull( 0.25f * radius, 1.25f * radius, 0.25f * radius );
 		b3Capsule capsule = { { 0.0f, 0.0f, -a }, { 0.0f, 0.0f, a }, 0.25f * a };
-		//b3BoxHull box = b3MakeBoxHull( 2.0f * a, 0.01f, a );
-		b3Transform wingTransform1 = {b3Vec3_zero, b3MakeQuatFromAxisAngle(b3Vec3_axisX, 0.1f)};
+		// b3BoxHull box = b3MakeBoxHull( 2.0f * a, 0.01f, a );
+		b3Transform wingTransform1 = { b3Vec3_zero, b3MakeQuatFromAxisAngle( b3Vec3_axisX, 0.1f ) };
 		b3BoxHull box1 = b3MakeTransformedBoxHull( 2.0f * a, 0.01f, a, wingTransform1 );
-		b3Transform wingTransform2 = {b3Vec3_zero, b3MakeQuatFromAxisAngle(b3Vec3_axisX, 0.1f)};
+		b3Transform wingTransform2 = { b3Vec3_zero, b3MakeQuatFromAxisAngle( b3Vec3_axisX, 0.1f ) };
 		b3BoxHull box2 = b3MakeTransformedBoxHull( 2.0f * a, 0.01f, a, wingTransform2 );
 
 		float y = 20.0f;
@@ -952,7 +949,7 @@ public:
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		//bodyDef.gravityScale = 0.5f;
+		// bodyDef.gravityScale = 0.5f;
 
 		shapeDef.density = 5.0f;
 		bodyDef.position = { -2.0f * a, y, 0.0f };
@@ -964,9 +961,9 @@ public:
 		m_shapeId2 = b3CreateHullShape( wingBodyId2, &shapeDef, &box2.base );
 
 		bodyDef.position = { 0.0f, y, 0.0f };
-		//bodyDef.type = b3_staticBody;
+		// bodyDef.type = b3_staticBody;
 		b3BodyId torsoBodyId = b3CreateBody( m_worldId, &bodyDef );
-		
+
 		shapeDef.density = 10.0f;
 		m_torsoShapeId = b3CreateCapsuleShape( torsoBodyId, &shapeDef, &capsule );
 
@@ -1007,11 +1004,11 @@ public:
 			bool wake = false;
 			b3Shape_ApplyWind( m_shapeId1, b3Vec3_zero, m_drag, m_lift, maxSpeed, wake );
 			b3Shape_ApplyWind( m_shapeId2, b3Vec3_zero, m_drag, m_lift, maxSpeed, wake );
-			//b3Shape_ApplyWind( m_torsoShapeId, b3Vec3_zero, m_drag, m_lift, maxSpeed, wake );
+			// b3Shape_ApplyWind( m_torsoShapeId, b3Vec3_zero, m_drag, m_lift, maxSpeed, wake );
 
 			float angle = b3Sin( 10.0f * m_time );
-			b3RevoluteJoint_SetTargetAngle(m_jointId1, angle);
-			b3RevoluteJoint_SetTargetAngle(m_jointId2, -angle);
+			b3RevoluteJoint_SetTargetAngle( m_jointId1, angle );
+			b3RevoluteJoint_SetTargetAngle( m_jointId2, -angle );
 
 			m_time += m_context->hertz > 0.0f ? 1.0f / m_context->hertz : 0.0f;
 		}

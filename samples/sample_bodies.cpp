@@ -280,6 +280,8 @@ public:
 			m_camera->SetView( 0.0f, 30.0f, 10.0f, { 0.0f, 1.0f, 0.0f } );
 		}
 
+		AddGroundBox( 10.0f );
+
 		b3BoxHull box = b3MakeBoxHull( 0.35f, 0.08f, 0.5f );
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -305,12 +307,6 @@ public:
 
 		b3BodyId body3 = b3CreateBody( m_worldId, &bodyDef );
 		b3CreateHullShape( body3, &shapeDef, &box.base );
-	}
-
-	void Render() override
-	{
-		DrawGroundGrid( 10 );
-		Sample::Render();
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -782,7 +778,7 @@ public:
 	{
 		Sample::Render();
 		DrawGroundGrid( 10 );
-		DrawAxes( b3Transform_identity, 4.0f );
+		DrawAxes( b3Transform_identity, 1.0f );
 	}
 
 	void Step() override

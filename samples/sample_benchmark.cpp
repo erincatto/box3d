@@ -376,7 +376,8 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 40.0f, 10.0f, { 0.0f, 0.0f, 0.0f } );
+			float radius = m_isDebug ? 15.0f : 30.0f;
+			m_camera->SetView( 45.0f, 20.0f, radius, { 0.0f, 0.0f, 0.0f } );
 		}
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -387,38 +388,40 @@ public:
 		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 		b3CreateMeshShape( groundId, &shapeDef, m_gridMesh, b3Vec3_one );
 
+		float hy = 1.0f;
+
 		{
 			b3Transform transform;
-			transform.p = { 0.0f, 5.0f, -20.0f };
+			transform.p = { 0.0f, hy, -20.0f };
 			transform.q = b3Quat_identity;
-			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, 5.0f, 0.1f, transform );
+			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, hy, 0.1f, transform );
 			shapeDef.name = "wall1";
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
 		{
 			b3Transform transform;
-			transform.p = { 0.0f, 5.0f, 20.0f };
+			transform.p = { 0.0f, hy, 20.0f };
 			transform.q = b3Quat_identity;
-			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, 5.0f, 0.1f, transform );
+			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, hy, 0.1f, transform );
 			shapeDef.name = "wall2";
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
 		{
 			b3Transform transform;
-			transform.p = { -20.0f, 5.0f, 0.0f };
+			transform.p = { -20.0f, hy, 0.0f };
 			transform.q = b3Quat_identity;
-			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 20.0f, transform );
+			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, hy, 20.0f, transform );
 			shapeDef.name = "wall3";
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
 		{
 			b3Transform transform;
-			transform.p = { 20.0f, 5.0f, 0.0f };
+			transform.p = { 20.0f, hy, 0.0f };
 			transform.q = b3Quat_identity;
-			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 20.0f, transform );
+			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, hy, 20.0f, transform );
 			shapeDef.name = "wall4";
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
@@ -473,13 +476,6 @@ public:
 		}
 
 		return true;
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 1.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -672,9 +668,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			float distance = 220.0f;
-			float height = 20.0f;
-			m_camera->SetView( 25.0f, 10.0f, distance, { 0.0f, height, 0.0f } );
+			m_camera->SetView( 20.0f, 0.0f, 140.0f, { 0.0f, 15.0f, 0.0f } );
 		}
 
 		m_gridSize = 100;

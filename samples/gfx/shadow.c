@@ -7,23 +7,25 @@
 #include <math.h>
 #include <stdio.h>
 
-// Cascade fitting parameters. SHADOW_SPLIT_NEAR/FAR are in *view-space*
-// distance from the camera (positive). The far cap is much smaller than
-// typical camera far planes. CSM quality at distance falls off fast, so
-// cascades focus on near content.
+// Cascade fitting parameters. SHADOW_SPLIT_NEAR and the default far
+// (SHADOW_SPLIT_FAR, in shadow.h) are *view-space* distances from the camera
+// (positive). CSM quality at distance falls off fast, so cascades focus on
+// near content.
 //
 // PSSM_LAMBDA blends the uniform split scheme (each cascade covers an
 // equal slice of view-space distance) and the logarithmic scheme (each
 // cascade covers an equal multiplicative range). 0 = pure uniform,
-// 1 = pure log. 0.5 is the standard sweet spot.
+// 1 = pure log. 0.5 is the sweet spot at the default range. The blend is
+// pushed toward log up to PSSM_LAMBDA_MAX as the range widens, otherwise a
+// large far would balloon the near cascade and coarsen close-up shadows.
 //
 // CASTER_MARGIN_M expands the orthographic light frustum's near edge
 // toward the sun so casters above the camera frustum slice (e.g. the
 // building roof at y=3 when the slice itself only reaches y=1) still cast
 // onto receivers inside the slice.
 #define SHADOW_SPLIT_NEAR 0.1f
-#define SHADOW_SPLIT_FAR 50.0f
 #define PSSM_LAMBDA 0.5f
+#define PSSM_LAMBDA_MAX 0.9f
 #define CASTER_MARGIN_M 50.0f
 
 static struct
@@ -31,6 +33,7 @@ static struct
 	b3Vec3 sunDir;										  // world-space dir TO sun, normalized
 	float splitNear;									  // PSSM split range near (positive view-Z)
 	float splitFar;										  // PSSM split range far (positive view-Z)
+	float splitLambda;									  // uniform/log split blend, widens with range
 	sg_image depthArray;								  // D32F, cascade layers
 	sg_view cascadeAttachmentViews[SHADOW_CASCADE_COUNT]; // depth-stencil view per cascade
 	sg_view sampleView;									  // full-array texture-sample view
@@ -48,7 +51,16 @@ static inline float ComputeSplitDistance( int i, int cascadeCount, float nearZ, 
 	const float fi = (float)i / (float)cascadeCount;
 	const float u = nearZ + ( farZ - nearZ ) * fi;
 	const float l = nearZ * powf( farZ / nearZ, fi );
-	return PSSM_LAMBDA * l + ( 1.0f - PSSM_LAMBDA ) * u;
+	return s_shadow.splitLambda * l + ( 1.0f - s_shadow.splitLambda ) * u;
+}
+
+// Push the uniform/log blend toward log as the split range widens, so the near
+// cascade stays tight when far is large. Anchored at the default range so the
+// reference scenes keep the 0.5 sweet spot.
+static inline float SplitLambdaForRange( float nearZ, float farZ )
+{
+	float decades = log10f( ( farZ / nearZ ) / ( SHADOW_SPLIT_FAR / SHADOW_SPLIT_NEAR ) );
+	return b3ClampFloat( PSSM_LAMBDA + 0.4f * decades, PSSM_LAMBDA, PSSM_LAMBDA_MAX );
 }
 
 // Fill cornersOut with the 8 world-space corners of the camera frustum
@@ -170,6 +182,7 @@ void InitShadows( void )
 	s_shadow.sunDir = b3Normalize( (b3Vec3){ 0.5f, 0.8f, 0.4f } );
 	s_shadow.splitNear = SHADOW_SPLIT_NEAR;
 	s_shadow.splitFar = SHADOW_SPLIT_FAR;
+	s_shadow.splitLambda = SplitLambdaForRange( s_shadow.splitNear, s_shadow.splitFar );
 
 	sg_image_desc desc = { 0 };
 	desc.type = SG_IMAGETYPE_ARRAY;
@@ -237,12 +250,18 @@ void SetShadowSplits( float nearViewZ, float farViewZ )
 	if ( nearViewZ <= 0.0f || farViewZ <= nearViewZ )
 	{
 		// Restore defaults on (0, 0) or any nonsense input.
-		s_shadow.splitNear = SHADOW_SPLIT_NEAR;
-		s_shadow.splitFar = SHADOW_SPLIT_FAR;
-		return;
+		nearViewZ = SHADOW_SPLIT_NEAR;
+		farViewZ = SHADOW_SPLIT_FAR;
 	}
+
 	s_shadow.splitNear = nearViewZ;
 	s_shadow.splitFar = farViewZ;
+	s_shadow.splitLambda = SplitLambdaForRange( nearViewZ, farViewZ );
+}
+
+void SetShadowSplitFar( float farViewZ )
+{
+	SetShadowSplits( s_shadow.splitNear, farViewZ );
 }
 
 void SetShadowSunDir( b3Vec3 dirToSun )
