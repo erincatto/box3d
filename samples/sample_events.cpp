@@ -346,13 +346,12 @@ public:
 			
 		}
 
+		AddGroundBox( 20.0f );
+
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			groundId = b3CreateBody( m_worldId, &bodyDef );
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeTransformedBoxHull( 20.0f, 1.0f, 20.0f, { { 0.0f, -1.0f, 0.0f }, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 
 		for ( int i = 0; i < e_count; ++i )
@@ -684,6 +683,8 @@ public:
 			
 		}
 
+		AddGroundBox( 10.0f );
+
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -691,9 +692,6 @@ public:
 
 			groundId = b3CreateBody( m_worldId, &bodyDef );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-			b3BoxHull groundBox = b3MakeOffsetBoxHull( 10.0f, 1.0f, 10.0f, {0.0f, -1.0f, 0.0f} );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
 
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 5.0f, { { 10.0f, 5.0f, 0.0f }, b3Quat_identity } );
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );

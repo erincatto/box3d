@@ -1,11 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "gfx/draw.h"
+#include "gfx/keycodes.h"
 #include "imgui.h"
 #include "sample.h"
-#include "gfx/draw.h"
-
-#include "gfx/keycodes.h"
 
 #include "box3d/box3d.h"
 
@@ -291,7 +290,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 0.0f, 25.0f, { 0.0f, 8.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 20.0f );
@@ -465,16 +463,16 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			groundId = b3CreateBody( m_worldId, &bodyDef );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 50.0f, { b3Vec3_zero, b3Quat_identity } );
+			b3BoxHull box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 10.0f, { b3Vec3_zero, b3Quat_identity } );
 			b3CreateHullShape( groundId, &shapeDef, &box.base );
 
-			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 50.0f, { { -10.0f, 10.0f, 0.0f }, b3Quat_identity } );
+			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 10.0f, { { -10.0f, 10.0f, 0.0f }, b3Quat_identity } );
 			b3CreateHullShape( groundId, &shapeDef, &box.base );
 
-			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 50.0f, { { 10.0f, 10.0f, 0.0f }, b3Quat_identity } );
+			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 10.0f, { { 10.0f, 10.0f, 0.0f }, b3Quat_identity } );
 			b3CreateHullShape( groundId, &shapeDef, &box.base );
 
-			box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 50.0f, { { 00.0f, 20.0f, 0.0f }, b3Quat_identity } );
+			box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 10.0f, { { 00.0f, 20.0f, 0.0f }, b3Quat_identity } );
 			b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 
@@ -563,7 +561,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			
 		}
 
 		m_targetTranslation = 0.0f;
@@ -577,15 +574,13 @@ public:
 		m_enableMotor = false;
 		m_enableLimit = false;
 
+		AddGroundBox( 20.0f );
+
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { 0.0f, -1.0f, 0.0f };
 			groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -730,18 +725,15 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			
 		}
+
+		AddGroundBox( 20.0f );
 
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { 0.0f, -1.0f, 0.0f };
 			groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -877,11 +869,7 @@ public:
 	{
 		Sample::Render();
 
-		b3Transform transform = b3Transform_identity;
-		transform.p.y += 0.05f;
-		DrawAxes( transform, 2.0f );
-
-		transform = b3Body_GetTransform( m_bodyId );
+		b3Transform transform = b3Body_GetTransform( m_bodyId );
 		DrawAxes( transform, 2.0f );
 	}
 
@@ -917,22 +905,19 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			
 		}
 
 		m_hertz = 10.0f;
 		m_dampingRatio = 0.7f;
 		m_maxTorque = 5000.0f;
 
+		AddGroundBox( 20.0f );
+
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { 0.0f, -1.0f, 0.0f };
 			groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
 		}
 
 		{
@@ -1036,7 +1021,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			
 		}
 
 		m_targetAngle = 0.0f;
@@ -1050,15 +1034,13 @@ public:
 		m_enableMotor = false;
 		m_enableLimit = false;
 
+		AddGroundBox( 20.0f );
+
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { 0.0f, -1.0f, 0.0f };
 			groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -1213,18 +1195,15 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			
 		}
+
+		AddGroundBox( 20.0f );
 
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { 0.0f, -1.0f, 0.0f };
 			groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -1315,7 +1294,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 25.0f, 20.0f, 7.0f, { 0.0f, 2.0f, 0.0f } );
-			
 		}
 
 		m_spinSpeed = 0.0f;
@@ -1337,15 +1315,13 @@ public:
 		m_maxSteeringTorque = 20.0f;
 		m_targetSteeringDegrees = 0.0f;
 
+		AddGroundBox( 20.0f );
+
 		b3BodyId groundId;
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { 0.0f, -1.0f, 0.0f };
 			groundId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
-			b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -1517,10 +1493,6 @@ public:
 
 		float angle = b3WheelJoint_GetSteeringAngle( m_jointId );
 		DrawTextLine( "steering degrees = %.1f", 180.0f / B3_PI * angle );
-
-		b3Transform transform = b3Transform_identity;
-		transform.p.y += 0.05f;
-		DrawAxes( transform, 2.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -1626,7 +1598,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 20.0f );
@@ -1986,11 +1957,9 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 40.0f, { 0.0f, 5.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 20.0f );
-
 
 		b3BodyId groundId;
 		{

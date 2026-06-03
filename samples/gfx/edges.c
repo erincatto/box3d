@@ -40,7 +40,7 @@ EdgeOverlayParams GetDefaultEdgeParams( void )
 	p.zBias = 1.0e-6f;
 	p.convexColor = MakeVec4( 0.1f, 0.8f, 0.1f, 0.75f );
 	p.concaveColor = MakeVec4( 0.8f, 0.10f, 0.10f, 0.75f );
-	p.flatColor = MakeVec4( 1.0f, 1.0f, 1.0f, 0.3f );
+	p.flatColor = MakeVec4( 0.6f, 0.6f, 0.6f, 0.5f );
 	return p;
 }
 

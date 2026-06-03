@@ -1016,7 +1016,7 @@ static void b3ValidateMetrics( const b3DynamicTree* tree, int index )
 
 	const b3TreeNode* node = tree->nodes + index;
 
-	B3_VALIDATE( b3IsSaneAABB( node->aabb ) );
+	B3_VALIDATE( b3IsValidAABB( node->aabb ) );
 
 	if ( b3IsLeaf( node ) )
 	{

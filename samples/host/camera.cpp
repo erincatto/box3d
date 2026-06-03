@@ -173,7 +173,8 @@ PickRay Camera::BuildPickRay( float x, float y ) const
 
 void Camera::OnEvent( const sapp_event* e )
 {
-	const bool alt = ( e->modifiers & SAPP_MODIFIER_ALT ) != 0;
+	uint32_t mods = e->modifiers & ( SAPP_MODIFIER_SHIFT | SAPP_MODIFIER_CTRL | SAPP_MODIFIER_ALT );
+	const bool canOrbit = mods == SAPP_MODIFIER_ALT;
 
 	switch ( e->type )
 	{
@@ -194,21 +195,21 @@ void Camera::OnEvent( const sapp_event* e )
 				m_middleDown = false;
 			break;
 		case SAPP_EVENTTYPE_MOUSE_MOVE:
-			if ( alt && m_leftDown )
+			if ( canOrbit && m_leftDown )
 			{
 				m_orbitDX += e->mouse_dx;
 				m_orbitDY += e->mouse_dy;
 			}
-			else if ( alt && m_middleDown )
+			else if ( canOrbit && m_middleDown )
 			{
 				m_panDX += e->mouse_dx;
 				m_panDY += e->mouse_dy;
 			}
-			else if ( alt && m_rightDown )
+			else if ( canOrbit && m_rightDown )
 			{
 				m_radialZoomDY += e->mouse_dy;
 			}
-			else if ( !alt && m_rightDown )
+			else if ( !canOrbit && m_rightDown )
 			{
 				// Fly-look: routed into the same orbit accumulators; Update
 				// interprets them differently when m_rightDown && !m_altDown.
@@ -217,7 +218,7 @@ void Camera::OnEvent( const sapp_event* e )
 			}
 			break;
 		case SAPP_EVENTTYPE_MOUSE_SCROLL:
-			if ( !alt && m_rightDown )
+			if ( !canOrbit && m_rightDown )
 				m_speedScrollAccum += e->scroll_y;
 			else
 				m_scrollAccum += e->scroll_y;

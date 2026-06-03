@@ -414,13 +414,6 @@ public:
 		return true;
 	}
 
-	void Render() override
-	{
-		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
-	}
-
 	void Step() override
 	{
 		Sample::Step();
