@@ -190,6 +190,7 @@ static void CreateSmallPyramid( b3WorldId worldId, int baseCount, float extent, 
 	bodyDef.enableSleep = false;
 
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.density = 100.0f;
 
 	b3BoxHull box = b3MakeBoxHull( extent, extent, extent );
 
@@ -222,8 +223,6 @@ void CreateManyPyramids( b3WorldId worldId )
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.baseMaterial.customColor = b3_colorLightGray;
-
 		b3BoxHull box = b3MakeBoxHull( groundExtent, 1.0f, groundExtent );
 		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}

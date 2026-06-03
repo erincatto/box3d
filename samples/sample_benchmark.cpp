@@ -27,7 +27,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
+			m_camera->SetView( 40.0f, -10.0f, 110.0f, { 0.0f, 40.0f, 0.0f } );
 		}
 
 		CreateLargePyramid( m_worldId );
@@ -75,7 +75,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 5.0f, 80.0f, { 0.0f, 18.0f, 0.0f } );
+			m_camera->SetView( -10.0f, 10.0f, 120.0f, { 0.0f, 5.0f, 0.0f } );
 		}
 
 		CreateManyPyramids( m_worldId );
