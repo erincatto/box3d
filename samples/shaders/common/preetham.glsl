@@ -69,78 +69,78 @@ vec3 preethamSky(vec3 view_dir, vec3 sun_dir, float turbidity)
 	// portion of frame).
 	vec3 view_clamped = normalize(vec3(view_dir.x, max(view_dir.y, 0.0) + 0.01, view_dir.z));
 		
-		float cos_theta = max(view_clamped.y, 0.0); // zenith angle of view
-		float cos_gamma = clamp(dot(sun_dir, view_clamped), - 1.0, 1.0); // sun-to-view angle
-		float gamma = acos(cos_gamma);
-		float sun_theta = acos(sun_y);
+	float cos_theta = max(view_clamped.y, 0.0); // zenith angle of view
+	float cos_gamma = clamp(dot(sun_dir, view_clamped), - 1.0, 1.0); // sun-to-view angle
+	float gamma = acos(cos_gamma);
+	float sun_theta = acos(sun_y);
 		
-		// Perez coefficients as functions of turbidity T (Preetham table 2)
-		float T = max(turbidity, 1.0);
-		float T2 = T * T;
+	// Perez coefficients as functions of turbidity T (Preetham table 2)
+	float T = max(turbidity, 1.0);
+	float T2 = T * T;
 		
-		// Y (luminance):
-		float A_Y = 0.1787 * T - 1.4630;
-		float B_Y = -0.3554 * T + 0.4275;
-		float C_Y = -0.0227 * T + 5.3251;
-		float D_Y = 0.1206 * T - 2.5771;
-		float E_Y = -0.0670 * T + 0.3703;
-		// x (chromaticity):
-		float A_x = -0.0193 * T - 0.2592;
-		float B_x = -0.0665 * T + 0.0008;
-		float C_x = -0.0004 * T + 0.2125;
-		float D_x = -0.0641 * T - 0.8989;
-		float E_x = -0.0033 * T + 0.0452;
-		// y (chromaticity):
-		float A_y = -0.0167 * T - 0.2608;
-		float B_y = -0.0950 * T + 0.0092;
-		float C_y = -0.0079 * T + 0.2102;
-		float D_y = -0.0441 * T - 1.6537;
-		float E_y = -0.0109 * T + 0.0529;
+	// Y (luminance):
+	float A_Y = 0.1787 * T - 1.4630;
+	float B_Y = -0.3554 * T + 0.4275;
+	float C_Y = -0.0227 * T + 5.3251;
+	float D_Y = 0.1206 * T - 2.5771;
+	float E_Y = -0.0670 * T + 0.3703;
+	// x (chromaticity):
+	float A_x = -0.0193 * T - 0.2592;
+	float B_x = -0.0665 * T + 0.0008;
+	float C_x = -0.0004 * T + 0.2125;
+	float D_x = -0.0641 * T - 0.8989;
+	float E_x = -0.0033 * T + 0.0452;
+	// y (chromaticity):
+	float A_y = -0.0167 * T - 0.2608;
+	float B_y = -0.0950 * T + 0.0092;
+	float C_y = -0.0079 * T + 0.2102;
+	float D_y = -0.0441 * T - 1.6537;
+	float E_y = -0.0109 * T + 0.0529;
 		
-		// Zenith chromaticities (Preetham Eq. A.3, polynomial in T and sun_theta).
-		float ts = sun_theta;
-		float ts2 = ts * ts;
-		float ts3 = ts2 * ts;
+	// Zenith chromaticities (Preetham Eq. A.3, polynomial in T and sun_theta).
+	float ts = sun_theta;
+	float ts2 = ts * ts;
+	float ts3 = ts2 * ts;
 		
-		float x_z =
-		(0.00166 * ts3 - 0.00375 * ts2 + 0.00209 * ts) * T2 +
-		(-0.02903 * ts3 + 0.06377 * ts2 - 0.03202 * ts + 0.00394) * T +
-		(0.11693 * ts3 - 0.21196 * ts2 + 0.06052 * ts + 0.25886);
+	float x_z =
+	(0.00166 * ts3 - 0.00375 * ts2 + 0.00209 * ts) * T2 +
+	(-0.02903 * ts3 + 0.06377 * ts2 - 0.03202 * ts + 0.00394) * T +
+	(0.11693 * ts3 - 0.21196 * ts2 + 0.06052 * ts + 0.25886);
 		
-		float y_z =
-		(0.00275 * ts3 - 0.00610 * ts2 + 0.00317 * ts) * T2 +
-		(-0.04214 * ts3 + 0.08970 * ts2 - 0.04153 * ts + 0.00516) * T +
-		(0.15346 * ts3 - 0.26756 * ts2 + 0.06670 * ts + 0.26688);
+	float y_z =
+	(0.00275 * ts3 - 0.00610 * ts2 + 0.00317 * ts) * T2 +
+	(-0.04214 * ts3 + 0.08970 * ts2 - 0.04153 * ts + 0.00516) * T +
+	(0.15346 * ts3 - 0.26756 * ts2 + 0.06670 * ts + 0.26688);
 		
-		// Zenith luminance (Preetham Eq. A.2). Result in kcd/m^2.
-		float chi = (4.0 / 9.0 - T / 120.0) * (PREETHAM_PI - 2.0 * sun_theta);
-		float Y_z = (4.0453 * T - 4.9710) * tan(chi) - 0.2155 * T + 2.4192;
+	// Zenith luminance (Preetham Eq. A.2). Result in kcd/m^2.
+	float chi = (4.0 / 9.0 - T / 120.0) * (PREETHAM_PI - 2.0 * sun_theta);
+	float Y_z = (4.0453 * T - 4.9710) * tan(chi) - 0.2155 * T + 2.4192;
 		
-		// Normalize: F(theta=0, gamma=sun_theta) at zenith equals zenith
-		// values, so divide by perez(zenith) and multiply by perez(view).
-		float cos_zen_gamma = sun_y; // dot(zenith, sun_dir) = sun_dir.y
-		float pY_v = preethamPerez(cos_theta, cos_gamma, gamma, A_Y, B_Y, C_Y, D_Y, E_Y);
-		float px_v = preethamPerez(cos_theta, cos_gamma, gamma, A_x, B_x, C_x, D_x, E_x);
-		float py_v = preethamPerez(cos_theta, cos_gamma, gamma, A_y, B_y, C_y, D_y, E_y);
-		float pY_z = preethamPerez(1.0, cos_zen_gamma, sun_theta, A_Y, B_Y, C_Y, D_Y, E_Y);
-		float px_z = preethamPerez(1.0, cos_zen_gamma, sun_theta, A_x, B_x, C_x, D_x, E_x);
-		float py_z = preethamPerez(1.0, cos_zen_gamma, sun_theta, A_y, B_y, C_y, D_y, E_y);
+	// Normalize: F(theta=0, gamma=sun_theta) at zenith equals zenith
+	// values, so divide by perez(zenith) and multiply by perez(view).
+	float cos_zen_gamma = sun_y; // dot(zenith, sun_dir) = sun_dir.y
+	float pY_v = preethamPerez(cos_theta, cos_gamma, gamma, A_Y, B_Y, C_Y, D_Y, E_Y);
+	float px_v = preethamPerez(cos_theta, cos_gamma, gamma, A_x, B_x, C_x, D_x, E_x);
+	float py_v = preethamPerez(cos_theta, cos_gamma, gamma, A_y, B_y, C_y, D_y, E_y);
+	float pY_z = preethamPerez(1.0, cos_zen_gamma, sun_theta, A_Y, B_Y, C_Y, D_Y, E_Y);
+	float px_z = preethamPerez(1.0, cos_zen_gamma, sun_theta, A_x, B_x, C_x, D_x, E_x);
+	float py_z = preethamPerez(1.0, cos_zen_gamma, sun_theta, A_y, B_y, C_y, D_y, E_y);
 		
-		float Y = max(Y_z * pY_v / max(pY_z, 1.0e-5), 0.0);
-		float x = x_z * px_v / max(px_z, 1.0e-5);
-		float y = y_z * py_v / max(py_z, 1.0e-5);
+	float Y = max(Y_z * pY_v / max(pY_z, 1.0e-5), 0.0);
+	float x = x_z * px_v / max(px_z, 1.0e-5);
+	float y = y_z * py_v / max(py_z, 1.0e-5);
 		
-		vec3 XYZ = preethamXyY_to_XYZ(x, y, Y);
-		vec3 rgb = preethamXYZ_to_linear_srgb(XYZ);
-		return max(rgb, vec3(0.0));
-	}
+	vec3 XYZ = preethamXyY_to_XYZ(x, y, Y);
+	vec3 rgb = preethamXYZ_to_linear_srgb(XYZ);
+	return max(rgb, vec3(0.0));
+}
 	
-	// Convenience wrapper: raw Preetham scaled by the empirical luminance
-	// factor and the caller's below-horizon fade weight (1 above horizon,
-	// 0 below). The sky backdrop shader and the IBL sky cubemap both call
-	// this so they're guaranteed to agree pixel-for-pixel.
-	vec3 preethamSkyScaled(vec3 view_dir, vec3 sun_dir, float turbidity, float fade)
-	{
-		return preethamSky(view_dir, sun_dir, turbidity) * PREETHAM_LUMINANCE_SCALE * fade;
-	}
+// Convenience wrapper: raw Preetham scaled by the empirical luminance
+// factor and the caller's below-horizon fade weight (1 above horizon,
+// 0 below). The sky backdrop shader and the IBL sky cubemap both call
+// this so they're guaranteed to agree pixel-for-pixel.
+vec3 preethamSkyScaled(vec3 view_dir, vec3 sun_dir, float turbidity, float fade)
+{
+	return preethamSky(view_dir, sun_dir, turbidity) * PREETHAM_LUMINANCE_SCALE * fade;
+}
 	

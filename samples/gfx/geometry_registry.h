@@ -93,10 +93,7 @@ typedef struct MeshDrawSpan
 	int instanceCount;
 } MeshDrawSpan;
 
-// Shape kind tag carried by a registry entry. The Box3D adapter sets this
-// in each `box3dGeomAcquire*`, defaults to UNKNOWN otherwise. Used by the
-// edge overlay pass to decide which entries' edges to draw under each
-// policy bit (e.g. hull edges only on transparent instances).
+// Shape kind tag carried by a registry entry
 typedef enum MeshKind
 {
 	MESH_KIND_UNKNOWN = 0,

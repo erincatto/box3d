@@ -255,7 +255,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 10.0f, 80.0f, {0.0f, 20.0f, 0.0f} );
+			m_camera->SetView( 45.0f, 10.0f, 80.0f, { 0.0f, 20.0f, 0.0f } );
 		}
 
 		AddGroundBox( 100.0f );
@@ -275,7 +275,7 @@ public:
 				{
 					for ( int k = 0; k < 8; ++k )
 					{
-						bodyDef.position = { -16.0f * a + 4.0f * a*  j, 4.0f * a * i + 5.0f * a, -16.0f * a + 4.0f * a* k };
+						bodyDef.position = { -16.0f * a + 4.0f * a * j, 4.0f * a * i + 5.0f * a, -16.0f * a + 4.0f * a * k };
 						b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 						b3CreateHullShape( bodyId, &shapeDef, &box.base );
 					}
@@ -617,7 +617,8 @@ public:
 						{
 							b3Transform transform = b3Transform_identity;
 							transform.p = rayOrigin + result.fraction * rayTranslation;
-							DrawSphereEx( transform, m_radius, MakeColorAlpha( b3_colorPurple, 0.5f ), 0.0f, 0.5f, TRANSPARENT_SHADOW_NONE );
+							DrawSphereEx( transform, m_radius, MakeColorAlpha( b3_colorPurple, 0.5f ), 0.0f, 0.5f,
+										  TRANSPARENT_SHADOW_NONE );
 						}
 
 						b3Vec3 rayEnd = rayOrigin + result.fraction * rayTranslation;
@@ -748,7 +749,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 5.0f, 18.0f, 180.0f, { 0.0f, 5.0f, 0.0f } );
+			m_camera->SetView( 0.0f, 0.0f, 250.0f, { 0.0f, 110.0f, 0.0f } );
 		}
 
 		b3World_SetCustomFilterCallback( m_worldId, FilterFcn, this );
@@ -756,61 +757,77 @@ public:
 		m_activeSensor.row = 0;
 		m_activeSensor.active = true;
 
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-
 		{
 			float gridSize = 3.0f;
+
+			// These destroy anything they touch, including themselves.
+			b3BoxHull box = b3MakeCubeHull( 0.48f * gridSize );
+			b3BodyDef bodyDef = b3DefaultBodyDef();
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.isSensor = true;
 			shapeDef.enableSensorEvents = true;
 			shapeDef.userData = &m_activeSensor;
+			shapeDef.baseMaterial.customColor = b3MakeDebugColor( (b3HexColor)0x505050u, b3_debugMaterialMetallic );
 
 			float y = 0.0f;
 			float x = -40.0f * gridSize;
 			for ( int i = 0; i < 81; ++i )
 			{
-				b3Vec3 extents = { 0.5f * gridSize, 0.5f * gridSize, 0.5f * gridSize };
-				b3Transform transform = { { x, y, 0.0f }, b3Quat_identity };
-				b3BoxHull box = b3MakeTransformedBoxHull( extents.x, extents.y, extents.z, transform );
+				bodyDef.position = { x, y, 0.0f };
+				b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 				b3CreateHullShape( groundId, &shapeDef, &box.base );
 				x += gridSize;
 			}
 		}
 
-		g_randomSeed = 42;
-
-		float shift = 5.0f;
-		float xCenter = 0.5f * shift * m_columnCount;
-
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.isSensor = true;
-		shapeDef.enableSensorEvents = true;
-
-		float yStart = 10.0f;
-
-		for ( int j = 0; j < m_rowCount; ++j )
 		{
-			m_passiveSensors[j].row = j;
-			m_passiveSensors[j].active = false;
-			shapeDef.userData = m_passiveSensors + j;
+			g_randomSeed = 42;
 
-			float y = j * shift + yStart;
-			for ( int i = 0; i < m_columnCount; ++i )
+			float shift = 5.0f;
+			float xCenter = 0.5f * shift * m_columnCount;
+
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+
+			b3BoxHull box = b3MakeCubeHull( 0.5f );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.isSensor = true;
+			shapeDef.enableSensorEvents = true;
+
+			float yStart = 10.0f;
+			m_filterRow = m_rowCount >> 1;
+
+			for ( int j = 0; j < m_rowCount; ++j )
 			{
-				float x = i * shift - xCenter;
-				b3Vec3 extents = { 0.5f, 0.5f, 0.5f };
-				b3Transform transform = { { x, y, 0.0f }, b3Quat_identity };
-				b3BoxHull box = b3MakeTransformedBoxHull( extents.x, extents.y, extents.z, transform );
-				b3CreateHullShape( groundId, &shapeDef, &box.base );
+				m_passiveSensors[j].row = j;
+				m_passiveSensors[j].active = false;
+				shapeDef.userData = m_passiveSensors + j;
+
+				if ( j == m_filterRow )
+				{
+					shapeDef.enableCustomFiltering = true;
+					shapeDef.baseMaterial.customColor = b3_colorFuchsia;
+				}
+				else
+				{
+					shapeDef.enableCustomFiltering = false;
+					shapeDef.baseMaterial.customColor = 0;
+				}
+
+				float y = j * shift + yStart;
+				for ( int i = 0; i < m_columnCount; ++i )
+				{
+					float x = i * shift - xCenter;
+					bodyDef.position = { x, y, 0.0f };
+					b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+					b3CreateHullShape( groundId, &shapeDef, &box.base );
+				}
 			}
 		}
 
 		m_maxBeginCount = 0;
 		m_maxEndCount = 0;
 		m_lastStepCount = 0;
-		m_filterRow = m_rowCount >> 1;
 	}
 
 	void CreateRow( float y )

@@ -110,9 +110,9 @@ if(PROJECT_IS_TOP_LEVEL)
 	option(BOX3D_VALIDATE "Enable heavy validation" ON)
 	option(BOX3D_UNIT_TESTS "Build the Box3D unit tests" ON)
 
-	# Off builds the samples from the committed shader headers with no
-	# sokol-shdc fetch. On recompiles them in place when a .glsl changes.
-	option(BOX3D_BUILD_SHADERS "Recompile shaders with sokol-shdc" ON)
+	# Enable this for shader development using sokol-shdc.
+	# This can be a large download, so this is disabled by default.
+	option(BOX3D_BUILD_SHADERS "Recompile shaders with sokol-shdc" OFF)
 
 	if(BOX3D_UNIT_TESTS OR BOX3D_SAMPLES OR BOX3D_BENCHMARKS)
 

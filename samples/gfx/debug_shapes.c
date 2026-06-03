@@ -96,7 +96,7 @@ static bool EdgeBuilderReserve( EdgeBuilder* b, int extra )
 	EdgeRecord* grown = (EdgeRecord*)realloc( b->edges, (size_t)newCap * sizeof( EdgeRecord ) );
 	if ( !grown )
 	{
-		fprintf( stderr, "[box3dGeom/error] edge buffer realloc failed (cap=%d)\n", newCap );
+		fprintf( stderr, "error: edge buffer realloc failed (cap=%d)\n", newCap );
 		return false;
 	}
 	b->edges = grown;
@@ -148,7 +148,7 @@ static EdgeVertex* ExpandEdgesForUpload( const EdgeRecord* edges, int edgeCount,
 	EdgeVertex* out = (EdgeVertex*)malloc( (size_t)( 2 * edgeCount ) * sizeof( EdgeVertex ) );
 	if ( !out )
 	{
-		fprintf( stderr, "[box3dGeom/error] edge upload buffer alloc failed (edges=%d)\n", edgeCount );
+		fprintf( stderr, "error: edge upload buffer alloc failed (edges=%d)\n", edgeCount );
 		return NULL;
 	}
 
@@ -186,7 +186,7 @@ static bool BufferReserveVertices( BuildBuffer* b, int extra )
 	MeshVertex* grown = (MeshVertex*)realloc( b->vertices, (size_t)newCap * sizeof( MeshVertex ) );
 	if ( !grown )
 	{
-		fprintf( stderr, "[box3dGeom/error] vertex buffer realloc failed (cap=%d)\n", newCap );
+		fprintf( stderr, "error: vertex buffer realloc failed (cap=%d)\n", newCap );
 		return false;
 	}
 	b->vertices = grown;
@@ -209,7 +209,7 @@ static bool BufferReserveIndices( BuildBuffer* b, int extra )
 	uint32_t* grown = (uint32_t*)realloc( b->indices, (size_t)newCap * sizeof( uint32_t ) );
 	if ( !grown )
 	{
-		fprintf( stderr, "[box3dGeom/error] index buffer realloc failed (cap=%d)\n", newCap );
+		fprintf( stderr, "error: index buffer realloc failed (cap=%d)\n", newCap );
 		return false;
 	}
 	b->indices = grown;
@@ -301,7 +301,7 @@ static MeshHandle BuildHull( const b3Hull* hull )
 	const b3Plane* planes = b3GetHullPlanes( hull );
 	if ( !points || !edges || !faces || !planes )
 	{
-		fprintf( stderr, "[box3dGeom/error] hull missing arrays (hash=0x%08x)\n", hull->hash );
+		fprintf( stderr, "error: hull missing arrays (hash=0x%08x)\n", hull->hash );
 		return InvalidMeshHandle();
 	}
 
@@ -330,7 +330,7 @@ static MeshHandle BuildHull( const b3Hull* hull )
 			e = edges[e].next;
 			if ( loopLen > 256 )
 			{
-				fprintf( stderr, "[box3dGeom/error] hull face loop runaway (hash=0x%08x)\n", hull->hash );
+				fprintf( stderr, "error: hull face loop runaway (hash=0x%08x)\n", hull->hash );
 				BufferFree( &buf );
 				return InvalidMeshHandle();
 			}
@@ -387,8 +387,7 @@ static MeshHandle BuildHull( const b3Hull* hull )
 		}
 	}
 
-	const MeshHandle h =
-		RegisterMesh( hull->hash, buf.vertices, buf.vertexCount, buf.indices, buf.indexCount, "geom_hull" );
+	MeshHandle h = RegisterMesh( hull->hash, buf.vertices, buf.vertexCount, buf.indices, buf.indexCount, "geom_hull" );
 
 	if ( IsMeshHandleValid( h ) )
 	{
@@ -428,7 +427,7 @@ static MeshHandle BuildMeshData( const b3MeshData* meshData )
 	const uint8_t* flags = b3GetMeshFlags( meshData );
 	if ( !verts || !tris || meshData->triangleCount <= 0 )
 	{
-		fprintf( stderr, "[box3dGeom/error] mesh missing arrays or empty (hash=0x%08x)\n", meshData->hash );
+		fprintf( stderr, "error: mesh missing arrays or empty (hash=0x%08x)\n", meshData->hash );
 		return InvalidMeshHandle();
 	}
 
@@ -487,13 +486,13 @@ static MeshHandle BuildMeshData( const b3MeshData* meshData )
 	{
 #define LESS( i, j ) MeshEdgeLess( &eb.edges[(int)( i )], &eb.edges[(int)( j )] )
 #define SWAP( i, j )                                                                                                             \
-		do                                                                                                                           \
-		{                                                                                                                            \
-			EdgeRecord tmp_ = eb.edges[(int)( i )];                                                                                  \
-			eb.edges[(int)( i )] = eb.edges[(int)( j )];                                                                             \
-			eb.edges[(int)( j )] = tmp_;                                                                                             \
-		}                                                                                                                            \
-		while ( 0 )
+	do                                                                                                                           \
+	{                                                                                                                            \
+		EdgeRecord tmp_ = eb.edges[(int)( i )];                                                                                  \
+		eb.edges[(int)( i )] = eb.edges[(int)( j )];                                                                             \
+		eb.edges[(int)( j )] = tmp_;                                                                                             \
+	}                                                                                                                            \
+	while ( 0 )
 
 		QSORT( eb.count, LESS, SWAP );
 #undef LESS
@@ -524,8 +523,7 @@ static MeshHandle BuildMeshData( const b3MeshData* meshData )
 		eb.count = write + 1;
 	}
 
-	const MeshHandle h =
-		RegisterMesh( meshData->hash, buf.vertices, buf.vertexCount, buf.indices, buf.indexCount, "geom_mesh" );
+	const MeshHandle h = RegisterMesh( meshData->hash, buf.vertices, buf.vertexCount, buf.indices, buf.indexCount, "geom_mesh" );
 
 	if ( IsMeshHandleValid( h ) )
 	{
@@ -562,7 +560,7 @@ static MeshHandle BuildHeightField( const b3HeightField* hf )
 {
 	if ( hf->columnCount < 2 || hf->rowCount < 2 || !hf->compressedHeights )
 	{
-		fprintf( stderr, "[box3dGeom/error] heightfield degenerate (hash=0x%08x)\n", hf->hash );
+		fprintf( stderr, "error: heightfield degenerate (hash=0x%08x)\n", hf->hash );
 		return InvalidMeshHandle();
 	}
 
@@ -582,7 +580,7 @@ static MeshHandle BuildHeightField( const b3HeightField* hf )
 	b3Vec3* gridVertices = (b3Vec3*)malloc( (size_t)( rows * cols ) * sizeof( b3Vec3 ) );
 	if ( !gridVertices )
 	{
-		fprintf( stderr, "[box3dGeom/error] hf grid alloc failed (rows=%d cols=%d)\n", rows, cols );
+		fprintf( stderr, "error: hf grid alloc failed (rows=%d cols=%d)\n", rows, cols );
 		return InvalidMeshHandle();
 	}
 	for ( int row = 0; row < rows; ++row )
@@ -770,8 +768,7 @@ static MeshHandle BuildHeightField( const b3HeightField* hf )
 		}
 	}
 
-	const MeshHandle h =
-		RegisterMesh( hf->hash, buf.vertices, buf.vertexCount, buf.indices, buf.indexCount, "geom_heightfield" );
+	const MeshHandle h = RegisterMesh( hf->hash, buf.vertices, buf.vertexCount, buf.indices, buf.indexCount, "geom_heightfield" );
 
 	if ( IsMeshHandleValid( h ) )
 	{
@@ -806,7 +803,7 @@ MeshHandle FindOrAddHull( const b3Hull* hull )
 		AddMeshReference( existing );
 		return existing;
 	}
-	
+
 	return BuildHull( hull );
 }
 
@@ -823,7 +820,7 @@ MeshHandle FindOrAddMesh( const b3MeshData* meshData )
 		AddMeshReference( existing );
 		return existing;
 	}
-	
+
 	return BuildMeshData( meshData );
 }
 

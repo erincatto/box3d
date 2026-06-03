@@ -211,7 +211,7 @@ MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCo
 	const int slot = FindFreeSlot();
 	if ( slot < 0 )
 	{
-		fprintf( stderr, "[geom/error] registry full (cap=%d), dropping geometry\n", MAX_REGISTRY_ENTRIES );
+		fprintf( stderr, "error: registry full (cap=%d), dropping geometry\n", MAX_REGISTRY_ENTRIES );
 		return InvalidMeshHandle();
 	}
 
@@ -495,7 +495,7 @@ void AppendMesh( MeshHandle h, b3Transform transform, b3Vec3 scale, Vec4 baseCol
 		geom_instance_t* grown = (geom_instance_t*)realloc( *arr, (size_t)newCap * sizeof( geom_instance_t ) );
 		if ( !grown )
 		{
-			fprintf( stderr, "[geom/error] per-entry%s grow failed (newCap=%d)\n", xp ? "(xp)" : "", newCap );
+			fprintf( stderr, "error: per-entry%s grow failed (newCap=%d)\n", xp ? "(xp)" : "", newCap );
 			return;
 		}
 		*arr = grown;
@@ -517,7 +517,7 @@ int UploadMeshInstances( void )
 	s_geom.drawSpanCount = 0;
 	if ( total > MAX_GEOM_INSTANCES_GLOBAL )
 	{
-		fprintf( stderr, "[geom/error] %d opaque instances exceeds global cap %d\n", total, MAX_GEOM_INSTANCES_GLOBAL );
+		fprintf( stderr, "error: %d opaque instances exceeds global cap %d\n", total, MAX_GEOM_INSTANCES_GLOBAL );
 		total = MAX_GEOM_INSTANCES_GLOBAL;
 	}
 	int opaqueCursor = 0;
@@ -528,7 +528,7 @@ int UploadMeshInstances( void )
 			geom_instance_t* grown = (geom_instance_t*)realloc( s_geom.uploadScratch, (size_t)total * sizeof( geom_instance_t ) );
 			if ( !grown )
 			{
-				fprintf( stderr, "[geom/error] upload scratch grow failed\n" );
+				fprintf( stderr, "error: upload scratch grow failed\n" );
 				return 0;
 			}
 			s_geom.uploadScratch = grown;
@@ -627,7 +627,7 @@ int UploadMeshInstances( void )
 	s_geom.xpDrawCount = 0;
 	if ( xpTotal > MAX_GEOM_XP_INSTANCES_GLOBAL )
 	{
-		fprintf( stderr, "[geom/error] %d transparent instances exceeds cap %d\n", xpTotal, MAX_GEOM_XP_INSTANCES_GLOBAL );
+		fprintf( stderr, "error: %d transparent instances exceeds cap %d\n", xpTotal, MAX_GEOM_XP_INSTANCES_GLOBAL );
 		xpTotal = MAX_GEOM_XP_INSTANCES_GLOBAL;
 	}
 	int xpCursor = 0;
@@ -639,7 +639,7 @@ int UploadMeshInstances( void )
 				(geom_instance_t*)realloc( s_geom.xpUploadScratch, (size_t)xpTotal * sizeof( geom_instance_t ) );
 			if ( !grown )
 			{
-				fprintf( stderr, "[geom/error] xp upload scratch grow failed\n" );
+				fprintf( stderr, "error: xp upload scratch grow failed\n" );
 				return opaqueCursor;
 			}
 			s_geom.xpUploadScratch = grown;

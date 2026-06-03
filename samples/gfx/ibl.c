@@ -108,7 +108,7 @@ static struct
 // from the shader. Comments are deliberately spare to avoid two sources
 // of truth, read preetham.glsl for the rationale.
 
-static float preethamPerezC( float cos_theta, float cos_gamma, float gamma, float A, float B, float C, float D, float E )
+static float PreethamPerezC( float cos_theta, float cos_gamma, float gamma, float A, float B, float C, float D, float E )
 {
 	const float ct = ( cos_theta < 0.01f ) ? 0.01f : cos_theta;
 	const float term1 = 1.0f + A * expf( B / ct );
@@ -116,7 +116,7 @@ static float preethamPerezC( float cos_theta, float cos_gamma, float gamma, floa
 	return term1 * term2;
 }
 
-static b3Vec3 preethamSkyScaledC( b3Vec3 view_dir, b3Vec3 sun_dir, float turbidity, float fade )
+static b3Vec3 PreethamSkyScaledC( b3Vec3 view_dir, b3Vec3 sun_dir, float turbidity, float fade )
 {
 	const float PI = 3.14159265358979323846f;
 	const float LUMINANCE_SCALE = 0.06f; // mirrors PREETHAM_LUMINANCE_SCALE
@@ -179,12 +179,12 @@ static b3Vec3 preethamSkyScaledC( b3Vec3 view_dir, b3Vec3 sun_dir, float turbidi
 	const float Y_z = ( 4.0453f * T - 4.9710f ) * tanf( chi ) - 0.2155f * T + 2.4192f;
 
 	const float cos_zen_gamma = sun_y_clamped;
-	const float pY_v = preethamPerezC( cos_theta, cos_gamma, gamma, A_Y, B_Y, C_Y, D_Y, E_Y );
-	const float px_v = preethamPerezC( cos_theta, cos_gamma, gamma, A_x, B_x, C_x, D_x, E_x );
-	const float py_v = preethamPerezC( cos_theta, cos_gamma, gamma, A_y, B_y, C_y, D_y, E_y );
-	const float pY_z = preethamPerezC( 1.0f, cos_zen_gamma, sun_theta, A_Y, B_Y, C_Y, D_Y, E_Y );
-	const float px_z = preethamPerezC( 1.0f, cos_zen_gamma, sun_theta, A_x, B_x, C_x, D_x, E_x );
-	const float py_z = preethamPerezC( 1.0f, cos_zen_gamma, sun_theta, A_y, B_y, C_y, D_y, E_y );
+	const float pY_v = PreethamPerezC( cos_theta, cos_gamma, gamma, A_Y, B_Y, C_Y, D_Y, E_Y );
+	const float px_v = PreethamPerezC( cos_theta, cos_gamma, gamma, A_x, B_x, C_x, D_x, E_x );
+	const float py_v = PreethamPerezC( cos_theta, cos_gamma, gamma, A_y, B_y, C_y, D_y, E_y );
+	const float pY_z = PreethamPerezC( 1.0f, cos_zen_gamma, sun_theta, A_Y, B_Y, C_Y, D_Y, E_Y );
+	const float px_z = PreethamPerezC( 1.0f, cos_zen_gamma, sun_theta, A_x, B_x, C_x, D_x, E_x );
+	const float py_z = PreethamPerezC( 1.0f, cos_zen_gamma, sun_theta, A_y, B_y, C_y, D_y, E_y );
 
 	const float pY_z_safe = ( pY_z < 1.0e-5f ) ? 1.0e-5f : pY_z;
 	const float px_z_safe = ( px_z < 1.0e-5f ) ? 1.0e-5f : px_z;
@@ -267,7 +267,7 @@ static void ProjectSkyToSh( b3Vec3 dirToSun, float turbidity, float fade )
 				}
 
 				const float dW = cubeTexelSolidAngle( u, v, N );
-				const b3Vec3 L = preethamSkyScaledC( dir, dirToSun, turbidity, fade );
+				const b3Vec3 L = PreethamSkyScaledC( dir, dirToSun, turbidity, fade );
 
 				const float x = dir.x;
 				const float y = dir.y;
@@ -309,7 +309,7 @@ static void ProjectSkyToSh( b3Vec3 dirToSun, float turbidity, float fade )
 	}
 }
 
-static void generateBrdfLut( void )
+static void GenerateBrdfLut( void )
 {
 	// One-shot pass into the LUT's color attachment. Discard load (we
 	// overwrite every pixel), no clear necessary.
@@ -459,7 +459,7 @@ void InitImageBasedLighting( const sg_environment* env )
 	lutPipeDesc.label = "ibl_brdf_lut_pipeline";
 	s_ibl.brdfLutPipeline = sg_make_pipeline( &lutPipeDesc );
 
-	generateBrdfLut();
+	GenerateBrdfLut();
 
 	// Raw sky cube (sky_to_cube target / prefilter input)
 	sg_image_desc rawDesc = { 0 };

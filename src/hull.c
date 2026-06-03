@@ -156,10 +156,7 @@ static inline void b3QHList_Init( b3QHListNode* head )
 	head->next = head;
 }
 
-static inline bool b3QHList_Empty( const b3QHListNode* head )
-{
-	return head->next == head;
-}
+#define B3_LIST_EMPTY( A ) ( ( A )->next == (A) )
 
 static inline bool b3QHList_Contains( const b3QHListNode* node )
 {
@@ -806,7 +803,7 @@ static void b3HullBuilder_DrainConflictList( b3HullBuilder* b, b3QHFace* face )
 		b3QHList_Remove( &orphan->link );
 		b3QHList_PushBack( &b->orphanedList.link, &orphan->link );
 	}
-	B3_ASSERT( b3QHList_Empty( &face->conflictListHead.link ) );
+	B3_ASSERT( B3_LIST_EMPTY( &face->conflictListHead.link ) );
 }
 
 // Mark a face for deletion, drain its conflict list, and populate a fresh DFS frame for it.
@@ -1023,7 +1020,7 @@ static void b3HullBuilder_AbsorbFaces( b3HullBuilder* b, b3QHFace* face )
 			}
 		}
 
-		B3_ASSERT( b3QHList_Empty( head ) );
+		B3_ASSERT( B3_LIST_EMPTY( head ) );
 
 		// Conflict list is now drained. Retire this face to the free list.
 		b3HullBuilder_RetireFace( b, b->mergedFaces[i] );
@@ -1228,7 +1225,7 @@ static void b3HullBuilder_ResolveVertices( b3HullBuilder* b )
 		// Otherwise: vertex is interior to the hull. Its slot in the bump pool is abandoned.
 	}
 
-	B3_ASSERT( b3QHList_Empty( &b->orphanedList.link ) );
+	B3_ASSERT( B3_LIST_EMPTY( &b->orphanedList.link ) );
 }
 
 static void b3HullBuilder_ResolveFaces( b3HullBuilder* b )
@@ -1243,7 +1240,7 @@ static void b3HullBuilder_ResolveFaces( b3HullBuilder* b )
 
 		if ( face->mark == B3_MARK_DELETE && b3QHList_Contains( &face->link ) )
 		{
-			B3_ASSERT( b3QHList_Empty( &face->conflictListHead.link ) );
+			B3_ASSERT( B3_LIST_EMPTY( &face->conflictListHead.link ) );
 			b3QHList_Remove( &face->link );
 		}
 	}
