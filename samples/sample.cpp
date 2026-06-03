@@ -451,6 +451,25 @@ b3BodyId Sample::AddGroundBox( float extent )
 	return groundId;
 }
 
+struct RowDef
+{
+	const char* name;
+	int indent;
+	ImU32 color;
+};
+
+float AddSegment( ImDrawList* dl, float availWidth, float t, float stepNow, ImU32 col, float x, ImVec2 cursor, float barHeight )
+{
+	float w = availWidth * ( t / stepNow );
+	if ( w > 0.0f )
+	{
+		dl->AddRectFilled( ImVec2( x, cursor.y ), ImVec2( x + w, cursor.y + barHeight ), col );
+		x += w;
+	}
+
+	return x;
+}
+
 // Bottom diagnostics drawer (M). Tabs: Profile, Counters, Renderer, and the
 // optional ImPlot frame-time chart. Anchored along the window bottom, clear
 // of the right info panel.
@@ -538,31 +557,25 @@ void Sample::DrawMetrics()
 			totals[21] += p.sensors;
 		}
 
-		const b3Profile& cur = m_profiles[m_currentProfileIndex];
-		const float now[kRowCount] = {
-			cur.step,
-			cur.pairs,
-			cur.collide,
-			cur.solve,
-			cur.solverSetup,
-			cur.constraints,
-			cur.prepareConstraints,
-			cur.integrateVelocities,
-			cur.warmStart,
-			cur.solveImpulses,
-			cur.integratePositions,
-			cur.relaxImpulses,
-			cur.applyRestitution,
-			cur.storeImpulses,
-			cur.splitIslands,
-			cur.transforms,
-			cur.jointEvents,
-			cur.hitEvents,
-			cur.refit,
-			cur.sleepIslands,
-			cur.bullets,
-			cur.sensors,
-		};
+		// Smoothed over the last few frames so bars don't jitter visibly.
+		constexpr int kNowWindow = 10;
+		float now[kRowCount] = {};
+		{
+			int n = count < kNowWindow ? count : kNowWindow;
+			if ( n > 0 )
+			{
+				float inv = 1.0f / n;
+				for ( int r = 0; r < kRowCount; ++r )
+				{
+					float sum = 0.0f;
+					for ( int i = count - n; i < count; ++i )
+					{
+						sum += histories[r][i];
+					}
+					now[r] = sum * inv;
+				}
+			}
+		}
 
 		// Rolling average
 		float avg[kRowCount] = {};
@@ -575,27 +588,36 @@ void Sample::DrawMetrics()
 			}
 		}
 
+		float rowMax[kRowCount] = {};
+		for ( int r = 0; r < kRowCount; ++r )
+		{
+			for ( int i = 0; i < count; ++i )
+			{
+				if ( histories[r][i] > rowMax[r] )
+				{
+					rowMax[r] = histories[r][i];
+				}
+			}
+		}
+
 		// Match Frame Time chart's first three colors so rows read with the line plot.
 		const ImU32 colorStep = IM_COL32( 102, 153, 255, 255 );
+		const ImU32 colorPairs = IM_COL32( 220, 220, 220, 255 );
 		const ImU32 colorCollide = IM_COL32( 255, 140, 51, 255 );
 		const ImU32 colorSolve = IM_COL32( 102, 204, 102, 255 );
+		const ImU32 colorSensors = IM_COL32( 200, 120, 220, 255 );
+		const ImU32 colorOther = IM_COL32( 90, 90, 90, 255 );
 		const ImU32 colorDefault = IM_COL32( 220, 220, 220, 255 );
 
-		struct RowDef
-		{
-			const char* name;
-			int indent;
-			ImU32 color;
-		};
 		const RowDef rows[kRowCount] = {
-			{ "step", 0, colorStep },			{ "pairs", 0, colorDefault },		 { "collide", 0, colorCollide },
+			{ "step", 0, colorStep },			{ "pairs", 0, colorPairs },			 { "collide", 0, colorCollide },
 			{ "solve", 0, colorSolve },			{ "setup", 1, colorDefault },		 { "constraints", 1, colorDefault },
 			{ "prepare", 2, colorDefault },		{ "velocities", 2, colorDefault },	 { "warm start", 2, colorDefault },
 			{ "bias", 2, colorDefault },		{ "positions", 2, colorDefault },	 { "relax", 2, colorDefault },
 			{ "restitution", 2, colorDefault }, { "store", 2, colorDefault },		 { "split islands", 2, colorDefault },
 			{ "transforms", 1, colorDefault },	{ "joint events", 1, colorDefault }, { "hit events", 1, colorDefault },
 			{ "refit BVH", 1, colorDefault },	{ "sleep", 1, colorDefault },		 { "bullets", 1, colorDefault },
-			{ "sensors", 0, colorDefault },
+			{ "sensors", 0, colorSensors },
 		};
 
 		// Derive parent/child links from the indent levels so we can collapse subtrees.
@@ -623,7 +645,7 @@ void Sample::DrawMetrics()
 		static bool s_showPlots = false;
 
 		// Bars are drawn relative to the step row so the proportions are visually consistent.
-		const float stepNow = b3MaxFloat( cur.step, 0.001f );
+		const float stepNow = b3MaxFloat( now[0], 0.001f );
 
 		if ( ImGui::Button( "Reset" ) )
 		{
@@ -631,6 +653,31 @@ void Sample::DrawMetrics()
 		}
 		ImGui::SameLine();
 		ImGui::Checkbox( "Show plots", &s_showPlots );
+		ImGui::SameLine();
+		ImGui::Text( "   step %.2f ms", now[0] );
+
+		// Flame strip: step subdivided by top-level children.
+		{
+			float pairsT = now[1];
+			float collideT = now[2];
+			float solveT = now[3];
+			float sensorsT = now[21];
+			float otherT = b3MaxFloat( stepNow - pairsT - collideT - solveT - sensorsT, 0.0f );
+
+			float availWidth = ImGui::GetContentRegionAvail().x;
+			float barHeight = 1.5f * fontSize;
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			ImVec2 cursor = ImGui::GetCursorScreenPos();
+			float x = cursor.x;
+
+			x = AddSegment( dl, availWidth, pairsT, stepNow, colorPairs, x, cursor, barHeight );
+			x = AddSegment( dl, availWidth, collideT, stepNow, colorCollide, x, cursor, barHeight );
+			x = AddSegment( dl, availWidth, solveT, stepNow, colorSolve, x, cursor, barHeight );
+			x = AddSegment( dl, availWidth, sensorsT, stepNow, colorSensors, x, cursor, barHeight );
+			x = AddSegment( dl, availWidth, otherT, stepNow, colorOther, x, cursor, barHeight );
+
+			ImGui::Dummy( ImVec2( availWidth, barHeight ) );
+		}
 
 		const ImGuiTableFlags tableFlags =
 			ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollY;
@@ -668,14 +715,14 @@ void Sample::DrawMetrics()
 					continue;
 				}
 
+				// Hide leaf rows that are entirely zero. Parents stay so structure reads.
+				if ( !hasChildren[r] && now[r] == 0.0f && avg[r] == 0.0f && rowMax[r] == 0.0f )
+				{
+					continue;
+				}
+
 				const RowDef& d = rows[r];
 				const float* hist = histories[r];
-
-				float rollingMax = 0.0f;
-				for ( int i = 0; i < count; ++i )
-				{
-					rollingMax = b3MaxFloat( rollingMax, hist[i] );
-				}
 
 				ImGui::TableNextRow();
 
@@ -711,7 +758,7 @@ void Sample::DrawMetrics()
 				ImGui::TableNextColumn();
 				ImGui::Text( "%6.2f", avg[r] );
 				ImGui::TableNextColumn();
-				ImGui::Text( "%6.2f", rollingMax );
+				ImGui::Text( "%6.2f", rowMax[r] );
 
 				ImGui::TableNextColumn();
 				float frac = b3ClampFloat( now[r] / stepNow, 0.0f, 1.0f );
@@ -727,7 +774,7 @@ void Sample::DrawMetrics()
 						char id[16];
 						snprintf( id, sizeof( id ), "##h%d", r );
 						ImGui::PushStyleColor( ImGuiCol_PlotLines, d.color );
-						ImGui::PlotLines( id, hist, count, 0, nullptr, 0.0f, rollingMax * 1.05f + 0.001f,
+						ImGui::PlotLines( id, hist, count, 0, nullptr, 0.0f, rowMax[r] * 1.05f + 0.001f,
 										  ImVec2( -FLT_MIN, rowHeight ) );
 						ImGui::PopStyleColor();
 					}
@@ -859,7 +906,7 @@ void Sample::DrawMetrics()
 		ImGui::Text( "%d manifolds across %d buckets", totalManifolds, manifoldBucketCount );
 		if ( ImGui::BeginTable( "manifolds", 3, tableFlags ) )
 		{
-			ImGui::TableSetupColumn( "points", ImGuiTableColumnFlags_WidthFixed, 3.5f * fontSize );
+			ImGui::TableSetupColumn( "manifolds", ImGuiTableColumnFlags_WidthFixed, 3.5f * fontSize );
 			ImGui::TableSetupColumn( "count", ImGuiTableColumnFlags_WidthFixed, 5.0f * fontSize );
 			ImGui::TableSetupColumn( "share", ImGuiTableColumnFlags_WidthFixed, 16.0f * fontSize );
 			ImGui::TableHeadersRow();
