@@ -1234,7 +1234,9 @@ void InitRenderer( const sg_environment* env )
 	// Sun strength 8.0 matches the target "soft" sun:sky luminance ratio
 	// (~8:1) under AgX with EV=-2. AgX's curve absorbs the extra headroom
 	// and the image lands at a sensible exposure.
-	s_gfx.sun.color = (b3Vec3){ 8.0f, 7.6f, 6.8f };
+	// Using s to reduce the sun strength
+	float s = 0.6f;
+	s_gfx.sun.color = (b3Vec3){ 8.0f * s, 7.6f * s, 6.8f * s };
 	// Ambient 0.10 keeps the ~10:1 sun:sky luminance ratio under the PBR
 	// ambient term (added flat as base_color * ambient).
 	s_gfx.sun.ambient = 0.10f;
