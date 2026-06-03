@@ -961,8 +961,9 @@ void Sample::DrawMetrics()
 		ImVec2 plotSize = ImGui::GetContentRegionAvail();
 		if ( ImPlot::BeginPlot( "Profile", plotSize, ImPlotFlags_NoTitle ) )
 		{
-			ImPlot::SetupAxes( "t", "ms", 0, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit );
-			ImPlot::SetupAxesLimits( 0, m_profileCapacity / 60.0, 0.0, maxValue );
+			ImPlot::SetupAxes( "t", "ms" );
+			ImPlot::SetupAxisLimits( ImAxis_X1, 0.0, m_profileCapacity / 60.0 );
+			ImPlot::SetupAxisLimits( ImAxis_Y1, 0.0, b3MaxFloat( maxValue, 1.0f ) * 1.05, ImPlotCond_Always );
 			ImPlot::PlotLine( "step", times, stepTimes, count );
 			ImPlot::PlotLine( "collide", times, collideTimes, count );
 			ImPlot::PlotLine( "solve", times, solveTimes, count );
