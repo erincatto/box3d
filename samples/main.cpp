@@ -178,7 +178,7 @@ static void OnEvent( const sapp_event* e )
 					case KEY_HOME:
 					{
 						// Frame the selection, or the whole world when nothing is selected.
-						b3BodyId bodyId = GetSelectedBody();
+						b3BodyId bodyId = GetHoveredBody();
 						b3AABB aabb;
 						float padding;
 						if ( B3_IS_NON_NULL( bodyId ) )

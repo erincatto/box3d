@@ -117,10 +117,9 @@ static bool IsBatchEnabled( const MeshEdgeBatch* b, const EdgeOverlayParams* p )
 	switch ( b->kind )
 	{
 		case MESH_KIND_HULL:
-			// Hull edges are drawn only for hulls that are themselves
-			// transparent (xp arena). Opaque hulls would clutter the
-			// silhouette and read worse than a clean shaded surface.
-			return p->showHulls && b->isTransparent;
+			// Hull edges on every hull, opaque and transparent. Opaque hulls
+			// pick up MSAA in the scene pass, transparent ones draw post-resolve.
+			return p->showHulls;
 		case MESH_KIND_MESH:
 			return p->showMeshes;
 		case MESH_KIND_HEIGHTFIELD:
@@ -154,25 +153,36 @@ static void SubmitBatches( int width, int height, const Mat4* view, const Mat4* 
 		MakeVec4( (float)width, (float)height, width > 0 ? 1.0f / (float)width : 0.0f, height > 0 ? 1.0f / (float)height : 0.0f );
 	sg_apply_uniforms( UB_edge_ub_frame, &SG_RANGE( uf ) );
 
-	edge_ub_pass_t up = { 0 };
+	// Mesh and heightfield edges color by convexity (or collapse to flat when
+	// convexity coloring is off). Hull edges ignore convexity and always draw
+	// in the hard-coded hull color, so every class maps to it. Pass colors are
+	// shared across a draw, so select per batch kind inside the loop.
+	edge_ub_pass_t passMesh = { 0 };
 	if ( params->showEdgeConvexity )
 	{
-		up.convex_color = Premultiply( params->convexColor );
-		up.concave_color = Premultiply( params->concaveColor );
-		up.flat_color = Premultiply( params->flatColor );
+		passMesh.convex_color = Premultiply( params->convexColor );
+		passMesh.concave_color = Premultiply( params->concaveColor );
+		passMesh.flat_color = Premultiply( params->flatColor );
 	}
 	else
 	{
-		// Map every convexity class to the flat color
 		Vec4 flat = Premultiply( params->flatColor );
-		up.convex_color = flat;
-		up.concave_color = flat;
-		up.flat_color = flat;
+		passMesh.convex_color = flat;
+		passMesh.concave_color = flat;
+		passMesh.flat_color = flat;
 	}
-	sg_apply_uniforms( UB_edge_ub_pass, &SG_RANGE( up ) );
+
+	edge_ub_pass_t passHull = { 0 };
+
+	Vec4 hullEdgeColor = { 0.5f, 0.5f, 0.5f, 0.3f };
+	Vec4 hull = Premultiply( hullEdgeColor );
+	passHull.convex_color = hull;
+	passHull.concave_color = hull;
+	passHull.flat_color = hull;
 
 	sg_view currentEdgeView = { SG_INVALID_ID };
 	sg_view currentInstView = { SG_INVALID_ID };
+	int currentPassKind = -1; // -1 none, 0 mesh colors, 1 hull color
 
 	int batchCount = GetMeshEdgeBatchCount();
 	for ( int i = 0; i < batchCount; ++i )
@@ -197,6 +207,20 @@ static void SubmitBatches( int width, int height, const Mat4* view, const Mat4* 
 		if ( IsBatchEnabled( &b, params ) == false )
 		{
 			continue;
+		}
+
+		int passKind = ( b.kind == MESH_KIND_HULL ) ? 1 : 0;
+		if ( passKind != currentPassKind )
+		{
+			if ( passKind == 1 )
+			{
+				sg_apply_uniforms( UB_edge_ub_pass, &SG_RANGE( passHull ) );
+			}
+			else
+			{
+				sg_apply_uniforms( UB_edge_ub_pass, &SG_RANGE( passMesh ) );
+			}
+			currentPassKind = passKind;
 		}
 
 		sg_view instView = b.isTransparent ? transparentInstanceView : opaqueInstanceView;

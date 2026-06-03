@@ -588,7 +588,14 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 50.0f, b3Vec3_zero );
+			if (m_isDebug)
+			{
+				m_camera->SetView( 0.0f, 15.0f, 25.0f, b3Vec3_zero );
+			}
+			else
+			{
+				m_camera->SetView( 0.0f, 15.0f, 75.0f, b3Vec3_zero );
+			}
 		}
 
 		AddGroundBox( 80.0f );

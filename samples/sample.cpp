@@ -98,6 +98,7 @@ void SampleContext::Save()
 	fprintf( file, "  \"enableIbl\": %s,\n", GetIblEnabled() ? "true" : "false" );
 	fprintf( file, "  \"exposure\": %g,\n", GetExposure() );
 	fprintf( file, "  \"debugView\": %d,\n", debugView );
+	fprintf( file, "  \"showHullEdges\": %s,\n", GetEdgeOverlayParams().showHulls ? "true" : "false" );
 	fprintf( file, "  \"showEdgeConvexity\": %s\n", GetEdgeOverlayParams().showEdgeConvexity ? "true" : "false" );
 	fprintf( file, "}\n" );
 	fclose( file );
@@ -220,6 +221,13 @@ void SampleContext::Load()
 			strncpy( buffer, s, count );
 			buffer[count] = 0;
 			debugView = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 0, 4 );
+		}
+		else if ( jsoneq( data, &tokens[i], "showHullEdges" ) == 0 )
+		{
+			const char* s = data + tokens[i + 1].start;
+			EdgeOverlayParams p = GetEdgeOverlayParams();
+			p.showHulls = strncmp( s, "true", 4 ) == 0;
+			SetEdgeOverlayParams( &p );
 		}
 		else if ( jsoneq( data, &tokens[i], "showEdgeConvexity" ) == 0 )
 		{
@@ -1302,6 +1310,10 @@ static void DrawRenderMenu( SampleContext& ctx )
 	}
 
 	EdgeOverlayParams edgeParams = GetEdgeOverlayParams();
+	if ( ImGui::MenuItem( "Hull Edges", nullptr, &edgeParams.showHulls ) )
+	{
+		SetEdgeOverlayParams( &edgeParams );
+	}
 	if ( ImGui::MenuItem( "Edge Convexity", nullptr, &edgeParams.showEdgeConvexity ) )
 	{
 		SetEdgeOverlayParams( &edgeParams );
