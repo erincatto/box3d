@@ -174,7 +174,7 @@ static void SubmitBatches( int width, int height, const Mat4* view, const Mat4* 
 
 	edge_ub_pass_t passHull = { 0 };
 
-	Vec4 hullEdgeColor = { 0.5f, 0.5f, 0.5f, 0.3f };
+	Vec4 hullEdgeColor = { 0.5f, 0.5f, 0.5f, 0.5f };
 	Vec4 hull = Premultiply( hullEdgeColor );
 	passHull.convex_color = hull;
 	passHull.concave_color = hull;

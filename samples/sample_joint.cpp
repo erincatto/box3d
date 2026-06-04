@@ -12,11 +12,6 @@
 class DistanceJoint : public Sample
 {
 public:
-	enum
-	{
-		e_maxCount = 10
-	};
-
 	explicit DistanceJoint( SampleContext* context )
 		: Sample( context )
 	{
@@ -24,6 +19,8 @@ public:
 		{
 			m_camera->SetView( 0.0f, 0.0f, 40.0f, { 0.0f, 10.0f, 0.0f } );
 		}
+
+		AddGroundBox( 20.0f );
 
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -41,7 +38,7 @@ public:
 		m_enableSpring = false;
 		m_enableLimit = false;
 
-		for ( int i = 0; i < e_maxCount; ++i )
+		for ( int i = 0; i < m_maxCount; ++i )
 		{
 			m_bodyIds[i] = b3_nullBodyId;
 			m_jointIds[i] = b3_nullJointId;
@@ -109,9 +106,6 @@ public:
 
 	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		ImGui::PushItemWidth( 10.0f * fontSize );
-
 		if ( ImGui::SliderFloat( "Length", &m_length, 0.1f, 4.0f, "%3.1f" ) )
 		{
 			for ( int i = 0; i < m_count; ++i )
@@ -132,7 +126,7 @@ public:
 
 		if ( m_enableSpring )
 		{
-			if ( ImGui::SliderFloat( "Tension", &m_tensionForce, 0.0f, 4000.0f ) )
+			if ( ImGui::SliderFloat( "Tension##Spring", &m_tensionForce, 0.0f, 4000.0f ) )
 			{
 				for ( int i = 0; i < m_count; ++i )
 				{
@@ -141,7 +135,7 @@ public:
 				}
 			}
 
-			if ( ImGui::SliderFloat( "Compression", &m_compressionForce, 0.0f, 200.0f ) )
+			if ( ImGui::SliderFloat( "Compression##Spring", &m_compressionForce, 0.0f, 200.0f ) )
 			{
 				for ( int i = 0; i < m_count; ++i )
 				{
@@ -150,7 +144,7 @@ public:
 				}
 			}
 
-			if ( ImGui::SliderFloat( "Hertz", &m_hertz, 0.0f, 15.0f, "%3.1f" ) )
+			if ( ImGui::SliderFloat( "Hertz##Spring", &m_hertz, 0.0f, 15.0f, "%3.1f" ) )
 			{
 				for ( int i = 0; i < m_count; ++i )
 				{
@@ -159,7 +153,7 @@ public:
 				}
 			}
 
-			if ( ImGui::SliderFloat( "Damping", &m_dampingRatio, 0.0f, 4.0f, "%3.1f" ) )
+			if ( ImGui::SliderFloat( "Damping##Spring", &m_dampingRatio, 0.0f, 4.0f, "%3.1f" ) )
 			{
 				for ( int i = 0; i < m_count; ++i )
 				{
@@ -167,6 +161,8 @@ public:
 					b3Joint_WakeBodies( m_jointIds[i] );
 				}
 			}
+
+			ImGui::Separator();
 		}
 
 		if ( ImGui::Checkbox( "Limit", &m_enableLimit ) )
@@ -180,7 +176,7 @@ public:
 
 		if ( m_enableLimit )
 		{
-			if ( ImGui::SliderFloat( "Min Length", &m_minLength, 0.1f, 4.0f, "%3.1f" ) )
+			if ( ImGui::SliderFloat( "Min##Limit", &m_minLength, 0.1f, 4.0f, "%3.1f" ) )
 			{
 				for ( int i = 0; i < m_count; ++i )
 				{
@@ -189,7 +185,7 @@ public:
 				}
 			}
 
-			if ( ImGui::SliderFloat( "Max Length", &m_maxLength, 0.1f, 4.0f, "%3.1f" ) )
+			if ( ImGui::SliderFloat( "Max##Limit", &m_maxLength, 0.1f, 4.0f, "%3.1f" ) )
 			{
 				for ( int i = 0; i < m_count; ++i )
 				{
@@ -197,23 +193,17 @@ public:
 					b3Joint_WakeBodies( m_jointIds[i] );
 				}
 			}
+
+			ImGui::Separator();
 		}
 
 		int count = m_count;
-		if ( ImGui::SliderInt( "Count", &count, 1, e_maxCount ) )
+		if ( ImGui::SliderInt( "Count", &count, 1, m_maxCount ) )
 		{
 			CreateScene( count );
 		}
 
-		ImGui::PopItemWidth();
 		return true;
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-
-		DrawGroundGrid( 20 );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -221,9 +211,11 @@ public:
 		return new DistanceJoint( context );
 	}
 
+	static constexpr int m_maxCount = 20;
+
 	b3BodyId m_groundId;
-	b3BodyId m_bodyIds[e_maxCount];
-	b3JointId m_jointIds[e_maxCount];
+	b3BodyId m_bodyIds[m_maxCount];
+	b3JointId m_jointIds[m_maxCount];
 	int m_count;
 	float m_hertz;
 	float m_dampingRatio;
@@ -455,7 +447,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 0.0f, 25.0f, { 0.0f, 10.0f, 0.0f } );
+			m_camera->SetView( 0.0f, 0.0f, 26.0f, { 0.0f, 10.0f, 0.0f } );
 		}
 
 		b3BodyId groundId;
@@ -463,16 +455,16 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			groundId = b3CreateBody( m_worldId, &bodyDef );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3BoxHull box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 10.0f, { b3Vec3_zero, b3Quat_identity } );
+			b3BoxHull box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 4.0f, { b3Vec3_zero, b3Quat_identity } );
 			b3CreateHullShape( groundId, &shapeDef, &box.base );
 
-			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 10.0f, { { -10.0f, 10.0f, 0.0f }, b3Quat_identity } );
+			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 4.0f, { { -10.0f, 10.0f, 0.0f }, b3Quat_identity } );
 			b3CreateHullShape( groundId, &shapeDef, &box.base );
 
-			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 10.0f, { { 10.0f, 10.0f, 0.0f }, b3Quat_identity } );
+			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 4.0f, { { 10.0f, 10.0f, 0.0f }, b3Quat_identity } );
 			b3CreateHullShape( groundId, &shapeDef, &box.base );
 
-			box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 10.0f, { { 00.0f, 20.0f, 0.0f }, b3Quat_identity } );
+			box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 4.0f, { { 00.0f, 20.0f, 0.0f }, b3Quat_identity } );
 			b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 
@@ -639,6 +631,8 @@ public:
 			}
 		}
 
+		ImGui::Separator();
+
 		if ( ImGui::Checkbox( "Motor", &m_enableMotor ) )
 		{
 			b3PrismaticJoint_EnableMotor( m_jointId, m_enableMotor );
@@ -659,6 +653,8 @@ public:
 				b3Joint_WakeBodies( m_jointId );
 			}
 		}
+
+		ImGui::Separator();
 
 		if ( ImGui::Checkbox( "Spring", &m_enableSpring ) )
 		{
@@ -738,21 +734,22 @@ public:
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = { 0.0f, 4.0f, 1.5f };
+		bodyDef.position = { 0.0f, 4.0f, 0.0f };
 		bodyDef.gravityScale = 0.0f;
 		m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.density = 100.0f;
 
-		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.25f, 1.5f );
+		b3BoxHull box = b3MakeBoxHull( 0.5f, 1.5f, 0.25f );
 		b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
 
 		b3SphericalJointDef jointDef = b3DefaultSphericalJointDef();
 		jointDef.base.bodyIdA = groundId;
 		jointDef.base.bodyIdB = m_bodyId;
 		jointDef.base.drawScale = 2.0f;
-		jointDef.base.localFrameA.p = { 0.0f, 5.5f, 0.0f };
-		jointDef.base.localFrameB.p = { 0.0f, 0.0f, -1.5f };
+		jointDef.base.localFrameA.p = { 0.0f, 6.5f, 0.0f };
+		jointDef.base.localFrameB.p = { 0.0f, 1.5f, 0.0f };
 		jointDef.enableConeLimit = m_enableConeLimit;
 		jointDef.coneAngle = B3_DEG_TO_RAD * m_coneAngleDegrees;
 		jointDef.enableTwistLimit = m_enableTwistLimit;
@@ -785,6 +782,8 @@ public:
 			}
 		}
 
+		ImGui::Separator();
+
 		if ( ImGui::Checkbox( "Twist Limit", &m_enableTwistLimit ) )
 		{
 			b3SphericalJoint_EnableTwistLimit( m_jointId, m_enableTwistLimit );
@@ -810,6 +809,8 @@ public:
 			}
 		}
 
+		ImGui::Separator();
+
 		if ( ImGui::Checkbox( "Motor", &m_enableMotor ) )
 		{
 			b3SphericalJoint_EnableMotor( m_jointId, m_enableMotor );
@@ -818,7 +819,7 @@ public:
 
 		if ( m_enableMotor )
 		{
-			if ( ImGui::SliderFloat( "Max Torque", &m_motorTorque, 0.0f, 50.0f, "%.0f" ) )
+			if ( ImGui::SliderFloat( "Max Torque", &m_motorTorque, 0.0f, 10000.0f, "%.0f" ) )
 			{
 				b3SphericalJoint_SetMaxMotorTorque( m_jointId, m_motorTorque );
 				b3Joint_WakeBodies( m_jointId );
@@ -830,6 +831,8 @@ public:
 				b3Joint_WakeBodies( m_jointId );
 			}
 		}
+
+		ImGui::Separator();
 
 		if ( ImGui::Checkbox( "Spring", &m_enableSpring ) )
 		{
@@ -863,14 +866,6 @@ public:
 		}
 
 		return true;
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-
-		b3Transform transform = b3Body_GetTransform( m_bodyId );
-		DrawAxes( transform, 2.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -1097,6 +1092,8 @@ public:
 			}
 		}
 
+		ImGui::Separator();
+
 		if ( ImGui::Checkbox( "Motor", &m_enableMotor ) )
 		{
 			b3RevoluteJoint_EnableMotor( m_jointId, m_enableMotor );
@@ -1117,6 +1114,8 @@ public:
 				b3Joint_WakeBodies( m_jointId );
 			}
 		}
+
+		ImGui::Separator();
 
 		if ( ImGui::Checkbox( "Spring", &m_enableSpring ) )
 		{
@@ -1600,13 +1599,7 @@ public:
 			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
-		AddGroundBox( 20.0f );
-
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = { 0.0f, -1.0f, 0.0f };
-			m_groundId = b3CreateBody( m_worldId, &bodyDef );
-		}
+		m_groundId = AddGroundBox( 20.0f );
 
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -1735,7 +1728,7 @@ public:
 	{
 		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
 
-		if ( ImGui::Button( "impulse" ) )
+		if ( ImGui::Button( "Impulse##Door" ) )
 		{
 			b3Vec3 p = b3Body_GetWorldPoint( m_doorId, { 0.75f, 0.0f, 0.0f } );
 			b3Body_ApplyLinearImpulse( m_doorId, { 0.0f, 0.0f, -m_magnitude }, p, true );
@@ -1743,9 +1736,9 @@ public:
 			m_translationError2 = 0.0f;
 		}
 
-		ImGui::SliderFloat( "magnitude", &m_magnitude, 1000.0f, 100000.0f, "%.0f" );
+		ImGui::SliderFloat( "Magnitude##Door", &m_magnitude, 1000.0f, 100000.0f, "%.0f" );
 
-		if ( ImGui::Checkbox( "limit", &m_enableLimit ) )
+		if ( ImGui::Checkbox( "Limit##Door", &m_enableLimit ) )
 		{
 			b3RevoluteJoint_EnableLimit( m_jointId1, m_enableLimit );
 
@@ -1755,12 +1748,12 @@ public:
 			}
 		}
 
-		if ( ImGui::Checkbox( "two joints", &m_twoJoints ) )
+		if ( ImGui::Checkbox( "Two joints##Door", &m_twoJoints ) )
 		{
 			CreateJoints();
 		}
 
-		if ( ImGui::SliderFloat( "hertz", &m_constraintHertz, 15.0f, 240.0f, "%.0f" ) )
+		if ( ImGui::SliderFloat( "Hertz##Door", &m_constraintHertz, 15.0f, 240.0f, "%.0f" ) )
 		{
 			b3Joint_SetConstraintTuning( m_jointId1, m_constraintHertz, m_constraintDampingRatio );
 
@@ -1770,7 +1763,7 @@ public:
 			}
 		}
 
-		if ( ImGui::SliderFloat( "damping", &m_constraintDampingRatio, 0.0f, 10.0f, "%.1f" ) )
+		if ( ImGui::SliderFloat( "Damping##Door", &m_constraintDampingRatio, 0.0f, 10.0f, "%.1f" ) )
 		{
 			b3Joint_SetConstraintTuning( m_jointId1, m_constraintHertz, m_constraintDampingRatio );
 
@@ -2439,7 +2432,8 @@ public:
 
 	bool DrawControls() override
 	{
-		if ( ImGui::SliderFloat( "Lower Translation", &m_lowerTranslation, -10.0f, 10.0f, "%.1f" ) )
+		ImGui::Text( "Suspension" );
+		if ( ImGui::SliderFloat( "Min##Suspension", &m_lowerTranslation, -10.0f, 10.0f, "%.1f" ) )
 		{
 			m_lowerTranslation = b3MinFloat( m_lowerTranslation, m_upperTranslation );
 			b3WheelJoint_SetSuspensionLimits( m_frontLeftId, m_lowerTranslation, m_upperTranslation );
@@ -2448,7 +2442,7 @@ public:
 			b3WheelJoint_SetSuspensionLimits( m_rearRightId, m_lowerTranslation, m_upperTranslation );
 		}
 
-		if ( ImGui::SliderFloat( "Upper Translation", &m_upperTranslation, -10.0f, 10.0f, "%.1f" ) )
+		if ( ImGui::SliderFloat( "Max##Suspension", &m_upperTranslation, -10.0f, 10.0f, "%.1f" ) )
 		{
 			m_upperTranslation = b3MaxFloat( m_upperTranslation, m_lowerTranslation );
 			b3WheelJoint_SetSuspensionLimits( m_frontLeftId, m_lowerTranslation, m_upperTranslation );
@@ -2457,10 +2451,7 @@ public:
 			b3WheelJoint_SetSuspensionLimits( m_rearRightId, m_lowerTranslation, m_upperTranslation );
 		}
 
-		ImGui::SliderFloat( "Max Torque", &m_maxSpinTorque, 0.0f, 100.0f, "%.0f" );
-		ImGui::SliderFloat( "Speed", &m_spinSpeed, 0.0f, 100.0f, "%.0f" );
-
-		if ( ImGui::SliderFloat( "Suspension Hertz", &m_suspensionHertz, 0.0f, 10.0f, "%.1f" ) )
+		if ( ImGui::SliderFloat( "Hertz##Suspension", &m_suspensionHertz, 0.0f, 10.0f, "%.1f" ) )
 		{
 			b3WheelJoint_SetSuspensionHertz( m_frontLeftId, m_suspensionHertz );
 			b3WheelJoint_SetSuspensionHertz( m_frontRightId, m_suspensionHertz );
@@ -2468,7 +2459,7 @@ public:
 			b3WheelJoint_SetSuspensionHertz( m_rearRightId, m_suspensionHertz );
 		}
 
-		if ( ImGui::SliderFloat( "Suspension Damping", &m_suspensionDampingRatio, 0.0f, 2.0f, "%.1f" ) )
+		if ( ImGui::SliderFloat( "Damping##Suspension", &m_suspensionDampingRatio, 0.0f, 2.0f, "%.1f" ) )
 		{
 			b3WheelJoint_SetSuspensionDampingRatio( m_frontLeftId, m_suspensionDampingRatio );
 			b3WheelJoint_SetSuspensionDampingRatio( m_frontRightId, m_suspensionDampingRatio );
@@ -2476,25 +2467,36 @@ public:
 			b3WheelJoint_SetSuspensionDampingRatio( m_rearRightId, m_suspensionDampingRatio );
 		}
 
-		if ( ImGui::SliderFloat( "Steering Hertz", &m_steeringHertz, 0.0f, 10.0f, "%.1f" ) )
+		ImGui::Separator();
+
+		ImGui::Text( "Motor" );
+
+		ImGui::SliderFloat( "Max Torque", &m_maxSpinTorque, 0.0f, 100.0f, "%.0f" );
+		ImGui::SliderFloat( "Speed", &m_spinSpeed, 0.0f, 100.0f, "%.0f" );
+
+		ImGui::Separator();
+
+		ImGui::Text( "Steering" );
+
+		if ( ImGui::SliderFloat( "Hertz##Steering", &m_steeringHertz, 0.0f, 10.0f, "%.1f" ) )
 		{
 			b3WheelJoint_SetSteeringHertz( m_frontLeftId, m_steeringHertz );
 			b3WheelJoint_SetSteeringHertz( m_frontRightId, m_steeringHertz );
 		}
 
-		if ( ImGui::SliderFloat( "Steering Damping", &m_steeringDampingRatio, 0.0f, 2.0f, "%.1f" ) )
+		if ( ImGui::SliderFloat( "Damping##Steering", &m_steeringDampingRatio, 0.0f, 2.0f, "%.1f" ) )
 		{
 			b3WheelJoint_SetSteeringDampingRatio( m_frontLeftId, m_steeringDampingRatio );
 			b3WheelJoint_SetSteeringDampingRatio( m_frontRightId, m_steeringDampingRatio );
 		}
 
-		if ( ImGui::SliderFloat( "Steering Torque", &m_maxSteeringTorque, 0.0f, 20.0f, "%.1f" ) )
+		if ( ImGui::SliderFloat( "Torque##Steering", &m_maxSteeringTorque, 0.0f, 20.0f, "%.1f" ) )
 		{
 			b3WheelJoint_SetMaxSteeringTorque( m_frontLeftId, m_maxSteeringTorque );
 			b3WheelJoint_SetMaxSteeringTorque( m_frontRightId, m_maxSteeringTorque );
 		}
 
-		if ( ImGui::SliderFloat( "Lower Degrees", &m_lowerSteeringDegrees, -90.0f, 0.0f, "%.0f" ) )
+		if ( ImGui::SliderFloat( "Min Deg##Steering", &m_lowerSteeringDegrees, -90.0f, 0.0f, "%.0f" ) )
 		{
 			b3WheelJoint_SetSteeringLimits( m_frontLeftId, B3_PI / 180.0f * m_lowerSteeringDegrees,
 											B3_PI / 180.0f * m_upperSteeringDegrees );
@@ -2502,16 +2504,18 @@ public:
 											B3_PI / 180.0f * m_upperSteeringDegrees );
 		}
 
-		if ( ImGui::SliderFloat( "Upper Degrees", &m_upperSteeringDegrees, 0.0f, 90.0f, "%.0f" ) )
+		if ( ImGui::SliderFloat( "Max Deg##Steering", &m_upperSteeringDegrees, 0.0f, 90.0f, "%.0f" ) )
 		{
 			b3WheelJoint_SetSteeringLimits( m_frontLeftId, B3_PI / 180.0f * m_lowerSteeringDegrees,
 											B3_PI / 180.0f * m_upperSteeringDegrees );
 			b3WheelJoint_SetSteeringLimits( m_frontRightId, B3_PI / 180.0f * m_lowerSteeringDegrees,
 											B3_PI / 180.0f * m_upperSteeringDegrees );
 		}
+
+		ImGui::Separator();
 
 		bool thirdPerson = m_camera->m_thirdPerson;
-		if ( ImGui::Checkbox( "Third Person (Key: T)", &thirdPerson ) )
+		if ( ImGui::Checkbox( "Third Person (T)", &thirdPerson ) )
 		{
 			ToggleThirdPerson();
 		}

@@ -268,7 +268,7 @@ static const uint16_t CUBE_INDICES[36] = {
 // vertex distribution, better silhouette quality than a UV sphere
 // comparable triangle count.
 #define ICO_SPHERE_SUBDIV_LEVEL 2
-#define ICO_SPHERE_VERTICES 162			  // 10 * 4^L + 2 for L=2
+#define ICO_SPHERE_VERTICES 162		   // 10 * 4^L + 2 for L=2
 #define ICO_SPHERE_INDICES ( 320 * 3 ) // 20 * 4^L for L=2
 
 static void BuildIcosphere( float ( *outVerts )[3], uint32_t* outIndices )
@@ -417,7 +417,7 @@ typedef struct CapsuleVertex
 
 // Helper macro: emit two triangles for a quad with corners
 // bl, br, tr, tl (CCW outside-front).
-#define CAPSULE_QUAD( bl, br, tr, tl )                                                                                                   \
+#define CAPSULE_QUAD( bl, br, tr, tl )                                                                                           \
 	do                                                                                                                           \
 	{                                                                                                                            \
 		outIndices[index++] = (uint32_t)( bl );                                                                                  \
@@ -1231,21 +1231,28 @@ void InitRenderer( const sg_environment* env )
 	s_gfx.swapchainColorFormat = env->defaults.color_format;
 
 	s_gfx.sun.dirToSun = b3Normalize( (b3Vec3){ 0.5f, 0.8f, 0.4f } );
+
 	// Sun strength 8.0 matches the target "soft" sun:sky luminance ratio
 	// (~8:1) under AgX with EV=-2. AgX's curve absorbs the extra headroom
 	// and the image lands at a sensible exposure.
 	// Using s to reduce the sun strength
-	float s = 0.6f;
-	s_gfx.sun.color = (b3Vec3){ 8.0f * s, 7.6f * s, 6.8f * s };
+	s_gfx.sun.color = (b3Vec3){ 8.0f, 7.6f, 6.8f };
+
+	// Multiplies the color to make the strength easily tuned
+	s_gfx.sun.strength = 0.8f;
+
 	// Ambient 0.10 keeps the ~10:1 sun:sky luminance ratio under the PBR
 	// ambient term (added flat as base_color * ambient).
 	s_gfx.sun.ambient = 0.10f;
+
 	// Default exposure: Preetham at physical strength is bright, -2 EV
 	// brings the integrated sky+sun into AgX's sweet spot.
-	s_gfx.exposureEv = -3.0f;
+	s_gfx.exposureEv = -2.5f;
+	
 	// 1.0 is AgX's stock Standard look (identity), the Render Settings
 	// panel raises it to counteract AgX's path-to-white desaturation.
 	s_gfx.tonemapSaturation = 1.4f;
+	
 	// IBL on by default, the Render Settings panel toggles it.
 	s_gfx.iblEnabled = true;
 
@@ -1278,6 +1285,8 @@ void SetSun( Sun sun )
 		sun.dirToSun = b3Vec3_axisY;
 	}
 	s_gfx.sun = sun;
+	s_gfx.sun.strength = b3ClampFloat( s_gfx.sun.strength, 0.0f, 1.0f );
+
 	SetShadowSunDir( sun.dirToSun );
 	// The sun direction is a single source of truth, every consumer
 	// (shadow caster, direct lighting, sky, IBL) reads it through the
@@ -1640,9 +1649,9 @@ static void DrawShadowCascade( int cascade )
 
 static void DrawScene( int targetWidth, int targetHeight, const FrameInput* frame )
 {
-	const Mat4 view_proj = MulMM4( frame->proj, frame->view );
+	const Mat4 viewProj = MulMM4( frame->proj, frame->view );
 	// inv(P*V) = inv(V)*inv(P), produced from the same params as P and V.
-	const Mat4 inv_view_proj = MulMM4( frame->viewInv, frame->projInv );
+	const Mat4 invViewProj = MulMM4( frame->viewInv, frame->projInv );
 
 	const float w = (float)targetWidth;
 	const float h = (float)targetHeight;
@@ -1653,15 +1662,16 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 	// shader works in view space (dFdx/dFdy of v_view_pos, converting to
 	// world inverts the normal on D3D11). Both forms uploaded so each
 	// pipeline takes what it needs.
-	const b3Vec3 sun_world = s_gfx.sun.dirToSun;
-	const b3Vec3 sun_view = b3Normalize( TransformDir( frame->view, sun_world ) );
+	const b3Vec3 sunWorld = s_gfx.sun.dirToSun;
+	const b3Vec3 sunView = b3Normalize( TransformDir( frame->view, sunWorld ) );
 	// pre-multiply sun_color RGB by pi so the BRDF's `baseColor / pi`
 	// diffuse term cancels out to the old Lambert magnitude. This treats
 	// sun.color as illuminance (user-facing convention preserved from
 	// ) rather than radiance, keeps existing scenes recognizable
 	// through the PBR transition. Ambient (sun_color.a) is unscaled.
-	const float PI = 3.14159265358979323846f;
-	const Vec4 sun_color = MakeVec4( s_gfx.sun.color.x * PI, s_gfx.sun.color.y * PI, s_gfx.sun.color.z * PI, s_gfx.sun.ambient );
+	float str = s_gfx.sun.strength * B3_PI;
+	const Vec4 sunColor =
+		MakeVec4( s_gfx.sun.color.x * str, s_gfx.sun.color.y * str, s_gfx.sun.color.z * str, s_gfx.sun.ambient );
 
 	// Cascade data built once and copied into each lit pipeline's ub_pass.
 	// .w packs a backend-conditional UV.y sign for the shadow lookup:
@@ -1706,14 +1716,14 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		ub_frame_t ub = { 0 };
 		ub.view = frame->view;
 		ub.proj = frame->proj;
-		ub.view_proj = view_proj;
-		ub.inv_view_proj = inv_view_proj;
+		ub.view_proj = viewProj;
+		ub.inv_view_proj = invViewProj;
 		ub.camera_pos = MakeVec4( frame->cameraPosition.x, frame->cameraPosition.y, frame->cameraPosition.z, frame->time );
 		ub.viewport = viewport;
 
 		ub_pass_t up = { 0 };
-		up.sun_dir_view = MakeVec4( sun_view.x, sun_view.y, sun_view.z, 0.0f );
-		up.sun_color = sun_color;
+		up.sun_dir_view = MakeVec4( sunView.x, sunView.y, sunView.z, 0.0f );
+		up.sun_color = sunColor;
 		up.flags[0] = frame->debugMode;
 		up.cascade_far_view_z = cascadeFarViewZ;
 		for ( int i = 0; i < 3; ++i )
@@ -1754,14 +1764,14 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 	if ( s_gfx.sphereCount > 0 )
 	{
 		sphere_ub_frame_t sub = { 0 };
-		sub.view_proj = view_proj;
+		sub.view_proj = viewProj;
 
 		sphere_ub_pass_t sup = { 0 };
-		sup.sun_dir_world = MakeVec4( sun_world.x, sun_world.y, sun_world.z, 0.0f );
-		sup.sun_color = sun_color;
+		sup.sun_dir_world = MakeVec4( sunWorld.x, sunWorld.y, sunWorld.z, 0.0f );
+		sup.sun_color = sunColor;
 		sup.flags[0] = frame->debugMode;
 		sup.camera_pos = MakeVec4( frame->cameraPosition.x, frame->cameraPosition.y, frame->cameraPosition.z, 0.0f );
-		sup.view_proj = view_proj;
+		sup.view_proj = viewProj;
 		sup.view = frame->view;
 		sup.cascade_far_view_z = cascadeFarViewZ;
 		for ( int i = 0; i < 3; ++i )
@@ -1797,14 +1807,14 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 	if ( s_gfx.capsuleCount > 0 )
 	{
 		capsule_ub_frame_t cub = { 0 };
-		cub.view_proj = view_proj;
+		cub.view_proj = viewProj;
 
 		capsule_ub_pass_t cup = { 0 };
-		cup.sun_dir_world = MakeVec4( sun_world.x, sun_world.y, sun_world.z, 0.0f );
-		cup.sun_color = sun_color;
+		cup.sun_dir_world = MakeVec4( sunWorld.x, sunWorld.y, sunWorld.z, 0.0f );
+		cup.sun_color = sunColor;
 		cup.flags[0] = frame->debugMode;
 		cup.camera_pos = MakeVec4( frame->cameraPosition.x, frame->cameraPosition.y, frame->cameraPosition.z, 0.0f );
-		cup.view_proj = view_proj;
+		cup.view_proj = viewProj;
 		cup.view = frame->view;
 		cup.cascade_far_view_z = cascadeFarViewZ;
 		for ( int i = 0; i < 3; ++i )
@@ -1848,11 +1858,11 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 	if ( geomSpanCount > 0 || geomMirrorSpanCount > 0 )
 	{
 		geom_ub_frame_t gub = { 0 };
-		gub.view_proj = view_proj;
+		gub.view_proj = viewProj;
 
 		geom_ub_pass_t gup = { 0 };
-		gup.sun_dir_world = MakeVec4( sun_world.x, sun_world.y, sun_world.z, 0.0f );
-		gup.sun_color = sun_color;
+		gup.sun_dir_world = MakeVec4( sunWorld.x, sunWorld.y, sunWorld.z, 0.0f );
+		gup.sun_color = sunColor;
 		gup.flags[0] = frame->debugMode;
 		gup.camera_pos = MakeVec4( frame->cameraPosition.x, frame->cameraPosition.y, frame->cameraPosition.z, 0.0f );
 		gup.view = frame->view;
@@ -1908,7 +1918,7 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 	// Draw after all opaque shapes. The sky pipeline tests GREATER_EQUAL
 	// at NDC z = 0 against the reverse-Z cleared depth (0), so it fills
 	// only pixels that no opaque draw touched.
-	DrawSky( s_gfx.sun.dirToSun, s_gfx.turbidity, frame->cameraPosition, inv_view_proj );
+	DrawSky( s_gfx.sun.dirToSun, s_gfx.turbidity, frame->cameraPosition, invViewProj );
 }
 
 // Depth-only pre-pass. Renders all opaque shapes from the main camera
@@ -1928,7 +1938,7 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 // SKY_SENTINEL = 1e9 so sky pixels (which no draw touches) carry an
 // unmistakably-far depth value while staying well-defined for the later
 // bilateral-upsample depth-diff math.
-static void DepthPrepass( int targetWidth, int targetHeight, Mat4 view, Mat4 view_proj, b3Vec3 camera_pos_world )
+static void DepthPrepass( int targetWidth, int targetHeight, Mat4 view, Mat4 viewProj, b3Vec3 camera_pos_world )
 {
 	sg_pass pass = { 0 };
 	pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
@@ -1961,7 +1971,7 @@ static void DepthPrepass( int targetWidth, int targetHeight, Mat4 view, Mat4 vie
 		sg_apply_bindings( &bindings );
 
 		depth_only_cube_ub_frame_t ub = { 0 };
-		ub.view_proj = view_proj;
+		ub.view_proj = viewProj;
 		ub.view = view;
 		sg_apply_uniforms( UB_depth_only_cube_ub_frame, &SG_RANGE( ub ) );
 
@@ -1979,11 +1989,11 @@ static void DepthPrepass( int targetWidth, int targetHeight, Mat4 view, Mat4 vie
 		sg_apply_bindings( &bindings );
 
 		depth_only_sphere_ub_frame_t sub = { 0 };
-		sub.view_proj = view_proj;
+		sub.view_proj = viewProj;
 		sg_apply_uniforms( UB_depth_only_sphere_ub_frame, &SG_RANGE( sub ) );
 
 		depth_only_sphere_ub_pass_t spp = { 0 };
-		spp.view_proj = view_proj;
+		spp.view_proj = viewProj;
 		spp.view = view;
 		spp.camera_pos = MakeVec4( camera_pos_world.x, camera_pos_world.y, camera_pos_world.z, 0.0f );
 		sg_apply_uniforms( UB_depth_only_sphere_ub_pass, &SG_RANGE( spp ) );
@@ -2002,11 +2012,11 @@ static void DepthPrepass( int targetWidth, int targetHeight, Mat4 view, Mat4 vie
 		sg_apply_bindings( &bindings );
 
 		depth_only_capsule_ub_frame_t cub = { 0 };
-		cub.view_proj = view_proj;
+		cub.view_proj = viewProj;
 		sg_apply_uniforms( UB_depth_only_capsule_ub_frame, &SG_RANGE( cub ) );
 
 		depth_only_capsule_ub_pass_t cpp = { 0 };
-		cpp.view_proj = view_proj;
+		cpp.view_proj = viewProj;
 		cpp.view = view;
 		cpp.camera_pos = MakeVec4( camera_pos_world.x, camera_pos_world.y, camera_pos_world.z, 0.0f );
 		sg_apply_uniforms( UB_depth_only_capsule_ub_pass, &SG_RANGE( cpp ) );
@@ -2020,23 +2030,25 @@ static void DepthPrepass( int targetWidth, int targetHeight, Mat4 view, Mat4 vie
 	if ( geomSpanCount > 0 || geomMirrorSpanCount > 0 )
 	{
 		depth_only_geom_ub_frame_t gub = { 0 };
-		gub.view_proj = view_proj;
+		gub.view_proj = viewProj;
 		gub.view = view;
 
 		const sg_view geomInstView = GetMeshInstanceView();
-		for ( int pass = 0; pass < 2; ++pass )
+
+		// 0 for normal and 1 for reflect geometry (non-uniform scale polarity)
+		for ( int j = 0; j < 2; ++j )
 		{
-			const int spanCount = ( pass == 0 ) ? geomSpanCount : geomMirrorSpanCount;
+			const int spanCount = ( j == 0 ) ? geomSpanCount : geomMirrorSpanCount;
 			if ( spanCount == 0 )
 			{
 				continue;
 			}
-			sg_apply_pipeline( ( pass == 0 ) ? s_gfx.depthOnlyGeomPipeline : s_gfx.depthOnlyGeomPipelineMirror );
+			sg_apply_pipeline( ( j == 0 ) ? s_gfx.depthOnlyGeomPipeline : s_gfx.depthOnlyGeomPipelineMirror );
 			sg_apply_uniforms( UB_depth_only_geom_ub_frame, &SG_RANGE( gub ) );
 
 			for ( int i = 0; i < spanCount; ++i )
 			{
-				const MeshDrawSpan span = ( pass == 0 ) ? GetMeshDrawSpan( i ) : GetMeshMirrorDrawSpan( i );
+				const MeshDrawSpan span = ( j == 0 ) ? GetMeshDrawSpan( i ) : GetMeshMirrorDrawSpan( i );
 
 				sg_bindings bindings = { 0 };
 				bindings.vertex_buffers[0] = span.vbo;
@@ -2255,8 +2267,9 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 
 	const b3Vec3 sunWorld = s_gfx.sun.dirToSun;
 	const b3Vec3 sunView = b3Normalize( TransformDir( frame->view, sunWorld ) );
+	float str = s_gfx.sun.strength * B3_PI;
 	const Vec4 sunColor =
-		MakeVec4( s_gfx.sun.color.x * B3_PI, s_gfx.sun.color.y * B3_PI, s_gfx.sun.color.z * B3_PI, s_gfx.sun.ambient );
+		MakeVec4( s_gfx.sun.color.x * str, s_gfx.sun.color.y * str, s_gfx.sun.color.z * str, s_gfx.sun.ambient );
 
 	const sg_backend backend = sg_query_backend();
 	const float uvYSign = ( backend == SG_BACKEND_GLCORE || backend == SG_BACKEND_GLES3 ) ? 1.0f : -1.0f;
@@ -2691,7 +2704,8 @@ void RenderFrameOffscreen( const sg_attachments* attachments, sg_pixel_format ou
 	// Offscreen test targets are color-only (no depth attachment), the
 	// pipeline declares NONE for depth so sokol's validation passes.
 	sg_push_debug_group( "tonemap" );
-	SubmitToneMap( GetSceneTargetResolveSampleView(), outputFormat, SG_PIXELFORMAT_NONE, s_gfx.exposureEv, s_gfx.tonemapSaturation );
+	SubmitToneMap( GetSceneTargetResolveSampleView(), outputFormat, SG_PIXELFORMAT_NONE, s_gfx.exposureEv,
+				   s_gfx.tonemapSaturation );
 	sg_pop_debug_group();
 	if ( drawHighlights )
 	{

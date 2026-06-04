@@ -70,6 +70,8 @@ struct SampleContext
 	// main.cpp, so the Render menu and the frame loop share one source.
 	bool enableShadows = true;
 	bool enableGtao = true;
+
+	float sunStrength = 1.0f;
 	int debugView = 0;
 
 	int sampleIndex = 0;

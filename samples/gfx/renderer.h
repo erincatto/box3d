@@ -49,6 +49,7 @@ typedef struct Sun
 	b3Vec3 dirToSun; // world-space direction TO the sun
 	b3Vec3 color;	 // RGB intensity, multiplied by N.L for direct light
 	float ambient;	 // ambient strength added to direct light (0..1 typical)
+	float strength;  // multiplies color [0,1]
 } Sun;
 
 void InitRenderer( const sg_environment* env );

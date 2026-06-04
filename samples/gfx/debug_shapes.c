@@ -371,14 +371,13 @@ static MeshHandle BuildHull( const b3Hull* hull )
 		return InvalidMeshHandle();
 	}
 
-	// Hull edges are face boundaries, one per half-edge pair. b3 stores
-	// pair i at half-edges 2*i and 2*i+1 (the two twins). All hull edges
-	// are "real" face boundaries by definition, so flag = 1 (convex).
+	// Emit hull edges. This automatically prevents duplicates. No sorting needed.
 	int pairCount = hull->edgeCount / 2;
-	for ( int i = 0; i < pairCount; ++i )
+	for ( int i = 0; i < pairCount; i += 1 )
 	{
 		uint8_t a = edges[2 * i + 0].origin;
 		uint8_t c = edges[2 * i + 1].origin;
+
 		if ( !EmitEdge( &eb, (uint32_t)a, (uint32_t)c, 1u ) )
 		{
 			EdgeBuilderFree( &eb );

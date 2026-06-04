@@ -98,6 +98,7 @@ void SampleContext::Save()
 	fprintf( file, "  \"gtaoQuality\": %d,\n", gtaoQuality );
 	fprintf( file, "  \"enableIbl\": %s,\n", GetIblEnabled() ? "true" : "false" );
 	fprintf( file, "  \"exposure\": %g,\n", GetExposure() );
+	fprintf( file, "  \"sunStrength\": %g,\n", GetSun().strength );
 	fprintf( file, "  \"debugView\": %d,\n", debugView );
 	fprintf( file, "  \"showHullEdges\": %s,\n", GetEdgeOverlayParams().showHulls ? "true" : "false" );
 	fprintf( file, "  \"showEdgeConvexity\": %s\n", GetEdgeOverlayParams().showEdgeConvexity ? "true" : "false" );
@@ -213,6 +214,17 @@ void SampleContext::Load()
 			strncpy( buffer, s, count );
 			buffer[count] = 0;
 			SetExposure( strtof( buffer, nullptr ) );
+		}
+		else if ( jsoneq( data, &tokens[i], "sunStrength" ) == 0 )
+		{
+			int count = tokens[i + 1].end - tokens[i + 1].start;
+			assert( count < 32 );
+			const char* s = data + tokens[i + 1].start;
+			strncpy( buffer, s, count );
+			buffer[count] = 0;
+			Sun sun = GetSun();
+			sun.strength = strtof( buffer, nullptr );
+			SetSun( sun );
 		}
 		else if ( jsoneq( data, &tokens[i], "debugView" ) == 0 )
 		{
@@ -499,7 +511,7 @@ void Sample::DrawMetrics()
 
 	if ( ImGui::BeginTabItem( "Profile" ) )
 	{
-		const int count = static_cast<int>( m_profileWriteIndex - m_profileReadIndex );
+		int count = m_profileWriteIndex - m_profileReadIndex;
 
 		// Unroll ring buffer into per-field histories.
 		constexpr int kRowCount = 22;
@@ -507,7 +519,7 @@ void Sample::DrawMetrics()
 		float totals[kRowCount] = {};
 		for ( int i = 0; i < count; ++i )
 		{
-			int idx = static_cast<int>( ( m_profileReadIndex + i ) & ( m_profileCapacity - 1 ) );
+			int idx = ( m_profileReadIndex + i ) & ( m_profileCapacity - 1 );
 			const b3Profile& p = m_profiles[idx];
 			histories[0][i] = p.step;
 			histories[1][i] = p.pairs;
@@ -1376,10 +1388,17 @@ static void DrawRenderMenu( SampleContext& ctx )
 
 	ImGui::PushItemWidth( 8.0f * ImGui::GetFontSize() );
 	float ev = GetExposure();
-	if ( ImGui::SliderFloat( "Exposure", &ev, -8.0f, 4.0f, "%.2f EV" ) )
+	if ( ImGui::SliderFloat( "Exposure", &ev, -8.0f, 4.0f, "%.2f" ) )
 	{
 		SetExposure( ev );
 	}
+
+	Sun sun = GetSun();
+	if ( ImGui::SliderFloat( "Sun", &sun.strength, 0.0f, 1.0f, "%.2f" ) )
+	{
+		SetSun( sun );
+	}
+
 	ImGui::PopItemWidth();
 
 	ImGui::Separator();
@@ -1708,7 +1727,7 @@ static void DrawInfoPanel( SampleContext* context )
 {
 	const SampleEntry& entry = g_sampleEntries[context->sampleIndex];
 	float fontSize = ImGui::GetFontSize();
-	float menuWidth = 14.0f * fontSize;
+	float menuWidth = 16.0f * fontSize;
 	float menuBarHeight = ImGui::GetFrameHeight();
 
 	// Full-height panel pinned under the menu bar at the right edge, matching Box2D.
@@ -1737,34 +1756,36 @@ static void DrawInfoPanel( SampleContext* context )
 
 	ImGui::Separator();
 
+	ImGui::PushItemWidth( 6.0f * fontSize );
 	if ( context->sample->DrawControls() )
 	{
 		ImGui::Separator();
 	}
+	ImGui::PopItemWidth();
 
 	if ( context->sample->HasSolverControls() && ImGui::CollapsingHeader( "Solver", ImGuiTreeNodeFlags_DefaultOpen ) )
 	{
 		ImGui::PushItemWidth( 6.0f * fontSize );
-		ImGui::SliderInt( "Sub-steps", &context->subStepCount, 1, 50 );
-		ImGui::SliderFloat( "Hertz", &context->hertz, 5.0f, 240.0f, "%.0f hz" );
+		ImGui::SliderInt( "Sub-steps##Solver", &context->subStepCount, 1, 50 );
+		ImGui::SliderFloat( "Hertz##Solver", &context->hertz, 5.0f, 240.0f, "%.0f hz" );
 
-		if ( ImGui::SliderInt( "Workers", &context->workerCount, 1, B3_MAX_WORKERS ) )
+		if ( ImGui::SliderInt( "Workers##Solver", &context->workerCount, 1, B3_MAX_WORKERS ) )
 		{
 			context->workerCount = b3ClampInt( context->workerCount, 1, B3_MAX_WORKERS );
 			SelectSample( context, context->sampleIndex, true );
 		}
 
 		float recyclingCentimeters = 100.0f * context->recycleDistance;
-		if ( ImGui::SliderFloat( "Recycle", &recyclingCentimeters, 0.0f, 10.0f, "%.1f cm" ) )
+		if ( ImGui::SliderFloat( "Recycle##Solver", &recyclingCentimeters, 0.0f, 10.0f, "%.1f cm" ) )
 		{
 			context->recycleDistance = 0.01f * recyclingCentimeters;
 			b3World_SetContactRecycleDistance( context->sample->m_worldId, context->recycleDistance );
 		}
 		ImGui::PopItemWidth();
 
-		ImGui::Checkbox( "Sleep", &context->enableSleep );
-		ImGui::Checkbox( "Warm Starting", &context->enableWarmStarting );
-		ImGui::Checkbox( "Continuous", &context->enableContinuous );
+		ImGui::Checkbox( "Sleep##Solver", &context->enableSleep );
+		ImGui::Checkbox( "Warm Starting##Solver", &context->enableWarmStarting );
+		ImGui::Checkbox( "Continuous##Solver", &context->enableContinuous );
 	}
 
 	ImGui::End();

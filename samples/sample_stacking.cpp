@@ -280,33 +280,18 @@ public:
 
 		AddGroundBox( 20.0f );
 
-#if 1
 		{
-			b3BoxHull cube = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+			b3BoxHull cube = b3MakeCubeHull( 0.5f );
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.name = "cube";
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.position = { 0.0f, 0.5f, 0.0f };
-			// bodyDef.linearVelocity = { 4.0f, 0.0f, 0.0f };
 			bodyDef.angularVelocity = { 0.0f, 10.0f, 0.0f };
 			m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			b3CreateHullShape( m_bodyId, &shapeDef, &cube.base );
 		}
-#else
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.name = "capsule";
-			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = { 0.0f, 2.0f, 0.0f };
-			m_bodyId = b3CreateBody( m_worldId, &bodyDef );
-
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3Capsule capsule = { { -0.25f, 0.0f }, { 0.25f, 0.0f }, 0.1f };
-			b3CreateCapsuleShape( m_bodyId, &shapeDef, &capsule );
-		}
-#endif
 	}
 
 	void Step() override
