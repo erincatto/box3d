@@ -1786,6 +1786,11 @@ static void DrawInfoPanel( SampleContext* context )
 		ImGui::Checkbox( "Sleep##Solver", &context->enableSleep );
 		ImGui::Checkbox( "Warm Starting##Solver", &context->enableWarmStarting );
 		ImGui::Checkbox( "Continuous##Solver", &context->enableContinuous );
+
+		if ( ImGui::Shortcut( ImGuiKey_R ) || ImGui::Button( "Restart" ) )
+		{
+			SelectSample( context, context->sampleIndex, true );
+		}
 	}
 
 	ImGui::End();

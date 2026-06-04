@@ -180,7 +180,7 @@ void ShutdownUI( void )
 {
 	if ( !s_uiInitialized )
 		return;
-	
+
 	ImPlot::DestroyContext();
 	simgui_shutdown();
 	s_uiInitialized = false;
@@ -189,25 +189,29 @@ void ShutdownUI( void )
 bool HandleEvent( const sapp_event* e )
 {
 	if ( !s_uiInitialized )
+	{
 		return false;
-	const bool handled = simgui_handle_event( e );
+	}
+
+	bool handled = simgui_handle_event( e );
 	const ImGuiIO& io = ImGui::GetIO();
-	// simgui_handle_event tracks every event for ImGui's input state, but
-	// only returns true for events it consumed exclusively (e.g. clipboard
-	// paste). For typical interactions we want the camera/key handler to
-	// skip whenever ImGui has the cursor or keyboard focus - that's what
-	// io.WantCapture* signals.
+
 	if ( handled )
+	{
 		return true;
+	}
+
 	if ( e->type == SAPP_EVENTTYPE_KEY_DOWN || e->type == SAPP_EVENTTYPE_KEY_UP || e->type == SAPP_EVENTTYPE_CHAR )
 	{
 		return io.WantCaptureKeyboard;
 	}
+
 	if ( e->type == SAPP_EVENTTYPE_MOUSE_DOWN || e->type == SAPP_EVENTTYPE_MOUSE_UP || e->type == SAPP_EVENTTYPE_MOUSE_MOVE ||
 		 e->type == SAPP_EVENTTYPE_MOUSE_SCROLL )
 	{
 		return io.WantCaptureMouse;
 	}
+
 	return false;
 }
 
