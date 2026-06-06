@@ -115,12 +115,21 @@ static void OnEvent( const sapp_event* e )
 		return;
 	}
 
-	if ( HandleEvent( e ) )
+	const bool imguiCaptured = HandleEvent( e );
+
+	// The camera must always see button releases and focus loss, even when the UI
+	// captures the event. Otherwise a release over an ImGui panel never clears the
+	// drag flag and the camera keeps orbiting.
+	const bool releaseOrUnfocus = e->type == SAPP_EVENTTYPE_MOUSE_UP || e->type == SAPP_EVENTTYPE_UNFOCUSED;
+	if ( imguiCaptured == false || releaseOrUnfocus )
+	{
+		s_context.camera.OnEvent( e );
+	}
+
+	if ( imguiCaptured )
 	{
 		return;
 	}
-
-	s_context.camera.OnEvent( e );
 
 	// Keep keyboard mods only. sokol packs the held mouse button into modifiers
 	// (SAPP_MODIFIER_LMB == 0x100), which would defeat the sample's modifiers == 0 checks.
@@ -274,6 +283,18 @@ static void OnFrame( void )
 	}
 
 	const uint64_t frameStart = b3GetTicks();
+
+	// Nothing to draw while minimized. sapp reports a 0x0 framebuffer then, which
+	// would drive the swapchain and every render target to zero size. Pace the
+	// loop so it doesn't spin and bail.
+	if ( s_context.minimized )
+	{
+		if ( s_frameLimit < 0 )
+		{
+			LimitFrameRate( frameStart );
+		}
+		return;
+	}
 
 	const float dt = (float)sapp_frame_duration();
 	const int W = sapp_width();

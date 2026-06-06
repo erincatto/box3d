@@ -1214,6 +1214,12 @@ int RegisterSample( const char* category, const char* name, SampleCreateFcn* fcn
 
 void SelectSample( SampleContext* context, int selection, bool restart )
 {
+	if ( selection < 0 || selection >= g_sampleCount )
+	{
+		// Out of range: keep the current sample rather than calling a null factory.
+		return;
+	}
+
 	// delete tolerates the first selection, before any sample exists.
 	delete context->sample;
 	context->sample = nullptr;

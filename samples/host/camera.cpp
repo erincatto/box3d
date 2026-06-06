@@ -269,6 +269,18 @@ void Camera::OnEvent( const sapp_event* e )
 					break;
 			}
 			break;
+		case SAPP_EVENTTYPE_UNFOCUSED:
+			// Drop every held input on focus loss. Otherwise a drag or a held WASD
+			// key survives an alt-tab and the camera keeps moving.
+			m_leftDown = false;
+			m_rightDown = false;
+			m_middleDown = false;
+			m_wDown = false;
+			m_aDown = false;
+			m_sDown = false;
+			m_dDown = false;
+			m_altDown = false;
+			break;
 		default:
 			break;
 	}

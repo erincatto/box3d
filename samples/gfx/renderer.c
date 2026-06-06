@@ -2201,8 +2201,11 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 		return;
 	}
 
-	// Static scratch sized to the per-shape capacities
-	static TransparentRef refs[4 * TRANSPARENT_SHAPE_CAPACITY];
+	// Static scratch sized to hold every instance the four streams can emit:
+	// three primitive streams capped at TRANSPARENT_SHAPE_CAPACITY each, plus the
+	// geom stream capped at MAX_GEOM_XP_INSTANCES_GLOBAL. The geom cap dwarfs the
+	// others, so a uniform multiple of the small cap would overflow.
+	static TransparentRef refs[3 * TRANSPARENT_SHAPE_CAPACITY + MAX_GEOM_XP_INSTANCES_GLOBAL];
 	int n = 0;
 
 	for ( int i = 0; i < cubeXp; ++i )

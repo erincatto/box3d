@@ -45,6 +45,10 @@ extern "C"
 {
 #endif
 
+// Upper bound on transparent mesh instances drained in a frame. Shared so the
+// renderer can size its sort scratch to match the registry cap.
+#define MAX_GEOM_XP_INSTANCES_GLOBAL ( 16 * 1024 )
+
 typedef struct MeshHandle
 {
 	int index;	   // -1 means invalid
