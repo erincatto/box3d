@@ -8,6 +8,13 @@ project(box3d
 	LANGUAGES C CXX
 )
 
+# sokol's Metal backend is Objective-C; samples/host/sokol_app_impl.c and
+# samples/gfx/sokol_impl.c compile as OBJC on Apple. Enable the language here
+# so those source properties are honored.
+if(APPLE)
+	enable_language(OBJC)
+endif()
+
 # stuff to help debug cmake
 # message(STATUS "cmake tool chain: ${CMAKE_TOOLCHAIN_FILE}")
 # message(STATUS "cmake source dir: ${CMAKE_SOURCE_DIR}")
