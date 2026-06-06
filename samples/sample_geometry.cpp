@@ -76,7 +76,8 @@ public:
 
 	bool DrawControls() override
 	{
-		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
+		float fontSize = ImGui::GetFontSize();
+		ImGui::PushItemWidth( 10.0f * fontSize );
 
 		if ( ImGui::SliderFloat3( "h", &m_halfWidths.x, 0.1f, 2.0f, "%.1f" ) )
 		{
@@ -99,12 +100,12 @@ public:
 			CreateHulls( m_halfWidths, m_transform, m_postScale );
 		}
 
-		ImGui::PopItemWidth();
-
-		if ( ImGui::Button( "refresh" ) )
+		if ( ImGui::Button( "Refresh" ) )
 		{
 			CreateHulls( m_halfWidths, m_transform, m_postScale );
 		}
+
+		ImGui::PopItemWidth();
 
 		return true;
 	}

@@ -1186,7 +1186,7 @@ static bool DrawQueryCallback( int proxyId, uint64_t userData, void* context )
 				}
 				else
 				{
-					rgb = b3_colorDarkBlue;
+					rgb = b3_colorLightSteelBlue;
 					material = b3_debugMaterialMatte;
 				}
 			}

@@ -108,7 +108,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Vec3_zero );
+			m_camera->SetView( 25.0f, 10.0f, 70.0f, b3Vec3_zero );
 			GetGuiDraw()->drawJoints = false;
 		}
 
@@ -470,9 +470,9 @@ public:
 
 	bool DrawControls() override
 	{
-		ImGui::SliderFloat( "impulse", &m_impulse, 0.0f, 2000.0f, "%.0f" );
+		ImGui::SliderFloat( "Magnitude", &m_impulse, 0.0f, 2000.0f, "%.0f" );
 
-		if ( ImGui::Button( "explode" ) )
+		if ( ImGui::Button( "Explode" ) )
 		{
 			Explode();
 		}
@@ -524,7 +524,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 20.0f );
+			m_camera->SetView( 0.0f, 20.0f, 50.0f );
 		}
 
 		m_columnCount = 50;
@@ -547,7 +547,7 @@ public:
 
 	bool DrawControls() override
 	{
-		ImGui::SliderFloat( "radius", &m_radius, 0.0f, 1.0f, "%.1f" );
+		ImGui::SliderFloat( "Radius", &m_radius, 0.0f, 1.0f, "%.1f" );
 		return true;
 	}
 
@@ -1430,7 +1430,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 100.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 125.0f, b3Vec3_zero );
 			GetGuiDraw()->drawJoints = false;
 		}
 

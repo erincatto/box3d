@@ -807,8 +807,10 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 25.0f, 4.0f, { 0.0f, 1.2f, 0.0f } );
+			m_camera->SetView( 45.0f, 25.0f, 10.0f, { 0.0f, 1.2f, 0.0f } );
 		}
+
+		AddGroundBox( 20.0f );
 
 		m_hump = CreateHump( 8.0f );
 
@@ -830,12 +832,6 @@ public:
 	~HumpMesh() override
 	{
 		b3DestroyMesh( m_hump );
-	}
-
-	void Render() override
-	{
-		DrawGroundGrid( 10 );
-		Sample::Render();
 	}
 
 	b3MeshData* CreateHump( float cellWidth ) const

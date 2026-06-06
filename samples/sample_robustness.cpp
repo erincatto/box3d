@@ -21,7 +21,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 20.0f, 50.0f, b3Vec3_zero );
+			m_camera->SetView( 30.0f, 15.0f, 70.0f, b3Vec3_zero );
 			
 		}
 
@@ -80,7 +80,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 20.0f, 3.0f, { 0.0f, 0.5f, 0.0f } );
+			m_camera->SetView( -30.0f, 20.0f, 10.0f, { 0.0f, 0.5f, 0.0f } );
 		}
 
 		AddGroundBox( 20.0f );
@@ -433,11 +433,7 @@ public:
 
 static int sampleCart = RegisterSample( "Robustness", "Cart", Cart::Create );
 
-// Drives the b3*_Overflow solver path. A heavy hub touches more dynamic
-// neighbors than B3_DYNAMIC_COLOR_COUNT (= 20), so several contacts land in
-// the overflow color. The HUD reports the per-step overflow contact count
-// because the scene is visually unremarkable when working correctly — the
-// point is that it stays unremarkable.
+// This forces a constraint graph color overflow
 class OverflowColorPile : public Sample
 {
 public:
@@ -446,7 +442,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 15.0f, 10.0f, 15.0f, b3Vec3_zero );
+			m_camera->SetView( 30.0f, 35.0f, 15.0f, b3Vec3_zero );
 			
 		}
 

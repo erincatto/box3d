@@ -1376,20 +1376,22 @@ public:
 
 		if ( m_enableSuspensionLimit )
 		{
-			if ( ImGui::SliderFloat( "Lower Translation", &m_lowerTranslation, -10.0f, 10.0f, "%.1f" ) )
+			if ( ImGui::SliderFloat( "Min##Limit", &m_lowerTranslation, -10.0f, 10.0f, "%.1f" ) )
 			{
 				m_lowerTranslation = b3MinFloat( m_lowerTranslation, m_upperTranslation );
 				b3WheelJoint_SetSuspensionLimits( m_jointId, m_lowerTranslation, m_upperTranslation );
 				b3Joint_WakeBodies( m_jointId );
 			}
 
-			if ( ImGui::SliderFloat( "Upper Translation", &m_upperTranslation, -10.0f, 10.0f, "%.1f" ) )
+			if ( ImGui::SliderFloat( "Max##Limit", &m_upperTranslation, -10.0f, 10.0f, "%.1f" ) )
 			{
 				m_upperTranslation = b3MaxFloat( m_upperTranslation, m_lowerTranslation );
 				b3WheelJoint_SetSuspensionLimits( m_jointId, m_lowerTranslation, m_upperTranslation );
 				b3Joint_WakeBodies( m_jointId );
 			}
 		}
+
+		ImGui::Separator();
 
 		if ( ImGui::Checkbox( "Motor", &m_enableSpinMotor ) )
 		{
@@ -1412,7 +1414,9 @@ public:
 			}
 		}
 
-		if ( ImGui::Checkbox( "Suspension", &m_enableSuspension ) )
+		ImGui::Separator();
+
+		if ( ImGui::Checkbox( "Suspension Spring", &m_enableSuspension ) )
 		{
 			b3WheelJoint_EnableSuspension( m_jointId, m_enableSuspension );
 			b3Joint_WakeBodies( m_jointId );
@@ -1420,18 +1424,20 @@ public:
 
 		if ( m_enableSuspension )
 		{
-			if ( ImGui::SliderFloat( "Suspension Hertz", &m_suspensionHertz, 0.0f, 10.0f, "%.1f" ) )
+			if ( ImGui::SliderFloat( "Hertz##Suspension", &m_suspensionHertz, 0.0f, 10.0f, "%.1f" ) )
 			{
 				b3WheelJoint_SetSuspensionHertz( m_jointId, m_suspensionHertz );
 				b3Joint_WakeBodies( m_jointId );
 			}
 
-			if ( ImGui::SliderFloat( "Suspension Damping", &m_suspensionDampingRatio, 0.0f, 2.0f, "%.1f" ) )
+			if ( ImGui::SliderFloat( "Damping##Suspension", &m_suspensionDampingRatio, 0.0f, 2.0f, "%.1f" ) )
 			{
 				b3WheelJoint_SetSuspensionDampingRatio( m_jointId, m_suspensionDampingRatio );
 				b3Joint_WakeBodies( m_jointId );
 			}
 		}
+
+		ImGui::Separator();
 
 		if ( ImGui::Checkbox( "Steering", &m_enableSteering ) )
 		{
@@ -1441,23 +1447,25 @@ public:
 
 		if ( m_enableSteering )
 		{
-			if ( ImGui::SliderFloat( "Steering Hertz", &m_steeringHertz, 0.0f, 10.0f, "%.1f" ) )
+			if ( ImGui::SliderFloat( "Hertz##Steering", &m_steeringHertz, 0.0f, 10.0f, "%.1f" ) )
 			{
 				b3WheelJoint_SetSteeringHertz( m_jointId, m_steeringHertz );
 				b3Joint_WakeBodies( m_jointId );
 			}
 
-			if ( ImGui::SliderFloat( "Steering Damping", &m_steeringDampingRatio, 0.0f, 2.0f, "%.1f" ) )
+			if ( ImGui::SliderFloat( "Damping##Steering", &m_steeringDampingRatio, 0.0f, 2.0f, "%.1f" ) )
 			{
 				b3WheelJoint_SetSuspensionDampingRatio( m_jointId, m_suspensionDampingRatio );
 				b3Joint_WakeBodies( m_jointId );
 			}
 
-			if ( ImGui::SliderFloat( "Steering Degrees", &m_targetSteeringDegrees, -90.0f, 90.0f, "%.0f" ) )
+			if ( ImGui::SliderFloat( "Degrees##Steering", &m_targetSteeringDegrees, -90.0f, 90.0f, "%.0f" ) )
 			{
 				b3WheelJoint_SetTargetSteeringAngle( m_jointId, m_targetSteeringDegrees * B3_PI / 180.0f );
 				b3Joint_WakeBodies( m_jointId );
 			}
+
+			ImGui::Separator();
 
 			if ( ImGui::Checkbox( "Steering Limit", &m_enableSteeringLimit ) )
 			{
@@ -1467,14 +1475,14 @@ public:
 
 			if ( m_enableSteeringLimit )
 			{
-				if ( ImGui::SliderFloat( "Lower Degrees", &m_lowerSteeringDegrees, -90.0f, 0.0f, "%.0f" ) )
+				if ( ImGui::SliderFloat( "Min Degrees", &m_lowerSteeringDegrees, -90.0f, 0.0f, "%.0f" ) )
 				{
 					b3WheelJoint_SetSteeringLimits( m_jointId, B3_PI / 180.0f * m_lowerSteeringDegrees,
 													B3_PI / 180.0f * m_upperSteeringDegrees );
 					b3Joint_WakeBodies( m_jointId );
 				}
 
-				if ( ImGui::SliderFloat( "Upper Degrees", &m_upperSteeringDegrees, 0.0f, 90.0f, "%.0f" ) )
+				if ( ImGui::SliderFloat( "Max Degrees", &m_upperSteeringDegrees, 0.0f, 90.0f, "%.0f" ) )
 				{
 					b3WheelJoint_SetSteeringLimits( m_jointId, B3_PI / 180.0f * m_lowerSteeringDegrees,
 													B3_PI / 180.0f * m_upperSteeringDegrees );

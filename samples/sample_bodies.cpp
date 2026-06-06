@@ -329,6 +329,8 @@ public:
 			m_camera->SetView( 0.0f, 20.0f, 4.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
+		AddGroundBox( 20.0f );
+
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.0f, 2.0f, 0.0f };
@@ -344,12 +346,6 @@ public:
 		b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
 		b3DestroyHull( cylinder );
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-		DrawGroundGrid( 10 );
 	}
 
 	static Sample* Create( SampleContext* sampleContext )
@@ -484,12 +480,12 @@ public:
 
 		float linkRadius = 0.1f;
 		float linkLength = 5.0f * linkRadius;
-		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, linkLength }, linkRadius };
+		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { 0.0f, -linkLength, 0.0f }, linkRadius };
 
 		b3BodyId parentId = {};
 		for ( int link = 0; link < e_count; ++link )
 		{
-			bodyDef.position = { 0.0f, 0.8f * float( e_count ) * linkLength, link * linkLength };
+			bodyDef.position = { 0.0f, (float( e_count ) - link) * linkLength + 1.0f, 0.0f };
 			bodyDef.type = B3_IS_NULL( parentId ) ? b3_kinematicBody : b3_dynamicBody;
 			b3BodyId childId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateCapsuleShape( childId, &shapeDef, &capsule );
@@ -500,7 +496,7 @@ public:
 				b3WeldJointDef jointDef = b3DefaultWeldJointDef();
 				jointDef.base.bodyIdA = parentId;
 				jointDef.base.bodyIdB = childId;
-				jointDef.base.localFrameA.p = { 0.0f, 0.0f, linkLength };
+				jointDef.base.localFrameA.p = { 0.0f, -linkLength, 0.0f };
 				jointDef.angularHertz = 10.0f;
 				jointDef.angularDampingRatio = 1.0f;
 				b3CreateWeldJoint( m_worldId, &jointDef );
@@ -755,6 +751,8 @@ public:
 		{
 			m_camera->SetView( 0.0f, 30.0f, 10.0f, { 0.0f, 1.5f, 0.0f } );
 		}
+		
+		AddGroundBox( 20.0f );
 
 		m_amplitude = 2.0f;
 
@@ -762,7 +760,7 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_kinematicBody;
 			bodyDef.position.x = 2.0f * m_amplitude;
-			bodyDef.position.y = m_amplitude;
+			bodyDef.position.y = m_amplitude + 1.0f;
 
 			m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
@@ -772,13 +770,6 @@ public:
 		}
 
 		m_time = 0.0f;
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-		DrawGroundGrid( 10 );
-		DrawAxes( b3Transform_identity, 1.0f );
 	}
 
 	void Step() override
@@ -797,7 +788,7 @@ public:
 
 			b3Vec3 point;
 			point.x = 2.0f * m_amplitude * cosf( t );
-			point.y = m_amplitude * ( sinf( 2.0f * t ) + 1.0f );
+			point.y = m_amplitude * ( sinf( 2.0f * t ) + 1.0f ) + 1.0f;
 			point.z = 0.0f;
 			b3Quat rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 2.0f * t );
 

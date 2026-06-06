@@ -545,7 +545,7 @@ public:
 	bool DrawControls() override
 	{
 		bool thirdPerson = m_camera->m_thirdPerson;
-		if ( ImGui::Checkbox( "Third Person (Key: T)", &thirdPerson ) )
+		if ( ImGui::Checkbox( "Third Person (T)", &thirdPerson ) )
 		{
 			ToggleThirdPerson();
 		}
@@ -1639,12 +1639,12 @@ public:
 	bool DrawControls() override
 	{
 		bool thirdPerson = m_camera->m_thirdPerson;
-		if ( ImGui::Checkbox( "Third Person (Key: T)", &thirdPerson ) )
+		if ( ImGui::Checkbox( "Third Person (T)", &thirdPerson ) )
 		{
 			ToggleThirdPerson();
 		}
 
-		ImGui::Checkbox( "Debug Visualization (Key: V)", &m_showDebug );
+		ImGui::Checkbox( "Debug (V)", &m_showDebug );
 
 		ImGui::Separator();
 		ImGui::Text( "Ground: %s", m_character.m_onGround ? "YES" : "NO" );

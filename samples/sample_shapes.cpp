@@ -694,17 +694,19 @@ public:
 			m_camera->SetView( 0.0f, 0.0f, 5.0f, { 0.0f, 1.0f, 0.0f } );
 		}
 
+		AddGroundBox( 20.0f );
+
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			m_groundId = b3CreateBody( m_worldId, &bodyDef );
 		}
 
-		m_shapeType = e_sphereShape;
-		m_wind = { 6.0f, 0.0f };
+		m_shapeType = e_boxShape;
+		m_wind = { 6.0f, 0.0f, 0.0f };
 		m_drag = 1.0f;
 		m_lift = 0.75f;
 		m_count = 10;
-		m_noise = { 0.0f, 0.0f };
+		m_noise = { 0.0f, 0.0f, 0.0f };
 
 		// Need this to be false for debug draw to work
 		m_stepWhilePaused = false;
@@ -724,13 +726,15 @@ public:
 		}
 
 		float radius = 0.1f;
+		float verticalOffset = 2.0f;
+
 		b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, radius };
-		b3Capsule capsule = { { 0.0f, -radius }, { 0.0f, radius }, 0.25f * radius };
-		b3BoxHull box = b3MakeBoxHull( 0.25f * radius, 1.25f * radius, 0.5f * radius );
+		b3Capsule capsule = { { -radius, 0.0f, 0.0f }, { radius, 0.0f, 0.0f }, 0.5f * radius };
+		b3BoxHull box = b3MakeBoxHull( 1.25f * radius, 0.75f * radius, 0.125f * radius );
 
 		b3SphericalJointDef jointDef = b3DefaultSphericalJointDef();
 		jointDef.base.bodyIdA = m_groundId;
-		jointDef.base.localFrameA.p = { 0.0f, 2.0f + radius };
+		jointDef.base.localFrameA.p = { 0.0f, verticalOffset, 0.0f };
 		jointDef.base.drawScale = 0.1f;
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -743,7 +747,7 @@ public:
 
 		for ( int i = 0; i < m_count; ++i )
 		{
-			bodyDef.position = { 0.0f, 2.0f - 2.0f * radius * i };
+			bodyDef.position = { ( 2.0f * i + 1.0f ) * radius, verticalOffset, 0.0f };
 			m_bodyIds[i] = b3CreateBody( m_worldId, &bodyDef );
 
 			if ( m_shapeType == e_sphereShape )
@@ -760,19 +764,16 @@ public:
 			}
 
 			jointDef.base.bodyIdB = m_bodyIds[i];
-			jointDef.base.localFrameB.p = { 0.0f, radius };
+			jointDef.base.localFrameB.p = { -radius, 0.0f, 0.0f };
 			b3CreateSphericalJoint( m_worldId, &jointDef );
 
 			jointDef.base.bodyIdA = m_bodyIds[i];
-			jointDef.base.localFrameA.p = { 0.0f, -radius };
+			jointDef.base.localFrameA.p = { radius, 0.0f, 0.0f };
 		}
 	}
 
 	bool DrawControls() override
 	{
-		float fontSize = ImGui::GetFontSize();
-		ImGui::PushItemWidth( 18.0f * fontSize );
-
 		const char* shapeTypes[] = { "Circle", "Capsule", "Box" };
 		int shapeType = int( m_shapeType );
 		if ( ImGui::Combo( "Shape", &shapeType, shapeTypes, IM_ARRAYSIZE( shapeTypes ) ) )
@@ -781,7 +782,7 @@ public:
 			CreateScene();
 		}
 
-		ImGui::SliderFloat2( "Wind", &m_wind.x, -50.0f, 50.0f, "%.1f" );
+		ImGui::SliderFloat( "Wind", &m_wind.x, -50.0f, 50.0f, "%.1f" );
 		ImGui::SliderFloat( "Drag", &m_drag, 0.0f, 1.0f, "%.2f" );
 		ImGui::SliderFloat( "Lift", &m_lift, 0.0f, 4.0f, "%.2f" );
 		if ( ImGui::SliderInt( "Count", &m_count, 1, m_maxCount, "%d" ) )
@@ -789,15 +790,7 @@ public:
 			CreateScene();
 		}
 
-		ImGui::PopItemWidth();
 		return true;
-	}
-
-	void Render() override
-	{
-		Sample::Render();
-
-		DrawGroundGrid( 20 );
 	}
 
 	void Step() override
@@ -824,7 +817,9 @@ public:
 			b3Vec3 rand = RandomVec3( { -0.3f, -0.3f, -0.3f }, { 0.3f, 0.3f, 0.3f } );
 			m_noise = b3Lerp( m_noise, rand, 0.05f );
 
-			DrawLine( b3Vec3_zero, b3MulSV( 0.2f, wind ), MakeColor( b3_colorFuchsia ) );
+			b3Vec3 p1 = { 0.0f, 0.5f, 0.0f };
+			b3Vec3 p2 = b3MulAdd( p1, 0.2f, wind );
+			DrawArrow( p1, p2, MakeColor( b3_colorFuchsia ) );
 		}
 	}
 

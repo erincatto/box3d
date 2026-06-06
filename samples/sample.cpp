@@ -259,6 +259,12 @@ Sample::Sample( SampleContext* context )
 	m_context = context;
 	m_camera = &m_context->camera;
 
+	if ( m_camera->m_thirdPerson )
+	{
+		sapp_lock_mouse( false );
+		m_camera->m_thirdPerson = false;
+	}
+
 	m_worldId = b3_nullWorldId;
 
 	m_mouseBodyId = {};
