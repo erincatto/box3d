@@ -164,8 +164,7 @@ if(PROJECT_IS_TOP_LEVEL)
 	endif()
 
 	if(BOX3D_DOCS)
-		# todo
-		# add_subdirectory(docs)
+		add_subdirectory(docs)
 	endif()
 endif()
 

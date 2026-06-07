@@ -862,7 +862,7 @@ B3_API void b3Joint_SetTorqueThreshold( b3JointId jointId, float threshold );
 B3_API float b3Joint_GetTorqueThreshold( b3JointId jointId );
 
 /**
- * @defgroup cone_joint Parallel Joint
+ * @defgroup parallel_joint Parallel Joint
  * @brief Functions for the parallel joint.
  * @{
  */
@@ -1051,12 +1051,11 @@ B3_API float b3MotorJoint_GetMaxSpringTorque( b3JointId jointId );
 
 /**@}*/
 
-/**@}*/
 /**
- * @defgroup null_joint Null Joint
- * @brief Functions for the null joint.
+ * @defgroup filter_joint Filter Joint
+ * @brief Functions for the filter joint.
  *
- * The null joint is used to disable collision between two bodies. As a side effect of being a joint, it also
+ * The filter joint is used to disable collision between two bodies. As a side effect of being a joint, it also
  * keeps the two bodies in the same simulation island.
  * @{
  */

@@ -1485,7 +1485,7 @@ B3_API bool b3IntersectRayAndAABB( b3Vec3 lowerBound, b3Vec3 upperBound, b3Vec3 
 /**@}*/
 
 /**
- * @defgroup character
+ * @defgroup character Character Mover
  * Experimental character movement solver
  * @{
  */

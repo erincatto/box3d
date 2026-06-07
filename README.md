@@ -89,7 +89,7 @@ Box3D uses SSE2 and Neon SIMD math to improve performance. This can be disabled 
 
 ## Documentation
 
-- [Manual](https://box2d.org/documentation/)
+The user manual lives in [`docs/`](docs/) and is built with Doxygen. Enable the `BOX3D_DOCS` CMake option and build the `doc` target.
 
 ## Community
 

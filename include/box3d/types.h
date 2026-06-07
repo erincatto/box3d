@@ -678,7 +678,7 @@ B3_API b3FilterJointDef b3DefaultFilterJointDef( void );
 /// Constrains the angle between axis z in body A and axis z in body B
 /// using a spring.
 /// Useful to keep a body upright.
-/// @ingroup cone_joint
+/// @ingroup parallel_joint
 typedef struct b3ParallelJointDef
 {
 	/// Base joint definition
@@ -736,7 +736,7 @@ typedef struct b3PrismaticJointDef
 } b3PrismaticJointDef;
 
 /// Use this to initialize your joint definition
-/// @ingroupd prismatic_joint
+/// @ingroup prismatic_joint
 B3_API b3PrismaticJointDef b3DefaultPrismaticJointDef( void );
 
 /// Revolute joint definition
@@ -1578,5 +1578,3 @@ typedef struct b3DebugDraw
 } b3DebugDraw;
 
 B3_API b3DebugDraw b3DefaultDebugDraw( void );
-
-/**@}*/
