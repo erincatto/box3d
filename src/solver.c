@@ -764,8 +764,11 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		}
 		else if ( island->constraintRemoveCount > 0 )
 		{
-			// body wants to sleep but its island needs splitting first
-			if ( body->sleepTime > taskContext->splitSleepTime )
+			// Body wants to sleep but its island needs splitting first. Track the sleepiest candidate.
+			// Break sleep time ties using the island id to ensure determinism. The cross worker reduction
+			// breaks ties the same way.
+			if ( body->sleepTime > taskContext->splitSleepTime ||
+				 ( body->sleepTime == taskContext->splitSleepTime && body->islandId > taskContext->splitIslandId ) )
 			{
 				// pick the sleepiest candidate
 				taskContext->splitIslandId = body->islandId;
