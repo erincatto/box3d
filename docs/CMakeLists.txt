@@ -34,7 +34,7 @@ set(DOXYGEN_FULL_SIDEBAR NO)
 # No per-page outline panel on the right
 set(DOXYGEN_PAGE_OUTLINE_PANEL NO)
 
-# Dark theme baked by doxygen, extra.css only adds the Box2D accent
+# Dark theme baked by doxygen, extra.css only adds the Box3D accent
 set(DOXYGEN_HTML_COLORSTYLE DARK)
 
 # this tells doxygen to label structs as structs instead of classes
@@ -42,7 +42,7 @@ set(DOXYGEN_OPTIMIZE_OUTPUT_FOR_C YES)
 set(DOXYGEN_WARN_IF_INCOMPLETE_DOC NO)
 
 doxygen_add_docs(doc
-                "${CMAKE_SOURCE_DIR}/include/box2d"
+                "${CMAKE_SOURCE_DIR}/include/box3d"
                 "overview.md"
                 "hello.md"
                 "samples.md"
@@ -53,9 +53,6 @@ doxygen_add_docs(doc
                 "recording.md"
                 "character.md"
                 "reading.md"
-                "questions.md"
-                "migration.md"
-                "release_notes_v310.md"
                 ALL
                 COMMENT "Generate HTML documentation")
                 
