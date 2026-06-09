@@ -17,12 +17,14 @@
  * @{
  */
 
+/// A 2D vector.
 typedef struct b3Vec2
 {
 	float x;
 	float y;
 } b3Vec2;
 
+/// A 3D vector.
 typedef struct b3Vec3
 {
 	float x;
@@ -30,8 +32,8 @@ typedef struct b3Vec3
 	float z;
 } b3Vec3;
 
-/// Cosine and sine pair
-/// This uses a custom implementation designed for cross-platform determinism
+/// Cosine and sine pair.
+/// This uses a custom implementation designed for cross-platform determinism.
 typedef struct b3CosSin
 {
 	/// cosine and sine
@@ -39,29 +41,34 @@ typedef struct b3CosSin
 	float sine;
 } b3CosSin;
 
+/// A quaternion.
 typedef struct b3Quat
 {
 	b3Vec3 v;
 	float s;
 } b3Quat;
 
+/// A rigid transform.
 typedef struct b3Transform
 {
 	b3Vec3 p;
 	b3Quat q;
 } b3Transform;
 
+/// A 3x3 matrix.
 typedef struct b3Matrix3
 {
 	b3Vec3 cx, cy, cz;
 } b3Matrix3;
 
+/// Axis aligned bounding box.
 typedef struct b3AABB
 {
 	b3Vec3 lowerBound;
 	b3Vec3 upperBound;
 } b3AABB;
 
+/// A plane.
 /// separation = dot(normal, point) - offset
 typedef struct b3Plane
 {
@@ -76,8 +83,13 @@ typedef struct b3Plane
  * @{
  */
 
-#define B3_PI 3.141592654f
+/// https://en.wikipedia.org/wiki/Pi
+#define B3_PI 3.14159265359f
+
+/// Convenience macro to convert from degrees to radians.
 #define B3_DEG_TO_RAD 0.01745329251f
+
+/// Convenience macro to convert from radians to degrees.
 #define B3_RAD_TO_DEG 57.2957795131f
 
 /// Minimum scale used for scaling collision meshes, etc.
@@ -104,52 +116,52 @@ static const b3Matrix3 b3Mat3_identity = {
 	{ 0.0f, 0.0f, 1.0f },
 };
 
-/// @return the minimum of two integers
+/// @return the minimum of two integers.
 B3_INLINE int b3MinInt( int a, int b )
 {
 	return a < b ? a : b;
 }
 
-/// @return the maximum of two integers
+/// @return the maximum of two integers.
 B3_INLINE int b3MaxInt( int a, int b )
 {
 	return a > b ? a : b;
 }
 
-/// @return an integer clamped between a lower and upper bound
+/// @return an integer clamped between a lower and upper bound.
 B3_INLINE int b3ClampInt( int a, int lower, int upper )
 {
 	return a < lower ? lower : ( upper < a ? upper : a );
 }
 
-/// Is this float valid (finite and not NaN)
+/// Is this float valid (finite and not NaN).
 B3_API bool b3IsValidFloat( float a );
 
-/// @return the absolute value of a float
+/// @return the absolute value of a float.
 B3_INLINE float b3AbsFloat( float a )
 {
 	return a < 0 ? -a : a;
 }
 
-/// @return the minimum of two floats
+/// @return the minimum of two floats.
 B3_INLINE float b3MinFloat( float a, float b )
 {
 	return a < b ? a : b;
 }
 
-/// @return the maximum of two floats
+/// @return the maximum of two floats.
 B3_INLINE float b3MaxFloat( float a, float b )
 {
 	return a > b ? a : b;
 }
 
-/// @return a float clamped between a lower and upper bound
+/// @return a float clamped between a lower and upper bound.
 B3_INLINE float b3ClampFloat( float a, float lower, float upper )
 {
 	return a < lower ? lower : ( upper < a ? upper : a );
 }
 
-/// Interpolate a scalar
+/// Interpolate a scalar.
 B3_INLINE float b3LerpFloat( float a, float b, float alpha )
 {
 	return ( 1.0f - alpha ) * a + alpha * b;
@@ -158,86 +170,91 @@ B3_INLINE float b3LerpFloat( float a, float b, float alpha )
 /// Compute an approximate arctangent in the range [-pi, pi]
 /// This is hand coded for cross-platform determinism. The atan2f
 /// function in the standard library is not cross-platform deterministic.
-///	Accurate to around 0.0023 degrees
+///	Accurate to around 0.0023 degrees.
 B3_API float b3Atan2( float y, float x );
 
 /// Compute the cosine and sine of an angle in radians. Implemented
 /// for cross-platform determinism.
 B3_API b3CosSin b3ComputeCosSin( float radians );
 
+/// @deprecated 
 B3_INLINE float b3Sin( float radians )
 {
 	b3CosSin cs = b3ComputeCosSin( radians );
 	return cs.sine;
 }
 
+/// @deprecated 
 B3_INLINE float b3Cos( float radians )
 {
 	b3CosSin cs = b3ComputeCosSin( radians );
 	return cs.cosine;
 }
 
-/// Convert any angle into the range [-pi, pi]
+/// Convert any angle into the range [-pi, pi].
 B3_INLINE float b3UnwindAngle( float radians )
 {
 	// Assuming this is deterministic
 	return remainderf( radians, 2.0f * B3_PI );
 }
 
-/// Vector addition
+/// Vector addition.
 B3_INLINE b3Vec3 b3Add( b3Vec3 a, b3Vec3 b )
 {
 	return B3_LITERAL( b3Vec3 ){ a.x + b.x, a.y + b.y, a.z + b.z };
 }
 
-/// Vector subtraction
+/// Vector subtraction.
 B3_INLINE b3Vec3 b3Sub( b3Vec3 a, b3Vec3 b )
 {
 	return B3_LITERAL( b3Vec3 ){ a.x - b.x, a.y - b.y, a.z - b.z };
 }
 
-/// Vector component-wise multiplication
+/// Vector component-wise multiplication.
 B3_INLINE b3Vec3 b3Mul( b3Vec3 a, b3Vec3 b )
 {
 	return B3_LITERAL( b3Vec3 ){ a.x * b.x, a.y * b.y, a.z * b.z };
 }
 
-/// Vector negation
+/// Vector negation.
 B3_INLINE b3Vec3 b3Neg( b3Vec3 a )
 {
 	return B3_LITERAL( b3Vec3 ){ -a.x, -a.y, -a.z };
 }
 
-/// Vector dot product
+/// Vector dot product.
 B3_INLINE float b3Dot( b3Vec3 a, b3Vec3 b )
 {
 	return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-/// Vector length
+/// Vector length.
 B3_INLINE float b3Length( b3Vec3 v )
 {
 	return sqrtf( b3Dot( v, v ) );
 }
 
-/// Vector length squared
+/// Vector length squared.
 B3_INLINE float b3LengthSquared( b3Vec3 a )
 {
 	return a.x * a.x + a.y * a.y + a.z * a.z;
 }
 
-B3_INLINE float b3Distance( b3Vec3 v1, b3Vec3 v2 )
+/// Distance between two points.
+B3_INLINE float b3Distance( b3Vec3 a, b3Vec3 b )
 {
-	b3Vec3 dv = { v2.x - v1.x, v2.y - v1.y, v2.z - v1.z };
+	b3Vec3 dv = { b.x - a.x, b.y - a.y, b.z - a.z };
 	return b3Length( dv );
 }
 
-B3_INLINE float b3DistanceSquared( b3Vec3 v1, b3Vec3 v2 )
+/// Squared distance between two points.
+B3_INLINE float b3DistanceSquared( b3Vec3 a, b3Vec3 b )
 {
-	b3Vec3 dv = { v2.x - v1.x, v2.y - v1.y, v2.z - v1.z };
+	b3Vec3 dv = { b.x - a.x, b.y - a.y, b.z - a.z };
 	return dv.x * dv.x + dv.y * dv.y + dv.z * dv.z;
 }
 
+/// Normalize a vector. Returns a zero vector if the input vector is very small.
 B3_INLINE b3Vec3 b3Normalize( b3Vec3 a )
 {
 	float lengthSquared = a.x * a.x + a.y * a.y + a.z * a.z;
@@ -252,37 +269,41 @@ B3_INLINE b3Vec3 b3Normalize( b3Vec3 a )
 	return B3_LITERAL( b3Vec3 ){ 0.0f, 0.0f, 0.0f };
 }
 
-B3_INLINE b3Vec3 b3GetLengthAndNormalize( float* length, b3Vec3 v )
+/// Normalize a vector and return the length. Returns a zero vector
+/// if the input is very small.
+B3_INLINE b3Vec3 b3GetLengthAndNormalize( float* length, b3Vec3 a )
 {
-	*length = b3Length( v );
+	*length = b3Length( a );
 	if ( *length < FLT_EPSILON )
 	{
 		return b3Vec3_zero;
 	}
 
 	float invLength = 1.0f / *length;
-	b3Vec3 n = { invLength * v.x, invLength * v.y, invLength * v.z };
+	b3Vec3 n = { invLength * a.x, invLength * a.y, invLength * a.z };
 	return n;
 }
 
-B3_INLINE b3Vec3 b3Perp( b3Vec3 v )
+/// Get a unit vector that is perpendicular to the supplied vector.
+B3_INLINE b3Vec3 b3Perp( b3Vec3 a )
 {
 	// Suppose vector a has all equal components and is a unit vector: a = (s, s, s)
 	// Then 3*s*s = 1, s = sqrt(1/3) = 0.57735. This means that at least one component
 	// of a unit vector must be greater or equal to 0.57735.
 	b3Vec3 p;
-	if ( v.x < -0.5f || 0.5f < v.x )
+	if ( a.x < -0.5f || 0.5f < a.x )
 	{
-		p = B3_LITERAL( b3Vec3 ){ v.y, -v.x, 0.0f };
+		p = B3_LITERAL( b3Vec3 ){ a.y, -a.x, 0.0f };
 	}
 	else
 	{
-		p = B3_LITERAL( b3Vec3 ){ 0.0f, v.z, -v.y };
+		p = B3_LITERAL( b3Vec3 ){ 0.0f, a.z, -a.y };
 	}
 
 	return b3Normalize( p );
 }
 
+/// Is a vector normalized? In other words, does it have unit length?
 B3_INLINE bool b3IsNormalized( b3Vec3 a )
 {
 	float aa = b3Dot( a, a );
@@ -307,6 +328,7 @@ B3_INLINE b3Vec3 b3MulSV( float s, b3Vec3 a )
 	return B3_LITERAL( b3Vec3 ){ s * a.x, s * a.y, s * a.z };
 }
 
+/// https://en.wikipedia.org/wiki/Cross_product
 B3_INLINE b3Vec3 b3Cross( b3Vec3 a, b3Vec3 b )
 {
 	b3Vec3 c;
@@ -316,6 +338,7 @@ B3_INLINE b3Vec3 b3Cross( b3Vec3 a, b3Vec3 b )
 	return c;
 }
 
+/// Linearly interpolation between two vectors.
 B3_INLINE b3Vec3 b3Lerp( b3Vec3 a, b3Vec3 b, float alpha )
 {
 	B3_ASSERT( 0.0f <= alpha && alpha <= 1.0f );
@@ -328,6 +351,7 @@ B3_INLINE b3Vec3 b3Lerp( b3Vec3 a, b3Vec3 b, float alpha )
 	return c;
 }
 
+/// Convenience function: s * a + t * b
 B3_INLINE b3Vec3 b3Blend2( float s, b3Vec3 a, float t, b3Vec3 b )
 {
 	b3Vec3 d = {
@@ -338,6 +362,7 @@ B3_INLINE b3Vec3 b3Blend2( float s, b3Vec3 a, float t, b3Vec3 b )
 	return d;
 }
 
+/// Convenience function: s * a + t * b + u * c
 B3_INLINE b3Vec3 b3Blend3( float s, b3Vec3 a, float t, b3Vec3 b, float u, b3Vec3 c )
 {
 	b3Vec3 d = {
@@ -348,6 +373,7 @@ B3_INLINE b3Vec3 b3Blend3( float s, b3Vec3 a, float t, b3Vec3 b, float u, b3Vec3
 	return d;
 }
 
+/// Component-wise absolute value.
 B3_INLINE b3Vec3 b3Abs( b3Vec3 a )
 {
 	return B3_LITERAL( b3Vec3 ){
@@ -357,7 +383,7 @@ B3_INLINE b3Vec3 b3Abs( b3Vec3 a )
 	};
 }
 
-// -1 or 1 (1 if zero)
+// Component-wise -1 or 1 (1 if zero).
 B3_INLINE b3Vec3 b3Sign( b3Vec3 a )
 {
 	return B3_LITERAL( b3Vec3 ){
@@ -367,6 +393,7 @@ B3_INLINE b3Vec3 b3Sign( b3Vec3 a )
 	};
 }
 
+/// Component-wise minimum value.
 B3_INLINE b3Vec3 b3Min( b3Vec3 a, b3Vec3 b )
 {
 	return B3_LITERAL( b3Vec3 ){
@@ -376,6 +403,7 @@ B3_INLINE b3Vec3 b3Min( b3Vec3 a, b3Vec3 b )
 	};
 }
 
+/// Component-wise maximum value.
 B3_INLINE b3Vec3 b3Max( b3Vec3 a, b3Vec3 b )
 {
 	return B3_LITERAL( b3Vec3 ){
@@ -385,6 +413,7 @@ B3_INLINE b3Vec3 b3Max( b3Vec3 a, b3Vec3 b )
 	};
 }
 
+/// Component-wise clamped value.
 B3_INLINE b3Vec3 b3Clamp( b3Vec3 a, b3Vec3 lower, b3Vec3 upper )
 {
 	b3Vec3 b;
@@ -394,8 +423,8 @@ B3_INLINE b3Vec3 b3Clamp( b3Vec3 a, b3Vec3 lower, b3Vec3 upper )
 	return b;
 }
 
-// Create a safe scaling value for scaling collision. This allows
-// negative scale, but keeps scale sufficiently far from zero.
+/// Create a safe scaling value for scaling collision. This allows
+/// negative scale, but keeps scale sufficiently far from zero.
 B3_INLINE b3Vec3 b3SafeScale( b3Vec3 a )
 {
 	b3Vec3 absScale = b3Abs( a );
@@ -404,13 +433,14 @@ B3_INLINE b3Vec3 b3SafeScale( b3Vec3 a )
 	return safeScale;
 }
 
+/// Does the supplied quaternion have unit length?
 B3_INLINE bool b3IsNormalizedQuat( b3Quat q )
 {
 	float qq = q.v.x * q.v.x + q.v.y * q.v.y + q.v.z * q.v.z + q.s * q.s;
 	return 1.0f - 20.0f * FLT_EPSILON < qq && qq < 1.0f + 20.0f * FLT_EPSILON;
 }
 
-/// Rotate a vector
+/// Rotate a vector.
 B3_INLINE b3Vec3 b3RotateVector( b3Quat q, b3Vec3 v )
 {
 	// v + 2 * cross(q.v, cross(q.v, v) + q.s * v)
@@ -421,7 +451,7 @@ B3_INLINE b3Vec3 b3RotateVector( b3Quat q, b3Vec3 v )
 	return b3MulAdd( v, 2.0f, t3 );
 }
 
-/// Inverse rotate a vector
+/// Inverse rotate a vector.
 B3_INLINE b3Vec3 b3InvRotateVector( b3Quat q, b3Vec3 v )
 {
 	// v + 2 * cross(q.v, cross(q.v, v) - q.s * v)
@@ -432,11 +462,13 @@ B3_INLINE b3Vec3 b3InvRotateVector( b3Quat q, b3Vec3 v )
 	return b3MulAdd( v, 2.0f, t3 );
 }
 
+/// Compute dot product of two quaternions. Useful for polarity tests.
 B3_INLINE float b3DotQuat( b3Quat a, b3Quat b )
 {
 	return a.v.x * b.v.x + a.v.y * b.v.y + a.v.z * b.v.z + a.s * b.s;
 }
 
+/// Multiply two quaternions.
 B3_INLINE b3Quat b3MulQuat( b3Quat q1, b3Quat q2 )
 {
 	b3Vec3 t1 = b3Cross( q1.v, q2.v );
@@ -456,11 +488,13 @@ B3_INLINE b3Quat b3InvMulQuat( b3Quat q1, b3Quat q2 )
 	return q;
 }
 
+/// Quaternion conjugate (cheap inverse).
 B3_INLINE b3Quat b3Conjugate( b3Quat q )
 {
 	return B3_LITERAL( b3Quat ){ { -q.v.x, -q.v.y, -q.v.z }, q.s };
 }
 
+/// Component-wise quaternion negation.
 B3_INLINE b3Quat b3NegateQuat( b3Quat q )
 {
 	return B3_LITERAL( b3Quat ){ { -q.v.x, -q.v.y, -q.v.z }, -q.s };

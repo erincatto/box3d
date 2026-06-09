@@ -299,7 +299,7 @@ static void b3BuildTriangleAndCapsuleEdgeContact( b3LocalManifold* manifold, con
 
 	b3ClosestApproachResult result = b3ClosestApproachLines( v1, triangleEdge, p1, capsuleEdge );
 
-	if ( result.lambda1 < 0.0f || 1.0f < result.lambda1 || result.lambda2 < 0.0f || 1.0f < result.lambda2 )
+	if ( result.fraction1 < 0.0f || 1.0f < result.fraction1 || result.fraction2 < 0.0f || 1.0f < result.fraction2 )
 	{
 		// closest point beyond end points
 		return;
@@ -854,7 +854,7 @@ static void b3CollideHullAndTriangleEdges( b3LocalManifold* manifold, int capaci
 	b3ClosestApproachResult result = b3ClosestApproachLines( pA, eA, pB, eB );
 
 	// Is one of the closest points outside of the associated edge segment?
-	if ( capacity == 0 || result.lambda1 < 0.0f || 1.0f < result.lambda1 || result.lambda2 < 0.0f || 1.0f < result.lambda2 )
+	if ( capacity == 0 || result.fraction1 < 0.0f || 1.0f < result.fraction1 || result.fraction2 < 0.0f || 1.0f < result.fraction2 )
 	{
 		// Invalid edge pair, no points generated
 		B3_ASSERT( manifold->pointCount == 0 );

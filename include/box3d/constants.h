@@ -91,6 +91,12 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 #define B3_NAME_LENGTH 18
 #endif
 
+/// The maximum number of contact points between two touching shapes.
+#define B3_MAX_MANIFOLD_POINTS 4
+
+/// The maximum number points to use for shape cast proxies (swept point cloud).
+#define B3_MAX_SHAPE_CAST_POINTS 64
+
 /// These generous limits allow for easy hashing. See b3ShapePairKey.
 #define B3_SHAPE_POWER 22
 #define B3_CHILD_POWER ( 64 - 2 * B3_SHAPE_POWER )

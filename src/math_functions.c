@@ -337,9 +337,9 @@ b3ClosestApproachResult b3ClosestApproachLines( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2,
 		float s2 = 0.0f;
 
 		result.point1 = b3MulAdd( p1, s1, d1 );
-		result.lambda1 = s1;
+		result.fraction1 = s1;
 		result.point2 = b3MulAdd( p2, s2, d2 );
-		result.lambda2 = s2;
+		result.fraction2 = s2;
 
 		return result;
 	}
@@ -348,9 +348,9 @@ b3ClosestApproachResult b3ClosestApproachLines( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2,
 	float s2 = ( a11 * b2 - a21 * b1 ) / det;
 
 	result.point1 = b3MulAdd( p1, s1, d1 );
-	result.lambda1 = s1;
+	result.fraction1 = s1;
 	result.point2 = b3MulAdd( p2, s2, d2 );
-	result.lambda2 = s2;
+	result.fraction2 = s2;
 	return result;
 }
 
@@ -374,9 +374,9 @@ b3ClosestApproachResult b3ClosestApproachSegments( b3Vec3 p1, b3Vec3 q1, b3Vec3 
 	{
 		// Both segments degenerate into points
 		result.point1 = p1;
-		result.lambda1 = 0.0f;
+		result.fraction1 = 0.0f;
 		result.point2 = p2;
-		result.lambda2 = 0.0f;
+		result.fraction2 = 0.0f;
 
 		return result;
 	}
@@ -387,9 +387,9 @@ b3ClosestApproachResult b3ClosestApproachSegments( b3Vec3 p1, b3Vec3 q1, b3Vec3 
 		float s2 = b3ClampFloat( f / e, 0.0f, 1.0f );
 
 		result.point1 = p1;
-		result.lambda1 = 0.0f;
+		result.fraction1 = 0.0f;
 		result.point2 = b3MulAdd( p2, s2, d2 );
-		result.lambda2 = s2;
+		result.fraction2 = s2;
 
 		return result;
 	}
@@ -400,9 +400,9 @@ b3ClosestApproachResult b3ClosestApproachSegments( b3Vec3 p1, b3Vec3 q1, b3Vec3 
 		float s1 = b3ClampFloat( -c / a, 0.0f, 1.0f );
 
 		result.point1 = b3MulAdd( p1, s1, d1 );
-		result.lambda1 = s1;
+		result.fraction1 = s1;
 		result.point2 = p2;
-		result.lambda2 = 0.0f;
+		result.fraction2 = 0.0f;
 
 		return result;
 	}
@@ -425,9 +425,9 @@ b3ClosestApproachResult b3ClosestApproachSegments( b3Vec3 p1, b3Vec3 q1, b3Vec3 
 	}
 
 	result.point1 = b3MulAdd( p1, s1, d1 );
-	result.lambda1 = s1;
+	result.fraction1 = s1;
 	result.point2 = b3MulAdd( p2, s2, d2 );
-	result.lambda2 = s2;
+	result.fraction2 = s2;
 
 	return result;
 }

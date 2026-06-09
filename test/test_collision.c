@@ -9,12 +9,12 @@
 static int AABBTest( void )
 {
 	b3AABB a;
-	a.lowerBound = ( b3Vec3 ){ -1.0f, -1.0f, -1.0f };
-	a.upperBound = ( b3Vec3 ){ -2.0f, -2.0f, -2.0f };
+	a.lowerBound = (b3Vec3){ -1.0f, -1.0f, -1.0f };
+	a.upperBound = (b3Vec3){ -2.0f, -2.0f, -2.0f };
 
 	ENSURE( b3IsValidAABB( a ) == false );
 
-	a.upperBound = ( b3Vec3 ){ 1.0f, 1.0f };
+	a.upperBound = (b3Vec3){ 1.0f, 1.0f };
 	ENSURE( b3IsValidAABB( a ) == true );
 
 	b3AABB b = { { 2.0f, 2.0f }, { 4.0f, 4.0f } };
@@ -28,13 +28,12 @@ static int TestRayAABBIntersection( void )
 {
 	// Test 1: Ray passing through center of AABB
 	{
-		b3Vec3 lowerBound = { -1.0f, -1.0f, -1.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { -1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { -2.0f, 0.0f, 0.0f };
 		b3Vec3 p2 = { 2.0f, 0.0f, 0.0f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == true );
 		ENSURE( b3AbsFloat( minFraction - 0.25f ) < 0.001f ); // Enters at 25% of ray
@@ -43,13 +42,12 @@ static int TestRayAABBIntersection( void )
 
 	// Test 2: Ray starting inside AABB
 	{
-		b3Vec3 lowerBound = { -1.0f, -1.0f, -1.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { -1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { 0.0f, 0.0f, 0.0f };
 		b3Vec3 p2 = { 2.0f, 0.0f, 0.0f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == true );
 		ENSURE( minFraction == 0.0f );						 // Starts inside
@@ -58,13 +56,12 @@ static int TestRayAABBIntersection( void )
 
 	// Test 3: Ray ending inside AABB
 	{
-		b3Vec3 lowerBound = { -1.0f, -1.0f, -1.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { -1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { -2.0f, 0.0f, 0.0f };
 		b3Vec3 p2 = { 0.0f, 0.0f, 0.0f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == true );
 		ENSURE( b3AbsFloat( minFraction - 0.5f ) < 0.001f ); // Enters at 50% of ray
@@ -73,13 +70,12 @@ static int TestRayAABBIntersection( void )
 
 	// Test 4: Ray completely inside AABB
 	{
-		b3Vec3 lowerBound = { -2.0f, -2.0f, -2.0f };
-		b3Vec3 upperBound = { 2.0f, 2.0f, 2.0f };
+		b3AABB a = { { -2.0f, -2.0f, -2.0f }, { 2.0f, 2.0f, 2.0f } };
 		b3Vec3 p1 = { -1.0f, 0.0f, 0.0f };
 		b3Vec3 p2 = { 1.0f, 0.0f, 0.0f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == true );
 		ENSURE( minFraction == 0.0f );
@@ -88,39 +84,36 @@ static int TestRayAABBIntersection( void )
 
 	// Test 5: Ray missing AABB
 	{
-		b3Vec3 lowerBound = { 0.0f, 0.0f, 0.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { -1.0f, 2.0f, 0.5f };
 		b3Vec3 p2 = { 2.0f, 2.0f, 0.5f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == false );
 	}
 
 	// Test 6: Ray parallel to AABB face (no intersection)
 	{
-		b3Vec3 lowerBound = { 0.0f, 0.0f, 0.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { -1.0f, 2.0f, 0.5f };
 		b3Vec3 p2 = { 2.0f, 2.0f, 0.5f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == false );
 	}
 
 	// Test 7: Ray parallel to AABB face (within bounds)
 	{
-		b3Vec3 lowerBound = { 0.0f, 0.0f, 0.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { -1.0f, 0.5f, 0.5f };
 		b3Vec3 p2 = { 2.0f, 0.5f, 0.5f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == true );
 		ENSURE( b3AbsFloat( minFraction - 1.0f / 3.0f ) < 0.001f );
@@ -129,13 +122,12 @@ static int TestRayAABBIntersection( void )
 
 	// Test 8: Degenerate ray (point) inside AABB
 	{
-		b3Vec3 lowerBound = { 0.0f, 0.0f, 0.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { 0.5f, 0.5f, 0.5f };
 		b3Vec3 p2 = { 0.5f, 0.5f, 0.5f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == true );
 		ENSURE( minFraction == 0.0f );
@@ -144,39 +136,36 @@ static int TestRayAABBIntersection( void )
 
 	// Test 9: Degenerate ray (point) outside AABB
 	{
-		b3Vec3 lowerBound = { 0.0f, 0.0f, 0.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { 2.0f, 2.0f, 2.0f };
 		b3Vec3 p2 = { 2.0f, 2.0f, 2.0f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == false );
 	}
 
 	// Test 10: Ray pointing away from AABB
 	{
-		b3Vec3 lowerBound = { 0.0f, 0.0f, 0.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { -1.0f, 0.5f, 0.5f };
 		b3Vec3 p2 = { -2.0f, 0.5f, 0.5f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == false );
 	}
 
 	// Test 11: Ray hitting corner of AABB
 	{
-		b3Vec3 lowerBound = { 0.0f, 0.0f, 0.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { -1.0f, -1.0f, -1.0f };
 		b3Vec3 p2 = { 2.0f, 2.0f, 2.0f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == true );
 		ENSURE( b3AbsFloat( minFraction - 1.0f / 3.0f ) < 0.001f );
@@ -185,13 +174,12 @@ static int TestRayAABBIntersection( void )
 
 	// Test 12: Ray grazing edge of AABB
 	{
-		b3Vec3 lowerBound = { 0.0f, 0.0f, 0.0f };
-		b3Vec3 upperBound = { 1.0f, 1.0f, 1.0f };
+		b3AABB a = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f } };
 		b3Vec3 p1 = { -1.0f, 0.0f, 0.5f };
 		b3Vec3 p2 = { 2.0f, 0.0f, 0.5f };
 		float minFraction, maxFraction;
 
-		bool hit = b3IntersectRayAndAABB( lowerBound, upperBound, p1, p2, &minFraction, &maxFraction );
+		bool hit = b3RayCastAABB( a, p1, p2, &minFraction, &maxFraction );
 
 		ENSURE( hit == true );
 		ENSURE( b3AbsFloat( minFraction - 1.0f / 3.0f ) < 0.001f );

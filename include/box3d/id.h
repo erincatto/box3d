@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 Erin Catto
+// SPDX-FileCopyrightText: 2026 Erin Catto
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -73,13 +73,19 @@ typedef struct b3ContactId
 	uint32_t generation;
 } b3ContactId;
 
+// clang-format off
 #ifdef __cplusplus
+	/// A null id. Works for any id type.
 	#define B3_NULL_ID {}
 	#define B3_ID_INLINE inline
 #else
+	/// A null id. Works for any id type.
 	#define B3_NULL_ID { 0 }
+
+	/// This macro bridges C and C++ inline functions. C++ has the one definition rule that C lacks.
 	#define B3_ID_INLINE static inline
 #endif
+// clang-format on
 
 /// Use these to make your identifiers null.
 /// You may also use zero initialization to get null.

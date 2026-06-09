@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "aabb.h"
 #include "algorithm.h"
 #include "body.h"
 #include "core.h"
@@ -615,8 +616,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 							  b3Add( b3Add( heightField->aabb.upperBound, shapeExtents ), margin ) };
 
 	float minFraction, maxFraction;
-	bool intersects = b3IntersectRayAndAABB( combinedBounds.lowerBound, combinedBounds.upperBound, shapeStart, shapeEnd,
-											 &minFraction, &maxFraction );
+	bool intersects = b3RayCastAABB( combinedBounds, shapeStart, shapeEnd, &minFraction, &maxFraction );
 	if ( intersects == false )
 	{
 		return result;

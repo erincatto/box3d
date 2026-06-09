@@ -45,6 +45,24 @@ typedef struct b3ShapeExtent
 
 b3TrianglePoint b3ClosestPointOnTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, b3Vec3 q );
 
+// The closest points between to segments or infinite lines.
+typedef struct b3ClosestApproachResult
+{
+	b3Vec3 point1;
+	float fraction1;
+	b3Vec3 point2;
+	float fraction2;
+} b3ClosestApproachResult;
+
+// Compute the closest point on the segment a-b to the target q
+b3Vec3 b3ClosestPointOnSegment( b3Vec3 a, b3Vec3 b, b3Vec3 q );
+
+// Compute the closest points on two infinite lines
+b3ClosestApproachResult b3ClosestApproachLines( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2, b3Vec3 d2 );
+
+// Compute the closest points on two line segments
+b3ClosestApproachResult b3ClosestApproachSegments( b3Vec3 p1, b3Vec3 q1, b3Vec3 p2, b3Vec3 q2 );
+
 float b3IntersectSegmentTriangle( b3Vec3 p, b3Vec3 q, b3Vec3 a, b3Vec3 b, b3Vec3 c );
 float b3IntersectSegmentSphere( b3Vec3 p, b3Vec3 q, b3Vec3 c, float r );
 
@@ -61,8 +79,6 @@ b3Matrix3 b3BoxInertia( float mass, b3Vec3 min, b3Vec3 max );
 b3Matrix3 b3Steiner( float mass, b3Vec3 origin );
 int b3GetProxySupport( const b3ShapeProxy* proxy, b3Vec3 axis );
 int b3GetPointSupport( const b3Vec3* points, int count, b3Vec3 axis );
-
-bool b3IntersectRayAndAABB( b3Vec3 lowerBound, b3Vec3 upperBound, b3Vec3 p1, b3Vec3 p2, float* minFraction, float* maxFraction );
 
 static inline size_t b3AlignUp8( size_t x )
 {
@@ -244,7 +260,7 @@ static inline float b3ScalarTripleProduct( b3Vec3 a, b3Vec3 b, b3Vec3 c )
 // Get a value by index. Avoid undefined behavior of code like (&v.x)[2].
 static inline float b3GetByIndex( b3Vec3 v, int index )
 {
-	B3_ASSERT( 0 <= index && index < 3 );
+	B3_VALIDATE( 0 <= index && index < 3 );
 	float temp[3] = { v.x, v.y, v.z };
 	return temp[index];
 }
@@ -430,7 +446,7 @@ static inline float b3SignedVolume( b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, b3Vec3 p )
 // todo eliminate this
 static inline bool b3IsWithinSegments( const b3ClosestApproachResult* result )
 {
-	return ( 0.0f <= result->lambda1 && result->lambda1 <= 1.0f ) && ( 0.0f <= result->lambda2 && result->lambda2 <= 1.0f );
+	return ( 0.0f <= result->fraction1 && result->fraction1 <= 1.0f ) && ( 0.0f <= result->fraction2 && result->fraction2 <= 1.0f );
 }
 
 static inline b3Matrix3 b3RotateInertia( b3Quat q, b3Matrix3 centralInertia )
@@ -445,4 +461,26 @@ static inline b3Matrix3 b3TransformInertia( b3Transform transform, b3Matrix3 cen
 	b3Matrix3 inertia = b3RotateInertia( transform.q, centralInertia );
 	inertia = b3AddMM( inertia, b3Steiner( mass, transform.p ) );
 	return inertia;
+}
+
+// Twist angle around the z-axis, used for twist limit and revolute angle limit
+static inline float b3GetTwistAngle( b3Quat q )
+{
+	// Account for polarity to keep the twist angle in range.
+	// This is simpler than asking the user to check polarity or unwinding.
+	float twist = q.s < 0.0f ? b3Atan2( -q.v.z, -q.s ) : b3Atan2( q.v.z, q.s );
+	twist *= 2.0f;
+	B3_ASSERT( -B3_PI <= twist && twist <= B3_PI );
+	return twist;
+}
+
+// Swing angle used for cone limit
+static inline float b3GetSwingAngle( b3Quat q )
+{
+	// Polarity should not matter because all terms are squared.
+	float x = sqrtf( q.v.z * q.v.z + q.s * q.s );
+	float y = sqrtf( q.v.x * q.v.x + q.v.y * q.v.y );
+	float swing = 2.0f * b3Atan2( y, x );
+	B3_ASSERT( 0.0f <= swing && swing <= B3_PI );
+	return swing;
 }

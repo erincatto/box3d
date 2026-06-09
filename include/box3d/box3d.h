@@ -241,7 +241,7 @@ B3_API void b3World_DumpAwake( b3WorldId worldId );
 /// Dump world to a text file. Meshes are saved to binary b3m files.
 B3_API void b3World_Dump( b3WorldId worldId );
 
-/** @} */
+/** @} */ // world
 
 /**
  * @defgroup body Body
@@ -539,7 +539,7 @@ B3_API bool b3Body_OverlapShape( b3BodyId bodyId, const b3ShapeProxy* proxy, b3Q
 B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, const b3Capsule* mover,
 								b3QueryFilter filter, b3Transform bodyTransform );
 
-/** @} */
+/** @} */ // body
 
 /**
  * @defgroup shape Shape
@@ -775,7 +775,7 @@ B3_API b3Vec3 b3Shape_GetClosestPoint( b3ShapeId shapeId, b3Vec3 target );
 /// @param wake should this wake the body
 B3_API void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift, float maxSpeed, bool wake );
 
-/** @} */
+/** @} */ // shape
 
 /**
  * @defgroup joint Joint
@@ -888,7 +888,8 @@ B3_API void b3ParallelJoint_SetMaxTorque( b3JointId jointId, float force );
 
 /// Get the maximum spring torque, usually in newtons-meters
 B3_API float b3ParallelJoint_GetMaxTorque( b3JointId jointId );
-/** @} */
+
+/** @} */ // parallel_joint
 
 /**
  * @defgroup distance_joint Distance Joint
@@ -971,7 +972,8 @@ B3_API float b3DistanceJoint_GetMaxMotorForce( b3JointId jointId );
 
 /// Get the distance joint current motor force, usually in newtons
 B3_API float b3DistanceJoint_GetMotorForce( b3JointId jointId );
-/** @} */
+
+/** @} */ // distance_joint
 
 /**
  * @defgroup motor_joint Motor Joint
@@ -1049,7 +1051,7 @@ B3_API void b3MotorJoint_SetMaxSpringTorque( b3JointId jointId, float maxTorque 
 /// Get the maximum spring torque in newtons * meters
 B3_API float b3MotorJoint_GetMaxSpringTorque( b3JointId jointId );
 
-/**@}*/
+/**@}*/ // motor_joint
 
 /**
  * @defgroup filter_joint Filter Joint
@@ -1064,7 +1066,7 @@ B3_API float b3MotorJoint_GetMaxSpringTorque( b3JointId jointId );
 /// @see b3FilterJointDef for details
 B3_API b3JointId b3CreateFilterJoint( b3WorldId worldId, const b3FilterJointDef* def );
 
-/**@}*/
+/**@}*/ // filter_joint
 
 /**
  * @defgroup prismatic_joint Prismatic Joint
@@ -1147,7 +1149,7 @@ B3_API float b3PrismaticJoint_GetTranslation( b3JointId jointId );
 /// Get the current joint translation speed, usually in meters per second.
 B3_API float b3PrismaticJoint_GetSpeed( b3JointId jointId );
 
-/** @} */
+/**@}*/ // prismatic_joint
 
 /**
  * @defgroup revolute_joint Revolute Joint
@@ -1226,7 +1228,7 @@ B3_API void b3RevoluteJoint_SetMaxMotorTorque( b3JointId jointId, float torque )
 /// Get the revolute joint maximum motor torque, usually in newton-meters
 B3_API float b3RevoluteJoint_GetMaxMotorTorque( b3JointId jointId );
 
-/**@}*/
+/**@}*/ // revolute_joint
 
 /**
  * @defgroup spherical_joint Spherical Joint
@@ -1318,7 +1320,7 @@ B3_API void b3SphericalJoint_SetMaxMotorTorque( b3JointId jointId, float torque 
 /// Get the spherical joint maximum motor torque, usually in newton-meters
 B3_API float b3SphericalJoint_GetMaxMotorTorque( b3JointId jointId );
 
-/**@}*/
+/**@}*/ // spherical_joint
 
 /**
  * @defgroup weld_joint Weld Joint
@@ -1359,7 +1361,7 @@ B3_API void b3WeldJoint_SetAngularDampingRatio( b3JointId jointId, float damping
 /// Get the weld joint angular damping ratio, non-dimensional
 B3_API float b3WeldJoint_GetAngularDampingRatio( b3JointId jointId );
 
-/** @} */
+/**@}*/ // weld_joint
 
 /**
  * @defgroup wheel_joint Wheel Joint
@@ -1486,9 +1488,9 @@ B3_API float b3WheelJoint_GetSteeringAngle( b3JointId jointId );
 /// Get the current steering torque in N*m
 B3_API float b3WheelJoint_GetSteeringTorque( b3JointId jointId );
 
-/**@}*/
+/**@}*/ // wheel_joint
 
-/**@}*/
+/**@}*/ // joint
 
 /**
  * @defgroup contact Contact
@@ -1502,4 +1504,4 @@ B3_API bool b3Contact_IsValid( b3ContactId id );
 /// Get the manifolds for a contact. The manifold may have no points if the contact is not touching.
 B3_API b3ContactData b3Contact_GetData( b3ContactId contactId );
 
-/**@}*/
+/**@}*/ // contact
