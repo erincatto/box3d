@@ -359,10 +359,10 @@ public:
 
 static int sampleHullReduction = RegisterSample( "Geometry", "Hull Reduction", HullReduction::Create );
 
-class HullScale : public Sample
+class HullTransform : public Sample
 {
 public:
-	explicit HullScale( SampleContext* context )
+	explicit HullTransform( SampleContext* context )
 		: Sample( context )
 	{
 		if ( m_context->restart == false )
@@ -379,7 +379,7 @@ public:
 		m_hull = b3CloneAndTransformHull( m_original, b3Transform_identity, m_scale );
 	}
 
-	~HullScale() override
+	~HullTransform() override
 	{
 		if ( m_original != &m_box.base )
 		{
@@ -474,7 +474,7 @@ public:
 
 	static Sample* Create( SampleContext* sampleContext )
 	{
-		return new HullScale( sampleContext );
+		return new HullTransform( sampleContext );
 	}
 
 	b3BoxHull m_box;
@@ -485,7 +485,7 @@ public:
 	b3Vec3 m_offset;
 };
 
-static int sampleHullScale = RegisterSample( "Geometry", "Hull Scale", HullScale::Create );
+static int sampleHullTransform = RegisterSample( "Geometry", "Hull Transform", HullTransform::Create );
 
 class CapsuleMass : public Sample
 {

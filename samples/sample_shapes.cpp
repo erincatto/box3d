@@ -1032,3 +1032,43 @@ public:
 };
 
 static int sampleWindFlap = RegisterSample( "Shapes", "Wind Flap", WindFlap::Create );
+
+// This tests using hull scale.
+class HullScaleStack : public Sample
+{
+public:
+	explicit HullScaleStack( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 15.0f, 20.0f, 30.0f, { 0.0f, 2.0f, 0.0f } );
+		}
+
+		AddGroundBox( 50.0f );
+
+		float a = 1.0f;
+		b3BoxHull box = b3MakeCubeHull( a );
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = { 0.0f, a, 0.0f };
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		float scale = 1.0f;
+		for ( int row = 0; row < 10; ++row )
+		{
+			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3Hull hull = b3MakeHull( &box.base, scale );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
+			bodyDef.position.y += scale * a;
+			scale *= 0.8f;
+			bodyDef.position.y += scale * a;
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new HullScaleStack( context );
+	}
+};
+
+static int sampleHullScale = RegisterSample( "Shape", "Hull Scale Stack", HullScaleStack::Create );
