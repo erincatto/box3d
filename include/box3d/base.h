@@ -145,7 +145,7 @@ typedef struct b3Version
 	int revision;
 } b3Version;
 
-/// Get the current version of Box2D
+/// Get the current version of Box3D
 B3_API b3Version b3GetVersion( void );
 
 /**@}*/

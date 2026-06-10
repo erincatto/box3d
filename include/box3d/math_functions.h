@@ -312,7 +312,7 @@ B3_INLINE b3Vec3 b3MulSub( b3Vec3 a, float s, b3Vec3 b )
 	return B3_LITERAL( b3Vec3 ){ a.x - s * b.x, a.y - s * b.y, a.z - s * b.z };
 }
 
-/// a + s * b
+/// s * a
 B3_INLINE b3Vec3 b3MulSV( float s, b3Vec3 a )
 {
 	return B3_LITERAL( b3Vec3 ){ s * a.x, s * a.y, s * a.z };
@@ -328,7 +328,7 @@ B3_INLINE b3Vec3 b3Cross( b3Vec3 a, b3Vec3 b )
 	return c;
 }
 
-/// Linearly interpolation between two vectors.
+/// Linearly interpolate between two vectors.
 B3_INLINE b3Vec3 b3Lerp( b3Vec3 a, b3Vec3 b, float alpha )
 {
 	B3_ASSERT( 0.0f <= alpha && alpha <= 1.0f );
@@ -494,7 +494,7 @@ B3_INLINE b3Quat b3NormalizeQuat( b3Quat q )
 	return b3Quat_identity;
 }
 
-/// Make a quaternion that is equivalent to rotating around a axis by a specified angle.
+/// Make a quaternion that is equivalent to rotating around an axis by a specified angle.
 B3_INLINE b3Quat b3MakeQuatFromAxisAngle( b3Vec3 axis, float radians )
 {
 	B3_ASSERT( b3IsNormalized( axis ) );
@@ -528,7 +528,7 @@ B3_INLINE float b3GetQuatAngle( b3Quat q )
 /// Extract a quaternion from a rotation matrix.
 B3_API b3Quat b3MakeQuatFromMatrix( const b3Matrix3* m );
 
-/// Find a quaternion that rotations one vector to another.
+/// Find a quaternion that rotates one vector to another.
 B3_API b3Quat b3ComputeQuatBetweenUnitVectors( b3Vec3 v1, b3Vec3 v2 );
 
 /// Linearly interpolate and normalize between two quaternions
@@ -854,7 +854,7 @@ B3_INLINE bool b3AABB_Overlaps( b3AABB a, b3AABB b )
 	return true;
 }
 
-/// Transform an axis-aligned bounding box. This can create a large box
+/// Transform an axis-aligned bounding box. This can create a larger box
 /// than if you recomputed the AABB of the original shape with the transform
 /// applied.
 B3_INLINE b3AABB b3AABB_Transform( b3Transform transform, b3AABB a )

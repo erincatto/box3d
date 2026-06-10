@@ -9,9 +9,9 @@
 
 /**
  * @defgroup id Ids
- * These ids serve as handles to internal Box2D objects.
+ * These ids serve as handles to internal Box3D objects.
  * These should be considered opaque data and passed by value.
- * Include this header if you need the id types and not the whole Box2D API.
+ * Include this header if you need the id types and not the whole Box3D API.
  * All ids are considered null if initialized to zero.
  *
  * For example in C++:
@@ -29,7 +29,7 @@
  * These are both considered null.
  *
  * @warning Do not use the internals of these ids. They are subject to change. Ids should be treated as opaque objects.
- * @warning You should use ids to access objects in Box2D. Do not access files within the src folder. Such usage is unsupported.
+ * @warning You should use ids to access objects in Box3D. Do not access files within the src folder. Such usage is unsupported.
  * @{
  */
 
@@ -64,7 +64,7 @@ typedef struct b3JointId
 	uint16_t generation;
 } b3JointId;
 
-/// Contact id references a contact instance. This should be treated as an opaque handled.
+/// Contact id references a contact instance. This should be treated as an opaque handle.
 typedef struct b3ContactId
 {
 	int32_t index1;
@@ -156,7 +156,7 @@ B3_ID_INLINE b3JointId b3LoadJointId( uint64_t x )
 	return id;
 }
 
-/// Store a contact id into 16 bytes
+/// Store a contact id into three uint32 values
 B3_ID_INLINE void b3StoreContactId( b3ContactId id, uint32_t values[3] )
 {
 	values[0] = (uint32_t)id.index1;
@@ -164,7 +164,7 @@ B3_ID_INLINE void b3StoreContactId( b3ContactId id, uint32_t values[3] )
 	values[2] = (uint32_t)id.generation;
 }
 
-/// Load a two uint64_t into a contact id.
+/// Load a contact id from three uint32 values.
 B3_ID_INLINE b3ContactId b3LoadContactId( uint32_t values[3] )
 {
 	b3ContactId id;

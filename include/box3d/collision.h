@@ -39,18 +39,18 @@ B3_API void b3DynamicTree_SetCategoryBits( b3DynamicTree* tree, int proxyId, uin
 /// Get the category bits on a proxy.
 B3_API uint64_t b3DynamicTree_GetCategoryBits( b3DynamicTree* tree, int proxyId );
 
-/// Query an AABB for overlapping proxies. The callback class is called for each proxy that overlaps the supplied AABB.
+/// Query an AABB for overlapping proxies. The callback function is called for each proxy that overlaps the supplied AABB.
 ///	@return performance data
 B3_API b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
 										b3TreeQueryCallbackFcn* callback, void* context );
 
-/// Query an AABB for the closest object. The callback class is called for each proxy that might be closest to the supplied point.
+/// Query an AABB for the closest object. The callback function is called for each proxy that might be closest to the supplied point.
 /// @param tree the dynamic tree to query
 /// @param point the query point
 /// @param maskBits nodes are skipped if the bit-wise AND with the node category bits is zero
 /// @param requireAllBits nodes are skipped if the bit-wise AND with the node category bits does not equal the maskBits
 /// @param callback a user provided instance of b3TreeQueryClosestCallbackFcn
-/// @param context a user context object that is provide to the callback
+/// @param context a user context object that is provided to the callback
 /// @param minDistanceSqr the initial and final minimum squared distance. Provide a small initial to restrict the search and
 /// improve performance. If the value is large this query has performance that scales linearly with the number of proxies and
 /// would be slower than a brute force search.
@@ -59,8 +59,8 @@ B3_API b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3
 											   b3TreeQueryClosestCallbackFcn* callback, void* context, float* minDistanceSqr );
 
 /// Ray cast against the proxies in the tree. This relies on the callback
-/// to perform a exact ray cast in the case were the proxy contains a shape.
-/// The callback also performs the any collision filtering. This has performance
+/// to perform an exact ray cast in the case where the proxy contains a shape.
+/// The callback also performs any collision filtering. This has performance
 /// roughly equal to k * log(n), where k is the number of collisions and n is the
 /// number of proxies in the tree.
 /// Bit-wise filtering using mask bits can greatly improve performance in some scenarios.
@@ -69,22 +69,22 @@ B3_API b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3
 /// @param input the ray cast input data. The ray extends from p1 to p1 + maxFraction * (p2 - p1)
 /// @param maskBits bit mask test: `bool accept = (maskBits & node->categoryBits) != 0;`
 /// @param requireAllBits modifies bit mask test: `bool accept = (maskBits & node->categoryBits) == maskBits;`
-/// @param callback a callback class that is called for each proxy that is hit by the ray
+/// @param callback a callback function that is called for each proxy that is hit by the ray
 /// @param context user context that is passed to the callback
 ///	@return performance data
 B3_API b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits,
 										  bool requireAllBits, b3TreeRayCastCallbackFcn* callback, void* context );
 
 /// Ray cast against the proxies in the tree. This relies on the callback
-/// to perform a exact ray cast in the case were the proxy contains a shape.
-/// The callback also performs the any collision filtering. This has performance
+/// to perform an exact ray cast in the case where the proxy contains a shape.
+/// The callback also performs any collision filtering. This has performance
 /// roughly equal to k * log(n), where k is the number of collisions and n is the
 /// number of proxies in the tree.
 /// @param tree the dynamic tree to ray cast
 /// @param input the ray cast input data. The ray extends from p1 to p1 + maxFraction * (p2 - p1).
 /// @param maskBits bit mask test: `bool accept = (maskBits & node->categoryBits) != 0;`
 /// @param requireAllBits modifies bit mask test: `bool accept = (maskBits & node->categoryBits) == maskBits;`
-/// @param callback a callback class that is called for each proxy that is hit by the shape
+/// @param callback a callback function that is called for each proxy that is hit by the shape
 /// @param context user context that is passed to the callback
 ///	@return performance data
 B3_API b3TreeStats b3DynamicTree_ShapeCast( const b3DynamicTree* tree, const b3ShapeCastInput* input, uint64_t maskBits,
@@ -230,8 +230,8 @@ B3_API b3BoxHull b3MakeOffsetBoxHull( float hx, float hy, float hz, b3Vec3 offse
 B3_API b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform transform );
 
 /// This makes a transformed box hull with post scaling. This is useful for boxes that are scaled in
-/// a level editor. Such scaling can have reflection and sheer. In the case of sheer the result
-/// may be approximate. If you need to support sheer consider using b3CreateHull.
+/// a level editor. Such scaling can have reflection and shear. In the case of shear the result
+/// may be approximate. If you need to support shear consider using b3CreateHull.
 /// Do not call b3DestroyHull on this.
 /// @param halfWidths positive half widths
 /// @param transform local transform of box

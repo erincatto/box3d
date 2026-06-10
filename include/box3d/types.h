@@ -84,7 +84,7 @@ typedef bool b3PreSolveFcn( b3ShapeId shapeIdA, b3ShapeId shapeIdB, b3Vec3 point
 
 /// Prototype callback for overlap queries.
 /// Called for each shape found in the query.
-/// @see b3World_QueryAABB
+/// @see b3World_OverlapAABB
 /// @return false to terminate the query.
 /// @ingroup world
 typedef bool b3OverlapResultFcn( b3ShapeId shapeId, void* context );
@@ -289,7 +289,7 @@ typedef struct b3BodyDef
 	/// Angular damping is used to reduce the angular velocity. The damping parameter
 	/// can be larger than 1.0f but the damping effect becomes sensitive to the
 	/// time step when the damping parameter is large.
-	/// Angular damping can be use slow down rotating bodies.
+	/// Angular damping can be used to slow down rotating bodies.
 	float angularDamping;
 
 	/// Scale the gravity applied to this body. Non-dimensional.
@@ -451,7 +451,7 @@ typedef enum b3ShapeType
 /// @ingroup shape
 typedef struct b3ShapeDef
 {
-	/// Optional body name for debugging. Up to 31 characters (excluding null termination)
+	/// Optional body name for debugging. Up to B3_NAME_LENGTH characters (including null termination)
 	const char* name;
 
 	/// Use this to store application specific shape data.
@@ -466,7 +466,7 @@ typedef struct b3ShapeDef
 	/// The base surface material. Ignored for compound shapes.
 	b3SurfaceMaterial baseMaterial;
 
-	/// The density, usually in kg/m^2.
+	/// The density, usually in kg/m^3.
 	float density;
 
 	/// Explosion scale for b3World_Explode. non-dimensional
@@ -658,7 +658,7 @@ typedef struct b3DistanceJointDef
 	/// The lower spring force controls how much tension it can sustain
 	float lowerSpringForce;
 
-	/// The upper spring force controls how much compression it an sustain
+	/// The upper spring force controls how much compression it can sustain
 	float upperSpringForce;
 
 	/// The spring linear stiffness Hertz, cycles per second
@@ -936,7 +936,7 @@ B3_API b3WeldJointDef b3DefaultWeldJointDef( void );
 /// Wheel joint definition
 /// Body A is the chassis and body B is the wheel.
 /// The wheel rotates around the local z-axis in frame B.
-/// The wheel translations along the local x-axis in frame A.
+/// The wheel translates along the local x-axis in frame A.
 /// The wheel can optionally steer along the x-axis in frame A.
 /// @ingroup wheel_joint
 typedef struct b3WheelJointDef
@@ -1098,8 +1098,8 @@ typedef struct b3ContactBeginTouchEvent
 	/// Id of the second shape
 	b3ShapeId shapeIdB;
 
-	/// The transient contact id. This contact maybe destroyed automatically when the world is modified or simulated.
-	/// Used b3Contact_IsValid before using this id.
+	/// The transient contact id. This contact may be destroyed automatically when the world is modified or simulated.
+	/// Use b3Contact_IsValid before using this id.
 	b3ContactId contactId;
 } b3ContactBeginTouchEvent;
 
@@ -1210,7 +1210,7 @@ typedef struct b3BodyMoveEvent
 
 /// Body events are buffered in the world and are available
 ///	as event arrays after the time step is complete.
-///	Note: this date becomes invalid if bodies are destroyed
+///	Note: this data becomes invalid if bodies are destroyed
 typedef struct b3BodyEvents
 {
 	/// Array of move events
@@ -1611,7 +1611,7 @@ typedef struct b3TOIOutput
 	/// Total number of root iterations
 	int rootIterations;
 
-	/// Indicates the that time of impact detected initial
+	/// Indicates that the time of impact detected initial
 	/// overlap and used a fallback sphere as a last ditch effort
 	/// to prevent tunneling.
 	bool usedFallback;
@@ -1623,9 +1623,9 @@ typedef struct b3TOIOutput
  * @defgroup tree Dynamic Tree
  * The dynamic tree is a binary AABB tree to organize and query large numbers of geometric objects
  *
- * Box2D uses the dynamic tree internally to sort collision shapes into a binary bounding volume hierarchy.
+ * Box3D uses the dynamic tree internally to sort collision shapes into a binary bounding volume hierarchy.
  * This data structure may have uses in games for organizing other geometry data and may be used independently
- * of Box2D rigid body simulation.
+ * of Box3D rigid body simulation.
  *
  * A dynamic AABB tree broad-phase, inspired by Nathanael Presson's btDbvt.
  * A dynamic tree arranges data in a binary tree to accelerate
@@ -1767,7 +1767,7 @@ typedef float b3TreeRayCastCallbackFcn( const b3RayCastInput* input, int proxyId
 /**@}*/ // tree
 
 /**
- * @defgroup mover Character Mover
+ * @defgroup character Character Mover
  * Character movement solver
  * @{
  */
@@ -1898,7 +1898,7 @@ typedef struct b3Capsule
  * @{
  */
 
-/// A hull vertex. Identified by the a half-edge with this
+/// A hull vertex. Identified by a half-edge with this
 /// vertex as its tail.
 typedef struct b3HullVertex
 {
@@ -1954,7 +1954,7 @@ typedef struct b3Hull
 	/// Surface area, typically in squared meters.
 	float surfaceArea;
 
-	/// Volume, typical in m^3.
+	/// Volume, typically in m^3.
 	float volume;
 
 	/// The radius of the largest sphere at the center.
@@ -2365,13 +2365,13 @@ typedef struct b3CompoundDef
 #define B3_COMPOUND_VERSION ( 0x902AC5D34D9BD452ull ^ B3_DYNAMIC_TREE_VERSION ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
 
 /// Meshes used in compounds have limited space for materials. If you have
-/// a mesh with many materials, you can use it outside of the the compound.
+/// a mesh with many materials, you can use it outside of the compound.
 #define B3_MAX_COMPOUND_MESH_MATERIALS 4
 
 /// The runtime data for a compound shape. This is a potentially large yet highly optimized
 /// data structure. It can contain thousands of child shapes, yet at runtime it populates
-/// into the world as a single shapes in the runtime broad-phase.
-/// This data structure is has data living off the end and must be accessed using offsets.
+/// into the world as a single shape in the runtime broad-phase.
+/// This data structure has data living off the end and must be accessed using offsets.
 /// Accessors are provided for user relevant data.
 typedef struct b3Compound
 {
@@ -2550,7 +2550,7 @@ typedef struct b3ManifoldPoint
 	/// Triangle index if one of the shapes is a mesh or height field
 	int triangleIndex;
 
-	/// Did this contact point exist the previous step?
+	/// Did this contact point exist in the previous step?
 	bool persisted;
 } b3ManifoldPoint;
 
@@ -2561,7 +2561,7 @@ typedef struct b3Manifold
 	/// The manifold points. There may be 1 to 4 valid points.
 	b3ManifoldPoint points[B3_MAX_MANIFOLD_POINTS];
 
-	/// The unit normal vector in world space, points from shape A to bodyB
+	/// The unit normal vector in world space, points from shape A to shape B
 	b3Vec3 normal;
 
 	/// Central friction angular impulse (applied about the normal)
@@ -2573,7 +2573,7 @@ typedef struct b3Manifold
 	/// Rolling resistance angular impulse
 	b3Vec3 rollingImpulse;
 
-	/// The number of contacts points, will be 0, 1, or 2
+	/// The number of contact points, will be 0 to 4
 	int pointCount;
 
 } b3Manifold;
@@ -2904,7 +2904,7 @@ typedef struct b3DebugShape
 	};
 } b3DebugShape;
 
-/// This struct use passed to b3World_Draw to draw a debug view of the simulation world.
+/// This struct is passed to b3World_Draw to draw a debug view of the simulation world.
 typedef struct b3DebugDraw
 {
 	/// Draws a shape and returns true if drawing should continue

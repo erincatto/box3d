@@ -16,13 +16,13 @@
  * These functions allow you to create a simulation world.
  *
  * You can add rigid bodies and joint constraints to the world and run the simulation. You can get contact
- * information to get contact points and normals as well as events. You can query to world, checking for overlaps and casting rays
+ * information to get contact points and normals as well as events. You can query the world, checking for overlaps and casting rays
  * or shapes. There is also debugging information such as debug draw, timing information, and counters. You can find documentation
  * here: https://box2d.org/
  * @{
  */
 
-/// Create a world for rigid body simulation. A world contains bodies, shapes, and constraints. You make create
+/// Create a world for rigid body simulation. A world contains bodies, shapes, and constraints. You may create
 /// up to 128 worlds. Each world is completely independent and may be simulated in parallel.
 /// @return the world id.
 B3_API b3WorldId b3CreateWorld( const b3WorldDef* def );
@@ -48,7 +48,7 @@ B3_API void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount );
 /// Call this to draw shapes and other debug draw data
 B3_API void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits );
 
-/// Get the worlds bounds. This is the bounding box that covers the current simulation. May have a small
+/// Get the world's bounds. This is the bounding box that covers the current simulation. May have a small
 /// amount of padding.
 B3_API b3AABB b3World_GetBounds( b3WorldId worldId );
 
@@ -134,7 +134,7 @@ B3_API bool b3World_IsContinuousEnabled( b3WorldId worldId );
 /// @see b3WorldDef
 B3_API void b3World_SetRestitutionThreshold( b3WorldId worldId, float value );
 
-/// Get the the restitution speed threshold. Usually in meters per second.
+/// Get the restitution speed threshold. Usually in meters per second.
 B3_API float b3World_GetRestitutionThreshold( b3WorldId worldId );
 
 /// Adjust the hit event threshold. This controls the collision speed needed to generate a b3ContactHitEvent.
@@ -142,7 +142,7 @@ B3_API float b3World_GetRestitutionThreshold( b3WorldId worldId );
 /// @see b3WorldDef::hitEventThreshold
 B3_API void b3World_SetHitEventThreshold( b3WorldId worldId, float value );
 
-/// Get the the hit event speed threshold. Usually in meters per second.
+/// Get the hit event speed threshold. Usually in meters per second.
 B3_API float b3World_GetHitEventThreshold( b3WorldId worldId );
 
 /// Register the custom filter callback. This is optional.
@@ -151,7 +151,7 @@ B3_API void b3World_SetCustomFilterCallback( b3WorldId worldId, b3CustomFilterFc
 /// Register the pre-solve callback. This is optional.
 B3_API void b3World_SetPreSolveCallback( b3WorldId worldId, b3PreSolveFcn* fcn, void* context );
 
-/// Set the gravity vector for the entire world. Box2D has no concept of an up direction and this
+/// Set the gravity vector for the entire world. Box3D has no concept of an up direction and this
 /// is left as a decision for the application. Usually in m/s^2.
 /// @see b3WorldDef
 B3_API void b3World_SetGravity( b3WorldId worldId, b3Vec3 gravity );
@@ -186,7 +186,7 @@ B3_API void b3World_SetMaximumLinearSpeed( b3WorldId worldId, float maximumLinea
 B3_API float b3World_GetMaximumLinearSpeed( b3WorldId worldId );
 
 /// Enable/disable constraint warm starting. Advanced feature for testing. Disabling
-/// sleeping greatly reduces stability and provides no performance gain.
+/// warm starting greatly reduces stability and provides no performance gain.
 B3_API void b3World_EnableWarmStarting( b3WorldId worldId, bool flag );
 
 /// Is constraint warm starting enabled?
@@ -216,7 +216,7 @@ B3_API void b3World_SetFrictionCallback( b3WorldId worldId, b3FrictionCallback* 
 /// Set the restitution callback. Passing NULL resets to default.
 B3_API void b3World_SetRestitutionCallback( b3WorldId worldId, b3RestitutionCallback* callback );
 
-/// Set the worker count. Must be between in the range [1, B3_MAX_WORKERS]
+/// Set the worker count. Must be in the range [1, B3_MAX_WORKERS]
 B3_API void b3World_SetWorkerCount( b3WorldId worldId, int count );
 
 /// Get the worker count.
@@ -273,7 +273,7 @@ B3_API b3BodyType b3Body_GetType( b3BodyId bodyId );
 /// properties regardless of the automatic mass setting.
 B3_API void b3Body_SetType( b3BodyId bodyId, b3BodyType type );
 
-/// Set the body name. Up to 31 characters excluding 0 termination.
+/// Set the body name. Up to B3_NAME_LENGTH characters including null termination.
 B3_API void b3Body_SetName( b3BodyId bodyId, const char* name );
 
 /// Get the body name.
@@ -288,14 +288,14 @@ B3_API void* b3Body_GetUserData( b3BodyId bodyId );
 /// Get the world position of a body. This is the location of the body origin.
 B3_API b3Vec3 b3Body_GetPosition( b3BodyId bodyId );
 
-/// Get the world rotation of a body as a cosine/sine pair (complex number)
+/// Get the world rotation of a body as a quaternion
 B3_API b3Quat b3Body_GetRotation( b3BodyId bodyId );
 
 /// Get the world transform of a body.
 B3_API b3Transform b3Body_GetTransform( b3BodyId bodyId );
 
 /// Set the world transform of a body. This acts as a teleport and is fairly expensive.
-/// @note Generally you should create a body with then intended transform.
+/// @note Generally you should create a body with the intended transform.
 /// @see b3BodyDef::position and b3BodyDef::rotation
 B3_API void b3Body_SetTransform( b3BodyId bodyId, b3Vec3 position, b3Quat rotation );
 
@@ -414,7 +414,7 @@ B3_API void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData );
 /// Get the mass data for a body
 B3_API b3MassData b3Body_GetMassData( b3BodyId bodyId );
 
-/// This update the mass properties to the sum of the mass properties of the shapes.
+/// This updates the mass properties to the sum of the mass properties of the shapes.
 /// This normally does not need to be called unless you called SetMassData to override
 /// the mass and you later want to reset the mass.
 /// You may also use this when automatic mass computation has been disabled.
@@ -603,10 +603,10 @@ B3_API b3BodyId b3Shape_GetBody( b3ShapeId shapeId );
 /// Get the world that owns this shape
 B3_API b3WorldId b3Shape_GetWorld( b3ShapeId shapeId );
 
-/// Returns true If the shape is a sensor
+/// Returns true if the shape is a sensor
 B3_API bool b3Shape_IsSensor( b3ShapeId shapeId );
 
-/// Set the shape name. Up to 31 characters excluding 0 termination.
+/// Set the shape name. Up to B3_NAME_LENGTH characters including null termination.
 B3_API void b3Shape_SetName( b3ShapeId shapeId, const char* name );
 
 /// Get the shape name.
@@ -619,12 +619,12 @@ B3_API void b3Shape_SetUserData( b3ShapeId shapeId, void* userData );
 /// from an event or query.
 B3_API void* b3Shape_GetUserData( b3ShapeId shapeId );
 
-/// Set the mass density of a shape, usually in kg/m^2.
+/// Set the mass density of a shape, usually in kg/m^3.
 /// This will optionally update the mass properties on the parent body.
 /// @see b3ShapeDef::density, b3Body_ApplyMassFromShapes
 B3_API void b3Shape_SetDensity( b3ShapeId shapeId, float density, bool updateBodyMass );
 
-/// Get the density of a shape, usually in kg/m^2
+/// Get the density of a shape, usually in kg/m^3
 B3_API float b3Shape_GetDensity( b3ShapeId shapeId );
 
 /// Set the friction on a shape
@@ -837,7 +837,7 @@ B3_API b3Vec3 b3Joint_GetConstraintTorque( b3JointId jointId );
 /// Get the current linear separation error for this joint. Does not consider admissible movement. Usually in meters.
 B3_API float b3Joint_GetLinearSeparation( b3JointId jointId );
 
-/// Get the current angular separation error for this joint. Does not consider admissible movement. Usually in meters.
+/// Get the current angular separation error for this joint. Does not consider admissible movement. Usually in radians.
 B3_API float b3Joint_GetAngularSeparation( b3JointId jointId );
 
 /// Set the joint constraint tuning. Advanced feature.
@@ -883,10 +883,10 @@ B3_API float b3ParallelJoint_GetSpringHertz( b3JointId jointId );
 /// Get the spring damping ratio
 B3_API float b3ParallelJoint_GetSpringDampingRatio( b3JointId jointId );
 
-/// Set the maximum spring torque, usually in newtons-meters
+/// Set the maximum spring torque, usually in newton-meters
 B3_API void b3ParallelJoint_SetMaxTorque( b3JointId jointId, float force );
 
-/// Get the maximum spring torque, usually in newtons-meters
+/// Get the maximum spring torque, usually in newton-meters
 B3_API float b3ParallelJoint_GetMaxTorque( b3JointId jointId );
 
 /** @} */ // parallel_joint
@@ -1153,7 +1153,7 @@ B3_API float b3PrismaticJoint_GetSpeed( b3JointId jointId );
 
 /**
  * @defgroup revolute_joint Revolute Joint
- * @brief A revolute joint allows for relative rotation in the 2D plane with no relative translation.
+ * @brief A revolute joint allows for relative rotation about a single axis with no relative translation.
  *
  * The revolute joint is probably the most common joint. It can be used for ragdolls and chains.
  * Also called a *hinge* or *pin* joint.
@@ -1167,7 +1167,7 @@ B3_API b3JointId b3CreateRevoluteJoint( b3WorldId worldId, const b3RevoluteJoint
 /// Enable/disable the revolute joint spring
 B3_API void b3RevoluteJoint_EnableSpring( b3JointId jointId, bool enableSpring );
 
-/// It the revolute angular spring enabled?
+/// Is the revolute angular spring enabled?
 B3_API bool b3RevoluteJoint_IsSpringEnabled( b3JointId jointId );
 
 /// Set the revolute joint spring stiffness in Hertz
@@ -1238,8 +1238,8 @@ B3_API float b3RevoluteJoint_GetMaxMotorTorque( b3JointId jointId );
  * @{
  */
 
-/// Create a revolute joint
-/// @see b3RevoluteJointDef for details
+/// Create a spherical joint
+/// @see b3SphericalJointDef for details
 B3_API b3JointId b3CreateSphericalJoint( b3WorldId worldId, const b3SphericalJointDef* def );
 
 /// Enable/disable the spherical joint cone limit
@@ -1278,7 +1278,7 @@ B3_API float b3SphericalJoint_GetTwistAngle( b3JointId jointId );
 /// Enable/disable the spherical joint spring
 B3_API void b3SphericalJoint_EnableSpring( b3JointId jointId, bool enableSpring );
 
-/// It the spherical angular spring enabled?
+/// Is the spherical angular spring enabled?
 B3_API bool b3SphericalJoint_IsSpringEnabled( b3JointId jointId );
 
 /// Set the spherical joint spring stiffness in Hertz
@@ -1373,62 +1373,65 @@ B3_API float b3WeldJoint_GetAngularDampingRatio( b3JointId jointId );
  * @{
  */
 
-/// Create a wheel joint
-/// @see b3WheelJointDef for details
+/// Create a wheel joint.
+/// @see b3WheelJointDef for details.
 B3_API b3JointId b3CreateWheelJoint( b3WorldId worldId, const b3WheelJointDef* def );
 
-/// Enable/disable the wheel joint spring
+/// Enable/disable the wheel joint spring.
 B3_API void b3WheelJoint_EnableSuspension( b3JointId jointId, bool flag );
 
 /// Is the wheel joint spring enabled?
 B3_API bool b3WheelJoint_IsSuspensionEnabled( b3JointId jointId );
 
-/// Set the wheel joint stiffness in Hertz
+/// Set the wheel joint stiffness in Hertz.
 B3_API void b3WheelJoint_SetSuspensionHertz( b3JointId jointId, float hertz );
 
-/// Get the wheel joint stiffness in Hertz
+/// Get the wheel joint stiffness in Hertz.
 B3_API float b3WheelJoint_GetSuspensionHertz( b3JointId jointId );
 
-/// Set the wheel joint damping ratio, non-dimensional
+/// Set the wheel joint damping ratio, non-dimensional.
 B3_API void b3WheelJoint_SetSuspensionDampingRatio( b3JointId jointId, float dampingRatio );
 
-/// Get the wheel joint damping ratio, non-dimensional
+/// Get the wheel joint damping ratio, non-dimensional.
 B3_API float b3WheelJoint_GetSuspensionDampingRatio( b3JointId jointId );
 
-/// Enable/disable the wheel joint limit
+/// Enable/disable the wheel joint limit.
 B3_API void b3WheelJoint_EnableSuspensionLimit( b3JointId jointId, bool flag );
 
 /// Is the wheel joint limit enabled?
 B3_API bool b3WheelJoint_IsSuspensionLimitEnabled( b3JointId jointId );
 
-/// Get the wheel joint lower limit
+/// Get the wheel joint lower limit.
 B3_API float b3WheelJoint_GetLowerSuspensionLimit( b3JointId jointId );
 
-/// Get the wheel joint upper limit
+/// Get the wheel joint upper limit.
 B3_API float b3WheelJoint_GetUpperSuspensionLimit( b3JointId jointId );
 
-/// Set the wheel joint limits
+/// Set the wheel joint limits.
 B3_API void b3WheelJoint_SetSuspensionLimits( b3JointId jointId, float lower, float upper );
 
-/// Enable/disable the wheel joint motor
+/// Enable/disable the wheel joint motor.
 B3_API void b3WheelJoint_EnableSpinMotor( b3JointId jointId, bool flag );
 
 /// Is the wheel joint motor enabled?
 B3_API bool b3WheelJoint_IsSpinMotorEnabled( b3JointId jointId );
 
-/// Set the wheel joint motor speed in radians per second
+/// Set the wheel joint motor speed in radians per second.
 B3_API void b3WheelJoint_SetSpinMotorSpeed( b3JointId jointId, float speed );
 
-/// Get the wheel joint motor speed in radians per second
+/// Get the wheel joint motor speed in radians per second.
 B3_API float b3WheelJoint_GetSpinMotorSpeed( b3JointId jointId );
 
-/// Set the wheel joint maximum motor torque, usually in newton-meters
+/// Set the wheel joint maximum motor torque, usually in newton-meters.
 B3_API void b3WheelJoint_SetMaxSpinTorque( b3JointId jointId, float torque );
 
-/// Get the wheel joint maximum motor torque, usually in newton-meters
+/// Get the wheel joint maximum motor torque, usually in newton-meters.
 B3_API float b3WheelJoint_GetMaxSpinTorque( b3JointId jointId );
 
-/// Get the wheel joint current motor torque, usually in newton-meters
+/// Get the current spin speed in radians per second.
+B3_API float b3WheelJoint_GetSpinSpeed( b3JointId jointId );
+
+/// Get the wheel joint current motor torque, usually in newton-meters.
 B3_API float b3WheelJoint_GetSpinTorque( b3JointId jointId );
 
 /// Enable/disable wheel steering. Steering allows the wheel to rotate about the suspension axis.
@@ -1437,16 +1440,16 @@ B3_API void b3WheelJoint_EnableSteering( b3JointId jointId, bool flag );
 /// Can the wheel steer?
 B3_API bool b3WheelJoint_IsSteeringEnabled( b3JointId jointId );
 
-/// Set the wheel joint steering stiffness in Hertz
+/// Set the wheel joint steering stiffness in Hertz.
 B3_API void b3WheelJoint_SetSteeringHertz( b3JointId jointId, float hertz );
 
-/// Get the wheel joint steering stiffness in Hertz
+/// Get the wheel joint steering stiffness in Hertz.
 B3_API float b3WheelJoint_GetSteeringHertz( b3JointId jointId );
 
-/// Set the wheel joint steering damping ratio, non-dimensional
+/// Set the wheel joint steering damping ratio, non-dimensional.
 B3_API void b3WheelJoint_SetSteeringDampingRatio( b3JointId jointId, float dampingRatio );
 
-/// Get the wheel joint steering damping ratio, non-dimensional
+/// Get the wheel joint steering damping ratio, non-dimensional.
 B3_API float b3WheelJoint_GetSteeringDampingRatio( b3JointId jointId );
 
 /// Set the wheel joint maximum steering torque in N*m.
@@ -1455,37 +1458,31 @@ B3_API void b3WheelJoint_SetMaxSteeringTorque( b3JointId jointId, float torque )
 /// Get the wheel joint maximum steering torque in N*m.
 B3_API float b3WheelJoint_GetMaxSteeringTorque( b3JointId jointId );
 
-/// Enable/disable the wheel joint steering limit
+/// Enable/disable the wheel joint steering limit.
 B3_API void b3WheelJoint_EnableSteeringLimit( b3JointId jointId, bool flag );
 
 /// Is the wheel joint steering limit enabled?
 B3_API bool b3WheelJoint_IsSteeringLimitEnabled( b3JointId jointId );
 
-/// Get the wheel joint lower steering limit in radians
+/// Get the wheel joint lower steering limit in radians.
 B3_API float b3WheelJoint_GetLowerSteeringLimit( b3JointId jointId );
 
-/// Get the wheel joint upper steering limit in radians
+/// Get the wheel joint upper steering limit in radians.
 B3_API float b3WheelJoint_GetUpperSteeringLimit( b3JointId jointId );
 
-/// Set the wheel joint steering limits in radians
+/// Set the wheel joint steering limits in radians.
 B3_API void b3WheelJoint_SetSteeringLimits( b3JointId jointId, float lowerRadians, float upperRadians );
 
-/// Set the wheel joint target steering angle in radians
+/// Set the wheel joint target steering angle in radians.
 B3_API void b3WheelJoint_SetTargetSteeringAngle( b3JointId jointId, float radians );
 
-/// Get the wheel joint target steering angle in radians
+/// Get the wheel joint target steering angle in radians.
 B3_API float b3WheelJoint_GetTargetSteeringAngle( b3JointId jointId );
 
-/// Get the current spin speed in radians per second
-B3_API float b3WheelJoint_GetSpinSpeed( b3JointId jointId );
-
-/// Get the current spin torque in N*m
-B3_API float b3WheelJoint_GetSpinTorque( b3JointId jointId );
-
-/// Get the current steering angle in radians
+/// Get the current steering angle in radians.
 B3_API float b3WheelJoint_GetSteeringAngle( b3JointId jointId );
 
-/// Get the current steering torque in N*m
+/// Get the current steering torque in N*m.
 B3_API float b3WheelJoint_GetSteeringTorque( b3JointId jointId );
 
 /**@}*/ // wheel_joint

@@ -5,10 +5,10 @@
 
 #include "base.h"
 
-/// Box2D bases all length units on meters, but you may need different units for your game.
+/// Box3D bases all length units on meters, but you may need different units for your game.
 /// You can set this value to use different units. This should be done at application startup
 /// and only modified once. Default value is 1.
-/// @warning This must be modified before any calls to Box2D
+/// @warning This must be modified before any calls to Box3D
 B3_API void b3SetLengthUnitsPerMeter( float lengthUnits );
 
 /// Get the current length units per meter.
@@ -21,7 +21,7 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 /// Maximum parallel workers. Used for some fixed size arrays.
 #define B3_MAX_WORKERS 32
 
-/// Maximum number of tasks queued per world step. b2EnqueueTaskCallback will never be called
+/// Maximum number of tasks queued per world step. b3EnqueueTaskCallback will never be called
 /// more than this per world step. This is related to B3_MAX_WORKERS. With 32 workers,
 /// the maximum observed task count is 130. This allows an external task system to use a fixed
 /// size array for Box3D task, which may help with creating stable user task pointers.
@@ -55,7 +55,7 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 
 /// The maximum rotation of a body per time step. This limit is very large and is used
 /// to prevent numerical problems. You shouldn't need to adjust this.
-/// @warning increasing this to 0.5f * b3_pi or greater will break continuous collision.
+/// @warning increasing this to 0.5f * B3_PI or greater will break continuous collision.
 #define B3_MAX_ROTATION ( 0.25f * B3_PI )
 
 /// @warning modifying this can have a significant impact on performance and stability
