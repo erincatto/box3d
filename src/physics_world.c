@@ -2224,40 +2224,133 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 		return;
 	}
 
+	int total = 0;
+
 	// id pools
+	int bodyIdBytes = b3GetIdBytes( &world->bodyIdPool );
+	int solverSetIdBytes = b3GetIdBytes( &world->solverSetIdPool );
+	int jointIdBytes = b3GetIdBytes( &world->jointIdPool );
+	int contactIdBytes = b3GetIdBytes( &world->contactIdPool );
+	int islandIdBytes = b3GetIdBytes( &world->islandIdPool );
+	int shapeIdBytes = b3GetIdBytes( &world->shapeIdPool );
+	total += bodyIdBytes + solverSetIdBytes + jointIdBytes + contactIdBytes + islandIdBytes + shapeIdBytes;
+
 	fprintf( file, "id pools\n" );
-	fprintf( file, "body ids: %d\n", b3GetIdBytes( &world->bodyIdPool ) );
-	fprintf( file, "solver set ids: %d\n", b3GetIdBytes( &world->solverSetIdPool ) );
-	fprintf( file, "joint ids: %d\n", b3GetIdBytes( &world->jointIdPool ) );
-	fprintf( file, "contact ids: %d\n", b3GetIdBytes( &world->contactIdPool ) );
-	fprintf( file, "island ids: %d\n", b3GetIdBytes( &world->islandIdPool ) );
-	fprintf( file, "shape ids: %d\n", b3GetIdBytes( &world->shapeIdPool ) );
+	fprintf( file, "body ids: %d\n", bodyIdBytes );
+	fprintf( file, "solver set ids: %d\n", solverSetIdBytes );
+	fprintf( file, "joint ids: %d\n", jointIdBytes );
+	fprintf( file, "contact ids: %d\n", contactIdBytes );
+	fprintf( file, "island ids: %d\n", islandIdBytes );
+	fprintf( file, "shape ids: %d\n", shapeIdBytes );
 	fprintf( file, "\n" );
 
+	// Islands own per-island body/contact/joint link arrays
+	int islandLinkBytes = 0;
+	for ( int i = 0; i < world->islands.count; ++i )
+	{
+		b3Island* island = world->islands.data + i;
+		islandLinkBytes += b3Array_ByteCount( island->bodies );
+		islandLinkBytes += b3Array_ByteCount( island->contacts );
+		islandLinkBytes += b3Array_ByteCount( island->joints );
+	}
+
 	// world arrays
+	int bodyArrayBytes = b3Array_ByteCount( world->bodies );
+	int solverSetArrayBytes = b3Array_ByteCount( world->solverSets );
+	int jointArrayBytes = b3Array_ByteCount( world->joints );
+	int contactArrayBytes = b3Array_ByteCount( world->contacts );
+	int islandArrayBytes = b3Array_ByteCount( world->islands );
+	int shapeArrayBytes = b3Array_ByteCount( world->shapes );
+	int sensorArrayBytes = b3Array_ByteCount( world->sensors );
+	total += bodyArrayBytes + solverSetArrayBytes + jointArrayBytes + contactArrayBytes + islandArrayBytes +
+			 islandLinkBytes + shapeArrayBytes + sensorArrayBytes;
+
 	fprintf( file, "world arrays\n" );
-	fprintf( file, "bodies: %d\n", b3Array_ByteCount( world->bodies ) );
-	fprintf( file, "solver sets: %d\n", b3Array_ByteCount( world->solverSets ) );
-	fprintf( file, "joints: %d\n", b3Array_ByteCount( world->joints ) );
-	fprintf( file, "contacts: %d\n", b3Array_ByteCount( world->contacts ) );
-	fprintf( file, "islands: %d\n", b3Array_ByteCount( world->islands ) );
-	fprintf( file, "shapes: %d\n", b3Array_ByteCount( world->shapes ) );
+	fprintf( file, "bodies: %d\n", bodyArrayBytes );
+	fprintf( file, "solver sets: %d\n", solverSetArrayBytes );
+	fprintf( file, "joints: %d\n", jointArrayBytes );
+	fprintf( file, "contacts: %d\n", contactArrayBytes );
+	fprintf( file, "islands: %d\n", islandArrayBytes );
+	fprintf( file, "island links: %d\n", islandLinkBytes );
+	fprintf( file, "shapes: %d\n", shapeArrayBytes );
+	fprintf( file, "sensors: %d\n", sensorArrayBytes );
+	fprintf( file, "\n" );
+
+	// Sensors own overlap tracking arrays. The sensor array is dense.
+	int sensorOverlapBytes = 0;
+	for ( int i = 0; i < world->sensors.count; ++i )
+	{
+		b3Sensor* sensor = world->sensors.data + i;
+		sensorOverlapBytes += b3Array_ByteCount( sensor->hits );
+		sensorOverlapBytes += b3Array_ByteCount( sensor->overlaps1 );
+		sensorOverlapBytes += b3Array_ByteCount( sensor->overlaps2 );
+	}
+	total += sensorOverlapBytes;
+
+	fprintf( file, "owned arrays\n" );
+	fprintf( file, "sensor overlaps: %d\n", sensorOverlapBytes );
+	fprintf( file, "\n" );
+
+	// Shared hull database. The map owns a combined bucket and metadata allocation
+	// plus the small map struct. Each stored key is an owned clone sized by byteCount.
+	b3HullDatabase* hullDatabase = world->hullDatabase;
+	int hullCount = (int)b3HullDatabase_size( hullDatabase );
+	int hullBucketCount = (int)b3HullDatabase_bucket_count( hullDatabase );
+	int hullMapBytes = (int)sizeof( b3HullDatabase );
+	if ( hullBucketCount > 0 )
+	{
+		hullMapBytes += (int)b3HullDatabase_total_alloc_size( hullDatabase );
+	}
+	int hullDataBytes = 0;
+	for ( b3HullDatabase_itr itr = b3HullDatabase_first( hullDatabase ); b3HullDatabase_is_end( itr ) == false;
+		  itr = b3HullDatabase_next( itr ) )
+	{
+		hullDataBytes += itr.data->key->byteCount;
+	}
+	total += hullMapBytes + hullDataBytes;
+
+	fprintf( file, "hulls\n" );
+	fprintf( file, "database: %d (%d, %d)\n", hullMapBytes, hullCount, hullBucketCount );
+	fprintf( file, "hull data: %d\n", hullDataBytes );
 	fprintf( file, "\n" );
 
 	// broad-phase
-	fprintf( file, "broad-phase\n" );
-	fprintf( file, "static tree: %d\n", b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_staticBody ) );
-	fprintf( file, "kinematic tree: %d\n", b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_kinematicBody ) );
-	fprintf( file, "dynamic tree: %d\n", b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_dynamicBody ) );
+	int staticTreeBytes = b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_staticBody );
+	int kinematicTreeBytes = b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_kinematicBody );
+	int dynamicTreeBytes = b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_dynamicBody );
 	int movedBytes = 0;
 	for ( int i = 0; i < b3_bodyTypeCount; ++i )
 	{
 		movedBytes += b3GetBitSetBytes( &world->broadPhase.movedProxies[i] );
 	}
-	fprintf( file, "movedProxies: %d\n", movedBytes );
-	fprintf( file, "moveArray: %d\n", b3Array_ByteCount( world->broadPhase.moveArray ) );
+	int moveArrayBytes = b3Array_ByteCount( world->broadPhase.moveArray );
 	b3HashSet* pairSet = &world->broadPhase.pairSet;
-	fprintf( file, "pairSet: %d (%d, %d)\n", b3GetHashSetBytes( pairSet ), pairSet->count, pairSet->capacity );
+	int pairSetBytes = b3GetHashSetBytes( pairSet );
+	total += staticTreeBytes + kinematicTreeBytes + dynamicTreeBytes + movedBytes + moveArrayBytes + pairSetBytes;
+
+	fprintf( file, "broad-phase\n" );
+	fprintf( file, "static tree: %d\n", staticTreeBytes );
+	fprintf( file, "kinematic tree: %d\n", kinematicTreeBytes );
+	fprintf( file, "dynamic tree: %d\n", dynamicTreeBytes );
+	fprintf( file, "movedProxies: %d\n", movedBytes );
+	fprintf( file, "moveArray: %d\n", moveArrayBytes );
+	fprintf( file, "pairSet: %d (%d, %d)\n", pairSetBytes, pairSet->count, pairSet->capacity );
+	fprintf( file, "\n" );
+
+	// Manifold block allocators, one per manifold point count
+	int manifoldArrayBytes = b3Array_ByteCount( world->manifoldAllocators );
+	int manifoldBlockBytes = 0;
+	for ( int i = 0; i < world->manifoldAllocators.count; ++i )
+	{
+		b3BlockAllocator* allocator = world->manifoldAllocators.data + i;
+		manifoldBlockBytes += b3Array_ByteCount( allocator->blocks );
+		manifoldBlockBytes += allocator->blocks.count * B3_BLOCK_SIZE * allocator->elementSize;
+	}
+	total += manifoldArrayBytes + manifoldBlockBytes;
+
+	fprintf( file, "manifold allocators\n" );
+	fprintf( file, "allocator array: %d\n", manifoldArrayBytes );
+	fprintf( file, "blocks: %d\n", manifoldBlockBytes );
 	fprintf( file, "\n" );
 
 	// solver sets
@@ -2282,34 +2375,96 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 		islandSimCapacity += set->islandSims.capacity;
 	}
 
+	int setBodySimBytes = bodySimCapacity * (int)sizeof( b3BodySim );
+	int setBodyStateBytes = bodyStateCapacity * (int)sizeof( b3BodyState );
+	int setJointSimBytes = jointSimCapacity * (int)sizeof( b3JointSim );
+	int setContactSimBytes = contactIndexCapacity * (int)sizeof( int );
+	int setIslandSimBytes = islandSimCapacity * (int)sizeof( b3IslandSim );
+	total += setBodySimBytes + setBodyStateBytes + setJointSimBytes + setContactSimBytes + setIslandSimBytes;
+
 	fprintf( file, "solver sets\n" );
-	fprintf( file, "body sim: %d\n", bodySimCapacity * (int)sizeof( b3BodySim ) );
-	fprintf( file, "body state: %d\n", bodyStateCapacity * (int)sizeof( b3BodyState ) );
-	fprintf( file, "joint sim: %d\n", jointSimCapacity * (int)sizeof( b3JointSim ) );
-	fprintf( file, "contact sim: %d\n", contactIndexCapacity * (int)sizeof( int ) );
-	fprintf( file, "island sim: %d\n", islandSimCapacity * (int)sizeof( islandSimCapacity ) );
+	fprintf( file, "body sim: %d\n", setBodySimBytes );
+	fprintf( file, "body state: %d\n", setBodyStateBytes );
+	fprintf( file, "joint sim: %d\n", setJointSimBytes );
+	fprintf( file, "contact sim: %d\n", setContactSimBytes );
+	fprintf( file, "island sim: %d\n", setIslandSimBytes );
 	fprintf( file, "\n" );
 
 	// constraint graph
 	int bodyBitSetBytes = 0;
-	int contactSpecCapacity = 0;
-	jointSimCapacity = 0;
+	int graphContactBytes = 0;
+	int graphJointSimBytes = 0;
 	for ( int i = 0; i < B3_GRAPH_COLOR_COUNT; ++i )
 	{
 		b3GraphColor* c = world->constraintGraph.colors + i;
 		bodyBitSetBytes += b3GetBitSetBytes( &c->bodySet );
-		contactSpecCapacity += c->convexContacts.capacity + c->contacts.capacity;
-		jointSimCapacity += c->jointSims.capacity;
+		graphContactBytes += b3Array_ByteCount( c->convexContacts ) + b3Array_ByteCount( c->contacts );
+		graphJointSimBytes += b3Array_ByteCount( c->jointSims );
 	}
+	total += bodyBitSetBytes + graphJointSimBytes + graphContactBytes;
 
 	fprintf( file, "constraint graph\n" );
 	fprintf( file, "body bit sets: %d\n", bodyBitSetBytes );
-	fprintf( file, "joint sim: %d\n", jointSimCapacity * (int)sizeof( b3JointSim ) );
-	fprintf( file, "contact sim: %d\n", contactSpecCapacity * (int)sizeof( int ) );
+	fprintf( file, "joint sim: %d\n", graphJointSimBytes );
+	fprintf( file, "contact sim: %d\n", graphContactBytes );
 	fprintf( file, "\n" );
 
+	// Per worker task storage and its bit sets
+	int taskContextBytes = b3Array_ByteCount( world->taskContexts );
+	for ( int i = 0; i < world->taskContexts.count; ++i )
+	{
+		b3TaskContext* taskContext = world->taskContexts.data + i;
+		taskContextBytes += b3Array_ByteCount( taskContext->sensorHits );
+		taskContextBytes += b3GetBitSetBytes( &taskContext->contactStateBitSet );
+		taskContextBytes += b3GetBitSetBytes( &taskContext->jointStateBitSet );
+		taskContextBytes += b3GetBitSetBytes( &taskContext->hitEventBitSet );
+		taskContextBytes += b3GetBitSetBytes( &taskContext->enlargedSimBitSet );
+		taskContextBytes += b3GetBitSetBytes( &taskContext->awakeIslandBitSet );
+	}
+
+	int sensorTaskContextBytes = b3Array_ByteCount( world->sensorTaskContexts );
+	for ( int i = 0; i < world->sensorTaskContexts.count; ++i )
+	{
+		b3SensorTaskContext* taskContext = world->sensorTaskContexts.data + i;
+		sensorTaskContextBytes += b3GetBitSetBytes( &taskContext->eventBits );
+	}
+	total += taskContextBytes + sensorTaskContextBytes;
+
+	fprintf( file, "task contexts\n" );
+	fprintf( file, "worker: %d\n", taskContextBytes );
+	fprintf( file, "sensor: %d\n", sensorTaskContextBytes );
+	fprintf( file, "\n" );
+
+	// Double buffered event arrays
+	int eventBytes = 0;
+	eventBytes += b3Array_ByteCount( world->bodyMoveEvents );
+	eventBytes += b3Array_ByteCount( world->sensorBeginEvents );
+	eventBytes += b3Array_ByteCount( world->contactBeginEvents );
+	eventBytes += b3Array_ByteCount( world->sensorEndEvents[0] );
+	eventBytes += b3Array_ByteCount( world->sensorEndEvents[1] );
+	eventBytes += b3Array_ByteCount( world->contactEndEvents[0] );
+	eventBytes += b3Array_ByteCount( world->contactEndEvents[1] );
+	eventBytes += b3Array_ByteCount( world->contactHitEvents );
+	eventBytes += b3Array_ByteCount( world->jointEvents );
+	total += eventBytes;
+
+	fprintf( file, "events: %d\n\n", eventBytes );
+
+	// Debug draw bit sets
+	int debugBytes = 0;
+	debugBytes += b3GetBitSetBytes( &world->debugBodySet );
+	debugBytes += b3GetBitSetBytes( &world->debugJointSet );
+	debugBytes += b3GetBitSetBytes( &world->debugContactSet );
+	debugBytes += b3GetBitSetBytes( &world->debugIslandSet );
+	total += debugBytes;
+
+	fprintf( file, "debug draw: %d\n\n", debugBytes );
+
 	// stack allocator
+	total += world->stack.capacity;
 	fprintf( file, "stack allocator: %d\n\n", world->stack.capacity );
+
+	fprintf( file, "total: %d\n", total );
 
 	fclose( file );
 }
