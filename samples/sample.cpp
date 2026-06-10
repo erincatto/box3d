@@ -31,6 +31,8 @@
 #include <string.h>
 #include <thread>
 
+#define INFO_PANEL_WIDTH 16.0f
+
 // Load a file. You must free the character array.
 static char* ReadFile( int& size, const char* filename )
 {
@@ -498,7 +500,7 @@ void Sample::DrawMetrics()
 	}
 
 	float fontSize = ImGui::GetFontSize();
-	float menuWidth = 14.0f * fontSize;
+	float menuWidth = INFO_PANEL_WIDTH * fontSize;
 	float drawerHeight = 16.0f * fontSize;
 	float drawerWidth = m_camera->m_width - menuWidth - 1.5f * fontSize;
 
@@ -1739,7 +1741,7 @@ static void DrawInfoPanel( SampleContext* context )
 {
 	const SampleEntry& entry = g_sampleEntries[context->sampleIndex];
 	float fontSize = ImGui::GetFontSize();
-	float menuWidth = 16.0f * fontSize;
+	float menuWidth = INFO_PANEL_WIDTH * fontSize;
 	float menuBarHeight = ImGui::GetFrameHeight();
 
 	// Full-height panel pinned under the menu bar at the right edge, matching Box2D.
