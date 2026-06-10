@@ -379,16 +379,16 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		b3BodyId bodyIdA = parent->bodyId;
 		b3BodyId bodyIdB = bone->bodyId;
 
-		b3Transform frameA = b3NormalizeTransform( bone->localFrameA );
-		b3Transform frameB = b3NormalizeTransform( bone->localFrameB );
+		bone->localFrameA.q = b3NormalizeQuat( bone->localFrameA.q );
+		bone->localFrameB.q = b3NormalizeQuat( bone->localFrameB.q );
 
 		if ( bone->jointType == b3_revoluteJoint )
 		{
 			b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
 			jointDef.base.bodyIdA = bodyIdA;
 			jointDef.base.bodyIdB = bodyIdB;
-			jointDef.base.localFrameA = frameA;
-			jointDef.base.localFrameB = frameB;
+			jointDef.base.localFrameA = bone->localFrameA;
+			jointDef.base.localFrameB = bone->localFrameB;
 			jointDef.enableLimit = true;
 			jointDef.lowerAngle = bone->twistLimit.x;
 			jointDef.upperAngle = bone->twistLimit.y;
@@ -404,8 +404,8 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 			b3SphericalJointDef jointDef = b3DefaultSphericalJointDef();
 			jointDef.base.bodyIdA = bodyIdA;
 			jointDef.base.bodyIdB = bodyIdB;
-			jointDef.base.localFrameA = frameA;
-			jointDef.base.localFrameB = frameB;
+			jointDef.base.localFrameA = bone->localFrameA;
+			jointDef.base.localFrameB = bone->localFrameB;
 			jointDef.enableConeLimit = true;
 			jointDef.coneAngle = bone->swingLimit;
 			jointDef.enableTwistLimit = true;

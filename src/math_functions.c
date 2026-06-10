@@ -236,7 +236,7 @@ b3Quat b3MakeQuatFromMatrix( const b3Matrix3* m )
 
 	b3Quat q;
 
-	float trace = b3Trace( *m );
+	float trace = m->cx.x + m->cy.y + m->cz.z;
 	if ( trace >= 0.0f )
 	{
 		q.v.x = c2.z - c3.y;

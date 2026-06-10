@@ -17,6 +17,18 @@
  * @{
  */
 
+/// https://en.wikipedia.org/wiki/Pi
+#define B3_PI 3.14159265359f
+
+/// Convenience macro to convert from degrees to radians.
+#define B3_DEG_TO_RAD 0.01745329251f
+
+/// Convenience macro to convert from radians to degrees.
+#define B3_RAD_TO_DEG 57.2957795131f
+
+/// Minimum scale used for scaling collision meshes, etc.
+#define B3_MIN_SCALE 0.01f
+
 /// A 2D vector.
 typedef struct b3Vec2
 {
@@ -76,40 +88,18 @@ typedef struct b3Plane
 	float offset;
 } b3Plane;
 
-/**@}*/
-
-/**
- * @addtogroup math
- * @{
- */
-
-/// https://en.wikipedia.org/wiki/Pi
-#define B3_PI 3.14159265359f
-
-/// Convenience macro to convert from degrees to radians.
-#define B3_DEG_TO_RAD 0.01745329251f
-
-/// Convenience macro to convert from radians to degrees.
-#define B3_RAD_TO_DEG 57.2957795131f
-
-/// Minimum scale used for scaling collision meshes, etc.
-#define B3_MIN_SCALE 0.01f
-
 static const b3Vec3 b3Vec3_zero = { 0.0f, 0.0f, 0.0f };
 static const b3Vec3 b3Vec3_one = { 1.0f, 1.0f, 1.0f };
 static const b3Vec3 b3Vec3_axisX = { 1.0f, 0.0f, 0.0f };
 static const b3Vec3 b3Vec3_axisY = { 0.0f, 1.0f, 0.0f };
 static const b3Vec3 b3Vec3_axisZ = { 0.0f, 0.0f, 1.0f };
-
 static const b3Quat b3Quat_identity = { { 0.0f, 0.0f, 0.0f }, 1.0f };
 static const b3Transform b3Transform_identity = { { 0.0f, 0.0f, 0.0f }, { { 0.0f, 0.0f, 0.0f }, 1.0f } };
-
 static const b3Matrix3 b3Mat3_zero = {
 	{ 0.0f, 0.0f, 0.0f },
 	{ 0.0f, 0.0f, 0.0f },
 	{ 0.0f, 0.0f, 0.0f },
 };
-
 static const b3Matrix3 b3Mat3_identity = {
 	{ 1.0f, 0.0f, 0.0f },
 	{ 0.0f, 1.0f, 0.0f },
@@ -134,7 +124,7 @@ B3_INLINE int b3ClampInt( int a, int lower, int upper )
 	return a < lower ? lower : ( upper < a ? upper : a );
 }
 
-/// Is this float valid (finite and not NaN).
+/// @return is this float valid (finite and not NaN).
 B3_API bool b3IsValidFloat( float a );
 
 /// @return the absolute value of a float.
@@ -351,24 +341,13 @@ B3_INLINE b3Vec3 b3Lerp( b3Vec3 a, b3Vec3 b, float alpha )
 	return c;
 }
 
-/// Convenience function: s * a + t * b
+/// Blend two vectors: s * a + t * b
 B3_INLINE b3Vec3 b3Blend2( float s, b3Vec3 a, float t, b3Vec3 b )
 {
 	b3Vec3 d = {
 		s * a.x + t * b.x,
 		s * a.y + t * b.y,
 		s * a.z + t * b.z,
-	};
-	return d;
-}
-
-/// Convenience function: s * a + t * b + u * c
-B3_INLINE b3Vec3 b3Blend3( float s, b3Vec3 a, float t, b3Vec3 b, float u, b3Vec3 c )
-{
-	b3Vec3 d = {
-		s * a.x + t * b.x + u * c.x,
-		s * a.y + t * b.y + u * c.y,
-		s * a.z + t * b.z + u * c.z,
 	};
 	return d;
 }
@@ -383,7 +362,7 @@ B3_INLINE b3Vec3 b3Abs( b3Vec3 a )
 	};
 }
 
-// Component-wise -1 or 1 (1 if zero).
+/// Component-wise -1 or 1 (1 if zero).
 B3_INLINE b3Vec3 b3Sign( b3Vec3 a )
 {
 	return B3_LITERAL( b3Vec3 ){
@@ -478,7 +457,8 @@ B3_INLINE b3Quat b3MulQuat( b3Quat q1, b3Quat q2 )
 	return q;
 }
 
-// inv(q1) * q2
+/// Compute a relative quaternion.
+/// inv(q1) * q2
 B3_INLINE b3Quat b3InvMulQuat( b3Quat q1, b3Quat q2 )
 {
 	b3Vec3 t1 = b3Cross( q2.v, q1.v );
@@ -500,6 +480,7 @@ B3_INLINE b3Quat b3NegateQuat( b3Quat q )
 	return B3_LITERAL( b3Quat ){ { -q.v.x, -q.v.y, -q.v.z }, -q.s };
 }
 
+/// Normalize a quaternion.
 B3_INLINE b3Quat b3NormalizeQuat( b3Quat q )
 {
 	float lengthSq = b3DotQuat( q, q );
@@ -513,6 +494,7 @@ B3_INLINE b3Quat b3NormalizeQuat( b3Quat q )
 	return b3Quat_identity;
 }
 
+/// Make a quaternion that is equivalent to rotating around a axis by a specified angle.
 B3_INLINE b3Quat b3MakeQuatFromAxisAngle( b3Vec3 axis, float radians )
 {
 	B3_ASSERT( b3IsNormalized( axis ) );
@@ -521,6 +503,7 @@ B3_INLINE b3Quat b3MakeQuatFromAxisAngle( b3Vec3 axis, float radians )
 	return q;
 }
 
+/// Get the axis and angle from a quaternion. Assumes the quaternion is normalized.
 B3_INLINE b3Vec3 b3GetAxisAngle( float* radians, b3Quat q )
 {
 	float length = sqrtf( q.v.x * q.v.x + q.v.y * q.v.y + q.v.z * q.v.z );
@@ -542,38 +525,16 @@ B3_INLINE float b3GetQuatAngle( b3Quat q )
 	return 2.0f * b3Atan2( length, q.s );
 }
 
-// Twist angle around the z-axis, used for twist limit and revolute angle limit
-B3_INLINE float b3GetTwistAngle( b3Quat q )
-{
-	// Account for polarity to keep the twist angle in range.
-	// This is simpler than asking the user to check polarity or unwinding.
-	float twist = q.s < 0.0f ? b3Atan2( -q.v.z, -q.s ) : b3Atan2( q.v.z, q.s );
-	twist *= 2.0f;
-	B3_ASSERT( -B3_PI <= twist && twist <= B3_PI );
-	return twist;
-}
-
-// Swing angle used for cone limit
-B3_INLINE float b3GetSwingAngle( b3Quat q )
-{
-	// Polarity should not matter because all terms are squared.
-	float x = sqrtf( q.v.z * q.v.z + q.s * q.s );
-	float y = sqrtf( q.v.x * q.v.x + q.v.y * q.v.y );
-	float swing = 2.0f * b3Atan2( y, x );
-	B3_ASSERT( 0.0f <= swing && swing <= B3_PI );
-	return swing;
-}
-
-/// Extract a quaternion from a rotation matrix
+/// Extract a quaternion from a rotation matrix.
 B3_API b3Quat b3MakeQuatFromMatrix( const b3Matrix3* m );
 
-/// Find a quaternion that rotations one vector to another
+/// Find a quaternion that rotations one vector to another.
 B3_API b3Quat b3ComputeQuatBetweenUnitVectors( b3Vec3 v1, b3Vec3 v2 );
 
 /// Linearly interpolate and normalize between two quaternions
 B3_INLINE b3Quat b3NLerp( b3Quat q1, b3Quat q2, float alpha )
 {
-	B3_ASSERT( 0.0f <= alpha && alpha <= 1.0f );
+	B3_VALIDATE( 0.0f <= alpha && alpha <= 1.0f );
 	if ( b3DotQuat( q1, q2 ) < 0.0f )
 	{
 		q1 = B3_LITERAL( b3Quat ){ { -q1.v.x, -q1.v.y, -q1.v.z }, -q1.s };
@@ -608,6 +569,7 @@ B3_FORCE_INLINE b3Transform b3InvMulTransforms( b3Transform a, b3Transform b )
 	return out;
 }
 
+/// Get the inverse of a transform.
 B3_INLINE b3Transform b3InvertTransform( b3Transform t )
 {
 	b3Transform out;
@@ -616,35 +578,26 @@ B3_INLINE b3Transform b3InvertTransform( b3Transform t )
 	return out;
 }
 
-B3_INLINE b3Transform b3NormalizeTransform( b3Transform t )
-{
-	b3Transform out;
-	out.p = t.p;
-	out.q = b3NormalizeQuat( t.q );
-	return out;
-}
-
+/// Transform a point.
 B3_INLINE b3Vec3 b3TransformPoint( b3Transform t, b3Vec3 v )
 {
 	b3Vec3 rv = b3RotateVector( t.q, v );
 	return b3Add( rv, t.p );
 }
 
+/// Inverse transform a point.
 B3_INLINE b3Vec3 b3InvTransformPoint( b3Transform t, b3Vec3 v )
 {
 	return b3InvRotateVector( t.q, b3Sub( v, t.p ) );
 }
 
-B3_INLINE b3Matrix3 b3MakeDiagonalMatrix( float a, float b, float c )
-{
-	return B3_LITERAL( b3Matrix3 ){ { a, 0.0f, 0.0f }, { 0.0f, b, 0.0f }, { 0.0f, 0.0f, c } };
-}
-
+/// Compute the determinant of a 3-by-3 matrix.
 B3_INLINE float b3Det( b3Matrix3 m )
 {
 	return b3Dot( m.cx, b3Cross( m.cy, m.cz ) );
 }
 
+/// Multiply a matrix times a column vector.
 B3_INLINE b3Vec3 b3MulMV( b3Matrix3 m, b3Vec3 a )
 {
 	b3Vec3 b = {
@@ -655,6 +608,7 @@ B3_INLINE b3Vec3 b3MulMV( b3Matrix3 m, b3Vec3 a )
 	return b;
 }
 
+/// Negate a matrix.
 B3_INLINE b3Matrix3 b3NegateMat3( b3Matrix3 a )
 {
 	return B3_LITERAL( b3Matrix3 ){
@@ -664,6 +618,8 @@ B3_INLINE b3Matrix3 b3NegateMat3( b3Matrix3 a )
 	};
 }
 
+/// Matrix addition.
+/// @return a + b
 B3_INLINE b3Matrix3 b3AddMM( b3Matrix3 a, b3Matrix3 b )
 {
 	return B3_LITERAL( b3Matrix3 ){
@@ -673,6 +629,8 @@ B3_INLINE b3Matrix3 b3AddMM( b3Matrix3 a, b3Matrix3 b )
 	};
 }
 
+/// Matrix subtraction.
+/// @return a - b
 B3_INLINE b3Matrix3 b3SubMM( b3Matrix3 a, b3Matrix3 b )
 {
 	return B3_LITERAL( b3Matrix3 ){
@@ -682,6 +640,7 @@ B3_INLINE b3Matrix3 b3SubMM( b3Matrix3 a, b3Matrix3 b )
 	};
 }
 
+/// Multiply a matrix by a scalar, component-wise.
 B3_INLINE b3Matrix3 b3MulSM( float s, b3Matrix3 a )
 {
 	return B3_LITERAL( b3Matrix3 ){
@@ -691,6 +650,8 @@ B3_INLINE b3Matrix3 b3MulSM( float s, b3Matrix3 a )
 	};
 }
 
+/// Matrix multiplication.
+/// @return a * b
 B3_INLINE b3Matrix3 b3MulMM( b3Matrix3 a, b3Matrix3 b )
 {
 	b3Matrix3 out;
@@ -700,6 +661,7 @@ B3_INLINE b3Matrix3 b3MulMM( b3Matrix3 a, b3Matrix3 b )
 	return out;
 }
 
+/// Matrix transpose.
 B3_INLINE b3Matrix3 b3Transpose( b3Matrix3 m )
 {
 	b3Matrix3 out;
@@ -710,6 +672,7 @@ B3_INLINE b3Matrix3 b3Transpose( b3Matrix3 m )
 	return out;
 }
 
+/// General matrix inverse.
 B3_INLINE b3Matrix3 b3InvertMatrix( b3Matrix3 m )
 {
 	float det = b3Det( m );
@@ -727,21 +690,23 @@ B3_INLINE b3Matrix3 b3InvertMatrix( b3Matrix3 m )
 	return b3Mat3_zero;
 }
 
-B3_INLINE b3Vec3 b3Solve3( b3Matrix3 m, b3Vec3 x )
+/// Solve a matrix equation.
+/// @return inv(m) * a
+B3_INLINE b3Vec3 b3Solve3( b3Matrix3 m, b3Vec3 a )
 {
 	float det = b3Det( m );
 	if ( b3AbsFloat( det ) > 1000.0f * FLT_MIN )
 	{
 		float invDet = 1.0f / det;
-		b3Matrix3 a;
-		a.cx = b3Cross( m.cy, m.cz );
-		a.cy = b3Cross( m.cz, m.cx );
-		a.cz = b3Cross( m.cx, m.cy );
+		b3Matrix3 s;
+		s.cx = b3Cross( m.cy, m.cz );
+		s.cy = b3Cross( m.cz, m.cx );
+		s.cz = b3Cross( m.cx, m.cy );
 
 		b3Vec3 b = {
-			invDet * b3Dot( a.cx, x ),
-			invDet * b3Dot( a.cy, x ),
-			invDet * b3Dot( a.cz, x ),
+			invDet * b3Dot( s.cx, a ),
+			invDet * b3Dot( s.cy, a ),
+			invDet * b3Dot( s.cz, a ),
 		};
 
 		return b;
@@ -750,6 +715,7 @@ B3_INLINE b3Vec3 b3Solve3( b3Matrix3 m, b3Vec3 x )
 	return b3Vec3_zero;
 }
 
+/// Invert a matrix.
 B3_INLINE b3Matrix3 b3InvertT( b3Matrix3 m )
 {
 	float det = b3Det( m );
@@ -766,32 +732,7 @@ B3_INLINE b3Matrix3 b3InvertT( b3Matrix3 m )
 	return b3Mat3_zero;
 }
 
-B3_INLINE b3Matrix3 b3InvertSymmetric( b3Matrix3 m )
-{
-	float det = b3Det( m );
-	if ( b3AbsFloat( det ) > 1000.0f * FLT_MIN )
-	{
-		float invDet = 1.0f / det;
-		b3Matrix3 out;
-		out.cx = b3MulSV( invDet, b3Cross( m.cy, m.cz ) );
-		out.cy = b3MulSV( invDet, b3Cross( m.cz, m.cx ) );
-		out.cz = b3MulSV( invDet, b3Cross( m.cx, m.cy ) );
-		return out;
-	}
-
-	return b3Mat3_zero;
-}
-
-B3_INLINE b3Matrix3 b3Skew( b3Vec3 v )
-{
-	b3Matrix3 out;
-	out.cx = B3_LITERAL( b3Vec3 ){ 0, v.z, -v.y };
-	out.cy = B3_LITERAL( b3Vec3 ){ -v.z, 0, v.x };
-	out.cz = B3_LITERAL( b3Vec3 ){ v.y, -v.x, 0 };
-
-	return out;
-}
-
+/// Get the component-wise absolute value of a matrix.
 B3_INLINE b3Matrix3 b3AbsMatrix3( b3Matrix3 m )
 {
 	b3Matrix3 out;
@@ -802,21 +743,9 @@ B3_INLINE b3Matrix3 b3AbsMatrix3( b3Matrix3 m )
 	return out;
 }
 
-B3_INLINE float b3Trace( b3Matrix3 m )
-{
-	return m.cx.x + m.cy.y + m.cz.z;
-}
-
-B3_INLINE b3Matrix3 b3ScaleMatrix( float s, b3Matrix3 m )
-{
-	return B3_LITERAL( b3Matrix3 ){
-		b3MulSV( s, m.cx ),
-		b3MulSV( s, m.cy ),
-		b3MulSV( s, m.cz ),
-	};
-}
-
-// This force inline improves the performance of b3ShapeDistance
+/// Make a matrix from a quaternion. This is useful if you need to
+/// rotate many vectors.
+/// The force inline improves the performance of b3ShapeDistance.
 B3_FORCE_INLINE b3Matrix3 b3MakeMatrixFromQuat( b3Quat q )
 {
 	float xx = q.v.x * q.v.x;
@@ -836,9 +765,11 @@ B3_FORCE_INLINE b3Matrix3 b3MakeMatrixFromQuat( b3Quat q )
 	};
 }
 
-// https://en.wikipedia.org/wiki/Parallel_axis_theorem
+/// Get the inertia tensor of an offset point.
+/// https://en.wikipedia.org/wiki/Parallel_axis_theorem
 B3_API b3Matrix3 b3Steiner( float mass, b3Vec3 origin );
 
+/// Get the AABB of a point cloud.
 B3_INLINE b3AABB b3MakeAABB( const b3Vec3* points, int count, float radius )
 {
 	B3_ASSERT( count > 0 );
@@ -856,23 +787,7 @@ B3_INLINE b3AABB b3MakeAABB( const b3Vec3* points, int count, float radius )
 	return a;
 }
 
-B3_INLINE b3AABB b3AABB_AddPoint( b3AABB a, b3Vec3 point )
-{
-	return B3_LITERAL( b3AABB ){ b3Min( a.lowerBound, point ), b3Max( a.upperBound, point ) };
-}
-
-B3_INLINE bool b3AABB_ContainsPoint( b3AABB a, b3Vec3 point )
-{
-	if ( a.lowerBound.x > point.x || point.x > a.upperBound.x )
-		return false;
-	if ( a.lowerBound.y > point.y || point.y > a.upperBound.y )
-		return false;
-	if ( a.lowerBound.z > point.z || point.z > a.upperBound.z )
-		return false;
-
-	return true;
-}
-
+/// Does a fully contain b?
 B3_INLINE bool b3AABB_Contains( b3AABB a, b3AABB b )
 {
 	if ( a.lowerBound.x > b.lowerBound.x || b.upperBound.x > a.upperBound.x )
@@ -885,40 +800,46 @@ B3_INLINE bool b3AABB_Contains( b3AABB a, b3AABB b )
 	return true;
 }
 
-B3_INLINE float b3AABB_Area( b3AABB bounds )
+/// Get the surface area of an axis-aligned bounding box.
+B3_INLINE float b3AABB_Area( b3AABB a )
 {
-	b3Vec3 delta = b3Sub( bounds.upperBound, bounds.lowerBound );
+	b3Vec3 delta = b3Sub( a.upperBound, a.lowerBound );
 	return 2.0f * ( delta.x * delta.y + delta.y * delta.z + delta.z * delta.x );
 }
 
-B3_INLINE b3Vec3 b3AABB_Center( b3AABB bounds )
+/// Get the center of an axis-aligned bounding box.
+B3_INLINE b3Vec3 b3AABB_Center( b3AABB a )
 {
-	return b3MulSV( 0.5f, b3Add( bounds.upperBound, bounds.lowerBound ) );
+	return b3MulSV( 0.5f, b3Add( a.upperBound, a.lowerBound ) );
 }
 
-B3_INLINE b3Vec3 b3AABB_Extents( b3AABB bounds )
+/// Get the extents (half-widths) of an axis-aligned bounding box.
+B3_INLINE b3Vec3 b3AABB_Extents( b3AABB a )
 {
-	return b3MulSV( 0.5f, b3Sub( bounds.upperBound, bounds.lowerBound ) );
+	return b3MulSV( 0.5f, b3Sub( a.upperBound, a.lowerBound ) );
 }
 
-B3_INLINE b3AABB b3AABB_Union( b3AABB bounds1, b3AABB bounds2 )
+/// Get the union of two axis-aligned bounding boxes.
+B3_INLINE b3AABB b3AABB_Union( b3AABB a, b3AABB b )
 {
 	b3AABB out;
-	out.lowerBound = b3Min( bounds1.lowerBound, bounds2.lowerBound );
-	out.upperBound = b3Max( bounds1.upperBound, bounds2.upperBound );
+	out.lowerBound = b3Min( a.lowerBound, b.lowerBound );
+	out.upperBound = b3Max( a.upperBound, b.upperBound );
 	return out;
 }
 
-B3_INLINE b3AABB b3AABB_Inflate( b3AABB bounds, float extension )
+/// Add uniform padding to an axis-aligned bounding box.
+B3_INLINE b3AABB b3AABB_Inflate( b3AABB a, float extension )
 {
 	b3Vec3 radius = { extension, extension, extension };
 
 	b3AABB out;
-	out.lowerBound = b3Sub( bounds.lowerBound, radius );
-	out.upperBound = b3Add( bounds.upperBound, radius );
+	out.lowerBound = b3Sub( a.lowerBound, radius );
+	out.upperBound = b3Add( a.upperBound, radius );
 	return out;
 }
 
+/// Do two axis-aligned boxes overlap?
 B3_INLINE bool b3AABB_Overlaps( b3AABB a, b3AABB b )
 {
 	// No intersection if separated along one axis
@@ -933,6 +854,9 @@ B3_INLINE bool b3AABB_Overlaps( b3AABB a, b3AABB b )
 	return true;
 }
 
+/// Transform an axis-aligned bounding box. This can create a large box
+/// than if you recomputed the AABB of the original shape with the transform
+/// applied.
 B3_INLINE b3AABB b3AABB_Transform( b3Transform transform, b3AABB a )
 {
 	b3Vec3 center = b3TransformPoint( transform, b3AABB_Center( a ) );
@@ -942,6 +866,7 @@ B3_INLINE b3AABB b3AABB_Transform( b3Transform transform, b3AABB a )
 	return out;
 }
 
+/// Get the closest point on an axis-aligned bounding box.
 B3_INLINE b3Vec3 b3ClosestPointToAABB( b3Vec3 point, b3AABB a )
 {
 	return b3Clamp( point, a.lowerBound, a.upperBound );
@@ -971,7 +896,7 @@ B3_API bool b3IsSaneAABB( b3AABB a );
 /// Is this a valid plane? Normal is a unit vector. Not Nan or infinity.
 B3_API bool b3IsValidPlane( b3Plane a );
 
-/**@}*/
+/**@}*/ // math
 
 /**
  * @defgroup math_cpp C++ Math
@@ -983,6 +908,7 @@ B3_API bool b3IsValidPlane( b3Plane a );
 
 #ifdef __cplusplus
 
+/// Vector addition.
 B3_FORCE_INLINE b3Vec3& operator+=( b3Vec3& a, b3Vec3 b )
 {
 	a.x += b.x;
@@ -991,6 +917,7 @@ B3_FORCE_INLINE b3Vec3& operator+=( b3Vec3& a, b3Vec3 b )
 	return a;
 }
 
+/// Vector subtraction.
 B3_FORCE_INLINE b3Vec3& operator-=( b3Vec3& a, b3Vec3 b )
 {
 	a.x -= b.x;
@@ -999,6 +926,7 @@ B3_FORCE_INLINE b3Vec3& operator-=( b3Vec3& a, b3Vec3 b )
 	return a;
 }
 
+/// Vector scaling.
 B3_FORCE_INLINE b3Vec3& operator*=( b3Vec3& a, float s )
 {
 	a.x *= s;
@@ -1007,87 +935,42 @@ B3_FORCE_INLINE b3Vec3& operator*=( b3Vec3& a, float s )
 	return a;
 }
 
+/// Vector negation.
 B3_FORCE_INLINE b3Vec3 operator-( b3Vec3 a )
 {
 	return { -a.x, -a.y, -a.z };
 }
 
+/// Vector scaling.
 B3_FORCE_INLINE b3Vec3 operator*( float s, b3Vec3 a )
 {
 	return { s * a.x, s * a.y, s * a.z };
 }
 
+/// Vector scaling.
 B3_FORCE_INLINE b3Vec3 operator*( b3Vec3 a, float s )
 {
 	return { s * a.x, s * a.y, s * a.z };
 }
 
+/// Component-wise vector multiplication.
 B3_FORCE_INLINE b3Vec3 operator*( b3Vec3 a, b3Vec3 b )
 {
 	return { a.x * b.x, a.y * b.y, a.z * b.z };
 }
 
+/// Vector addition.
 B3_FORCE_INLINE b3Vec3 operator+( b3Vec3 a, b3Vec3 b )
 {
 	return { a.x + b.x, a.y + b.y, a.z + b.z };
 }
 
+/// Vector subtraction.
 B3_FORCE_INLINE b3Vec3 operator-( b3Vec3 a, b3Vec3 b )
 {
 	return { a.x - b.x, a.y - b.y, a.z - b.z };
 }
 
-B3_INLINE b3Vec3 operator*( b3Matrix3 m, b3Vec3 v )
-{
-	return b3MulMV( m, v );
-}
-
-B3_INLINE b3Matrix3& operator+=( b3Matrix3& a, b3Matrix3 b )
-{
-	a = b3AddMM( a, b );
-	return a;
-}
-
-B3_INLINE b3Matrix3 operator*( b3Matrix3 a, b3Matrix3 b )
-{
-	return b3MulMM( a, b );
-}
-
-B3_INLINE b3Matrix3 operator+( b3Matrix3 a, b3Matrix3 b )
-{
-	return b3AddMM( a, b );
-}
-
-B3_INLINE b3Matrix3 operator-( b3Matrix3 a, b3Matrix3 b )
-{
-	return b3SubMM( a, b );
-}
-
-B3_INLINE b3Matrix3 operator*( float s, b3Matrix3 a )
-{
-	return b3MulSM( s, a );
-}
-
-B3_INLINE b3Quat operator+( b3Quat q1, b3Quat q2 )
-{
-	return { q1.v + q2.v, q1.s + q2.s };
-}
-
-B3_INLINE b3Quat operator-( b3Quat q1, b3Quat q2 )
-{
-	return { q1.v - q2.v, q1.s - q2.s };
-}
-
-B3_INLINE b3Quat operator*( float f, b3Quat q )
-{
-	return { f * q.v, f * q.s };
-}
-
-B3_INLINE b3Quat operator*( b3Quat q, float f )
-{
-	return { q.v * f, q.s * f };
-}
-
 #endif
 
-/**@}*/
+/**@}*/ // math_cpp

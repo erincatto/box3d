@@ -385,7 +385,7 @@ public:
 		b3Vec3 offset = { 0.0f, -1.5f, 0.0f };
 
 		// See: https://en.wikipedia.org/wiki/Parallel_axis_theorem
-		inertiaTensor += b3Steiner( mass, offset );
+		inertiaTensor = b3AddMM(inertiaTensor, b3Steiner( mass, offset ));
 
 		b3MassData massData = {
 			.mass = mass,

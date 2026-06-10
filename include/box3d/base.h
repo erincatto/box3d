@@ -123,6 +123,8 @@ B3_API int b3InternalAssert( const char* condition, const char* fileName, int li
 /// Floating point tolerance checks should use this instead of the regular assertion
 #define B3_VALIDATE( condition ) B3_ASSERT( condition )
 #else
+/// Validation is typically only enabled in debug builds.
+/// Floating point tolerance checks should use this instead of the regular assertion
 #define B3_VALIDATE( ... ) ( (void)0 )
 #endif
 

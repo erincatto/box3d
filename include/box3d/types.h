@@ -114,10 +114,19 @@ typedef float b3CastResultFcn( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, f
 /// @ingroup world
 typedef struct b3Capacity
 {
+	/// Number of expected static shapes.
 	int staticShapeCount;
+
+	/// Number of expected dynamic and kinematic shapes.
 	int dynamicShapeCount;
+
+	/// Number of expected static bodies.
 	int staticBodyCount;
+
+	/// Number of expected dynamic and kinematic bodies.
 	int dynamicBodyCount;
+
+	/// Number of expected contacts.
 	int contactCount;
 } b3Capacity;
 
@@ -466,7 +475,7 @@ typedef struct b3ShapeDef
 	/// Contact filtering data.
 	b3Filter filter;
 
-	/// Enable custom filtering. Only one of the two shapes needs to enable custom filtering. See b2WorldDef.
+	/// Enable custom filtering. Only one of the two shapes needs to enable custom filtering. See b3WorldDef.
 	bool enableCustomFiltering;
 
 	/// A sensor shape generates overlap events but never generates a collision response.
@@ -506,6 +515,7 @@ typedef struct b3ShapeDef
 /// @ingroup shape
 B3_API b3ShapeDef b3DefaultShapeDef( void );
 
+//! @cond
 /// Profiling data. Times are in milliseconds.
 /// @ingroup world
 typedef struct b3Profile
@@ -567,6 +577,7 @@ typedef struct b3Counters
 	int pushBackIterations;
 	int rootIterations;
 } b3Counters;
+//! @endcond
 
 /// Joint type enumeration. This is useful because all joint types use b3JointId and sometimes you
 /// want to get the type of a joint.
@@ -741,8 +752,13 @@ typedef struct b3ParallelJointDef
 	/// Base joint definition
 	b3JointDef base;
 
+	/// The spring stiffness Hertz, cycles per second
 	float hertz;
+
+	/// The spring damping ratio, non-dimensional
 	float dampingRatio;
+
+	/// The maximum spring torque, typically in newton-meters.
 	float maxTorque;
 
 } b3ParallelJointDef;
@@ -1012,7 +1028,7 @@ typedef struct b3ExplosionDef
 B3_API b3ExplosionDef b3DefaultExplosionDef( void );
 
 /**
- * @defgroup events Events
+ * @defgroup event Events
  * World event types.
  *
  * Events are used to collect events that occur during the world time step. These events
@@ -1046,12 +1062,12 @@ typedef struct b3SensorEndTouchEvent
 {
 	/// The id of the sensor shape
 	///	@warning this shape may have been destroyed
-	///	@see b2Shape_IsValid
+	///	@see b3Shape_IsValid
 	b3ShapeId sensorShapeId;
 
 	/// The id of the shape that stopped touching the sensor shape
 	///	@warning this shape may have been destroyed
-	///	@see b2Shape_IsValid
+	///	@see b3Shape_IsValid
 	b3ShapeId visitorShapeId;
 } b3SensorEndTouchEvent;
 
@@ -1179,9 +1195,16 @@ typedef struct b3ContactEvents
 /// @note If sleeping is disabled all dynamic and kinematic bodies will trigger move events.
 typedef struct b3BodyMoveEvent
 {
+	/// The body user data.
 	void* userData;
+
+	/// The body transform.
 	b3Transform transform;
+
+	/// The body id.
 	b3BodyId bodyId;
+
+	/// Did the body fall asleep this time step?
 	bool fellAsleep;
 } b3BodyMoveEvent;
 
@@ -1225,14 +1248,25 @@ typedef struct b3JointEvents
 /// @see b3Shape_GetContactData() and b3Body_GetContactData()
 typedef struct b3ContactData
 {
+	/// The contact id. You may hold onto this to track a contact across time steps.
+	/// This id may become orphaned. Use b3Contact_IsValid before using it for other functions.
 	b3ContactId contactId;
+
+	/// The first shape id.
 	b3ShapeId shapeIdA;
+
+	/// The second shape id.
 	b3ShapeId shapeIdB;
+
+	/// The contact manifold. This points to internal data and may become invalid. Do not store
+	/// this pointer.
 	const struct b3Manifold* manifolds;
+
+	/// The number of contact manifolds. For mesh and height-field collision there can be multiple manifolds.
 	int manifoldCount;
 } b3ContactData;
 
-/**@}*/ // events
+/**@}*/ // event
 
 /**
  * @defgroup query Query
@@ -1258,44 +1292,66 @@ typedef struct b3QueryFilter
 /// Use this to initialize your query filter
 B3_API b3QueryFilter b3DefaultQueryFilter( void );
 
-/// Low level ray cast input data
+/// Low level ray cast input data.
 typedef struct b3RayCastInput
 {
-	/// Start point of the ray cast
+	/// Start point of the ray cast.
 	b3Vec3 origin;
 
-	/// Translation of the ray cast
+	/// Translation of the ray cast.
+	/// end = start + translation.
 	b3Vec3 translation;
 
 	/// The maximum fraction of the translation to consider, typically 1
 	float maxFraction;
 } b3RayCastInput;
 
-/// Result from b3World_RayCastClosest
+/// Result from b3World_RayCastClosest.
 typedef struct b3RayResult
 {
+	/// The shape hit.
 	b3ShapeId shapeId;
+
+	/// The world point of the hit.
 	b3Vec3 point;
+
+	/// The world normal of the shape surface at the hit point.
 	b3Vec3 normal;
+
+	/// The user material id at the hit point. This can be per triangle
+	/// if the shape is a mesh, height-field, or compound with child mesh.
 	uint64_t userMaterialId;
+
+	/// The fraction of the input ray.
 	float fraction;
+
+	/// The triangle index if the shape is a mesh, height-field, or compound with
+	/// child mesh.
 	int triangleIndex;
+
+	/// The child index if the shape is a compound.
 	int childIndex;
+
+	/// The number of BVH nodes visited. Diagnostic.
 	int nodeVisits;
+
+	/// The number of BVH leaves visited. Diagnostic.
 	int leafVisits;
+
+	/// Did the ray hit? If false, all other data is invalid.
 	bool hit;
 } b3RayResult;
 
 /// A shape proxy is used by the GJK algorithm. It can represent a convex shape.
 typedef struct b3ShapeProxy
 {
-	/// The point cloud
+	/// The point cloud.
 	const b3Vec3* points;
 
 	/// The number of points. Do not exceed B3_MAX_SHAPE_CAST_POINTS.
 	int count;
 
-	/// The external radius of the point cloud
+	/// The external radius of the point cloud.
 	float radius;
 } b3ShapeProxy;
 
@@ -1304,38 +1360,38 @@ typedef struct b3ShapeProxy
 /// A capsule is two points with a non-zero radius. A box is four points with a zero radius.
 typedef struct b3ShapeCastInput
 {
-	/// A generic query shape
+	/// A generic query shape.
 	b3ShapeProxy proxy;
 
-	/// The translation of the shape cast
+	/// The translation of the shape cast.
 	b3Vec3 translation;
 
-	/// The maximum fraction of the translation to consider, typically 1
+	/// The maximum fraction of the translation to consider, typically 1.
 	float maxFraction;
 
 	/// Allow shape cast to encroach when initially touching. This only works if the radius is greater than zero.
 	bool canEncroach;
 } b3ShapeCastInput;
 
-/// Low level ray cast or shape-cast output data
+/// Low level ray cast or shape-cast output data.
 typedef struct b3CastOutput
 {
-	/// The surface normal at the hit point
+	/// The surface normal at the hit point.
 	b3Vec3 normal;
 
-	/// The surface hit point
+	/// The surface hit point.
 	b3Vec3 point;
 
-	/// The fraction of the input translation at collision
+	/// The fraction of the input translation at collision.
 	float fraction;
 
-	/// The number of iterations used
+	/// The number of iterations used.
 	int iterations;
 
-	/// The index of the mesh or height field triangle hit
+	/// The index of the mesh or height field triangle hit.
 	int triangleIndex;
 
-	/// The index of the compound child shape
+	/// The index of the compound child shape.
 	int childIndex;
 
 	/// The material index. May be -1 for null.
@@ -1348,21 +1404,70 @@ typedef struct b3CastOutput
 /// Body ray cast for ray casting a specific body with a specified transform.
 typedef struct b3BodyRayCastInput
 {
+	/// Start point of the ray cast
 	b3Vec3 origin;
+
+	/// Translation of the ray cast.
+	/// end = start + translation.
 	b3Vec3 translation;
+
+	/// The query filter bits.
 	b3QueryFilter filter;
+
+	/// The maximum fraction to consider along the ray.
+	/// end = start + fraction * translation
 	float maxFraction;
 } b3BodyRayCastInput;
 
 /// Body shape cast for shape casting a specific body with a specified transform.
 typedef struct b3BodyShapeCastInput
 {
+	/// A generic query shape.
 	b3ShapeProxy proxy;
+
+	/// The translation of the shape cast.
 	b3Vec3 translation;
+
+	/// The query filter bits.
 	b3QueryFilter filter;
+
+	/// The maximum fraction to consider along the shape cast.
+	/// end = start + fraction * translation
 	float maxFraction;
+
+	/// Allow shape cast to encroach when initially touching. This only works if the radius is greater than zero.
 	bool canEncroach;
 } b3BodyShapeCastInput;
+
+/// Body cast result for ray and shape casts.
+typedef struct b3BodyCastResult
+{
+	/// The shape hit.
+	b3ShapeId shapeId;
+
+	/// The world point on the shape surface.
+	b3Vec3 point;
+
+	/// The world normal vector on the shape surface.
+	b3Vec3 normal;
+
+	/// The fraction along the ray hit.
+	/// hit point = origin + fraction * translation
+	float fraction;
+
+	/// The triangle index if the shape is a mesh or height-field.
+	int triangleIndex;
+
+	/// The user material id at the hit point. This can be per triangle
+	/// if the shape is a mesh, height-field, or compound with child mesh.
+	uint64_t userMaterialId;
+
+	/// The number of iterations used. Diagnostic.
+	int iterations;
+
+	/// Did the cast hit? If false, all other fields are invalid.
+	bool hit;
+} b3BodyCastResult;
 
 /// Used to warm start the GJK simplex. If you call this function multiple times with nearby
 /// transforms this might improve performance. Otherwise you can zero initialize this.
@@ -1506,6 +1611,9 @@ typedef struct b3TOIOutput
 	/// Total number of root iterations
 	int rootIterations;
 
+	/// Indicates the that time of impact detected initial
+	/// overlap and used a fallback sphere as a last ditch effort
+	/// to prevent tunneling.
 	bool usedFallback;
 } b3TOIOutput;
 
@@ -1529,6 +1637,7 @@ typedef struct b3TOIOutput
  * @{
  */
 
+/// Flags for dynamic tree nodes. Internal usage.
 typedef enum b3TreeNodeFlags
 {
 	b3_allocatedNode = 0x0001,
@@ -1536,10 +1645,11 @@ typedef enum b3TreeNodeFlags
 	b3_leafNode = 0x0004,
 } b3TreeNodeFlags;
 
+/// Flags for dynamic tree node child indices. Internal usage.
 typedef struct b3TreeNodeChildren
 {
-	int child1;
-	int child2;
+	int child1; ///< child node index 1
+	int child2; ///< child node index 2
 } b3TreeNodeChildren;
 
 /// A node in the dynamic tree. This is private data placed here for performance reasons.
@@ -1572,15 +1682,20 @@ typedef struct b3TreeNode
 
 	/// Height of the node. Leaves have a height of 0.
 	uint16_t height; // 2
-	uint16_t flags;	 // 2
+
+	/// @see b3TreeNodeFlags
+	uint16_t flags; // 2
 } b3TreeNode;
 
+/// Dynamic tree version for compatibility testing.
 #define B3_DYNAMIC_TREE_VERSION 0x8E867C390754064Bull
 
 /// The dynamic tree structure. This should be considered private data.
 /// It is placed here for performance reasons.
 typedef struct b3DynamicTree
 {
+	/// The dynamic tree version. Always the first field. Useful
+	/// if the tree is serialized.
 	uint64_t version;
 
 	/// The tree nodes
@@ -1679,7 +1794,7 @@ typedef struct b3CollisionPlane
 	/// make the plane collision soft. Usually in meters.
 	float pushLimit;
 
-	/// The push on the mover determined by b2SolvePlanes. Usually in meters.
+	/// The push on the mover determined by b3SolvePlanes. Usually in meters.
 	float push;
 
 	/// Indicates if b3ClipVector should clip against this plane. Should be false for soft collision.
@@ -1696,32 +1811,22 @@ typedef struct b3PlaneSolverResult
 	int iterationCount;
 } b3PlaneSolverResult;
 
-/// Body cast result for ray and shape casts.
-typedef struct b3BodyCastResult
-{
-	b3ShapeId shapeId;
-	b3Vec3 point;
-	b3Vec3 normal;
-	float fraction;
-	int triangleIndex;
-	uint64_t userMaterialId;
-	int iterations;
-	bool hit;
-} b3BodyCastResult;
-
 /// Body plane result for movers.
 typedef struct b3BodyPlaneResult
 {
+	/// The shape id on the body.
 	b3ShapeId shapeId;
+
+	/// The plane result.
 	b3PlaneResult result;
 } b3BodyPlaneResult;
 
-// Used to collect collision planes for character movers.
-// Return true to continue gathering planes.
+/// Used to collect collision planes for character movers.
+/// Return true to continue gathering planes.
 typedef bool b3PlaneResultFcn( b3ShapeId shapeId, const b3PlaneResult* plane, int planeCount, void* context );
 
-// Used to filter shapes for shape casting character movers.
-// Return true to accept the collision
+/// Used to filter shapes for shape casting character movers.
+/// Return true to accept the collision
 typedef bool b3MoverFilterFcn( b3ShapeId shapeId, void* context );
 
 /**@}*/ // mover
@@ -1737,11 +1842,14 @@ typedef bool b3MoverFilterFcn( b3ShapeId shapeId, void* context );
 /// This holds the mass data computed for a shape.
 typedef struct b3MassData
 {
+	/// The shape mass
 	float mass;
+
+	/// The local center of mass position.
 	b3Vec3 center;
 
-	// todo_erin this should be central inertia
-	b3Matrix3 inertia;
+	/// The inertia tensor.
+	b3Matrix3 inertia; // todo this should be central inertia
 } b3MassData;
 
 /**
@@ -1824,6 +1932,7 @@ typedef struct b3HullFace
 	uint8_t edge;
 } b3HullFace;
 
+/// 64-bit hull version. Useful for validating serialized data.
 #define B3_HULL_VERSION 0x8F5034CF987D4FD9ull
 
 /// A convex hull.
@@ -1832,42 +1941,66 @@ typedef struct b3Hull
 {
 	/// Version must be first and match B3_HULL_VERSION
 	uint64_t version;
+
+	/// The total number of bytes for this hull.
 	int byteCount;
 
-	/// Hash of this hull (this field is zero when the hash is computed)
+	/// Hash of this hull (this field is zero when the hash is computed).
 	uint32_t hash;
 
-	/// Bulk properties
+	/// Axis-aligned box in local space.
 	b3AABB aabb;
+
+	/// Surface area, typically in squared meters.
 	float surfaceArea;
+
+	/// Volume, typical in m^3.
 	float volume;
+
+	/// The radius of the largest sphere at the center.
 	float innerRadius;
+
+	/// The local centroid
 	b3Vec3 center;
+
+	/// The inertia tensor about the centroid.
 	b3Matrix3 centralInertia;
 
-	/// Geometry
+	/// The vertex count.
 	int vertexCount;
+
+	/// Offset of the vertex array in bytes from the struct address.
 	int vertexOffset;
+
+	/// Offset of the point array in bytes from the struct address.
 	int pointOffset;
 
 	/// This is the half-edge count (double the edge count)
 	int edgeCount;
+
+	/// Offset of the edge array in bytes from the struct address.
 	int edgeOffset;
 
+	/// The face count. Hulls faces are convex polygons.
 	int faceCount;
+
+	/// Offset of the face array in bytes from the struct address.
 	int faceOffset;
+
+	/// Offset of the face plane array in bytes from the struct address.
 	int planeOffset;
 } b3Hull;
 
 /// Efficient box hull
 typedef struct b3BoxHull
 {
+	/// The embedded hull. So the offsets index into the arrays that follow.
 	b3Hull base;
-	b3HullVertex boxVertices[8];
-	b3Vec3 boxPoints[8];
-	b3HullHalfEdge boxEdges[24];
-	b3HullFace boxFaces[6];
-	b3Plane boxPlanes[6];
+	b3HullVertex boxVertices[8]; ///< Box vertices.
+	b3Vec3 boxPoints[8];		 ///< Box points.
+	b3HullHalfEdge boxEdges[24]; ///< Box half-edges.
+	b3HullFace boxFaces[6];		 ///< Box faces.
+	b3Plane boxPlanes[6];		 ///< Box face planes.
 } b3BoxHull;
 
 /**@}*/ // hull
@@ -1895,7 +2028,10 @@ typedef struct b3MeshDef
 	/// Tolerance for vertex welding in length units.
 	float weldTolerance;
 
+	/// The vertex count. Must be 3 or more.
 	int vertexCount;
+
+	/// The triangle count. Must be 1 or more.
 	int triangleCount;
 
 	/// Optionally weld nearby vertices.
@@ -1909,7 +2045,7 @@ typedef struct b3MeshDef
 	bool identifyEdges;
 } b3MeshDef;
 
-// 64-bit guid that is changed every time the format of the mesh changes
+/// 64-bit mesh version. Useful for validating serialized data.
 #define B3_MESH_VERSION 0x4A1E7B2C8D5F3091ull
 
 /// Triangle mesh edge flags.
@@ -1936,33 +2072,44 @@ typedef enum b3MeshEdgeFlags
 /// A mesh triangle.
 typedef struct b3MeshTriangle
 {
-	int32_t index1;
-	int32_t index2;
-	int32_t index3;
+	int32_t index1; ///< Index of vertex 1.
+	int32_t index2; ///< Index of vertex 2.
+	int32_t index3; ///< Index of vertex 3.
 } b3MeshTriangle;
 
 /// A mesh BVH node.
 typedef struct b3MeshNode
 {
+	/// The lower bound of the node AABB. Strategic placement for SIMD.
 	b3Vec3 lowerBound;
+
+	/// Anonymous union.
 	union
 	{
-		// Internal node
+		/// Internal node
 		struct
 		{
+			/// Split axis. 0, 1, or 2.
 			uint32_t axis : 2;
+			/// Offset of the second child node.
 			uint32_t childOffset : 30;
 		} asNode;
 
-		// Leaf node
+		/// Leaf node
 		struct
 		{
+			/// Aligned with axis above and has value of 3 if this is a leaf.
 			uint32_t type : 2;
+
+			/// The number of triangles for this leaf node.
 			uint32_t triangleCount : 30;
 		} asLeaf;
 	} data;
 
+	/// The upper bound of the node AABB.  Strategic placement for SIMD.
 	b3Vec3 upperBound;
+
+	/// The index of the leaf triangles.
 	uint32_t triangleOffset;
 } b3MeshNode;
 
@@ -1970,48 +2117,63 @@ typedef struct b3MeshNode
 /// @note This struct has data hanging off the end and cannot be directly copied.
 typedef struct b3MeshData
 {
-	// Version must be first
+	/// Version must be first.
 	uint64_t version;
+
+	/// The total number of bytes for this mesh.
 	int byteCount;
 
-	// Hash of this mesh (this field is zero when the hash is computed)
+	/// Hash of this mesh (this field is zero when the hash is computed)
 	uint32_t hash;
 
+	/// Local axis-aligned box.
 	b3AABB bounds;
 
 	/// Combined surface area of all triangles. Single-sided.
 	float surfaceArea;
 
+	/// The height of the bounding volume hierarchy.
 	int treeHeight;
+
+	/// The number of degenerate triangles. Diagnostic.
 	int degenerateCount;
 
-	// Offset of the node array in bytes from the struct address
+	/// Offset of the node array in bytes from the struct address.
 	int nodeOffset;
+
+	/// The number of BVH nodes.
 	int nodeCount;
 
-	// Offset of the vertex array in bytes from the struct address
+	/// Offset of the vertex array in bytes from the struct address.
 	int vertexOffset;
+
+	/// The number of vertices.
 	int vertexCount;
 
-	// Offset of the triangle array in bytes from the struct address
+	/// Offset of the triangle array in bytes from the struct address.
 	int triangleOffset;
+
+	/// The number of triangles.
 	int triangleCount;
 
-	// Offset of the material array in bytes from the struct address
+	/// Offset of the material array in bytes from the struct address.
 	int materialOffset;
+
+	/// The number of materials.
 	int materialCount;
 
-	// Offset of the triangle flag array in bytes from the struct address
+	/// Offset of the triangle flag array in bytes from the struct address.
 	int flagsOffset;
 } b3MeshData;
 
-/// This small struct allows a mesh data to be re-used with different scale.
+/// This allows mesh data to be re-used with different scales.
 typedef struct b3Mesh
 {
+	/// Immutable pointer to the mesh data.
 	const b3MeshData* data;
 
 	/// This scale may be non-uniform and have negative components. However,
-	/// no component may be zero or very small in magnitude.
+	/// no component may be very small in magnitude.
 	b3Vec3 scale;
 } b3Mesh;
 
@@ -2026,59 +2188,86 @@ typedef struct b3Mesh
 /// Data used to create a height field
 typedef struct b3HeightFieldDef
 {
-	// Grid point heights
-	// count = countX * countZ
+	/// Grid point heights
+	/// count = countX * countZ
 	float* heights;
 
-	// Grid cell material
-	// A value of 0xFF is reserved for holes
-	// count = (countX - 1) * (countZ - 1)
+	/// Grid cell material
+	/// A value of 0xFF is reserved for holes
+	/// count = (countX - 1) * (countZ - 1)
 	uint8_t* materialIndices;
 
+	/// The height field scale. All components must be positive values.
 	b3Vec3 scale;
+
+	/// The number of grid lines along the x-axis.
 	int countX;
+
+	/// The number of grid lines along the z-axis.
 	int countZ;
 
-	// Global minimum and maximum heights used for quantization. This is important
-	// if you want height fields to be placed next to each other and line up exactly.
-	// In that case, both height fields should use the same minimum and maximum heights.
-	// All height values are clamped to this range.
-	// These values are in unscaled space.
+	/// Global minimum and maximum heights used for quantization. This is important
+	/// if you want height fields to be placed next to each other and line up exactly.
+	/// In that case, both height fields should use the same minimum and maximum heights.
+	/// All height values are clamped to this range.
+	/// These values are in unscaled space.
 	float globalMinimumHeight;
+
+	/// The maximum.
 	float globalMaximumHeight;
 
+	/// Use clock-wise winding. This effectively inverts the height-field along the y-axis.
 	bool clockwiseWinding;
 } b3HeightFieldDef;
 
-// This material index is used to designate holes in a height field.
+/// This material index is used to designate holes in a height field.
 #define B3_HEIGHT_FIELD_HOLE 0xFF
 
-// 64-bit guid that is changed every time the format of the height field changes
+/// 64-bit height-field version. Useful for validating serialized data.
 #define B3_HEIGHT_FIELD_VERSION 0xB6E83F1D947A28C5ull
 
 /// A height field with compressed storage.
 typedef struct b3HeightField
 {
-	// Version must be first
+	/// Version must be first
 	uint64_t version;
 
-	// todo_erin use offset storage
+	/// The compressed height values.
 	uint16_t* compressedHeights;
+
+	/// Material indices, one for each cell.
 	uint8_t* materialIndices;
+
+	/// Flags per cell.
 	uint8_t* flags;
 
-	// Hash of this height field (this field is zero when the hash is computed).
-	// Pointer values above are skipped; the bulk arrays they reference and the
-	// scalar block below are folded in at construction time.
+	/// Hash of this height field (this field is zero when the hash is computed).
+	/// Pointer values above are skipped; the bulk arrays they reference and the
+	/// scalar block below are folded in at construction time.
 	uint32_t hash;
 
+	/// The local axis-aligned bounding box.
 	b3AABB aabb;
+
+	/// The minimum y value.
 	float minHeight;
+
+	/// The maximum y value
 	float maxHeight;
+
+	/// The quantization scale.
 	float heightScale;
+
+	/// The overall scale.
 	b3Vec3 scale;
+
+	/// The number of grid columns along the local x-axis.
 	int columnCount;
+
+	/// The number of grid rows along the local z-axis.
 	int rowCount;
+
+	/// Triangle winding.
 	bool clockwise;
 } b3HeightField;
 
@@ -2093,35 +2282,53 @@ typedef struct b3HeightField
 /// Definition for a capsule in a compound shape.
 typedef struct b3CompoundCapsuleDef
 {
+	/// Local capsule.
 	b3Capsule capsule;
+
+	/// Material properties.
 	b3SurfaceMaterial material;
 } b3CompoundCapsuleDef;
 
 /// Definition for a convex hull in a compound shape.
 typedef struct b3CompoundHullDef
 {
+	/// Shared hull.
 	const b3Hull* hull;
+
+	/// Transform of the shared hull into compound local space.
 	b3Transform transform;
+
+	/// Material properties.
 	b3SurfaceMaterial material;
 } b3CompoundHullDef;
 
 /// Definition for a triangle mesh in a compound shape.
 typedef struct b3CompoundMeshDef
 {
+	/// Shared mesh.
 	const b3MeshData* meshData;
+
+	/// Transform of the shared mesh into compound local space.
 	b3Transform transform;
+
+	/// Local space non-uniform mesh scale. May have negative components.
 	b3Vec3 scale;
 
-	// This array must line up with the material indices on the triangles.
+	/// Material properties.
+	/// This array must line up with the material indices on the triangles.
 	const b3SurfaceMaterial* materials;
-	int materialCount;
 
+	/// Number of materials.
+	int materialCount;
 } b3CompoundMeshDef;
 
 /// Definition for a sphere in a compound shape.
 typedef struct b3CompoundSphereDef
 {
+	/// Local sphere.
 	b3Sphere sphere;
+
+	/// Material properties.
 	b3SurfaceMaterial material;
 } b3CompoundSphereDef;
 
@@ -2129,22 +2336,32 @@ typedef struct b3CompoundSphereDef
 /// into the run-time compound shape.
 typedef struct b3CompoundDef
 {
+	/// Capsule instances.
 	b3CompoundCapsuleDef* capsules;
+
+	/// Number of capsules.
 	int capsuleCount;
 
 	/// Hulls instances.
 	b3CompoundHullDef* hulls;
+
+	/// Number of hull instances.
 	int hullCount;
 
-	/// Mesh instances
+	/// Mesh instances.
 	b3CompoundMeshDef* meshes;
+
+	/// Number of mesh instances.
 	int meshCount;
 
-	/// Spheres are fully cloned
+	/// Sphere instances.
 	b3CompoundSphereDef* spheres;
+
+	/// Number of spheres.
 	int sphereCount;
 } b3CompoundDef;
 
+/// The compound version depends on the tree, mesh, and hull versions.
 #define B3_COMPOUND_VERSION ( 0x902AC5D34D9BD452ull ^ B3_DYNAMIC_TREE_VERSION ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
 
 /// Meshes used in compounds have limited space for materials. If you have
@@ -2158,88 +2375,136 @@ typedef struct b3CompoundDef
 /// Accessors are provided for user relevant data.
 typedef struct b3Compound
 {
+	/// The compound version is always first.
 	uint64_t version;
+
+	/// The total number of bytes for this compound.
 	int byteCount;
 
-	/// Immutable dynamic tree.
-	/// The tree node pointer must be fixed up using the node offset
+	/// Offset of the tree node array in bytes from the struct address.
 	int nodeOffset;
+
+	/// Immutable dynamic tree. The tree node pointer must be fixed up using the node offset
 	b3DynamicTree tree;
 
+	/// Offset of the material array in bytes from the struct address.
 	int materialOffset;
+
+	/// The number of materials.
 	int materialCount;
 
+	/// Offset of the capsule array in bytes from the struct address.
 	int capsuleOffset;
+
+	/// The number of capsules.
 	int capsuleCount;
 
+	/// Offset of the hull instance array in bytes from the struct address.
 	int hullOffset;
+
+	/// The number of hull instances.
 	int hullCount;
+
+	/// The number of unique hulls. Diagnostic.
 	int sharedHullCount;
 
+	/// Offset of the mesh instance array in bytes from the struct address.
 	int meshOffset;
+
+	/// The number of mesh instances.
 	int meshCount;
+
+	/// The number of unique meshes. Diagnostic.
 	int sharedMeshCount;
 
+	/// Offset of the sphere array in bytes from the struct address.
 	int sphereOffset;
+
+	/// The number of spheres.
 	int sphereCount;
 } b3Compound;
 
-/// A capsule that lives in a b3Compound.
+/// A capsule that lives in a compound.
 typedef struct b3CompoundCapsule
 {
+	/// Local capsule.
 	b3Capsule capsule;
+
+	/// Index to a shared material.
 	int materialIndex;
 } b3CompoundCapsule;
 
-/// A hull that lives in a b3Compound.
+/// A hull that lives in a compound.
 typedef struct b3CompoundHull
 {
+	/// Pointer to the unique shared hull.
 	const b3Hull* hull;
+
+	/// The transform of this hull instance.
 	b3Transform transform;
+
+	/// Index to a shared material.
 	int materialIndex;
 } b3CompoundHull;
 
-/// A mesh with non-uniform scale that lives in a b3Compound.
+/// A mesh with non-uniform scale that lives in a compound.
 typedef struct b3CompoundMesh
 {
+	/// Pointer to the unique shared mesh.
 	const b3MeshData* meshData;
+
+	/// The transform of this mesh instance.
 	b3Transform transform;
+
+	/// Non-uniform scale of this mesh instance.
 	b3Vec3 scale;
 
-	// This is used to access the surface material from b3GetCompoundMaterials
-	// materialIndex = materialIndices[triangle->materialIndex]
+	/// This is used to access the surface material from b3GetCompoundMaterials.
+	/// Requires an extra level of indirection. The triangle material index
+	/// is clamped to B3_MAX_COMPOUND_MESH_MATERIALS.
+	/// materialIndex = materialIndices[triangle->materialIndex]
 	int materialIndices[B3_MAX_COMPOUND_MESH_MATERIALS];
 } b3CompoundMesh;
 
-/// A sphere that lives in a b3Compound.
+/// A sphere that lives in a compound.
 typedef struct b3CompoundSphere
 {
+	/// Local sphere.
 	b3Sphere sphere;
+
+	/// Index to a shared material.
 	int materialIndex;
 } b3CompoundSphere;
 
 /// Child shape of a compound
 typedef struct b3ChildShape
 {
+	/// Tagged union.
 	union
 	{
-		b3Capsule capsule;
-		const b3Hull* hull;
-		b3Mesh mesh;
-		b3Sphere sphere;
+		b3Capsule capsule;	///< Capsule.
+		const b3Hull* hull; ///< Hull.
+		b3Mesh mesh;		///< Mesh.
+		b3Sphere sphere;	///< Sphere.
 	};
 
+	/// Transform of the shape into compound local space.
 	b3Transform transform;
 
-	// Index 0 is used for convex shapes.
-	// todo limit to 64K?
+	/// Material indices. Index 0 is used for convex shapes.
+	/// todo limit to 64K?
 	int materialIndices[B3_MAX_COMPOUND_MESH_MATERIALS];
+
+	/// The shape type (union tag).
 	b3ShapeType type;
 } b3ChildShape;
 
+/// Callback for compound overlap queries.
 typedef bool b3CompoundQueryFcn( const b3Compound* compound, int childIndex, void* context );
 
-/**@}*/ // height_field
+/**@}*/ // compound
+
+/**@}*/ // geometry
 
 /**
  * @defgroup collision Shape Collision
@@ -2349,11 +2614,19 @@ typedef enum
 /// Separating axis test cache. Provides temporal acceleration of collision routines.
 typedef struct
 {
+	/// The separation when the cache is populated. Negative for overlap.
 	float separation;
-	// b3SeparatingFeature
+
+	/// b3SeparatingFeature.
 	uint8_t type;
+
+	/// Index of the feature on shape A.
 	uint8_t indexA;
+
+	/// Index of the feature on shape B.
 	uint8_t indexB;
+
+	/// Was the cache re-used?
 	uint8_t hit;
 } b3SATCache;
 
@@ -2375,26 +2648,51 @@ typedef struct b3FeaturePair
 	uint8_t index2;
 } b3FeaturePair;
 
-/// A local manifold point and normal in frame A
+/// A local manifold point and normal in frame A.
 typedef struct b3LocalManifoldPoint
 {
+	/// Local point in frame A.
 	b3Vec3 point;
+
+	/// The contact point separation. Negative for overlap.
 	float separation;
+
+	/// The feature pair for this point.
 	b3FeaturePair pair;
+
+	/// The triangle index when collide with a mesh or height-field.
 	int triangleIndex;
 } b3LocalManifoldPoint;
 
 /// A local manifold with no dynamic information. Used by b3Collide functions.
 typedef struct b3LocalManifold
 {
+	/// Local normal in frame A.
 	b3Vec3 normal;
+
+	/// The triangle normal.
 	b3Vec3 triangleNormal;
+
+	/// The manifold points. From a point buffer.
 	b3LocalManifoldPoint* points;
+
+	/// The number of manifold points. Only bounded by the buffer capacity.
 	int pointCount;
+
+	/// The index of the triangle.
 	int triangleIndex;
-	int i1, i2, i3;
+
+	int i1; ///< Vertex 1 index.
+	int i2; ///< Vertex 2 index.
+	int i3; ///< Vertex 3 index.
+
+	/// The squared distance of a sphere from a triangle. For ghost collision reduction.
 	float squaredDistance;
+
+	/// The triangle feature involved.
 	b3TriangleFeature feature;
+
+	/// b3MeshEdgeFlags.
 	int triangleFlags;
 } b3LocalManifold;
 
@@ -2588,23 +2886,28 @@ B3_API b3HexColor b3GetGraphColor( int index );
 /// custom sphere or capsule rendering.
 typedef struct b3DebugShape
 {
+	/// Shape id.
 	b3ShapeId shapeId;
+
+	/// Shape type.
 	b3ShapeType type;
+
+	/// Tagged union.
 	union
 	{
-		const b3Capsule* capsule;
-		const b3Compound* compound;
-		const b3HeightField* heightField;
-		const b3Hull* hull;
-		const b3Mesh* mesh;
-		const b3Sphere* sphere;
+		const b3Capsule* capsule;		  ///< Capsule shape.
+		const b3Compound* compound;		  ///< Compound shape.
+		const b3HeightField* heightField; ///< Height-field shape.
+		const b3Hull* hull;				  ///< Convex hull shape.
+		const b3Mesh* mesh;				  ///< Mesh shape with scale.
+		const b3Sphere* sphere;			  ///< Sphere shape.
 	};
 } b3DebugShape;
 
 /// This struct use passed to b3World_Draw to draw a debug view of the simulation world.
 typedef struct b3DebugDraw
 {
-	// Draws a shape and returns true if drawing should continue
+	/// Draws a shape and returns true if drawing should continue
 	bool ( *DrawShapeFcn )( void* userShape, b3Transform transform, b3HexColor color, void* context );
 
 	/// Draw a line segment.
@@ -2680,6 +2983,7 @@ typedef struct b3DebugDraw
 	void* context;
 } b3DebugDraw;
 
+/// Create a debug draw struct with default values.
 B3_API b3DebugDraw b3DefaultDebugDraw( void );
 
 /**@}*/ // debug_draw

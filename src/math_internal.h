@@ -234,10 +234,10 @@ static inline b3Quat b3IntegrateRotation( b3Quat q1, b3Vec3 deltaRotation )
 
 // Pseudo angular velocity from a quaternion target
 // w = 2 * (target - q) * conj(q)
-static inline b3Vec3 b3DeltaQuatToRotation(b3Quat q, b3Quat target)
+static inline b3Vec3 b3DeltaQuatToRotation( b3Quat q, b3Quat target )
 {
 	b3Quat s = q;
-	if (b3DotQuat(q, target) < 0.0f)
+	if ( b3DotQuat( q, target ) < 0.0f )
 	{
 		// Correct polarity
 		s = b3NegateQuat( q );
@@ -385,7 +385,18 @@ static inline b3Vec2 b3Solve2( b3Matrix2 m, b3Vec2 b )
 	return B3_LITERAL( b3Vec2 ){ 0.0f, 0.0f };
 }
 
-static inline b3Vec3 b3ModifiedCross(b3Vec3 a, b3Vec3 b)
+// Convenience function: s * a + t * b + u * c
+static inline b3Vec3 b3Blend3( float s, b3Vec3 a, float t, b3Vec3 b, float u, b3Vec3 c )
+{
+	b3Vec3 d = {
+		s * a.x + t * b.x + u * c.x,
+		s * a.y + t * b.y + u * c.y,
+		s * a.z + t * b.z + u * c.z,
+	};
+	return d;
+}
+
+static inline b3Vec3 b3ModifiedCross( b3Vec3 a, b3Vec3 b )
 {
 	b3Vec3 c;
 	c.x = a.y * b.z + a.z * b.y;
@@ -394,15 +405,30 @@ static inline b3Vec3 b3ModifiedCross(b3Vec3 a, b3Vec3 b)
 	return c;
 }
 
+static inline b3Matrix3 b3MakeDiagonalMatrix( float a, float b, float c )
+{
+	return (b3Matrix3){ { a, 0.0f, 0.0f }, { 0.0f, b, 0.0f }, { 0.0f, 0.0f, c } };
+}
+
+static inline b3Matrix3 b3Skew( b3Vec3 v )
+{
+	b3Matrix3 out;
+	out.cx = (b3Vec3){ 0, v.z, -v.y };
+	out.cy = (b3Vec3){ -v.z, 0, v.x };
+	out.cz = (b3Vec3){ v.y, -v.x, 0 };
+
+	return out;
+}
+
 static inline b3Plane b3NormalizePlane( b3Plane plane )
 {
 	float invLength = 1.0f / b3Length( plane.normal );
-	return B3_LITERAL( b3Plane ){ b3MulSV( invLength, plane.normal ), invLength * plane.offset };
+	return (b3Plane){ b3MulSV( invLength, plane.normal ), invLength * plane.offset };
 }
 
 static inline b3Plane b3MakePlaneFromNormalAndPoint( b3Vec3 normal, b3Vec3 point )
 {
-	return B3_LITERAL( b3Plane ){ normal, b3Dot( normal, point ) };
+	return (b3Plane){ normal, b3Dot( normal, point ) };
 }
 
 static inline b3Plane b3MakePlaneFromPoints( b3Vec3 point1, b3Vec3 point2, b3Vec3 point3 )
@@ -446,7 +472,8 @@ static inline float b3SignedVolume( b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, b3Vec3 p )
 // todo eliminate this
 static inline bool b3IsWithinSegments( const b3ClosestApproachResult* result )
 {
-	return ( 0.0f <= result->fraction1 && result->fraction1 <= 1.0f ) && ( 0.0f <= result->fraction2 && result->fraction2 <= 1.0f );
+	return ( 0.0f <= result->fraction1 && result->fraction1 <= 1.0f ) &&
+		   ( 0.0f <= result->fraction2 && result->fraction2 <= 1.0f );
 }
 
 static inline b3Matrix3 b3RotateInertia( b3Quat q, b3Matrix3 centralInertia )
@@ -483,4 +510,10 @@ static inline float b3GetSwingAngle( b3Quat q )
 	float swing = 2.0f * b3Atan2( y, x );
 	B3_ASSERT( 0.0f <= swing && swing <= B3_PI );
 	return swing;
+}
+
+// Add a point to an AABB.
+static inline b3AABB b3AABB_AddPoint( b3AABB a, b3Vec3 point )
+{
+	return (b3AABB){ b3Min( a.lowerBound, point ), b3Max( a.upperBound, point ) };
 }
