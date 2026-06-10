@@ -104,7 +104,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, 5.0f, 0.1f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( m_groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -113,7 +114,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, 5.0f, 0.1f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( m_groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -122,7 +124,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 20.0f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( m_groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -131,7 +134,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 20.0f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( m_groundId, &shapeDef, &hull );
 		}
 
 		m_jointFrictionTorque = 5.0f;
@@ -362,7 +366,7 @@ public:
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		groundId->AddMesh( &shapeDef, m_ground );
 
-		b3Hull* Hull = b3CreateOffsetBox( { { -3.0f, 0.5f, 0.0f }, b3Quat_identity }, { 0.25f, 0.5f, 3.0f } );
+		b3HullData* Hull = b3CreateOffsetBox( { { -3.0f, 0.5f, 0.0f }, b3Quat_identity }, { 0.25f, 0.5f, 3.0f } );
 		groundId->AddHull( &shapeDef, Hull );
 		b3DestroyHull( Hull );
 
@@ -377,7 +381,7 @@ public:
 		m_time = 0.0f;
 
 		{
-			b3Hull* Cylinder = b3CreateCylinder( 0.5f, 0.5f, 0.0f, 16 );
+			b3HullData* Cylinder = b3CreateCylinder( 0.5f, 0.5f, 0.0f, 16 );
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.position = { 3.0f, 0.5f, 0.0f };
 			bodyDef.rotation = b3MakeQuatFromAxisAngle( B3_VEC3_AXIS_Z, 0.5f * B3_PI );

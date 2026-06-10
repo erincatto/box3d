@@ -34,7 +34,8 @@ public:
 		bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 90.0f * B3_DEG_TO_RAD );
 		b3BodyId wallId = b3CreateBody( m_worldId, &bodyDef );
 		b3BoxHull wallBox = b3MakeBoxHull( 10.0f, 0.1f, 10.0f );
-		b3CreateHullShape( wallId, &shapeDef, &wallBox.base );
+		b3Hull wallHull = b3MakeHull( &wallBox.base, 1.0f );
+		b3CreateHullShape( wallId, &shapeDef, &wallHull );
 
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.rotation = b3Quat_identity;
@@ -61,7 +62,8 @@ public:
 		bodyDef.angularVelocity = { 20.0f, 5.0f, 0.0f };
 		b3BodyId boxBodyId = b3CreateBody( m_worldId, &bodyDef );
 		b3BoxHull box = b3MakeBoxHull( 0.4f, 0.1f, 0.1f );
-		b3CreateHullShape( boxBodyId, &shapeDef, &box.base );
+		b3Hull boxHull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( boxBodyId, &shapeDef, &boxHull );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -95,25 +97,29 @@ public:
 		{
 			b3Transform transform = { { 10.0f, 5.0f, 0.0f }, b3Quat_identity };
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 10.0f, transform );
-			b3CreateHullShape( groundBodyId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundBodyId, &shapeDef, &hull );
 		}
 
 		{
 			b3Transform transform = { { -10.0f, 5.0f, 0.0f }, b3Quat_identity };
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 10.0f, transform );
-			b3CreateHullShape( groundBodyId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundBodyId, &shapeDef, &hull );
 		}
 
 		{
 			b3Transform transform = { { 0.0f, 5.0f, -10.0f }, b3Quat_identity };
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 10.0f, 5.0f, 0.1f, transform );
-			b3CreateHullShape( groundBodyId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundBodyId, &shapeDef, &hull );
 		}
 
 		{
 			b3Transform transform = { { 0.0f, 5.0f, 10.0f }, b3Quat_identity };
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 10.0f, 5.0f, 0.1f, transform );
-			b3CreateHullShape( groundBodyId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundBodyId, &shapeDef, &hull );
 		}
 
 		bodyDef.type = b3_dynamicBody;
@@ -165,7 +171,8 @@ public:
 
 		b3BoxHull wallBox = b3MakeBoxHull( 0.125f, 0.5f, 10.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateHullShape( wallBodyId, &shapeDef, &wallBox.base );
+		b3Hull wallHull = b3MakeHull( &wallBox.base, 1.0f );
+		b3CreateHullShape( wallBodyId, &shapeDef, &wallHull );
 
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.0f, 20.0f, 0.5f };
@@ -177,7 +184,8 @@ public:
 		b3BodyId stickBodyId = b3CreateBody( m_worldId, &bodyDef );
 		b3BoxHull stickBox = b3MakeBoxHull( 2.0f, 0.1f, 0.1f );
 		shapeDef.baseMaterial.rollingResistance = 0.1f;
-		b3CreateHullShape( stickBodyId, &shapeDef, &stickBox.base );
+		b3Hull stickHull = b3MakeHull( &stickBox.base, 1.0f );
+		b3CreateHullShape( stickBodyId, &shapeDef, &stickHull );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -214,7 +222,8 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			b3Transform transform = { { -1.0f, 5.0f, 0.0f }, b3Quat_identity };
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 10.0f, transform );
-			b3CreateHullShape( groundBodyId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundBodyId, &shapeDef, &hull );
 		}
 
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
@@ -225,7 +234,8 @@ public:
 		{
 			bodyDef.position = { 0.0f, 0.5f + 1.1f * row, 0.0f };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 		}
 
 		m_bulletId = b3_nullBodyId;
@@ -310,7 +320,8 @@ public:
 		b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3BoxHull box = b3MakeBoxHull( 0.3f, 0.01f, 0.3f );
-		b3CreateHullShape( bodyId, &shapeDef, &box.base );
+		b3Hull hull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( bodyId, &shapeDef, &hull );
 	}
 
 	~NeedleMesh() override
@@ -384,7 +395,7 @@ public:
 	b3MeshData* m_needle2;
 	b3MeshData* m_needle3;
 	b3MeshData* m_needle4;
-	b3Hull* mConvex;
+	b3HullData* mConvex;
 };
 
 static int sampleNeedleMesh = RegisterSample( "Continuous", "Needle Mesh", NeedleMesh::Create );
@@ -492,7 +503,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( extent, halfHeight, 0.1f, transform );
 			shapeDef.name = "wall1";
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( m_groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -501,7 +513,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( extent, halfHeight, 0.1f, transform );
 			shapeDef.name = "wall2";
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( m_groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -510,7 +523,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, halfHeight, extent, transform );
 			shapeDef.name = "wall3";
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( m_groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -519,7 +533,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, halfHeight, extent, transform );
 			shapeDef.name = "wall4";
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( m_groundId, &shapeDef, &hull );
 		}
 	}
 
@@ -584,7 +599,8 @@ public:
 
 					if ( m_shapeType == e_box )
 					{
-						b3CreateHullShape( bodyId, &shapeDef, &box.base );
+						b3Hull hull = b3MakeHull( &box.base, 1.0f );
+						b3CreateHullShape( bodyId, &shapeDef, &hull );
 					}
 					else if ( m_shapeType == e_capsule )
 					{
@@ -592,7 +608,8 @@ public:
 					}
 					else if ( m_shapeType == e_cylinder )
 					{
-						b3CreateHullShape( bodyId, &shapeDef, m_cylinder );
+						b3Hull hull = b3MakeHull( m_cylinder, 1.0f );
+						b3CreateHullShape( bodyId, &shapeDef, &hull );
 					}
 					else
 					{
@@ -734,7 +751,7 @@ public:
 	b3MeshData* m_groundMesh;
 	float m_groundAmplitude;
 	b3BodyId m_groundId;
-	b3Hull* m_cylinder;
+	b3HullData* m_cylinder;
 	b3BodyId* m_bodies;
 	ShapeType m_shapeType;
 	int m_runCount;
@@ -826,7 +843,8 @@ public:
 		b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.05f, 1.0f );
-		b3CreateHullShape( bodyId, &shapeDef, &box.base );
+		b3Hull hull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( bodyId, &shapeDef, &hull );
 	}
 
 	~HumpMesh() override
@@ -945,7 +963,8 @@ public:
 			}
 			else
 			{
-				b3CreateHullShape( bodyId, &shapeDef, &box.base );
+				b3Hull hull = b3MakeHull( &box.base, 1.0f );
+				b3CreateHullShape( bodyId, &shapeDef, &hull );
 			}
 		}
 
@@ -964,7 +983,8 @@ public:
 			}
 			else
 			{
-				b3CreateHullShape( bodyId, &shapeDef, &box.base );
+				b3Hull hull = b3MakeHull( &box.base, 1.0f );
+				b3CreateHullShape( bodyId, &shapeDef, &hull );
 			}
 		}
 
@@ -983,7 +1003,8 @@ public:
 			}
 			else
 			{
-				b3CreateHullShape( bodyId, &shapeDef, &box.base );
+				b3Hull hull = b3MakeHull( &box.base, 1.0f );
+				b3CreateHullShape( bodyId, &shapeDef, &hull );
 			}
 		}
 	}

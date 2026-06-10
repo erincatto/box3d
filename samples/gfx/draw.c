@@ -67,7 +67,7 @@ void DrawSolidCapsule( b3Transform transform, b3Capsule capsule, Vec4 color )
 	DrawCapsule( world, 0.5f * length, capsule.radius, color );
 }
 
-void DrawHull( b3Transform transform, const b3Hull* hull, Vec4 color )
+void DrawHull( b3Transform transform, const b3HullData* hull, Vec4 color )
 {
 	const b3Vec3* points = b3GetHullPoints( hull );
 	const b3HullHalfEdge* edges = b3GetHullEdges( hull );

@@ -53,7 +53,8 @@ public:
 		bodyDef.position = { 2.0f, 3.0f, 0.0f };
 		bodyDef.angularVelocity = { 0.8f, 0.4f, 0.8f };
 		b3BodyId hullBody = b3CreateBody( m_worldId, &bodyDef );
-		b3CreateHullShape( hullBody, &shapeDef, &box.base );
+		b3Hull hull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( hullBody, &shapeDef, &hull );
 
 		bodyDef.position = { 6.0f, 3.0f, 0.0f };
 		bodyDef.angularVelocity = { 0.8f, 0.4f, 0.8f };
@@ -455,9 +456,12 @@ public:
 					break;
 
 				case b3_hullShape:
+				{
 					shapeDef.baseMaterial.userMaterialId = 33;
-					b3CreateHullShape( bodyId, &shapeDef, &m_box.base );
-					break;
+					b3Hull hull = b3MakeHull( &m_box.base, 1.0f );
+					b3CreateHullShape( bodyId, &shapeDef, &hull );
+				}
+				break;
 
 				case b3_meshShape:
 					shapeDef.baseMaterial.userMaterialId = 44;
@@ -925,7 +929,8 @@ public:
 			bodyDef.position = { 2.0f, 3.0f + 2.0f * index, 0.0f };
 			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.25f * B3_PI );
 			b3BodyId hullBody = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( hullBody, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( hullBody, &shapeDef, &hull );
 
 			bodyDef.position = { 6.0f, 3.0f + 2.0f * index, 0.0f };
 			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 0.5f * B3_PI );
@@ -1203,7 +1208,8 @@ public:
 			bodyDef.position = { 0.0f, 3.0f + 2.0f * index, 0.0f };
 			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.25f * B3_PI );
 			b3BodyId hullBody = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( hullBody, &shapeDef, &m_box.base );
+			b3Hull hull = b3MakeHull( &m_box.base, 1.0f );
+			b3CreateHullShape( hullBody, &shapeDef, &hull );
 
 			bodyDef.type = type;
 			bodyDef.position = { 3.0f, 3.0f + 2.0f * index, 0.0f };
@@ -1549,7 +1555,7 @@ public:
 	b3Transform m_transform;
 	b3Vec3 m_translation;
 	b3Capsule m_capsule;
-	b3Hull* m_box;
+	b3HullData* m_box;
 	b3Vec3 m_points[8];
 	b3Vec3 m_triangle[3];
 };
@@ -1796,7 +1802,7 @@ public:
 	}
 
 	b3Transform m_transformB;
-	b3Hull* m_box;
+	b3HullData* m_box;
 	b3BoxHull m_boxA;
 	b3BoxHull m_boxB;
 	b3Vec3 m_points[8];

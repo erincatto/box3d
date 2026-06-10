@@ -36,7 +36,8 @@ public:
 			b3BoxHull box = b3MakeBoxHull( 0.5f, 2.0f, 0.5f );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.density = 1.0f;
-			b3CreateHullShape( m_attachmentId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_attachmentId, &shapeDef, &hull );
 		}
 
 		// Define second attachment
@@ -51,7 +52,8 @@ public:
 			b3BoxHull box = b3MakeBoxHull( 0.5f, 2.0f, 0.5f );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.density = 1.0f;
-			b3CreateHullShape( m_secondAttachmentId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_secondAttachmentId, &shapeDef, &hull );
 		}
 
 		// Define platform
@@ -68,7 +70,8 @@ public:
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.density = 2.0f;
-			b3CreateHullShape( m_platformId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_platformId, &shapeDef, &hull );
 
 			b3RevoluteJointDef revoluteDef = b3DefaultRevoluteJointDef();
 			b3Vec3 pivot = { -2.0f, 5.0f, 0.0f };
@@ -120,7 +123,8 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.density = 2.0f;
 
-			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 		}
 
 		// Create a second payload
@@ -137,7 +141,8 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.density = 2.0f;
 
-			b3CreateHullShape( m_secondPayloadId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_secondPayloadId, &shapeDef, &hull );
 		}
 
 		// Create a separate body on the ground
@@ -294,19 +299,22 @@ public:
 		bodyDef.angularVelocity = { 5.0f, 0.01f, 0.01f };
 
 		b3BodyId body1 = b3CreateBody( m_worldId, &bodyDef );
-		b3CreateHullShape( body1, &shapeDef, &box.base );
+		b3Hull hull1 = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( body1, &shapeDef, &hull1 );
 
 		bodyDef.position = { 0.0f, 2.0f, 0.0f };
 		bodyDef.angularVelocity = { 0.01f, 5.0f, 0.01f };
 
 		b3BodyId body2 = b3CreateBody( m_worldId, &bodyDef );
-		b3CreateHullShape( body2, &shapeDef, &box.base );
+		b3Hull hull2 = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( body2, &shapeDef, &hull2 );
 
 		bodyDef.position = { 2.0f, 2.0f, 0.0f };
 		bodyDef.angularVelocity = { 0.01f, 0.01f, -5.0f };
 
 		b3BodyId body3 = b3CreateBody( m_worldId, &bodyDef );
-		b3CreateHullShape( body3, &shapeDef, &box.base );
+		b3Hull hull3 = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( body3, &shapeDef, &hull3 );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -340,10 +348,12 @@ public:
 		b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3Hull* cylinder = b3CreateCylinder( 0.6f, 0.15f, 0.0f, 32 );
+		b3HullData* cylinder = b3CreateCylinder( 0.6f, 0.15f, 0.0f, 32 );
 		b3BoxHull box = b3MakeBoxHull( 1.0f, 0.05f, 0.1f );
-		b3CreateHullShape( bodyId, &shapeDef, cylinder );
-		b3CreateHullShape( bodyId, &shapeDef, &box.base );
+		b3Hull cylinderHull = b3MakeHull( cylinder, 1.0f );
+		b3Hull boxHull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( bodyId, &shapeDef, &cylinderHull );
+		b3CreateHullShape( bodyId, &shapeDef, &boxHull );
 
 		b3DestroyHull( cylinder );
 	}
@@ -586,7 +596,8 @@ public:
 		m_cylinder = b3CreateCylinder( 2.0f, 0.5f, 0.0f, 16 );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateHullShape( m_bodyId, &shapeDef, m_cylinder );
+		b3Hull hull = b3MakeHull( m_cylinder, 1.0f );
+		b3CreateHullShape( m_bodyId, &shapeDef, &hull );
 
 		m_transform.p = { -10.0f, 2.0f, 0.0f };
 		m_transform.q = b3MakeQuatFromAxisAngle( b3Normalize( { 1.0f, -2.0f, 3.0f } ), 0.75f * B3_PI );
@@ -727,7 +738,7 @@ public:
 		return new BodyCast( context );
 	}
 
-	b3Hull* m_cylinder;
+	b3HullData* m_cylinder;
 	b3BodyId m_bodyId;
 	b3Transform m_transform;
 
@@ -766,7 +777,8 @@ public:
 
 			b3BoxHull box = b3MakeBoxHull( 0.1f, 1.0f, 0.2f );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_bodyId, &shapeDef, &hull );
 		}
 
 		m_time = 0.0f;
@@ -839,7 +851,8 @@ public:
 			bodyDef.position = { 0.0f, 2.0f, 0.0f };
 
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+			b3Hull hull = b3MakeHull( &cube.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 		}
 
 		{
@@ -851,7 +864,8 @@ public:
 			// bodyDef.motionLocks.angularY = true;
 			bodyDef.motionLocks.angularZ = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+			b3Hull hull = b3MakeHull( &cube.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 		}
 
 		{
@@ -863,7 +877,8 @@ public:
 			bodyDef.motionLocks.linearY = true;
 			bodyDef.motionLocks.linearZ = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+			b3Hull hull = b3MakeHull( &cube.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 		}
 
 		{
@@ -878,7 +893,8 @@ public:
 			bodyDef.motionLocks.angularY = true;
 			bodyDef.motionLocks.angularZ = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+			b3Hull hull = b3MakeHull( &cube.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 		}
 
 		{
@@ -886,7 +902,8 @@ public:
 			bodyDef.name = "static";
 			bodyDef.position = { 0.0f, 1.0f, -3.0f };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+			b3Hull hull = b3MakeHull( &cube.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 		}
 	}
 

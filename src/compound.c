@@ -16,7 +16,7 @@
 
 typedef struct b3SharedHull
 {
-	const b3Hull* hull;
+	const b3HullData* hull;
 	int hullOffset;
 } b3SharedHull;
 
@@ -88,7 +88,7 @@ b3CompoundHull b3GetCompoundHull( const b3Compound* compound, int index )
 	const b3HullInstance* hullInstances = (const b3HullInstance*)( (intptr_t)compound + compound->hullOffset );
 	uint32_t hullOffset = hullInstances[index].hullOffset;
 	B3_ASSERT( hullOffset >= compound->hullOffset + compound->hullCount * sizeof( b3HullInstance ) );
-	result.hull = (const b3Hull*)( (intptr_t)compound + hullOffset );
+	result.hull = (const b3HullData*)( (intptr_t)compound + hullOffset );
 	result.transform = hullInstances[index].transform;
 	result.materialIndex = hullInstances[index].materialIndex;
 	return result;
@@ -195,12 +195,12 @@ b3ChildShape b3GetCompoundChild( const b3Compound* compound, int childIndex )
 
 static inline size_t vt_wyhash( const void* key, size_t len );
 
-static inline uint64_t b3HashHull( const b3Hull* hull )
+static inline uint64_t b3HashHull( const b3HullData* hull )
 {
 	return vt_wyhash( hull, hull->byteCount );
 }
 
-static bool b3CompareHulls( const b3Hull* hull1, const b3Hull* hull2 )
+static bool b3CompareHulls( const b3HullData* hull1, const b3HullData* hull2 )
 {
 	if ( hull1 == hull2 )
 	{
@@ -217,7 +217,7 @@ static bool b3CompareHulls( const b3Hull* hull1, const b3Hull* hull2 )
 }
 
 #define NAME b3HullMap
-#define KEY_TY const b3Hull*
+#define KEY_TY const b3HullData*
 #define VAL_TY int
 #define HASH_FN b3HashHull
 #define CMPR_FN b3CompareHulls
@@ -357,8 +357,8 @@ b3Compound* b3CreateCompound( const b3CompoundDef* def )
 		for ( int i = 0; i < hullCount; ++i )
 		{
 			const b3CompoundHullDef* hullDef = def->hulls + i;
-			const b3Hull* hull = hullDef->hull;
-			b3AABB aabb = b3ComputeHullAABB( hull, hullDef->transform );
+			const b3HullData* hull = hullDef->hull;
+			b3AABB aabb = b3ComputeHullAABB( hull, 1.0f, hullDef->transform );
 			b3DynamicTree_CreateProxy( &tree, aabb, ~0ull, childIndex );
 			childIndex += 1;
 
@@ -607,7 +607,7 @@ b3Compound* b3CreateCompound( const b3CompoundDef* def )
 	for ( int i = 0; i < sharedHullCount; ++i )
 	{
 		int offset = sharedHulls[i].hullOffset;
-		b3Hull* destinationHull = (b3Hull*)( (intptr_t)compound + offset );
+		b3HullData* destinationHull = (b3HullData*)( (intptr_t)compound + offset );
 		memcpy( destinationHull, sharedHulls[i].hull, sharedHulls[i].hull->byteCount );
 	}
 
@@ -732,7 +732,7 @@ static bool b3CompoundOverlapCallback( int proxyId, uint64_t userData, void* con
 			break;
 
 		case b3_hullShape:
-			overlap = b3OverlapHull( child.hull, transform, &overlapContext->proxy );
+			overlap = b3OverlapHull( child.hull, 1.0f, transform, &overlapContext->proxy );
 			break;
 
 		case b3_meshShape:
@@ -815,7 +815,7 @@ static float b3CompoundRayCastCallback( const b3RayCastInput* input, int proxyId
 			break;
 
 		case b3_hullShape:
-			output = b3RayCastHull( child.hull, &localInput );
+			output = b3RayCastHull( child.hull, 1.0f, &localInput );
 			output.materialIndex = child.materialIndices[0];
 			break;
 
@@ -899,7 +899,7 @@ static float b3CompoundShapeCastCallback( const b3ShapeCastInput* input, int pro
 			break;
 
 		case b3_hullShape:
-			output = b3ShapeCastHull( child.hull, &localInput );
+			output = b3ShapeCastHull( child.hull, 1.0f, &localInput );
 			output.materialIndex = child.materialIndices[0];
 			break;
 
@@ -1158,7 +1158,7 @@ static bool b3CompoundMoverCallback( int proxyId, uint64_t userData, void* conte
 			break;
 
 		case b3_hullShape:
-			planeCount = b3CollideMoverAndHull( planes, child.hull, &localMover );
+			planeCount = b3CollideMoverAndHull( planes, child.hull, 1.0f, &localMover );
 			break;
 
 		case b3_meshShape:

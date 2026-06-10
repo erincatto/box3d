@@ -678,7 +678,8 @@ shapeDef.density = 10.0f;
 shapeDef.baseMaterial.friction = 0.7f;
 
 b3BoxHull box = b3MakeBoxHull(0.5f, 0.5f, 1.0f);
-b3ShapeId myShapeId = b3CreateHullShape(myBodyId, &shapeDef, &box.base);
+b3Hull hull = b3MakeHull(&box.base, 1.0f);
+b3ShapeId myShapeId = b3CreateHullShape(myBodyId, &shapeDef, &hull);
 ```
 
 This creates a hull shape and attaches it to the body. You do not need to

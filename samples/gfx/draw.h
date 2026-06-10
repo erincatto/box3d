@@ -52,7 +52,7 @@ void DrawSolidSphere( b3Transform transform, b3Sphere sphere, Vec4 color );
 void DrawSolidCapsule( b3Transform transform, b3Capsule capsule, Vec4 color );
 
 // Convex hull wireframe. Each undirected edge once, in world space.
-void DrawHull( b3Transform transform, const b3Hull* hull, Vec4 color );
+void DrawHull( b3Transform transform, const b3HullData* hull, Vec4 color );
 
 // Plane as a unit wireframe quad through the point, plus a short normal and a dot.
 void DrawPlane( b3Vec3 normal, b3Vec3 point, Vec4 color );

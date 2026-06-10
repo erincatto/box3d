@@ -480,7 +480,7 @@ static inline int b3GetTriangleSupport( b3Vec3* points, b3Vec3 direction )
 	return index;
 }
 
-static b3FaceQuery b3QueryTriangleFace( const b3TriangleData* triangle, const b3Hull* hull )
+static b3FaceQuery b3QueryTriangleFace( const b3TriangleData* triangle, const b3HullData* hull )
 {
 	const b3Vec3* hullPoints = b3GetHullPoints( hull );
 	b3Plane plane = triangle->plane;
@@ -495,7 +495,7 @@ static b3FaceQuery b3QueryTriangleFace( const b3TriangleData* triangle, const b3
 	};
 }
 
-static b3FaceQuery b3QueryHullFace( const b3TriangleData* triangle, const b3Hull* hull )
+static b3FaceQuery b3QueryHullFace( const b3TriangleData* triangle, const b3HullData* hull )
 {
 	const b3Plane* hullPlanes = b3GetHullPlanes( hull );
 	int faceCount = hull->faceCount;
@@ -528,7 +528,7 @@ static b3FaceQuery b3QueryHullFace( const b3TriangleData* triangle, const b3Hull
 	};
 }
 
-static b3EdgeQuery b3TestEdgePairs( const b3TriangleData* triangle, const b3Hull* hull )
+static b3EdgeQuery b3TestEdgePairs( const b3TriangleData* triangle, const b3HullData* hull )
 {
 	b3EdgeQuery result = {
 		.separation = -FLT_MAX,
@@ -596,7 +596,7 @@ static b3EdgeQuery b3TestEdgePairs( const b3TriangleData* triangle, const b3Hull
 	return result;
 }
 
-static float b3CollideHullFace( b3LocalManifold* manifold, int pointCapacity, const b3TriangleData* triangle, const b3Hull* hull,
+static float b3CollideHullFace( b3LocalManifold* manifold, int pointCapacity, const b3TriangleData* triangle, const b3HullData* hull,
 								b3FaceQuery query, b3SATCache* cache )
 {
 	manifold->pointCount = 0;
@@ -701,7 +701,7 @@ static float b3CollideHullFace( b3LocalManifold* manifold, int pointCapacity, co
 }
 
 static float b3CollideTriangleFace( b3LocalManifold* manifold, int pointCapacity, const b3TriangleData* triangle,
-									const b3Hull* hull, b3FaceQuery query, b3SATCache* cache )
+									const b3HullData* hull, b3FaceQuery query, b3SATCache* cache )
 {
 	B3_VALIDATE( manifold->pointCount == 0 );
 
@@ -807,7 +807,7 @@ static float b3CollideTriangleFace( b3LocalManifold* manifold, int pointCapacity
 }
 
 static void b3CollideHullAndTriangleEdges( b3LocalManifold* manifold, int capacity, b3Vec3 trianglePoint, b3Vec3 triangleEdge,
-										   b3Vec3 triangleCenter, const b3Hull* hull, b3EdgeQuery query, b3SATCache* cache )
+										   b3Vec3 triangleCenter, const b3HullData* hull, b3EdgeQuery query, b3SATCache* cache )
 {
 	B3_VALIDATE( query.separation <= 2.0f * B3_SPECULATIVE_DISTANCE );
 	B3_ASSERT( query.indexA < 3 );
@@ -901,7 +901,7 @@ b3AtomicInt b3_triangleConvexCalls;
 b3AtomicInt b3_triangleCacheHits;
 
 // Computes the manifold in the local space of the hull
-void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3Hull* hullA, b3Vec3 v1, b3Vec3 v2, b3Vec3 v3,
+void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, b3Vec3 v1, b3Vec3 v2, b3Vec3 v3,
 							   int triangleFlags, b3SATCache* cache )
 {
 	manifold->pointCount = 0;

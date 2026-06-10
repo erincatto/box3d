@@ -1570,7 +1570,7 @@ static void b3HullBuilder_Init( b3HullBuilder* b, char* mem, const b3HullWorkSiz
 	b->horizonStackCapacity = s->horizonStackCapacity;
 }
 
-static b3Vec3* b3GetHullPointsWrite( b3Hull* hull )
+static b3Vec3* b3GetHullPointsWrite( b3HullData* hull )
 {
 	if ( hull->pointOffset == 0 )
 	{
@@ -1579,7 +1579,7 @@ static b3Vec3* b3GetHullPointsWrite( b3Hull* hull )
 	return (b3Vec3*)( (intptr_t)hull + hull->pointOffset );
 }
 
-static b3Plane* b3GetHullPlanesWrite( b3Hull* hull )
+static b3Plane* b3GetHullPlanesWrite( b3HullData* hull )
 {
 	if ( hull->planeOffset == 0 )
 	{
@@ -1588,7 +1588,7 @@ static b3Plane* b3GetHullPlanesWrite( b3Hull* hull )
 	return (b3Plane*)( (intptr_t)hull + hull->planeOffset );
 }
 
-static b3HullVertex* b3GetHullVerticesWrite( b3Hull* hull )
+static b3HullVertex* b3GetHullVerticesWrite( b3HullData* hull )
 {
 	if ( hull->vertexOffset == 0 )
 	{
@@ -1597,7 +1597,7 @@ static b3HullVertex* b3GetHullVerticesWrite( b3Hull* hull )
 	return (b3HullVertex*)( (intptr_t)hull + hull->vertexOffset );
 }
 
-static b3HullHalfEdge* b3GetHullEdgesWrite( b3Hull* hull )
+static b3HullHalfEdge* b3GetHullEdgesWrite( b3HullData* hull )
 {
 	if ( hull->edgeOffset == 0 )
 	{
@@ -1606,7 +1606,7 @@ static b3HullHalfEdge* b3GetHullEdgesWrite( b3Hull* hull )
 	return (b3HullHalfEdge*)( (intptr_t)hull + hull->edgeOffset );
 }
 
-int b3FindHullSupportVertex( const b3Hull* hull, b3Vec3 direction )
+int b3FindHullSupportVertex( const b3HullData* hull, b3Vec3 direction )
 {
 	int bestIndex = B3_NULL_INDEX;
 	float bestDot = -FLT_MAX;
@@ -1628,7 +1628,7 @@ int b3FindHullSupportVertex( const b3Hull* hull, b3Vec3 direction )
 	return bestIndex;
 }
 
-int b3FindHullSupportFace( const b3Hull* hull, b3Vec3 direction )
+int b3FindHullSupportFace( const b3HullData* hull, b3Vec3 direction )
 {
 	int bestIndex = B3_NULL_INDEX;
 	float bestDot = -FLT_MAX;
@@ -1652,7 +1652,7 @@ int b3FindHullSupportFace( const b3Hull* hull, b3Vec3 direction )
 
 #if B3_ENABLE_VALIDATION
 
-bool b3IsValidHull( const b3Hull* hull )
+bool b3IsValidHull( const b3HullData* hull )
 {
 	if ( hull->version != B3_HULL_VERSION )
 	{
@@ -1759,7 +1759,7 @@ bool b3IsValidHull( const b3Hull* hull )
 
 #else
 
-bool b3IsValidHull( const b3Hull* hull )
+bool b3IsValidHull( const b3HullData* hull )
 {
 	B3_UNUSED( hull );
 	return true;
@@ -1767,7 +1767,7 @@ bool b3IsValidHull( const b3Hull* hull )
 
 #endif
 
-b3Hull* b3CreateCylinder( float height, float radius, float yOffset, int sides )
+b3HullData* b3CreateCylinder( float height, float radius, float yOffset, int sides )
 {
 	B3_ASSERT( height > 0.0f );
 	B3_ASSERT( radius > 0.0f );
@@ -1791,7 +1791,7 @@ b3Hull* b3CreateCylinder( float height, float radius, float yOffset, int sides )
 		alpha += deltaAlpha;
 	}
 
-	b3Hull* hull = b3CreateHull( points, pointCount, pointCount );
+	b3HullData* hull = b3CreateHull( points, pointCount, pointCount );
 	B3_ASSERT( hull->vertexCount == pointCount );
 	B3_ASSERT( hull->edgeCount == 6 * sides );
 	B3_ASSERT( hull->faceCount == sides + 2 );
@@ -1801,7 +1801,7 @@ b3Hull* b3CreateCylinder( float height, float radius, float yOffset, int sides )
 	return hull;
 }
 
-b3Hull* b3CreateCone( float height, float radius1, float radius2, int slices )
+b3HullData* b3CreateCone( float height, float radius1, float radius2, int slices )
 {
 	B3_ASSERT( height > 0.0f );
 	B3_ASSERT( radius1 > 0.0f );
@@ -1826,7 +1826,7 @@ b3Hull* b3CreateCone( float height, float radius1, float radius2, int slices )
 		alpha += deltaAlpha;
 	}
 
-	b3Hull* hull = b3CreateHull( points, pointCount, pointCount );
+	b3HullData* hull = b3CreateHull( points, pointCount, pointCount );
 	B3_ASSERT( hull->vertexCount == pointCount );
 	B3_ASSERT( hull->edgeCount == 6 * slices );
 	B3_ASSERT( hull->faceCount == slices + 2 );
@@ -1836,7 +1836,7 @@ b3Hull* b3CreateCone( float height, float radius1, float radius2, int slices )
 	return hull;
 }
 
-static void b3UpdateHullBounds( b3Hull* hull )
+static void b3UpdateHullBounds( b3HullData* hull )
 {
 	const b3Vec3* points = b3GetHullPoints( hull );
 	int vertexCount = hull->vertexCount;
@@ -1857,7 +1857,7 @@ static void b3UpdateHullBounds( b3Hull* hull )
 }
 
 // M. Kallay - "Computing the Moment of Inertia of a Solid Defined by a Triangle Mesh"
-static bool b3UpdateHullBulkProperties( b3Hull* hull )
+static bool b3UpdateHullBulkProperties( b3HullData* hull )
 {
 	const b3Vec3* points = b3GetHullPoints( hull );
 	const b3HullFace* faces = b3GetHullFaces( hull );
@@ -1984,7 +1984,7 @@ static bool b3UpdateHullBulkProperties( b3Hull* hull )
 	return true;
 }
 
-b3Hull* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount )
+b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount )
 {
 	if ( pointCount < 4 )
 	{
@@ -2077,7 +2077,7 @@ b3Hull* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount )
 	}
 
 	// Allocate the hull. Arrays hang off the end.
-	size_t byteCount = b3AlignUp8( sizeof( b3Hull ) );
+	size_t byteCount = b3AlignUp8( sizeof( b3HullData ) );
 	int vertexOffset = (int)byteCount;
 	byteCount += b3AlignUp8( vertexCount * (int)sizeof( b3HullVertex ) );
 	int pointOffset = (int)byteCount;
@@ -2089,7 +2089,7 @@ b3Hull* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount )
 	int planeOffset = (int)byteCount;
 	byteCount += b3AlignUp8( faceCount * (int)sizeof( b3Plane ) );
 
-	b3Hull* hull = b3Alloc( byteCount );
+	b3HullData* hull = b3Alloc( byteCount );
 	memset( hull, 0, byteCount );
 
 	hull->version = B3_HULL_VERSION;
@@ -2165,27 +2165,67 @@ b3Hull* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount )
 	return hull;
 }
 
-b3Hull* b3CloneHull( const b3Hull* hull )
+b3HullData* b3CloneHull( const b3HullData* hull )
 {
 	if ( hull == NULL || b3IsValidHull( hull ) == false )
 	{
 		return NULL;
 	}
 
-	b3Hull* clone = (b3Hull*)b3Alloc( hull->byteCount );
+	b3HullData* clone = (b3HullData*)b3Alloc( hull->byteCount );
 	memcpy( clone, hull, hull->byteCount );
 
 	return clone;
 }
 
-b3Hull* b3CloneAndTransformHull( const b3Hull* original, b3Transform transform, b3Vec3 scale )
+const b3HullData* b3ScaleHullData( const b3HullData* hull, float scale, void* buffer )
+{
+	if ( scale == 1.0f )
+	{
+		return hull;
+	}
+
+	// Topology is scale invariant so only the points, plane offsets and baked
+	// quantities change. Indices remain valid against the copied arrays.
+	b3HullData* scaled = (b3HullData*)buffer;
+	memcpy( scaled, hull, hull->byteCount );
+
+	float s2 = scale * scale;
+	float s3 = s2 * scale;
+	float s5 = s3 * s2;
+
+	b3Vec3* points = b3GetHullPointsWrite( scaled );
+	for ( int i = 0; i < scaled->vertexCount; ++i )
+	{
+		points[i] = b3MulSV( scale, points[i] );
+	}
+
+	// Uniform positive scale leaves face normals unchanged and scales the offset.
+	b3Plane* planes = b3GetHullPlanesWrite( scaled );
+	for ( int i = 0; i < scaled->faceCount; ++i )
+	{
+		planes[i].offset *= scale;
+	}
+
+	scaled->aabb.lowerBound = b3MulSV( scale, scaled->aabb.lowerBound );
+	scaled->aabb.upperBound = b3MulSV( scale, scaled->aabb.upperBound );
+	scaled->center = b3MulSV( scale, scaled->center );
+	scaled->innerRadius *= scale;
+	scaled->surfaceArea *= s2;
+	scaled->volume *= s3;
+	scaled->centralInertia = b3MulSM( s5, scaled->centralInertia );
+
+	return scaled;
+}
+
+b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform transform, b3Vec3 scale )
 {
 	if ( original == NULL || b3IsValidHull( original ) == false )
 	{
 		return NULL;
 	}
 
-	b3Hull* hull = (b3Hull*)b3Alloc( original->byteCount );
+	b3HullData* hull = (b3HullData*)b3Alloc( original->byteCount );
 	memcpy( hull, original, original->byteCount );
 
 	b3Vec3 safeScale = b3SafeScale( scale );
@@ -2324,37 +2364,59 @@ b3Hull* b3CloneAndTransformHull( const b3Hull* original, b3Transform transform, 
 	return hull;
 }
 
-void b3DestroyHull( b3Hull* hull )
+void b3DestroyHull( b3HullData* hull )
 {
 	b3Free( hull, hull->byteCount );
 }
 
-b3MassData b3ComputeHullMass( const b3Hull* shape, float density )
+b3MassData b3ComputeHullMass( const b3HullData* shape, float scale, float density )
 {
+	float s2 = scale * scale;
+	float s3 = s2 * scale;
+	float s5 = s3 * s2;
+
 	b3MassData out;
-	out.mass = density * shape->volume;
-	out.center = shape->center;
+	out.mass = density * shape->volume * s3;
+	out.center = b3MulSV( scale, shape->center );
 
 	// todo_erin switch to central
-	out.inertia = b3AddMM( b3MulSM( density, shape->centralInertia ), b3Steiner( out.mass, out.center ) );
+	out.inertia = b3AddMM( b3MulSM( density * s5, shape->centralInertia ), b3Steiner( out.mass, out.center ) );
 	return out;
 }
 
-b3AABB b3ComputeHullAABB( const b3Hull* shape, b3Transform transform )
+static b3AABB b3ScaleHullAABB( const b3HullData* shape, float scale )
 {
-	return b3AABB_Transform( transform, shape->aabb );
+	b3AABB aabb = shape->aabb;
+	aabb.lowerBound = b3MulSV( scale, aabb.lowerBound );
+	aabb.upperBound = b3MulSV( scale, aabb.upperBound );
+	return aabb;
 }
 
-b3AABB b3ComputeSweptHullAABB( const b3Hull* shape, b3Transform xf1, b3Transform xf2 )
+b3AABB b3ComputeHullAABB( const b3HullData* shape, float scale, b3Transform transform )
 {
-	b3AABB aabb1 = b3AABB_Transform( xf1, shape->aabb );
-	b3AABB aabb2 = b3AABB_Transform( xf2, shape->aabb );
+	return b3AABB_Transform( transform, b3ScaleHullAABB( shape, scale ) );
+}
+
+b3AABB b3ComputeSweptHullAABB( const b3HullData* shape, float scale, b3Transform xf1, b3Transform xf2 )
+{
+	b3AABB local = b3ScaleHullAABB( shape, scale );
+	b3AABB aabb1 = b3AABB_Transform( xf1, local );
+	b3AABB aabb2 = b3AABB_Transform( xf2, local );
 	return b3AABB_Union( aabb1, aabb2 );
 }
 
-bool b3OverlapHull( const b3Hull* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
+bool b3OverlapHull( const b3HullData* shape, float scale, b3Transform shapeTransform, const b3ShapeProxy* proxy )
 {
+	b3Vec3 scaledPoints[B3_HULL_LIMIT];
 	const b3Vec3* points = b3GetHullPoints( shape );
+	if ( scale != 1.0f )
+	{
+		for ( int i = 0; i < shape->vertexCount; ++i )
+		{
+			scaledPoints[i] = b3MulSV( scale, points[i] );
+		}
+		points = scaledPoints;
+	}
 
 	b3DistanceInput input;
 	input.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
@@ -2368,7 +2430,7 @@ bool b3OverlapHull( const b3Hull* shape, b3Transform shapeTransform, const b3Sha
 	return output.distance < B3_OVERLAP_SLOP;
 }
 
-b3CastOutput b3RayCastHull( const b3Hull* shape, const b3RayCastInput* input )
+b3CastOutput b3RayCastHull( const b3HullData* shape, float scale, const b3RayCastInput* input )
 {
 	B3_ASSERT( b3IsValidRay( input ) );
 	b3CastOutput output = { 0 };
@@ -2383,7 +2445,7 @@ b3CastOutput b3RayCastHull( const b3Hull* shape, const b3RayCastInput* input )
 	{
 		b3Plane plane = planes[faceIndex];
 
-		float distance = plane.offset - b3Dot( plane.normal, input->origin );
+		float distance = scale * plane.offset - b3Dot( plane.normal, input->origin );
 		float denominator = b3Dot( plane.normal, input->translation );
 
 		if ( denominator == 0.0f )
@@ -2436,9 +2498,18 @@ b3CastOutput b3RayCastHull( const b3Hull* shape, const b3RayCastInput* input )
 	return output;
 }
 
-b3CastOutput b3ShapeCastHull( const b3Hull* shape, const b3ShapeCastInput* input )
+b3CastOutput b3ShapeCastHull( const b3HullData* shape, float scale, const b3ShapeCastInput* input )
 {
+	b3Vec3 scaledPoints[B3_HULL_LIMIT];
 	const b3Vec3* points = b3GetHullPoints( shape );
+	if ( scale != 1.0f )
+	{
+		for ( int i = 0; i < shape->vertexCount; ++i )
+		{
+			scaledPoints[i] = b3MulSV( scale, points[i] );
+		}
+		points = scaledPoints;
+	}
 
 	b3ShapeCastPairInput pairInput;
 	pairInput.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
@@ -2453,9 +2524,19 @@ b3CastOutput b3ShapeCastHull( const b3Hull* shape, const b3ShapeCastInput* input
 	return output;
 }
 
-int b3CollideMoverAndHull( b3PlaneResult* result, const b3Hull* shape, const b3Capsule* mover )
+int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, float scale, const b3Capsule* mover )
 {
+	b3Vec3 scaledPoints[B3_HULL_LIMIT];
 	const b3Vec3* points = b3GetHullPoints( shape );
+	if ( scale != 1.0f )
+	{
+		for ( int i = 0; i < shape->vertexCount; ++i )
+		{
+			scaledPoints[i] = b3MulSV( scale, points[i] );
+		}
+		points = scaledPoints;
+	}
+
 	b3DistanceInput distanceInput;
 	distanceInput.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
 	distanceInput.proxyB = (b3ShapeProxy){ &mover->center1, 2, mover->radius };
@@ -2487,23 +2568,23 @@ int b3CollideMoverAndHull( b3PlaneResult* result, const b3Hull* shape, const b3C
 	return 0;
 }
 
-b3ShapeExtent b3ComputeHullExtent( const b3Hull* hull, b3Vec3 origin )
+b3ShapeExtent b3ComputeHullExtent( const b3HullData* hull, float scale, b3Vec3 origin )
 {
 	const b3Vec3* points = b3GetHullPoints( hull );
 
 	b3ShapeExtent extent;
-	extent.minExtent = hull->innerRadius;
+	extent.minExtent = scale * hull->innerRadius;
 	extent.maxExtent = b3Vec3_zero;
 	for ( int index = 0; index < hull->vertexCount; ++index )
 	{
-		b3Vec3 point = points[index];
+		b3Vec3 point = b3MulSV( scale, points[index] );
 		extent.maxExtent = b3Max( extent.maxExtent, b3Abs( b3Sub( point, origin ) ) );
 	}
 
 	return extent;
 }
 
-float b3ComputeHullProjectedArea( const b3Hull* hull, b3Vec3 direction )
+float b3ComputeHullProjectedArea( const b3HullData* hull, float scale, b3Vec3 direction )
 {
 	float area = 0.0f;
 
@@ -2543,7 +2624,8 @@ float b3ComputeHullProjectedArea( const b3Hull* hull, b3Vec3 direction )
 		while ( edgeIndex != baseEdge );
 	}
 
-	return 0.5f * area;
+	// Areas scale with the square of a uniform scale.
+	return 0.5f * area * scale * scale;
 }
 
 // Constant template box (vertex/edge/face/topology). b3MakeTransformedBoxHull copies and

@@ -17,7 +17,7 @@ static const b3Vec3 s_cubeCorners[8] = {
 
 static int CreateHullCubeTest( void )
 {
-	b3Hull* hull = b3CreateHull( s_cubeCorners, 8, 8 );
+	b3HullData* hull = b3CreateHull( s_cubeCorners, 8, 8 );
 	ENSURE( hull != NULL );
 
 	ENSURE( hull->vertexCount == 8 );
@@ -68,7 +68,7 @@ static int CreateHullTetrahedronTest( void )
 		{ 0.0f, 0.0f, 1.0f },
 	};
 
-	b3Hull* hull = b3CreateHull( points, 4, 4 );
+	b3HullData* hull = b3CreateHull( points, 4, 4 );
 	ENSURE( hull != NULL );
 
 	ENSURE( hull->vertexCount == 4 );
@@ -102,8 +102,8 @@ static int CreateHullTetrahedronTest( void )
 
 static int CreateHullDeterminismTest( void )
 {
-	b3Hull* h1 = b3CreateHull( s_cubeCorners, 8, 8 );
-	b3Hull* h2 = b3CreateHull( s_cubeCorners, 8, 8 );
+	b3HullData* h1 = b3CreateHull( s_cubeCorners, 8, 8 );
+	b3HullData* h2 = b3CreateHull( s_cubeCorners, 8, 8 );
 	ENSURE( h1 != NULL && h2 != NULL );
 
 	ENSURE( h1->byteCount == h2->byteCount );
@@ -138,19 +138,19 @@ static int CreateHullMaxVertexTest( void )
 	int count = SPHERE_N * SPHERE_N;
 
 	// maxVertexCount honored as a strict cap.
-	b3Hull* h1 = b3CreateHull( points, count, 8 );
+	b3HullData* h1 = b3CreateHull( points, count, 8 );
 	ENSURE( h1 != NULL );
 	ENSURE( h1->vertexCount <= 8 );
 	b3DestroyHull( h1 );
 
 	// Below the floor: clamps up to 4.
-	b3Hull* h2 = b3CreateHull( points, count, 1 );
+	b3HullData* h2 = b3CreateHull( points, count, 1 );
 	ENSURE( h2 != NULL );
 	ENSURE( h2->vertexCount >= 4 && h2->vertexCount <= 255 );
 	b3DestroyHull( h2 );
 
 	// Above the ceiling: clamps down to 255.
-	b3Hull* h3 = b3CreateHull( points, count, 1000 );
+	b3HullData* h3 = b3CreateHull( points, count, 1000 );
 	ENSURE( h3 != NULL );
 	ENSURE( h3->vertexCount >= 4 && h3->vertexCount <= 255 );
 	b3DestroyHull( h3 );
@@ -184,7 +184,7 @@ static int CreateHullRedundantInputTest( void )
 		{ 0.5f, 0.5f, 0.5f },
 	};
 
-	b3Hull* hull = b3CreateHull( points, 20, 8 );
+	b3HullData* hull = b3CreateHull( points, 20, 8 );
 	ENSURE( hull != NULL );
 
 	ENSURE( hull->vertexCount == 8 );
@@ -214,10 +214,10 @@ static int CreateHullRedundantInputTest( void )
 
 static int CreateHullCloneTest( void )
 {
-	b3Hull* original = b3CreateHull( s_cubeCorners, 8, 8 );
+	b3HullData* original = b3CreateHull( s_cubeCorners, 8, 8 );
 	ENSURE( original != NULL );
 
-	b3Hull* clone = b3CloneHull( original );
+	b3HullData* clone = b3CloneHull( original );
 	ENSURE( clone != NULL );
 	ENSURE( clone->byteCount == original->byteCount );
 	ENSURE( memcmp( clone, original, original->byteCount ) == 0 );
@@ -234,7 +234,7 @@ static int CreateHullCylinderTest( void )
 	const int sides = 8;
 	const float yOffset = 0.0f;
 
-	b3Hull* hull = b3CreateCylinder( height, radius, yOffset, sides );
+	b3HullData* hull = b3CreateCylinder( height, radius, yOffset, sides );
 	ENSURE( hull != NULL );
 
 	ENSURE( hull->vertexCount == 2 * sides );
@@ -306,7 +306,7 @@ static int CreateHullSphereReductionTest( void )
 	b3Vec3 points[64];
 	FillSphereSample( points, 64, 12345 ); // RAND_SEED
 
-	b3Hull* hull = b3CreateHull( points, 64, 20 );
+	b3HullData* hull = b3CreateHull( points, 64, 20 );
 	ENSURE( hull != NULL );
 	ENSURE( hull->vertexCount >= 4 && hull->vertexCount <= 20 );
 	ENSURE( hull->vertexCount - hull->edgeCount / 2 + hull->faceCount == 2 );
@@ -362,7 +362,7 @@ static int CreateHullSphereStressTest( void )
 		for ( int m = 0; m < ARRAY_COUNT( M_values ); ++m )
 		{
 			int M = M_values[m];
-			b3Hull* hull = b3CreateHull( points, N, M );
+			b3HullData* hull = b3CreateHull( points, N, M );
 			ENSURE( hull != NULL );
 			ENSURE( hull->vertexCount >= 4 && hull->vertexCount <= M );
 			ENSURE( hull->vertexCount - hull->edgeCount / 2 + hull->faceCount == 2 );
@@ -399,7 +399,7 @@ static int CreateHullMergeChurnStressTest( void )
 			points[N - 8 + c].z = ( c & 4 ) ? 1.0f : -1.0f;
 		}
 
-		b3Hull* hull = b3CreateHull( points, N, 64 );
+		b3HullData* hull = b3CreateHull( points, N, 64 );
 		ENSURE( hull != NULL );
 		ENSURE( hull->vertexCount == 8 );
 		ENSURE( hull->edgeCount == 24 );

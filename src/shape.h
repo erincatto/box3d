@@ -49,7 +49,7 @@ typedef struct b3Shape
 	{
 		b3Capsule capsule;
 		b3Sphere sphere;
-		const b3Hull* hull;
+		b3Hull hull;
 		b3Mesh mesh;
 		const b3HeightField* heightField;
 		const b3Compound* compound;
@@ -75,7 +75,9 @@ float b3GetShapeArea( const b3Shape* shape );
 float b3GetShapeProjectedArea( const b3Shape* shape, b3Vec3 planeNormal );
 uint64_t b3GetShapeUserMaterialId( const b3Shape* shape, int childIndex, int triangleIndex );
 
-b3ShapeProxy b3MakeShapeProxy( const b3Shape* shape );
+// For a scaled hull the proxy points are written into pointBuffer (capacity B3_MAX_HULL_VERTICES);
+// for other shapes or unit scale the buffer is unused and the proxy points at shape data.
+b3ShapeProxy b3MakeShapeProxy( const b3Shape* shape, b3Vec3* pointBuffer );
 b3ShapeProxy b3MakeLocalProxy( const b3ShapeProxy* proxy, b3Transform transform, b3Vec3* buffer );
 b3AABB b3ComputeProxyAABB( const b3ShapeProxy* proxy );
 
@@ -89,19 +91,24 @@ b3TOIOutput b3ShapeTimeOfImpact( b3Shape* shapeA, b3Shape* shapeB, b3Sweep* swee
 
 int b3CollideMoverAndSphere( b3PlaneResult* result, const b3Sphere* shape, const b3Capsule* mover );
 int b3CollideMoverAndCapsule( b3PlaneResult* result, const b3Capsule* shape, const b3Capsule* mover );
-int b3CollideMoverAndHull( b3PlaneResult* result, const b3Hull* shape, const b3Capsule* mover );
+int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, float scale, const b3Capsule* mover );
 int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* shape, const b3Capsule* mover );
 int b3CollideMoverAndHeightField( b3PlaneResult* results, int capacity, const b3HeightField* shape, const b3Capsule* mover );
 int b3CollideMover( b3PlaneResult* planes, int planeCapacity, const b3Shape* shape, b3Transform transform,
 					const b3Capsule* mover );
 
 // Hull
-int b3FindHullSupportVertex( const b3Hull* hull, b3Vec3 direction );
-int b3FindHullSupportFace( const b3Hull* hull, b3Vec3 direction );
-bool b3IsValidHull( const b3Hull* hull );
-b3AABB b3ComputeSweptHullAABB( const b3Hull* shape, b3Transform xf1, b3Transform xf2 );
-b3ShapeExtent b3ComputeHullExtent( const b3Hull* hull, b3Vec3 origin );
-float b3ComputeHullProjectedArea( const b3Hull* hull, b3Vec3 direction );
+int b3FindHullSupportVertex( const b3HullData* hull, b3Vec3 direction );
+int b3FindHullSupportFace( const b3HullData* hull, b3Vec3 direction );
+bool b3IsValidHull( const b3HullData* hull );
+b3AABB b3ComputeSweptHullAABB( const b3HullData* shape, float scale, b3Transform xf1, b3Transform xf2 );
+b3ShapeExtent b3ComputeHullExtent( const b3HullData* hull, float scale, b3Vec3 origin );
+float b3ComputeHullProjectedArea( const b3HullData* hull, float scale, b3Vec3 direction );
+
+// Returns a uniformly scaled copy of the hull in buffer (must hold hull->byteCount bytes), or the
+// original when scale is 1. Topology is unchanged so all hull routines accept the result. The buffer
+// must be aligned for b3HullData.
+const b3HullData* b3ScaleHullData( const b3HullData* hull, float scale, void* buffer );
 
 // Height field
 b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int triangleIndex );

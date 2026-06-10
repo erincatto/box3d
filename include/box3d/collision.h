@@ -143,7 +143,7 @@ B3_INLINE b3AABB b3DynamicTree_GetAABB( const b3DynamicTree* tree, int proxyId )
  */
 
 /// Get read only hull vertices.
-B3_INLINE const b3HullVertex* b3GetHullVertices( const b3Hull* hull )
+B3_INLINE const b3HullVertex* b3GetHullVertices( const b3HullData* hull )
 {
 	if ( hull->vertexOffset == 0 )
 	{
@@ -154,7 +154,7 @@ B3_INLINE const b3HullVertex* b3GetHullVertices( const b3Hull* hull )
 }
 
 /// Get read only hull points.
-B3_INLINE const b3Vec3* b3GetHullPoints( const b3Hull* hull )
+B3_INLINE const b3Vec3* b3GetHullPoints( const b3HullData* hull )
 {
 	if ( hull->pointOffset == 0 )
 	{
@@ -165,7 +165,7 @@ B3_INLINE const b3Vec3* b3GetHullPoints( const b3Hull* hull )
 }
 
 /// Get read only hull half edges.
-B3_INLINE const b3HullHalfEdge* b3GetHullEdges( const b3Hull* hull )
+B3_INLINE const b3HullHalfEdge* b3GetHullEdges( const b3HullData* hull )
 {
 	if ( hull->edgeOffset == 0 )
 	{
@@ -176,7 +176,7 @@ B3_INLINE const b3HullHalfEdge* b3GetHullEdges( const b3Hull* hull )
 }
 
 /// Get read only hull faces.
-B3_INLINE const b3HullFace* b3GetHullFaces( const b3Hull* hull )
+B3_INLINE const b3HullFace* b3GetHullFaces( const b3HullData* hull )
 {
 	if ( hull->faceOffset == 0 )
 	{
@@ -187,7 +187,7 @@ B3_INLINE const b3HullFace* b3GetHullFaces( const b3Hull* hull )
 }
 
 /// Get read only hull planes.
-B3_INLINE const b3Plane* b3GetHullPlanes( const b3Hull* hull )
+B3_INLINE const b3Plane* b3GetHullPlanes( const b3HullData* hull )
 {
 	if ( hull->planeOffset == 0 )
 	{
@@ -197,23 +197,30 @@ B3_INLINE const b3Plane* b3GetHullPlanes( const b3Hull* hull )
 	return (const b3Plane*)( (intptr_t)hull + hull->planeOffset );
 }
 
+/// Make a hull instance from shared data and a uniform positive scale.
+B3_INLINE b3Hull b3MakeHull( const b3HullData* data, float scale )
+{
+	b3Hull hull = { data, scale };
+	return hull;
+}
+
 /// Create a tessellated cylinder as a hull.
-B3_API b3Hull* b3CreateCylinder( float height, float radius, float yOffset, int sides );
+B3_API b3HullData* b3CreateCylinder( float height, float radius, float yOffset, int sides );
 
 /// Create a tessellated cone as a hull.
-B3_API b3Hull* b3CreateCone( float height, float radius1, float radius2, int slices );
+B3_API b3HullData* b3CreateCone( float height, float radius1, float radius2, int slices );
 
 /// Create a generic convex hull.
-B3_API b3Hull* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount );
+B3_API b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount );
 
 /// Deep clone a hull.
-B3_API b3Hull* b3CloneHull( const b3Hull* hull );
+B3_API b3HullData* b3CloneHull( const b3HullData* hull );
 
 /// Clone and transform a hull. Supports non-uniform and mirroring scale.
-B3_API b3Hull* b3CloneAndTransformHull( const b3Hull* original, b3Transform transform, b3Vec3 scale );
+B3_API b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform transform, b3Vec3 scale );
 
 /// Destroy a hull.
-B3_API void b3DestroyHull( b3Hull* hull );
+B3_API void b3DestroyHull( b3HullData* hull );
 
 /// Make a cube as a hull. Do not call b3DestroyHull on this.
 B3_API b3BoxHull b3MakeCubeHull( float halfWidth );
@@ -425,8 +432,8 @@ B3_API b3MassData b3ComputeSphereMass( const b3Sphere* shape, float density );
 /// Compute mass properties of a capsule
 B3_API b3MassData b3ComputeCapsuleMass( const b3Capsule* shape, float density );
 
-/// Compute mass properties of a hull
-B3_API b3MassData b3ComputeHullMass( const b3Hull* shape, float density );
+/// Compute mass properties of a hull with a uniform scale
+B3_API b3MassData b3ComputeHullMass( const b3HullData* shape, float scale, float density );
 
 /// Compute the bounding box of a transformed sphere
 B3_API b3AABB b3ComputeSphereAABB( const b3Sphere* shape, b3Transform transform );
@@ -434,8 +441,8 @@ B3_API b3AABB b3ComputeSphereAABB( const b3Sphere* shape, b3Transform transform 
 /// Compute the bounding box of a transformed capsule
 B3_API b3AABB b3ComputeCapsuleAABB( const b3Capsule* shape, b3Transform transform );
 
-/// Compute the bounding box of a transformed hull
-B3_API b3AABB b3ComputeHullAABB( const b3Hull* shape, b3Transform transform );
+/// Compute the bounding box of a transformed hull with a uniform scale
+B3_API b3AABB b3ComputeHullAABB( const b3HullData* shape, float scale, b3Transform transform );
 
 /// Compute the bounding box of a transformed mesh. Scale may be non-uniform and have negative components.
 B3_API b3AABB b3ComputeMeshAABB( const b3MeshData* shape, b3Transform transform, b3Vec3 scale );
@@ -465,8 +472,8 @@ B3_API bool b3OverlapCompound( const b3Compound* shape, b3Transform shapeTransfo
 /// Overlap shape versus height field
 B3_API bool b3OverlapHeightField( const b3HeightField* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
 
-/// Overlap shape versus hull
-B3_API bool b3OverlapHull( const b3Hull* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
+/// Overlap shape versus hull with a uniform scale
+B3_API bool b3OverlapHull( const b3HullData* shape, float scale, b3Transform shapeTransform, const b3ShapeProxy* proxy );
 
 /// Overlap shape versus mesh
 B3_API bool b3OverlapMesh( const b3Mesh* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
@@ -486,8 +493,8 @@ B3_API b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInp
 /// Ray cast versus compound in local space. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3RayCastCompound( const b3Compound* shape, const b3RayCastInput* input );
 
-/// Ray cast versus hull shape in local space. Initial overlap is treated as a miss.
-B3_API b3CastOutput b3RayCastHull( const b3Hull* shape, const b3RayCastInput* input );
+/// Ray cast versus hull shape in local space with a uniform scale. Initial overlap is treated as a miss.
+B3_API b3CastOutput b3RayCastHull( const b3HullData* shape, float scale, const b3RayCastInput* input );
 
 /// Ray cast versus mesh in local space.
 B3_API b3CastOutput b3RayCastMesh( const b3Mesh* shape, const b3RayCastInput* input );
@@ -504,8 +511,8 @@ B3_API b3CastOutput b3ShapeCastCapsule( const b3Capsule* shape, const b3ShapeCas
 /// Shape cast versus compound. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3ShapeCastCompound( const b3Compound* shape, const b3ShapeCastInput* input );
 
-/// Shape cast versus a hull. Initial overlap is treated as a miss.
-B3_API b3CastOutput b3ShapeCastHull( const b3Hull* shape, const b3ShapeCastInput* input );
+/// Shape cast versus a hull with a uniform scale. Initial overlap is treated as a miss.
+B3_API b3CastOutput b3ShapeCastHull( const b3HullData* shape, float scale, const b3ShapeCastInput* input );
 
 /// Shape cast versus a mesh. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3ShapeCastMesh( const b3Mesh* shape, const b3ShapeCastInput* input );
@@ -564,7 +571,7 @@ B3_API void b3CollideCapsuleAndSphere( b3LocalManifold* manifold, int capacity, 
 									   const b3Sphere* sphereB, b3Transform transformBtoA );
 
 /// Collide a hull and a sphere.
-B3_API void b3CollideHullAndSphere( b3LocalManifold* manifold, int capacity, const b3Hull* hullA, const b3Sphere* sphereB,
+B3_API void b3CollideHullAndSphere( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3Sphere* sphereB,
 									b3Transform transformBtoA, b3SimplexCache* cache );
 
 /// Collide two capsules.
@@ -572,11 +579,11 @@ B3_API void b3CollideCapsules( b3LocalManifold* manifold, int capacity, const b3
 							   b3Transform transformBtoA );
 
 /// Collide a hull and a capsule.
-B3_API void b3CollideHullAndCapsule( b3LocalManifold* manifold, int capacity, const b3Hull* hullA, const b3Capsule* capsuleB,
+B3_API void b3CollideHullAndCapsule( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3Capsule* capsuleB,
 									 b3Transform transformBtoA, b3SimplexCache* cache );
 
 /// Collide two hulls.
-B3_API void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3Hull* hullA, const b3Hull* hullB,
+B3_API void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
 							b3Transform transformBtoA, b3SATCache* cache );
 
 /// Collide a capsule and a triangle.
@@ -584,7 +591,7 @@ B3_API void b3CollideCapsuleAndTriangle( b3LocalManifold* manifold, int capacity
 										 const b3Vec3* triangleB, b3SimplexCache* cache );
 
 /// Collide a hull and a triangle.
-B3_API void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3Hull* hullA, b3Vec3 v1, b3Vec3 v2,
+B3_API void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, b3Vec3 v1, b3Vec3 v2,
 									  b3Vec3 v3, int triangleFlags, b3SATCache* cache );
 
 /// Collide a sphere and a triangle.

@@ -746,7 +746,7 @@ public:
 		}
 	}
 
-	b3Hull* CreateConvex( float radius1, float height1, float radius2, float height2 ) const
+	b3HullData* CreateConvex( float radius1, float height1, float radius2, float height2 ) const
 	{
 		constexpr int sideCount = 32;
 		const float deltaAlpha = 2.0f * B3_PI / sideCount;
@@ -815,8 +815,8 @@ public:
 
 	b3BoxHull m_boxA;
 	b3BoxHull m_boxB;
-	b3Hull* m_hullA;
-	b3Hull* m_hullB;
+	b3HullData* m_hullA;
+	b3HullData* m_hullB;
 };
 
 static int sampleCollideHulls = RegisterSample( "Manifold", "Hull vs Hull", HullAndHull::Create );
@@ -931,8 +931,8 @@ public:
 
 	int m_flags;
 	b3BoxHull m_boxHull;
-	b3Hull* m_cylinder;
-	b3Hull* m_hull;
+	b3HullData* m_cylinder;
+	b3HullData* m_hull;
 };
 
 static int sampleHullAndTriangle = RegisterSample( "Manifold", "Triangle vs Hull", TriangleAndHull::Create );

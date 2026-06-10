@@ -63,8 +63,12 @@ capsule.radius = 0.25f;
 
 ### Convex Hulls
 
-Box3D convex hulls are solid convex polyhedra represented by the `b3Hull` type. A shape is
-convex when all line segments connecting two interior points remain inside the shape.
+Box3D convex hulls are solid convex polyhedra. The geometry lives in a heavy, immutable
+`b3HullData` object. A `b3Hull` is a lightweight instance of that data: a pointer plus a
+uniform positive scale that is applied at collision time rather than baked into the geometry.
+This lets one `b3HullData` back many sizes, and the world shares identical hull data through a
+reference counted database. A shape is convex when all line segments connecting two interior
+points remain inside the shape.
 
 <!-- TODO: 3D diagram needed -->
 
@@ -77,7 +81,13 @@ b3BoxHull cube = b3MakeCubeHull(0.5f);              // uniform half-width
 ```
 
 `b3BoxHull` stores everything inline — do not call `b3DestroyHull` on one.
-Its `.base` member is a `b3Hull` that you pass to shape creation functions.
+Its `.base` member is a `b3HullData`. Wrap it in a `b3Hull` instance to pass to shape
+creation, supplying a uniform scale (use `1.0f` for none):
+
+```c
+b3Hull hull = b3MakeHull(&box.base, 1.0f);
+b3CreateHullShape(bodyId, &shapeDef, &hull);
+```
 
 For a box that is offset or rotated from the body origin:
 
@@ -89,13 +99,15 @@ b3BoxHull rotatedBox = b3MakeTransformedBoxHull(0.5f, 1.0f, 0.5f, localTransform
 For arbitrary convex geometry, provide a point cloud and let Box3D compute the hull:
 
 ```c
-b3Hull* hull = b3CreateHull(points, pointCount, maxVertexCount);
-if (hull == NULL)
+b3HullData* data = b3CreateHull(points, pointCount, maxVertexCount);
+if (data == NULL)
 {
     // degenerate input: coincident or coplanar points, or insufficient volume
 }
-// ... use hull ...
-b3DestroyHull(hull);
+b3Hull hull = b3MakeHull(data, 1.0f);
+b3CreateHullShape(bodyId, &shapeDef, &hull);
+// The world keeps its own copy, so you may free yours immediately
+b3DestroyHull(data);
 ```
 
 `maxVertexCount` limits the output complexity; pass the same value as `pointCount`
@@ -105,8 +117,8 @@ than four non-coplanar points, or nearly-zero volume). Always check before using
 Box3D also provides helpers to create cylindrical and conical hulls:
 
 ```c
-b3Hull* cylinder = b3CreateCylinder(height, radius, yOffset, sides);
-b3Hull* cone     = b3CreateCone(height, radius1, radius2, slices);
+b3HullData* cylinder = b3CreateCylinder(height, radius, yOffset, sides);
+b3HullData* cone     = b3CreateCone(height, radius1, radius2, slices);
 b3DestroyHull(cylinder);
 b3DestroyHull(cone);
 ```

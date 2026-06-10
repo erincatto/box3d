@@ -293,7 +293,7 @@ static b3Vec3 TriangleNormal( b3Vec3 a, b3Vec3 b, b3Vec3 c )
 	return n;
 }
 
-static MeshHandle BuildHull( const b3Hull* hull )
+static MeshHandle BuildHull( const b3HullData* hull )
 {
 	const b3Vec3* points = b3GetHullPoints( hull );
 	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
@@ -789,7 +789,7 @@ static MeshHandle BuildHeightField( const b3HeightField* hf )
 	return h;
 }
 
-MeshHandle FindOrAddHull( const b3Hull* hull )
+MeshHandle FindOrAddHull( const b3HullData* hull )
 {
 	if ( !hull || hull->hash == 0u )
 	{

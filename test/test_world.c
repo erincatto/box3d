@@ -42,7 +42,7 @@ int HelloWorld( void )
 
 	// Add the box shape to the ground body.
 	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
-	b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
+	b3CreateHullShape( groundId, &groundShapeDef, &(b3Hull){ &groundBox.base, 1.0f } );
 
 	// Define the dynamic body. We set its position and call the body factory.
 	b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -64,7 +64,7 @@ int HelloWorld( void )
 	shapeDef.baseMaterial.friction = 0.3f;
 
 	// Add the shape to the body.
-	b3CreateHullShape( bodyId, &shapeDef, &dynamicBox.base );
+	b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ &dynamicBox.base, 1.0f } );
 
 	// Prepare for simulation. Typically we use a time step of 1/60 of a
 	// second (60Hz) and 4 sub-steps. This provides a high quality simulation
@@ -145,7 +145,7 @@ int DestroyAllBodiesWorld( void )
 				bodyIds[count] = b3CreateBody( worldId, &bodyDef );
 
 				b3ShapeDef shapeDef = b3DefaultShapeDef();
-				b3CreateHullShape( bodyIds[count], &shapeDef, &cube.base );
+				b3CreateHullShape( bodyIds[count], &shapeDef, &(b3Hull){ &cube.base, 1.0f } );
 				count += 1;
 			}
 			else
@@ -341,7 +341,7 @@ static int TestSensor( void )
 	b3BoxHull box = b3MakeBoxHull( 0.5f, 10.0f, 1.0f );
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 	shapeDef.enableSensorEvents = true;
-	b3CreateHullShape( wallId, &shapeDef, &box.base );
+	b3CreateHullShape( wallId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
 
 	// Bullet fired towards the wall
 	bodyDef = b3DefaultBodyDef();
@@ -407,7 +407,7 @@ static int TestContactEvents( void )
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 	b3BoxHull groundBox = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
 	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
-	b3ShapeId groundShapeId = b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
+	b3ShapeId groundShapeId = b3CreateHullShape( groundId, &groundShapeDef, &(b3Hull){ &groundBox.base, 1.0f } );
 
 	// Dynamic sphere dropped onto the ground; restitution causes it to bounce so we get end events
 	bodyDef = b3DefaultBodyDef();
@@ -469,7 +469,7 @@ static int TestHitEvents( void )
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 	b3BoxHull groundBox = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
 	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
-	b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
+	b3CreateHullShape( groundId, &groundShapeDef, &(b3Hull){ &groundBox.base, 1.0f } );
 
 	// Sphere driven into the ground fast enough to clear the hit threshold
 	bodyDef = b3DefaultBodyDef();
@@ -878,6 +878,50 @@ static int EnableContactRecyclingTest( void )
 	return 0;
 }
 
+// Identical hull data is shared through a reference counted world database.
+static int TestHullDatabase( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	b3BodyId bodyA = b3CreateBody( worldId, &bodyDef );
+	b3BodyId bodyB = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+	// Same data, different scale. The scale lives in the instance, not the shared data.
+	b3Hull instanceA = b3MakeHull( &box.base, 1.0f );
+	b3Hull instanceB = b3MakeHull( &box.base, 2.0f );
+	b3ShapeId shapeA = b3CreateHullShape( bodyA, &shapeDef, &instanceA );
+	b3ShapeId shapeB = b3CreateHullShape( bodyB, &shapeDef, &instanceB );
+
+	b3Hull gotA = b3Shape_GetHull( shapeA );
+	b3Hull gotB = b3Shape_GetHull( shapeB );
+
+	// Both shapes point at the single shared copy
+	ENSURE( gotA.data == gotB.data );
+	ENSURE( gotA.scale == 1.0f );
+	ENSURE( gotB.scale == 2.0f );
+
+	// The shared copy is owned by the world, not the caller's stack hull
+	ENSURE( gotA.data != &box.base );
+
+	// Releasing one reference keeps the other alive
+	b3DestroyShape( shapeA, true );
+	b3Hull stillB = b3Shape_GetHull( shapeB );
+	ENSURE( stillB.data == gotB.data );
+
+	b3DestroyShape( shapeB, true );
+
+	// World destroy asserts the database drained to zero references
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int WorldTest( void )
 {
 	RUN_SUBTEST( HelloWorld );
@@ -897,6 +941,7 @@ int WorldTest( void )
 	RUN_SUBTEST( EnableSleepNoopUnlockTest );
 	RUN_SUBTEST( EnableContactRecyclingTest );
 	RUN_SUBTEST( TestSetWorkerCount );
+	RUN_SUBTEST( TestHullDatabase );
 
 	return 0;
 }

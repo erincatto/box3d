@@ -30,7 +30,8 @@ static bool b3OverlapSensor( b3Shape* sensorShape, b3Transform sensorTransform, 
 {
 	b3ShapeType type = sensorShape->type;
 
-	b3ShapeProxy proxy = b3MakeShapeProxy( visitorShape );
+	b3Vec3 proxyPoints[B3_MAX_HULL_VERTICES];
+	b3ShapeProxy proxy = b3MakeShapeProxy( visitorShape, proxyPoints );
 
 	// Get the visitor shape in the frame of the sensor
 	b3Transform relativeTransform = b3InvMulTransforms( sensorTransform, visitorTransform );
@@ -59,7 +60,7 @@ static bool b3OverlapSensor( b3Shape* sensorShape, b3Transform sensorTransform, 
 			return b3OverlapHeightField( sensorShape->heightField, b3Transform_identity, &localProxy );
 
 		case b3_hullShape:
-			return b3OverlapHull( sensorShape->hull, b3Transform_identity, &localProxy );
+			return b3OverlapHull( sensorShape->hull.data, sensorShape->hull.scale, b3Transform_identity, &localProxy );
 
 		case b3_meshShape:
 			return b3OverlapMesh( &sensorShape->mesh, b3Transform_identity, &localProxy );

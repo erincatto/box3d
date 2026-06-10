@@ -60,7 +60,7 @@ MeshDropData CreateMeshDrop( b3WorldId worldId )
 				bodyDef.angularVelocity = angularVelocity;
 				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
-				b3CreateHullShape( bodyId, &shapeDef, &box.base );
+				b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
 			}
 		}
 	}

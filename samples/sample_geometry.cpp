@@ -130,7 +130,7 @@ public:
 	b3Transform m_transform;
 	b3Vec3 m_postScale;
 	b3BoxHull m_box;
-	b3Hull* m_hull;
+	b3HullData* m_hull;
 };
 
 static int sampleBoxHull = RegisterSample( "Geometry", "Box Hull", BoxHull::Create );
@@ -223,7 +223,7 @@ public:
 	}
 
 	static constexpr int m_capacity = 64;
-	b3Hull* m_hull;
+	b3HullData* m_hull;
 	b3Vec3 m_points[m_capacity];
 	int m_count;
 };
@@ -352,7 +352,7 @@ public:
 
 	static constexpr int m_capacity = 128;
 	Type m_type;
-	b3Hull* m_hull;
+	b3HullData* m_hull;
 	b3Vec3 m_points[m_capacity];
 	int m_count;
 };
@@ -478,8 +478,8 @@ public:
 	}
 
 	b3BoxHull m_box;
-	b3Hull* m_original;
-	b3Hull* m_hull;
+	b3HullData* m_original;
+	b3HullData* m_hull;
 	b3Vec3 m_angles;
 	b3Vec3 m_scale;
 	b3Vec3 m_offset;
@@ -591,9 +591,9 @@ public:
 
 		if ( m_hull != nullptr )
 		{
-			b3MassData lowerMassData = b3ComputeHullMass( m_hull, 1.0f );
+			b3MassData lowerMassData = b3ComputeHullMass( m_hull, 1.0f, 1.0f );
 			b3MassData massData = b3ComputeCapsuleMass( &m_capsule, 1.0f );
-			b3MassData upperMassData = b3ComputeHullMass( &m_box.base, 1.0f );
+			b3MassData upperMassData = b3ComputeHullMass( &m_box.base, 1.0f, 1.0f );
 
 			DrawTextLine( "mass hull:    %g", lowerMassData.mass );
 			DrawTextLine( "mass capsule: %g", massData.mass );
@@ -639,7 +639,7 @@ public:
 	static constexpr int m_maxSides = 6;
 	b3Capsule m_capsule;
 	b3BoxHull m_box;
-	b3Hull* m_hull;
+	b3HullData* m_hull;
 	float m_radius;
 	float m_length;
 	int m_sides;

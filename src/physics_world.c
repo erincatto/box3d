@@ -35,6 +35,70 @@ b3World b3_worlds[B3_MAX_WORLDS];
 b3AtomicInt b3_worldCount;
 int b3_maxWorldCount;
 
+static inline size_t vt_wyhash( const void* key, size_t len );
+
+static inline uint64_t b3HashHullData( const b3HullData* hull )
+{
+	return vt_wyhash( hull, hull->byteCount );
+}
+
+static bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 )
+{
+	if ( hull1 == hull2 )
+	{
+		return true;
+	}
+
+	if ( hull1->byteCount != hull2->byteCount )
+	{
+		return false;
+	}
+
+	return memcmp( hull1, hull2, hull1->byteCount ) == 0;
+}
+
+#define NAME b3HullDatabase
+#define KEY_TY const b3HullData*
+#define VAL_TY int
+#define HASH_FN b3HashHullData
+#define CMPR_FN b3CompareHullData
+#define MALLOC_FN b3Alloc
+#define FREE_FN b3Free
+#include "verstable.h"
+
+const b3HullData* b3AddHullToDatabase( b3World* world, const b3HullData* src )
+{
+	b3HullDatabase* database = world->hullDatabase;
+
+	// Compare by content so an unowned query hull finds the shared copy.
+	b3HullDatabase_itr itr = b3HullDatabase_get( database, src );
+	if ( b3HullDatabase_is_end( itr ) == false )
+	{
+		itr.data->val += 1;
+		return itr.data->key;
+	}
+
+	b3HullData* owned = b3CloneHull( src );
+	b3HullDatabase_insert( database, owned, 1 );
+	return owned;
+}
+
+void b3RemoveHullFromDatabase( b3World* world, const b3HullData* data )
+{
+	b3HullDatabase* database = world->hullDatabase;
+
+	b3HullDatabase_itr itr = b3HullDatabase_get( database, data );
+	B3_ASSERT( b3HullDatabase_is_end( itr ) == false );
+
+	if ( --itr.data->val == 0 )
+	{
+		// Erase first because erase re-runs the content compare on the stored key.
+		b3HullData* owned = (b3HullData*)itr.data->key;
+		b3HullDatabase_erase( database, data );
+		b3DestroyHull( owned );
+	}
+}
+
 b3World* b3GetUnlockedWorldFromId( b3WorldId id )
 {
 	B3_ASSERT( 1 <= id.index1 && id.index1 <= B3_MAX_WORLDS );
@@ -235,6 +299,9 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 	int shapeCapacity = b3MaxInt( 16, def->capacity.staticShapeCount + def->capacity.dynamicShapeCount );
 	b3Array_Reserve( world->shapes, shapeCapacity );
 
+	world->hullDatabase = b3Alloc( sizeof( b3HullDatabase ) );
+	b3HullDatabase_init( world->hullDatabase );
+
 	world->contactIdPool = b3CreateIdPool();
 	b3Array_Reserve( world->contacts, b3MaxInt( 16, def->capacity.contactCount ) );
 
@@ -408,6 +475,12 @@ void b3DestroyWorld( b3WorldId worldId )
 			}
 		}
 	}
+
+	// Destroying every shape above released all hull references, so the database is empty.
+	B3_ASSERT( b3HullDatabase_size( (b3HullDatabase*)world->hullDatabase ) == 0 );
+	b3HullDatabase_cleanup( world->hullDatabase );
+	b3Free( world->hullDatabase, sizeof( b3HullDatabase ) );
+	world->hullDatabase = NULL;
 
 	b3Array_Destroy( world->shapes );
 	b3Array_Destroy( world->contacts );
@@ -1229,7 +1302,7 @@ static bool DrawQueryCallback( int proxyId, uint64_t userData, void* context )
 					shape->userShape = world->createDebugShape( &debugShape, world->userDebugShapeContext );
 					break;
 				case b3_hullShape:
-					debugShape.hull = shape->hull;
+					debugShape.hull = &shape->hull;
 					shape->userShape = world->createDebugShape( &debugShape, world->userDebugShapeContext );
 					break;
 				case b3_meshShape:
@@ -2862,8 +2935,9 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 
 	b3Transform transform = b3GetBodyTransformQuick( world, body );
 
+	b3Vec3 proxyPoints[B3_MAX_HULL_VERTICES];
 	b3DistanceInput input;
-	input.proxyA = b3MakeShapeProxy( shape );
+	input.proxyA = b3MakeShapeProxy( shape, proxyPoints );
 	input.proxyB = (b3ShapeProxy){ &explosionContext->position, 1, 0.0f };
 	input.transformA = transform;
 	input.transformB = b3Transform_identity;

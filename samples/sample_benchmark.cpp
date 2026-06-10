@@ -277,7 +277,8 @@ public:
 					{
 						bodyDef.position = { -16.0f * a + 4.0f * a * j, 4.0f * a * i + 5.0f * a, -16.0f * a + 4.0f * a * k };
 						b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-						b3CreateHullShape( bodyId, &shapeDef, &box.base );
+						b3Hull hull = b3MakeHull( &box.base, 1.0f );
+						b3CreateHullShape( bodyId, &shapeDef, &hull );
 					}
 				}
 			}
@@ -322,7 +323,8 @@ public:
 					{
 						bodyDef.position = { -10.0f + 2.5f * j, 1.0f * i, -10.0f + 2.5f * k };
 						b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-						b3CreateHullShape( bodyId, &shapeDef, m_convex );
+						b3Hull hull = b3MakeHull( m_convex, 1.0f );
+						b3CreateHullShape( bodyId, &shapeDef, &hull );
 					}
 				}
 			}
@@ -334,7 +336,7 @@ public:
 		b3DestroyHull( m_convex );
 	}
 
-	b3Hull* CreateConvex( float radius1, float height1, float radius2, float height2 ) const
+	b3HullData* CreateConvex( float radius1, float height1, float radius2, float height2 ) const
 	{
 		constexpr int sideCount = 8;
 		const float deltaAlpha = 2.0f * B3_PI / sideCount;
@@ -365,7 +367,7 @@ public:
 		return new CandyCups( context );
 	}
 
-	b3Hull* m_convex;
+	b3HullData* m_convex;
 };
 
 static int sampleSmallConvexes = RegisterSample( "Benchmark", "Candy Cups", CandyCups::Create );
@@ -398,7 +400,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, hy, 0.1f, transform );
 			shapeDef.name = "wall1";
-			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -407,7 +410,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, hy, 0.1f, transform );
 			shapeDef.name = "wall2";
-			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -416,7 +420,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, hy, 20.0f, transform );
 			shapeDef.name = "wall3";
-			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -425,7 +430,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, hy, 20.0f, transform );
 			shapeDef.name = "wall4";
-			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull );
 		}
 
 		// Using 15 sides rather than 16 to avoid manifold degeneracies
@@ -443,7 +449,8 @@ public:
 				bodyDef.position = { 1.0f * i, 0.0f, 1.0f * k };
 
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-				b3CreateHullShape( bodyId, &shapeDef, m_cylinder );
+				b3Hull hull = b3MakeHull( m_cylinder, 1.0f );
+				b3CreateHullShape( bodyId, &shapeDef, &hull );
 			}
 		}
 
@@ -486,7 +493,7 @@ public:
 	}
 
 	b3MeshData* m_gridMesh;
-	b3Hull* m_cylinder;
+	b3HullData* m_cylinder;
 	float m_impulse;
 };
 
@@ -776,7 +783,8 @@ public:
 			{
 				bodyDef.position = { x, y, 0.0f };
 				b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-				b3CreateHullShape( groundId, &shapeDef, &box.base );
+				b3Hull hull = b3MakeHull( &box.base, 1.0f );
+				b3CreateHullShape( groundId, &shapeDef, &hull );
 				x += gridSize;
 			}
 		}
@@ -820,7 +828,8 @@ public:
 					float x = i * shift - xCenter;
 					bodyDef.position = { x, y, 0.0f };
 					b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-					b3CreateHullShape( groundId, &shapeDef, &box.base );
+					b3Hull hull = b3MakeHull( &box.base, 1.0f );
+					b3CreateHullShape( groundId, &shapeDef, &hull );
 				}
 			}
 		}
@@ -1076,7 +1085,7 @@ public:
 
 		for ( int i = 0; i < trials; ++i )
 		{
-			b3Hull* hull = b3CreateHull( m_points, m_count, m_count );
+			b3HullData* hull = b3CreateHull( m_points, m_count, m_count );
 			area += hull->surfaceArea;
 			b3DestroyHull( hull );
 		}
@@ -1086,7 +1095,7 @@ public:
 		float scaledArea = 0.0f;
 		for ( int i = 0; i < trials; ++i )
 		{
-			b3Hull* hull = b3CloneAndTransformHull( m_hull, b3Transform_identity, m_scale );
+			b3HullData* hull = b3CloneAndTransformHull( m_hull, b3Transform_identity, m_scale );
 			scaledArea += hull->surfaceArea;
 			b3DestroyHull( hull );
 		}
@@ -1106,8 +1115,8 @@ public:
 	}
 
 	static constexpr int m_capacity = 64;
-	b3Hull* m_hull;
-	b3Hull* m_transformedHull;
+	b3HullData* m_hull;
+	b3HullData* m_transformedHull;
 	b3Vec3 m_scale;
 	b3Vec3 m_points[m_capacity];
 	int m_count;
@@ -1362,7 +1371,8 @@ public:
 										 ( 2.0f * k - m_gridCount + 1.0f ) * a };
 
 					b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-					b3CreateHullShape( bodyId, &shapeDef, &box.base );
+					b3Hull hull = b3MakeHull( &box.base, 1.0f );
+					b3CreateHullShape( bodyId, &shapeDef, &hull );
 
 					m_bodyIds[m_bodyCount] = bodyId;
 					m_bodyCount += 1;

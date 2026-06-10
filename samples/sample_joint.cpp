@@ -250,11 +250,13 @@ public:
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
-		b3CreateHullShape( bodyId1, &shapeDef, &box.base );
+		b3Hull hull1 = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( bodyId1, &shapeDef, &hull1 );
 
 		bodyDef.position = { -2.0f, 4.0f, 0.0f };
 		b3BodyId bodyId2 = b3CreateBody( m_worldId, &bodyDef );
-		b3CreateHullShape( bodyId2, &shapeDef, &box.base );
+		b3Hull hull2 = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( bodyId2, &shapeDef, &hull2 );
 
 		b3FilterJointDef jointDef = b3DefaultFilterJointDef();
 		jointDef.base.bodyIdA = bodyId1;
@@ -312,7 +314,8 @@ public:
 
 			b3BoxHull box = b3MakeBoxHull( 1.0f, 0.25f, 0.25f );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_bodyId, &shapeDef, &hull );
 
 			m_maxForce = 400000.0f;
 			m_maxTorque = 500000.0f;
@@ -339,7 +342,8 @@ public:
 
 			b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 
 			b3MotorJointDef jointDef = b3DefaultMotorJointDef();
 			jointDef.base.bodyIdA = groundId;
@@ -456,16 +460,20 @@ public:
 			groundId = b3CreateBody( m_worldId, &bodyDef );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			b3BoxHull box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 4.0f, { b3Vec3_zero, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
+			b3Hull hull1 = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull1 );
 
 			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 4.0f, { { -10.0f, 10.0f, 0.0f }, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
+			b3Hull hull2 = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull2 );
 
 			box = b3MakeTransformedBoxHull( 0.5f, 10.0f, 4.0f, { { 10.0f, 10.0f, 0.0f }, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
+			b3Hull hull3 = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull3 );
 
 			box = b3MakeTransformedBoxHull( 10.0f, 0.5f, 4.0f, { { 00.0f, 20.0f, 0.0f }, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
+			b3Hull hull4 = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull4 );
 		}
 
 		b3MotorJointDef jointDef = b3DefaultMotorJointDef();
@@ -504,7 +512,8 @@ public:
 				}
 				else
 				{
-					b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+					b3Hull hull = b3MakeHull( &cube.base, 1.0f );
+					b3CreateHullShape( bodyId, &shapeDef, &hull );
 				}
 
 				jointDef.base.bodyIdB = bodyId;
@@ -584,7 +593,8 @@ public:
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 1.5f, 0.25f );
-		b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
+		b3Hull hull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( m_bodyId, &shapeDef, &hull );
 
 		b3PrismaticJointDef jointDef = b3DefaultPrismaticJointDef();
 		jointDef.base.bodyIdA = groundId;
@@ -742,7 +752,8 @@ public:
 		shapeDef.density = 100.0f;
 
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 1.5f, 0.25f );
-		b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
+		b3Hull hull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( m_bodyId, &shapeDef, &hull );
 
 		b3SphericalJointDef jointDef = b3DefaultSphericalJointDef();
 		jointDef.base.bodyIdA = groundId;
@@ -921,7 +932,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, 5.0f, 0.1f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -930,7 +942,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, 5.0f, 0.1f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -939,7 +952,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 20.0f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull );
 		}
 
 		{
@@ -948,7 +962,8 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 20.0f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
+			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &hull );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -960,7 +975,8 @@ public:
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 1.5f, 0.25f );
-		b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
+		b3Hull hull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( m_bodyId, &shapeDef, &hull );
 
 		b3ParallelJointDef jointDef = b3DefaultParallelJointDef();
 		jointDef.base.bodyIdA = groundId;
@@ -1046,7 +1062,8 @@ public:
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 1.5f, 0.25f );
-		b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
+		b3Hull hull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( m_bodyId, &shapeDef, &hull );
 
 		b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
 		jointDef.base.bodyIdA = groundId;
@@ -1214,7 +1231,8 @@ public:
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 1.5f, 0.25f );
-		b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
+		b3Hull hull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( m_bodyId, &shapeDef, &hull );
 
 		b3WeldJointDef jointDef = b3DefaultWeldJointDef();
 		jointDef.base.bodyIdA = groundId;
@@ -1332,9 +1350,10 @@ public:
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
-		b3Hull* hull = b3CreateCylinder( 0.25f, 0.4f, 0.0f, 12 );
+		b3HullData* hull = b3CreateCylinder( 0.25f, 0.4f, 0.0f, 12 );
 		// b3BoxHull box = b3MakeBoxHull( 0.5f, 1.5f, 0.25f );
-		b3CreateHullShape( m_bodyId, &shapeDef, hull );
+		b3Hull hullWrapper = b3MakeHull( hull, 1.0f );
+		b3CreateHullShape( m_bodyId, &shapeDef, &hullWrapper );
 		b3DestroyHull( hull );
 
 		b3WheelJointDef jointDef = b3DefaultWheelJointDef();
@@ -1620,7 +1639,8 @@ public:
 			shapeDef.density = 1000.0f;
 
 			b3BoxHull box = b3MakeBoxHull( 0.75f, 1.5f, 0.1f );
-			b3CreateHullShape( m_doorId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_doorId, &shapeDef, &hull );
 		}
 
 		//{
@@ -1873,7 +1893,8 @@ public:
 				bodyDef.linearDamping = 0.1f;
 				bodyDef.angularDamping = 0.1f;
 				m_bodyIds[i] = b3CreateBody( m_worldId, &bodyDef );
-				b3CreateHullShape( m_bodyIds[i], &shapeDef, &box.base );
+				b3Hull hull = b3MakeHull( &box.base, 1.0f );
+				b3CreateHullShape( m_bodyIds[i], &shapeDef, &hull );
 
 				{
 					b3Vec3 pivot = { xbase + 2.0f * a * i, 20.0f, -0.5f };
@@ -1996,7 +2017,8 @@ public:
 
 			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &hull );
 
 			float length = 2.0f;
 			b3Vec3 pivot1 = { position.x, position.y + 1.0f + length, 0.0f };
@@ -2024,7 +2046,8 @@ public:
 
 			bodyDef.position = position;
 			m_bodyIds[m_bodyCount] = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( m_bodyIds[m_bodyCount], &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_bodyIds[m_bodyCount], &shapeDef, &hull );
 
 			b3MotorJointDef jointDef = b3DefaultMotorJointDef();
 			jointDef.base.bodyIdA = groundId;
@@ -2049,7 +2072,8 @@ public:
 
 			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &hull );
 
 			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3PrismaticJointDef jointDef = b3DefaultPrismaticJointDef();
@@ -2073,7 +2097,8 @@ public:
 
 			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &hull );
 
 			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
@@ -2097,7 +2122,8 @@ public:
 
 			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &hull );
 
 			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3WeldJointDef jointDef = b3DefaultWeldJointDef();
@@ -2124,7 +2150,8 @@ public:
 
 			bodyDef.position = position;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 
 			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3WheelJointDef jointDef = b3DefaultWheelJointDef();
@@ -2286,7 +2313,8 @@ public:
 
 			shapeDef.density = 0.5f;
 			b3BoxHull box = b3MakeBoxHull( 2.0f, 0.5f, 1.0f );
-			b3CreateHullShape( m_chassisId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( m_chassisId, &shapeDef, &hull );
 		}
 
 		// Keep vehicle upright
@@ -2310,7 +2338,7 @@ public:
 		bodyDef.allowFastRotation = true;
 		bodyDef.rotation = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3Vec3_axisZ );
 
-		// b3Hull* hull = b3CreateCylinder( 0.25f, 0.4f, 0.0f, 16 );
+		// b3HullData* hull = b3CreateCylinder( 0.25f, 0.4f, 0.0f, 16 );
 
 		b3WheelJointDef jointDef = b3DefaultWheelJointDef();
 		jointDef.base.bodyIdA = m_chassisId;

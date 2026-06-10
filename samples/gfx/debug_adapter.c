@@ -514,7 +514,7 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 	if ( debugShape->type == b3_hullShape )
 	{
 		const b3Hull* hull = debugShape->hull;
-		MeshHandle handle = FindOrAddHull( hull );
+		MeshHandle handle = FindOrAddHull( hull->data );
 		if ( !IsMeshHandleValid( handle ) )
 		{
 			return NULL;
@@ -529,7 +529,7 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 		us->kind = Box3DUS_Hull;
 		PopulateCommonFields( us, debugShape );
 		us->geom.handle = handle;
-		us->geom.scale = b3Vec3_one;
+		us->geom.scale = (b3Vec3){ hull->scale, hull->scale, hull->scale };
 		return us;
 	}
 

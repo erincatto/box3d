@@ -38,7 +38,8 @@ public:
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.enableSensorEvents = true;
-		b3CreateHullShape( dynamicBody, &shapeDef, &dynamicBox.base );
+		b3Hull dynamicHull = b3MakeHull( &dynamicBox.base, 1.0f );
+		b3CreateHullShape( dynamicBody, &shapeDef, &dynamicHull );
 
 		// Sensor
 		b3BoxHull sensorBox = b3MakeBoxHull( 2.0f, 2.0f, 2.0f );
@@ -48,7 +49,8 @@ public:
 		b3BodyId sensorBody = b3CreateBody( m_worldId, &bodyDef );
 		shapeDef.isSensor = true;
 		shapeDef.enableSensorEvents = true;
-		m_sensorShapeId = b3CreateHullShape( sensorBody, &shapeDef, &sensorBox.base );
+		b3Hull sensorHull = b3MakeHull( &sensorBox.base, 1.0f );
+		m_sensorShapeId = b3CreateHullShape( sensorBody, &shapeDef, &sensorHull );
 	}
 
 	void Render() override
@@ -271,7 +273,8 @@ public:
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.enableHitEvents = true;
 		b3BoxHull dynamicBox = b3MakeTransformedBoxHull( 0.5f, 10.0f, 0.5f, { { 0.0f, 10.0f, 0.0f }, b3Quat_identity } );
-		b3CreateHullShape( m_bodyId, &shapeDef, &dynamicBox.base );
+		b3Hull dynamicHull = b3MakeHull( &dynamicBox.base, 1.0f );
+		b3CreateHullShape( m_bodyId, &shapeDef, &dynamicHull );
 
 		b3Vec3 center = b3Body_GetWorldCenterOfMass( m_bodyId );
 
@@ -380,7 +383,8 @@ public:
 
 			bodyDef.position = position;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 
 			float length = 2.0f;
 			b3Vec3 pivot1 = { position.x, position.y + 1.0f + length, 0.0f };
@@ -435,7 +439,8 @@ public:
 
 			bodyDef.position = position;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 
 			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3PrismaticJointDef jointDef = b3DefaultPrismaticJointDef();
@@ -459,7 +464,8 @@ public:
 
 			bodyDef.position = position;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 
 			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
@@ -483,7 +489,8 @@ public:
 
 			bodyDef.position = position;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 
 			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3WeldJointDef jointDef = b3DefaultWeldJointDef();
@@ -694,7 +701,8 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 5.0f, { { 10.0f, 5.0f, 0.0f }, b3Quat_identity } );
-			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
+			b3Hull wallHull = b3MakeHull( &wallBox.base, 1.0f );
+			b3CreateHullShape( groundId, &shapeDef, &wallHull );
 		}
 
 		m_gridMesh = b3CreateGridMesh( 2, 2, 5.0f, 0, true );

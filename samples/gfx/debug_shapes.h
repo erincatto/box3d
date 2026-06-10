@@ -32,7 +32,7 @@ extern "C"
 // Acquire a registry handle for the given Box3D hull. Returns an invalid
 // handle on registry-full or zero hash. The caller owns one refcount. Pair
 // each Acquire with a single ReleaseMeshReference when the consumer goes away.
-MeshHandle FindOrAddHull( const b3Hull* hull );
+MeshHandle FindOrAddHull( const b3HullData* hull );
 
 // Acquire for b3MeshData. The b3Mesh struct's per-instance `scale` is NOT
 // part of the geometry, callers pass it as the per-instance scale at

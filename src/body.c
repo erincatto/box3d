@@ -556,7 +556,8 @@ float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target )
 			continue;
 		}
 
-		input.proxyB = b3MakeShapeProxy( shape );
+		b3Vec3 proxyPoints[B3_MAX_HULL_VERTICES];
+		input.proxyB = b3MakeShapeProxy( shape, proxyPoints );
 
 		b3SimplexCache cache = { 0 };
 		b3DistanceOutput output = b3ShapeDistance( &input, &cache, NULL, 0 );

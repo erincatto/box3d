@@ -241,7 +241,8 @@ Shapes are created in a similar way. For example, here is how a box shape is cre
 b3ShapeDef shapeDef = b3DefaultShapeDef();
 shapeDef.baseMaterial.friction = 0.42f;
 b3BoxHull boxHull = b3MakeBoxHull(0.5f, 0.25f, 0.5f);
-b3ShapeId myShapeId = b3CreateHullShape(myBodyId, &shapeDef, &boxHull.base);
+b3Hull hull = b3MakeHull(&boxHull.base, 1.0f);
+b3ShapeId myShapeId = b3CreateHullShape(myBodyId, &shapeDef, &hull);
 ```
 
 And the shape may be destroyed as follows:

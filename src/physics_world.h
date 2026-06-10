@@ -175,6 +175,11 @@ typedef struct b3World
 	// These are sparse arrays that point into the pools above
 	b3ArrayC( b3Shape ) shapes;
 
+	// Reference counted store of shared hull data keyed by content. Shapes hold a
+	// pointer to the owned copy here plus a per instance uniform scale. Opaque to
+	// avoid leaking the verstable map type into this header.
+	void* hullDatabase;
+
 	// This is a dense array of sensor data.
 	b3ArrayC( b3Sensor ) sensors;
 
@@ -284,6 +289,13 @@ b3World* b3GetWorld( int index );
 void b3ValidateConnectivity( b3World* world );
 void b3ValidateSolverSets( b3World* world );
 void b3ValidateContacts( b3World* world );
+
+// Register a hull in the world database, returning the owned shared copy. Identical hulls
+// share one copy with a reference count. The input may be freed after this call.
+const b3HullData* b3AddHullToDatabase( b3World* world, const b3HullData* src );
+
+// Release a reference to a shared hull. The owned copy is freed when the count reaches zero.
+void b3RemoveHullFromDatabase( b3World* world, const b3HullData* data );
 
 static inline b3Manifold* b3AllocateManifolds( b3World* world, int count )
 {

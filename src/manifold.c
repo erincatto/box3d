@@ -67,7 +67,7 @@ float b3EdgeEdgeSeparation( b3Vec3 p1, b3Vec3 e1, b3Vec3 c1, b3Vec3 p2, b3Vec3 e
 // Then we look for all edges coming out of that vertex and look for the edge that is
 // most perpendicular to the reference normal.
 // Then from that edge, we select the adjacent face that is most anti-parallel to the reference normal.
-int b3FindIncidentFace( const b3Hull* hull, b3Vec3 refNormal, int vertexIndex )
+int b3FindIncidentFace( const b3HullData* hull, b3Vec3 refNormal, int vertexIndex )
 {
 	const b3HullVertex* vertices = b3GetHullVertices( hull );
 	const b3HullHalfEdge* edges = b3GetHullEdges( hull );

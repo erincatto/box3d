@@ -508,20 +508,34 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 	{
 		B3_ASSERT( typeA == b3_hullShape );
 
+		// Apply uniform scale by working against a scaled copy. Unit scale uses the shared data directly.
+		const b3HullData* hullA = shapeA->hull.data;
+		if ( shapeA->hull.scale != 1.0f )
+		{
+			hullA = b3ScaleHullData( shapeA->hull.data, shapeA->hull.scale, b3Bump( &arena, shapeA->hull.data->byteCount ) );
+		}
+
 		if ( typeB == b3_sphereShape )
 		{
-			b3CollideHullAndSphere( &geomManifold, pointCapacity, shapeA->hull, &shapeB->sphere, transformBtoA,
+			b3CollideHullAndSphere( &geomManifold, pointCapacity, hullA, &shapeB->sphere, transformBtoA,
 									&cache->simplexCache );
 		}
 		else if ( typeB == b3_capsuleShape )
 		{
-			b3CollideHullAndCapsule( &geomManifold, pointCapacity, shapeA->hull, &shapeB->capsule, transformBtoA,
+			b3CollideHullAndCapsule( &geomManifold, pointCapacity, hullA, &shapeB->capsule, transformBtoA,
 									 &cache->simplexCache );
 		}
 		else
 		{
 			B3_ASSERT( typeB == b3_hullShape );
-			b3CollideHulls( &geomManifold, pointCapacity, shapeA->hull, shapeB->hull, transformBtoA, &cache->satCache );
+
+			const b3HullData* hullB = shapeB->hull.data;
+			if ( shapeB->hull.scale != 1.0f )
+			{
+				hullB = b3ScaleHullData( shapeB->hull.data, shapeB->hull.scale, b3Bump( &arena, shapeB->hull.data->byteCount ) );
+			}
+
+			b3CollideHulls( &geomManifold, pointCapacity, hullA, hullB, transformBtoA, &cache->satCache );
 			world->taskContexts.data[workerIndex].satCallCount += 1;
 			world->taskContexts.data[workerIndex].satCacheHitCount += cache->satCache.hit;
 		}
@@ -658,7 +672,7 @@ static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* c
 		}
 		else if ( typeA == b3_hullShape )
 		{
-			radiusA = 0.25f * shapeA->hull->innerRadius;
+			radiusA = 0.25f * shapeA->hull.scale * shapeA->hull.data->innerRadius;
 		}
 
 		float radiusB = 0.0f;
@@ -672,7 +686,7 @@ static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* c
 		}
 		else if ( typeB == b3_hullShape )
 		{
-			radiusB = 0.25f * shapeB->hull->innerRadius;
+			radiusB = 0.25f * shapeB->hull.scale * shapeB->hull.data->innerRadius;
 		}
 
 		float maxRadius = b3MaxFloat( radiusA, radiusB );
@@ -755,7 +769,8 @@ bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Sha
 		}
 		else if ( child.type == b3_hullShape )
 		{
-			childShapeA.hull = child.hull;
+			childShapeA.hull.data = child.hull;
+			childShapeA.hull.scale = 1.0f;
 			b3Transform xfChild = b3MulTransforms( xfA, child.transform );
 			bool flip = false;
 			touching = b3UpdateConvexContact( world, workerIndex, contact, &childShapeA, xfChild, shapeB, xfB, flip, arena );

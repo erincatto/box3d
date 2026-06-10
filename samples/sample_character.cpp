@@ -37,7 +37,8 @@ public:
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
-		b3CreateHullShape( body, &shapeDef, &box.base );
+		b3Hull hull = b3MakeHull( &box.base, 1.0f );
+		b3CreateHullShape( body, &shapeDef, &hull );
 
 		m_baseTranslation = b3Vec3_zero;
 		m_baseX = 0;
@@ -197,7 +198,8 @@ public:
 			bodyDef.position = { 3.0f, 1.0f, 0.0f };
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			b3BoxHull box = b3MakeBoxHull( 0.6f, 0.6f, 0.6f );
-			b3CreateHullShape( body, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( body, &shapeDef, &hull );
 		}
 
 		m_baseTranslation = b3Vec3_zero;
@@ -349,17 +351,20 @@ public:
 			{
 				b3Transform transform = { { 4.0f, 1.0f, 14.0f }, b3Quat_identity };
 				b3BoxHull box = b3MakeTransformedBoxHull( 1.0f, 1.0f, 1.0f, transform );
-				b3CreateHullShape( body, &shapeDef, &box.base );
+				b3Hull hull = b3MakeHull( &box.base, 1.0f );
+				b3CreateHullShape( body, &shapeDef, &hull );
 			}
 			{
 				b3Transform transform = { { 4.0f, 1.0f, 13.95f }, b3Quat_identity };
 				b3BoxHull box = b3MakeTransformedBoxHull( 1.0f, 1.0f, 1.0f, transform );
-				b3CreateHullShape( body, &shapeDef, &box.base );
+				b3Hull hull = b3MakeHull( &box.base, 1.0f );
+				b3CreateHullShape( body, &shapeDef, &hull );
 			}
 			{
 				b3Transform transform = { { 5.8f, 1.0f, 13.7f }, b3MakeQuatFromAxisAngle( b3Vec3_axisY, 0.1f * B3_PI ) };
 				b3BoxHull box = b3MakeTransformedBoxHull( 1.0f, 1.0f, 1.0f, transform );
-				b3CreateHullShape( body, &shapeDef, &box.base );
+				b3Hull hull = b3MakeHull( &box.base, 1.0f );
+				b3CreateHullShape( body, &shapeDef, &hull );
 			}
 		}
 
@@ -464,7 +469,8 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.baseMaterial.customColor = b3_colorFloralWhite;
 			b3BoxHull box = b3MakeBoxHull( 0.5f, 0.25f, 0.5f );
-			m_ignoreShapeId = b3CreateHullShape( body, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			m_ignoreShapeId = b3CreateHullShape( body, &shapeDef, &hull );
 		}
 
 		{
@@ -480,7 +486,8 @@ public:
 			shapeDef.density = 1000.0f;
 
 			b3BoxHull box = b3MakeBoxHull( 0.75f, 1.5f, 0.1f );
-			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &hull );
 
 			b3Quat axisQuat = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, b3Vec3_axisY );
 			b3Vec3 offset = { -0.75f, 0.0f, 0.0f };
@@ -745,7 +752,8 @@ struct RigidbodyCharacter
 
 			b3Transform feetTransform = { { 0.0f, -m_totalHeight * 0.5f + halfExtY, 0.0f }, b3Quat_identity };
 			b3BoxHull feetBox = b3MakeTransformedBoxHull( halfExtX, halfExtY, halfExtZ, feetTransform );
-			m_feetBoxId = b3CreateHullShape( m_bodyId, &shapeDef, &feetBox.base );
+			b3Hull hull = b3MakeHull( &feetBox.base, 1.0f );
+			m_feetBoxId = b3CreateHullShape( m_bodyId, &shapeDef, &hull );
 		}
 
 		// --- Body capsule (upper half): zero friction so we slide on walls ---
@@ -1421,7 +1429,8 @@ public:
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			hullShapeDef.baseMaterial.customColor = b3_colorOliveDrab;
 			b3BoxHull box = b3MakeBoxHull( 3.0f, 0.15f, 1.5f );
-			b3CreateHullShape( body, &hullShapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( body, &hullShapeDef, &hull );
 		}
 
 		// Steep ramp (too steep to stand on)
@@ -1432,7 +1441,8 @@ public:
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			hullShapeDef.baseMaterial.customColor = b3_colorIndianRed;
 			b3BoxHull box = b3MakeBoxHull( 2.5f, 0.15f, 1.5f );
-			b3CreateHullShape( body, &hullShapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( body, &hullShapeDef, &hull );
 		}
 
 		// Elevated platforms with gaps
@@ -1443,7 +1453,8 @@ public:
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			hullShapeDef.baseMaterial.customColor = b3_colorSlateGray;
 			b3BoxHull box = b3MakeBoxHull( 1.2f, 0.15f, 1.2f );
-			b3CreateHullShape( body, &hullShapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( body, &hullShapeDef, &hull );
 		}
 
 		// Step-height test (increasing lip heights)
@@ -1455,7 +1466,8 @@ public:
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			hullShapeDef.baseMaterial.customColor = b3_colorCornflowerBlue;
 			b3BoxHull box = b3MakeBoxHull( 1.0f, lipHeight, 0.6f );
-			b3CreateHullShape( body, &hullShapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( body, &hullShapeDef, &hull );
 		}
 
 		// Wall
@@ -1465,7 +1477,8 @@ public:
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			hullShapeDef.baseMaterial.customColor = b3_colorDarkSlateGray;
 			b3BoxHull box = b3MakeBoxHull( 4.0f, 1.5f, 0.2f );
-			b3CreateHullShape( body, &hullShapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( body, &hullShapeDef, &hull );
 		}
 
 		// Dynamic boxes to push around
@@ -1477,7 +1490,8 @@ public:
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			hullShapeDef.baseMaterial.customColor = b3_colorGold;
 			b3BoxHull box = b3MakeBoxHull( 0.4f, 0.4f, 0.4f );
-			b3CreateHullShape( body, &hullShapeDef, &box.base );
+			b3Hull hull = b3MakeHull( &box.base, 1.0f );
+			b3CreateHullShape( body, &hullShapeDef, &hull );
 		}
 
 		// Dynamic sphere

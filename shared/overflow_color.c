@@ -25,7 +25,7 @@ OverflowColorPileData CreateOverflowColorPile( b3WorldId worldId )
 
 		b3BoxHull box = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		data.groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
+		data.groundShapeId = b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
 	}
 
 	// Tall, heavy hub. Tall so neighbors can ring around it in multiple
@@ -43,7 +43,7 @@ OverflowColorPileData CreateOverflowColorPile( b3WorldId worldId )
 		b3BoxHull box = b3MakeBoxHull( hubHalfX, hubHalfY, hubHalfZ );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.density = 50.0f;
-		b3CreateHullShape( data.hubId, &shapeDef, &box.base );
+		b3CreateHullShape( data.hubId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
 	}
 
 	// Neighbors: vertical rings around the hub, each box slightly overlapping
@@ -74,7 +74,7 @@ OverflowColorPileData CreateOverflowColorPile( b3WorldId worldId )
 			bodyDef.position = (b3Vec3){ ringRadius * cosf( theta ), y, ringRadius * sinf( theta ) };
 			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
-			b3CreateHullShape( bodyId, &neighborShape, &neighborBox.base );
+			b3CreateHullShape( bodyId, &neighborShape, &(b3Hull){ &neighborBox.base, 1.0f } );
 		}
 	}
 
