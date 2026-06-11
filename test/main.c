@@ -31,14 +31,14 @@ extern int CollisionTest( void );
 extern int CompoundTest( void );
 extern int ContainerTest( void );
 extern int DeterminismTest( void );
-// extern int DistanceTest( void );
+extern int DistanceTest( void );
 extern int HeightFieldTest( void );
 extern int HullTest( void );
 extern int IdTest( void );
 extern int MathTest( void );
 extern int MoverTest( void );
 extern int ShapeTest( void );
-// extern int TableTest( void );
+extern int TableTest( void );
 extern int WorldTest( void );
 
 // Filter-aware test runner: skips tests that don't match the filter
@@ -90,16 +90,15 @@ int main( int argc, char** argv )
 	MAYBE_RUN_TEST( CompoundTest );
 	MAYBE_RUN_TEST( ContainerTest );
 	MAYBE_RUN_TEST( DeterminismTest );
+	MAYBE_RUN_TEST( DistanceTest );
 	MAYBE_RUN_TEST( HeightFieldTest );
 	MAYBE_RUN_TEST( HullTest );
 	MAYBE_RUN_TEST( IdTest );
 	MAYBE_RUN_TEST( MathTest );
 	MAYBE_RUN_TEST( MoverTest );
 	MAYBE_RUN_TEST( ShapeTest );
+	MAYBE_RUN_TEST( TableTest );
 	MAYBE_RUN_TEST( WorldTest );
-
-	// RUN_TEST( DistanceTest );
-	// RUN_TEST( TableTest );
 
 	printf( "======================================\n" );
 	printf( "All Box3D tests passed!\n" );

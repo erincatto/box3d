@@ -535,7 +535,7 @@ void b3CollideCapsuleAndSphere( b3LocalManifold* manifold, int capacity, const b
 
 	float totalRadius = sphereB->radius + capsuleA->radius;
 
-	b3Vec3 closestPoint = b3ClosestPointOnSegment( center1, center2, center );
+	b3Vec3 closestPoint = b3PointToSegmentDistance( center1, center2, center );
 	b3Vec3 offset = b3Sub( center, closestPoint );
 	float distanceSq = b3LengthSquared( offset );
 
@@ -685,7 +685,7 @@ void b3CollideCapsules( b3LocalManifold* manifold, int capacity, const b3Capsule
 	float radius = capsuleA->radius + capsuleB->radius;
 	float maxDistance = radius + B3_SPECULATIVE_DISTANCE;
 
-	b3ClosestApproachResult result = b3ClosestApproachSegments( centerA1, centerA2, centerB1, centerB2 );
+	b3SegmentDistanceResult result = b3SegmentDistance( centerA1, centerA2, centerB1, centerB2 );
 	b3Vec3 offset = b3Sub( result.point2, result.point1 );
 	float distanceSquared = b3LengthSquared( offset );
 	float linearSlop = B3_LINEAR_SLOP;
@@ -748,8 +748,8 @@ void b3CollideCapsules( b3LocalManifold* manifold, int capacity, const b3Capsule
 		if ( pointCount == 2 )
 		{
 			// Closest points on A to the clipped points on B.
-			b3Vec3 closestPoint1 = b3ClosestPointOnSegment( centerA1, centerA2, verticesB[0].position );
-			b3Vec3 closestPoint2 = b3ClosestPointOnSegment( centerA1, centerA2, verticesB[1].position );
+			b3Vec3 closestPoint1 = b3PointToSegmentDistance( centerA1, centerA2, verticesB[0].position );
+			b3Vec3 closestPoint2 = b3PointToSegmentDistance( centerA1, centerA2, verticesB[1].position );
 
 			float distance1 = b3Distance( closestPoint1, verticesB[0].position );
 			float distance2 = b3Distance( closestPoint2, verticesB[1].position );
@@ -910,7 +910,7 @@ static bool b3BuildHullAndCapsuleEdgeContact( b3LocalManifold* manifold, int cap
 		normal = b3Neg( normal );
 	}
 
-	b3ClosestApproachResult result = b3ClosestApproachLines( ph, eh, pc, ec );
+	b3SegmentDistanceResult result = b3LineDistance( ph, eh, pc, ec );
 
 	if ( b3IsWithinSegments( &result ) == false )
 	{
@@ -1270,7 +1270,7 @@ static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hul
 		normal = b3Neg( normal );
 	}
 
-	b3ClosestApproachResult result = b3ClosestApproachLines( pA, eA, pB, eB );
+	b3SegmentDistanceResult result = b3LineDistance( pA, eA, pB, eB );
 
 	if ( b3IsWithinSegments( &result ) == false )
 	{

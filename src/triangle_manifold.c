@@ -297,7 +297,7 @@ static void b3BuildTriangleAndCapsuleEdgeContact( b3LocalManifold* manifold, con
 		normal = b3Neg( normal );
 	}
 
-	b3ClosestApproachResult result = b3ClosestApproachLines( v1, triangleEdge, p1, capsuleEdge );
+	b3SegmentDistanceResult result = b3LineDistance( v1, triangleEdge, p1, capsuleEdge );
 
 	if ( result.fraction1 < 0.0f || 1.0f < result.fraction1 || result.fraction2 < 0.0f || 1.0f < result.fraction2 )
 	{
@@ -851,7 +851,7 @@ static void b3CollideHullAndTriangleEdges( b3LocalManifold* manifold, int capaci
 	}
 
 	// Get the closest points between the infinite edge lines
-	b3ClosestApproachResult result = b3ClosestApproachLines( pA, eA, pB, eB );
+	b3SegmentDistanceResult result = b3LineDistance( pA, eA, pB, eB );
 
 	// Is one of the closest points outside of the associated edge segment?
 	if ( capacity == 0 || result.fraction1 < 0.0f || 1.0f < result.fraction1 || result.fraction2 < 0.0f || 1.0f < result.fraction2 )

@@ -63,14 +63,14 @@ typedef struct b3Island
 
 	// I tried using a stack array for this but the data pointer goes out of
 	// sync when the world island array grows.
-	b3ArrayC( int ) bodies;
+	b3Array( int ) bodies;
 
 	// Contacts and joints that belong to this island. May connect to static
 	// bodies not in the island.
 	// Each link has the two body ids so that b3SplitIsland's union-find pass
 	// never needs to touch b3Contact/b3Joint.
-	b3ArrayC( b3ContactLink ) contacts;
-	b3ArrayC( b3JointLink ) joints;
+	b3Array( b3ContactLink ) contacts;
+	b3Array( b3JointLink ) joints;
 
 } b3Island;
 

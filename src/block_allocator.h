@@ -19,7 +19,7 @@ b3DeclareArray( b3Block );
 
 typedef struct b3BlockAllocator
 {
-	b3ArrayC( b3Block ) blocks;
+	b3Array( b3Block ) blocks;
 	void* freeList;
 	int elementSize;
 	int nextIndex;

@@ -219,7 +219,7 @@ b3CastOutput b3ShapeCastSphere( const b3Sphere* sphere, const b3ShapeCastInput* 
 int b3CollideMoverAndSphere( b3PlaneResult* result, const b3Sphere* shape, const b3Capsule* mover )
 {
 	float totalRadius = mover->radius + shape->radius;
-	b3Vec3 closest = b3ClosestPointOnSegment( mover->center1, mover->center2, shape->center );
+	b3Vec3 closest = b3PointToSegmentDistance( mover->center1, mover->center2, shape->center );
 
 	// The normal points from the sphere toward the mover.
 	float distance;

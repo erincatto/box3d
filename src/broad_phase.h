@@ -31,7 +31,7 @@ typedef struct b3BroadPhase
 	// Per body-type bit sets indexed by proxyId, marking proxies moved this step.
 	// Paired with moveArray which preserves deterministic insertion order for pair queries.
 	b3BitSet movedProxies[b3_bodyTypeCount];
-	b3ArrayC( int ) moveArray;
+	b3Array( int ) moveArray;
 
 	// These are the results from the pair query and are used to create new contacts
 	// in deterministic order.

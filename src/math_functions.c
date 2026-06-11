@@ -315,9 +315,9 @@ b3Quat b3ComputeQuatBetweenUnitVectors( b3Vec3 v1, b3Vec3 v2 )
 //--------------------------------------------------------------------------------------------------
 
 //--------------------------------------------------------------------------------------------------
-b3ClosestApproachResult b3ClosestApproachLines( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2, b3Vec3 d2 )
+b3SegmentDistanceResult b3LineDistance( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2, b3Vec3 d2 )
 {
-	b3ClosestApproachResult result;
+	b3SegmentDistanceResult result;
 
 	// Solve A*x = b
 	float a11 = b3Dot( d1, d1 );
@@ -355,9 +355,9 @@ b3ClosestApproachResult b3ClosestApproachLines( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2,
 }
 
 //--------------------------------------------------------------------------------------------------
-b3ClosestApproachResult b3ClosestApproachSegments( b3Vec3 p1, b3Vec3 q1, b3Vec3 p2, b3Vec3 q2 )
+b3SegmentDistanceResult b3SegmentDistance( b3Vec3 p1, b3Vec3 q1, b3Vec3 p2, b3Vec3 q2 )
 {
-	b3ClosestApproachResult result;
+	b3SegmentDistanceResult result;
 
 	b3Vec3 d1 = b3Sub( q1, p1 );
 	b3Vec3 d2 = b3Sub( q2, p2 );
@@ -432,7 +432,7 @@ b3ClosestApproachResult b3ClosestApproachSegments( b3Vec3 p1, b3Vec3 q1, b3Vec3 
 	return result;
 }
 
-b3Vec3 b3ClosestPointOnSegment( b3Vec3 a, b3Vec3 b, b3Vec3 q )
+b3Vec3 b3PointToSegmentDistance( b3Vec3 a, b3Vec3 b, b3Vec3 q )
 {
 	b3Vec3 ab = b3Sub( b, a );
 	b3Vec3 aq = b3Sub( q, a );

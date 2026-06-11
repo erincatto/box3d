@@ -196,7 +196,7 @@ static void b3SensorTask( int startIndex, int endIndex, int workerIndex, void* c
 		b3Shape* sensorShape = b3Array_Get( world->shapes, sensor->shapeId );
 
 		// Swap overlap arrays
-		b3ArrayC( b3Visitor ) temp = sensor->overlaps1;
+		b3Array( b3Visitor ) temp = sensor->overlaps1;
 		sensor->overlaps1 = sensor->overlaps2;
 		sensor->overlaps2 = temp;
 		b3Array_Clear( sensor->overlaps2 );

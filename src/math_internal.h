@@ -31,7 +31,7 @@ typedef struct b3Triangle
 	int flags;
 } b3Triangle;
 
-typedef struct
+typedef struct b3TrianglePoint
 {
 	b3Vec3 point;
 	b3TriangleFeature feature;
@@ -46,22 +46,22 @@ typedef struct b3ShapeExtent
 b3TrianglePoint b3ClosestPointOnTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, b3Vec3 q );
 
 // The closest points between to segments or infinite lines.
-typedef struct b3ClosestApproachResult
+typedef struct b3SegmentDistanceResult
 {
 	b3Vec3 point1;
 	float fraction1;
 	b3Vec3 point2;
 	float fraction2;
-} b3ClosestApproachResult;
+} b3SegmentDistanceResult;
 
 // Compute the closest point on the segment a-b to the target q
-b3Vec3 b3ClosestPointOnSegment( b3Vec3 a, b3Vec3 b, b3Vec3 q );
+b3Vec3 b3PointToSegmentDistance( b3Vec3 a, b3Vec3 b, b3Vec3 q );
 
 // Compute the closest points on two infinite lines
-b3ClosestApproachResult b3ClosestApproachLines( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2, b3Vec3 d2 );
+b3SegmentDistanceResult b3LineDistance( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2, b3Vec3 d2 );
 
 // Compute the closest points on two line segments
-b3ClosestApproachResult b3ClosestApproachSegments( b3Vec3 p1, b3Vec3 q1, b3Vec3 p2, b3Vec3 q2 );
+b3SegmentDistanceResult b3SegmentDistance( b3Vec3 p1, b3Vec3 q1, b3Vec3 p2, b3Vec3 q2 );
 
 float b3IntersectSegmentTriangle( b3Vec3 p, b3Vec3 q, b3Vec3 a, b3Vec3 b, b3Vec3 c );
 float b3IntersectSegmentSphere( b3Vec3 p, b3Vec3 q, b3Vec3 c, float r );
@@ -470,7 +470,7 @@ static inline float b3SignedVolume( b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, b3Vec3 p )
 }
 
 // todo eliminate this
-static inline bool b3IsWithinSegments( const b3ClosestApproachResult* result )
+static inline bool b3IsWithinSegments( const b3SegmentDistanceResult* result )
 {
 	return ( 0.0f <= result->fraction1 && result->fraction1 <= 1.0f ) &&
 		   ( 0.0f <= result->fraction2 && result->fraction2 <= 1.0f );

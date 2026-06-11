@@ -1,23 +1,23 @@
-// SPDX-FileCopyrightText: 2023 Erin Catto
+// SPDX-FileCopyrightText: 2026 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "core.h"
 #include "ctz.h"
+#include "platform.h"
 #include "table.h"
 #include "test_macros.h"
 
-#include "box2d/base.h"
-
-#include <stdatomic.h>
+#include "box3d/base.h"
 
 #define SET_SPAN 317
 #define ITEM_COUNT ( ( SET_SPAN * SET_SPAN - SET_SPAN ) / 2 )
 
 int TableTest( void )
 {
-	int power = b2BoundingPowerOf2( 3008 );
+	int power = b3BoundingPowerOf2( 3008 );
 	ENSURE( power == 12 );
 
-	int nextPowerOf2 = b2RoundUpPowerOf2( 3008 );
+	int nextPowerOf2 = b3RoundUpPowerOf2( 3008 );
 	ENSURE( nextPowerOf2 == ( 1 << power ) );
 
 	const int32_t N = SET_SPAN;
@@ -26,15 +26,15 @@ int TableTest( void )
 
 	for ( int32_t iter = 0; iter < 1; ++iter )
 	{
-		b2HashSet set = b2CreateSet( 16 );
+		b3HashSet set = b3CreateSet( 16 );
 
 		// Fill set
 		for ( int32_t i = 0; i < N; ++i )
 		{
 			for ( int32_t j = i + 1; j < N; ++j )
 			{
-				uint64_t key = B2_SHAPE_PAIR_KEY( i, j );
-				b2AddKey( &set, key );
+				uint64_t key = b3ShapePairKey( i, j, 0 );
+				b3AddKey( &set, key );
 			}
 		}
 
@@ -49,8 +49,8 @@ int TableTest( void )
 			{
 				if ( j == i + 1 )
 				{
-					uint64_t key = B2_SHAPE_PAIR_KEY( i, j );
-					b2RemoveKey( &set, key );
+					uint64_t key = b3ShapePairKey( i, j, 0 );
+					b3RemoveKey( &set, key );
 					removed[k++] = true;
 					removeCount += 1;
 				}
@@ -64,34 +64,32 @@ int TableTest( void )
 		ENSURE( set.count == ( itemCount - removeCount ) );
 
 #ifndef NDEBUG
-		extern _Atomic int g_probeCount;
-		g_probeCount = 0;
+		extern b3AtomicInt b3_probeCount;
+		b3AtomicStoreInt(&b3_probeCount, 0);
 #endif
 
 		// Test key search
 		// ~5ns per search on an AMD 7950x
-		b2Timer timer = b2CreateTimer();
+		uint64_t ticks = b3GetTicks();
 
 		k = 0;
 		for ( int32_t i = 0; i < N; ++i )
 		{
 			for ( int32_t j = i + 1; j < N; ++j )
 			{
-				uint64_t key = B2_SHAPE_PAIR_KEY( j, i );
-				ENSURE( b2ContainsKey( &set, key ) || removed[k] );
+				uint64_t key = b3ShapePairKey( j, i, 0 );
+				ENSURE( b3ContainsKey( &set, key ) || removed[k] );
 				k += 1;
 			}
 		}
 
-		// uint64_t ticks = b2GetTicks(&timer);
-		// printf("set ticks = %llu\n", ticks);
-
-		float ms = b2GetMilliseconds( &timer );
+		float ms = b3GetMilliseconds( ticks );
 		printf( "set: count = %d, b2ContainsKey = %.5f ms, ave = %.5f us\n", itemCount, ms, 1000.0f * ms / itemCount );
 
-#if !NDEBUG
-		float aveProbeCount = (float)g_probeCount / (float)itemCount;
-		printf( "item count = %d, probe count = %d, ave probe count %.2f\n", itemCount, g_probeCount, aveProbeCount );
+#ifndef NDEBUG
+		int probeCount = b3AtomicLoadInt( &b3_probeCount );
+		float aveProbeCount = (float)probeCount / (float)itemCount;
+		printf( "item count = %d, probe count = %d, ave probe count %.2f\n", itemCount, probeCount, aveProbeCount );
 #endif
 
 		// Remove all keys from set
@@ -99,14 +97,14 @@ int TableTest( void )
 		{
 			for ( int32_t j = i + 1; j < N; ++j )
 			{
-				uint64_t key = B2_SHAPE_PAIR_KEY( i, j );
-				b2RemoveKey( &set, key );
+				uint64_t key = b3ShapePairKey( i, j, 0 );
+				b3RemoveKey( &set, key );
 			}
 		}
 
 		ENSURE( set.count == 0 );
 
-		b2DestroySet( &set );
+		b3DestroySet( &set );
 	}
 
 	return 0;

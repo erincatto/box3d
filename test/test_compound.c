@@ -22,10 +22,6 @@ static b3SurfaceMaterial MakeMaterial( float friction, uint64_t userId )
 	return m;
 }
 
-// ---------------------------------------------------------------------------
-// Construction & layout
-// ---------------------------------------------------------------------------
-
 static int CompoundCreateMixed( void )
 {
 	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
@@ -56,10 +52,14 @@ static int CompoundCreateMixed( void )
 	};
 
 	b3CompoundDef def = {
-		.capsules = capsules, .capsuleCount = 1,
-		.hulls = hulls, .hullCount = 1,
-		.meshes = meshes, .meshCount = 1,
-		.spheres = spheres, .sphereCount = 2,
+		.capsules = capsules,
+		.capsuleCount = 1,
+		.hulls = hulls,
+		.hullCount = 1,
+		.meshes = meshes,
+		.meshCount = 1,
+		.spheres = spheres,
+		.sphereCount = 2,
 	};
 
 	b3Compound* compound = b3CreateCompound( &def );
@@ -136,10 +136,6 @@ static int CompoundCreateSingleType( void )
 	return 0;
 }
 
-// ---------------------------------------------------------------------------
-// Material deduplication
-// ---------------------------------------------------------------------------
-
 static int CompoundMaterialDedup( void )
 {
 	b3SurfaceMaterial mat = MakeMaterial( 0.4f, 7 );
@@ -201,9 +197,12 @@ static int CompoundMaterialCrossShape( void )
 	b3CompoundSphereDef sph = { .sphere = { { 5, 0, 0 }, 0.5f }, .material = mat };
 
 	b3CompoundDef def = {
-		.capsules = &cap, .capsuleCount = 1,
-		.hulls = &hull, .hullCount = 1,
-		.spheres = &sph, .sphereCount = 1,
+		.capsules = &cap,
+		.capsuleCount = 1,
+		.hulls = &hull,
+		.hullCount = 1,
+		.spheres = &sph,
+		.sphereCount = 1,
 	};
 	b3Compound* c = b3CreateCompound( &def );
 	ENSURE( c->materialCount == 1 );
@@ -237,8 +236,10 @@ static int CompoundMaterialMeshShared( void )
 	};
 
 	b3CompoundDef def = {
-		.meshes = &mesh, .meshCount = 1,
-		.spheres = &sph, .sphereCount = 1,
+		.meshes = &mesh,
+		.meshCount = 1,
+		.spheres = &sph,
+		.sphereCount = 1,
 	};
 	b3Compound* c = b3CreateCompound( &def );
 	ENSURE( c->materialCount == 1 );
@@ -387,10 +388,6 @@ static int CompoundMeshDistinct( void )
 	return 0;
 }
 
-// ---------------------------------------------------------------------------
-// Child accessors and dispatch
-// ---------------------------------------------------------------------------
-
 static int CompoundChildDispatch( void )
 {
 	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
@@ -414,10 +411,14 @@ static int CompoundChildDispatch( void )
 	b3CompoundSphereDef spheres[1] = { { .sphere = { { -5, 0, 0 }, 0.5f }, .material = mat } };
 
 	b3CompoundDef def = {
-		.capsules = caps, .capsuleCount = 2,
-		.hulls = hulls, .hullCount = 1,
-		.meshes = meshes, .meshCount = 1,
-		.spheres = spheres, .sphereCount = 1,
+		.capsules = caps,
+		.capsuleCount = 2,
+		.hulls = hulls,
+		.hullCount = 1,
+		.meshes = meshes,
+		.meshCount = 1,
+		.spheres = spheres,
+		.sphereCount = 1,
 	};
 	b3Compound* c = b3CreateCompound( &def );
 
@@ -453,10 +454,6 @@ static int CompoundChildDispatch( void )
 	return 0;
 }
 
-// ---------------------------------------------------------------------------
-// AABB
-// ---------------------------------------------------------------------------
-
 static int CompoundAABBContainsChildren( void )
 {
 	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
@@ -483,10 +480,6 @@ static int CompoundAABBContainsChildren( void )
 	b3DestroyCompound( c );
 	return 0;
 }
-
-// ---------------------------------------------------------------------------
-// Ray cast / shape cast
-// ---------------------------------------------------------------------------
 
 static int CompoundRayCastMiss( void )
 {
@@ -590,10 +583,6 @@ static int CompoundShapeCastClosest( void )
 	return 0;
 }
 
-// ---------------------------------------------------------------------------
-// Overlap
-// ---------------------------------------------------------------------------
-
 static int CompoundOverlap( void )
 {
 	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
@@ -618,11 +607,7 @@ static int CompoundOverlap( void )
 	return 0;
 }
 
-// ---------------------------------------------------------------------------
-// Query
-// ---------------------------------------------------------------------------
-
-struct QueryAccum
+struct QueryAccumulator
 {
 	int childIndices[8];
 	int count;
@@ -632,7 +617,7 @@ struct QueryAccum
 static bool QueryCallback( const b3Compound* compound, int childIndex, void* context )
 {
 	(void)compound;
-	struct QueryAccum* acc = context;
+	struct QueryAccumulator* acc = context;
 	if ( acc->count < (int)( sizeof( acc->childIndices ) / sizeof( acc->childIndices[0] ) ) )
 	{
 		acc->childIndices[acc->count++] = childIndex;
@@ -657,29 +642,25 @@ static int CompoundQuery( void )
 
 	// Tight box around the middle sphere — only it should be reported.
 	b3AABB middle = { { -1, -1, -1 }, { 1, 1, 1 } };
-	struct QueryAccum acc = { .stopAfter = -1 };
+	struct QueryAccumulator acc = { .stopAfter = -1 };
 	b3QueryCompound( c, middle, QueryCallback, &acc );
 	ENSURE( acc.count == 1 );
 	ENSURE( acc.childIndices[0] == 1 );
 
 	// Wide box overlapping all three; early-exit after the first reported child.
 	b3AABB wide = { { -20, -1, -1 }, { 20, 1, 1 } };
-	struct QueryAccum stop = { .stopAfter = 1 };
+	struct QueryAccumulator stop = { .stopAfter = 1 };
 	b3QueryCompound( c, wide, QueryCallback, &stop );
 	ENSURE( stop.count == 1 );
 
 	// Without early-exit, all three are visited.
-	struct QueryAccum all = { .stopAfter = -1 };
+	struct QueryAccumulator all = { .stopAfter = -1 };
 	b3QueryCompound( c, wide, QueryCallback, &all );
 	ENSURE( all.count == 3 );
 
 	b3DestroyCompound( c );
 	return 0;
 }
-
-// ---------------------------------------------------------------------------
-// Mover
-// ---------------------------------------------------------------------------
 
 static int CompoundMover( void )
 {
@@ -723,10 +704,6 @@ static int CompoundMover( void )
 	return 0;
 }
 
-// ---------------------------------------------------------------------------
-// Serialization round-trip
-// ---------------------------------------------------------------------------
-
 static b3Compound* BuildSerializableCompound( b3MeshData* md )
 {
 	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
@@ -744,10 +721,14 @@ static b3Compound* BuildSerializableCompound( b3MeshData* md )
 	b3CompoundSphereDef sph = { .sphere = { { -5, 0, 0 }, 0.5f }, .material = mat };
 
 	b3CompoundDef def = {
-		.capsules = &cap, .capsuleCount = 1,
-		.hulls = &hull, .hullCount = 1,
-		.meshes = &mesh, .meshCount = 1,
-		.spheres = &sph, .sphereCount = 1,
+		.capsules = &cap,
+		.capsuleCount = 1,
+		.hulls = &hull,
+		.hullCount = 1,
+		.meshes = &mesh,
+		.meshCount = 1,
+		.spheres = &sph,
+		.sphereCount = 1,
 	};
 	return b3CreateCompound( &def );
 }
@@ -806,7 +787,7 @@ static int CompoundSerializeBadVersion( void )
 	b3DestroyCompound( a );
 
 	// Corrupt the version word (first 8 bytes of b3Compound).
-	((b3Compound*)buffer)->version ^= 0x1ull;
+	( (b3Compound*)buffer )->version ^= 0x1ull;
 
 	b3Compound* b = b3ConvertBytesToCompound( buffer, byteCount );
 	ENSURE( b == NULL );
@@ -834,8 +815,6 @@ static int CompoundSerializeWrongByteCount( void )
 	b3DestroyMesh( md );
 	return 0;
 }
-
-// ---------------------------------------------------------------------------
 
 int CompoundTest( void )
 {

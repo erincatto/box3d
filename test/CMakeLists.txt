@@ -8,7 +8,7 @@ set(BOX3D_TEST_FILES
 	test_compound.c
 	test_container.c
     test_determinism.c
-    #test_distance.c
+    test_distance.c
     test_height_field.c
     test_hull.c
     test_id.c
@@ -16,7 +16,7 @@ set(BOX3D_TEST_FILES
     test_math.c
 	test_mover.c
     test_shape.c
-    #test_table.c
+    test_table.c
     test_world.c
 )
 

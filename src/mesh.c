@@ -347,7 +347,7 @@ typedef struct b3VertexNode
 
 typedef struct b3SpatialHash
 {
-	b3ArrayC( b3VertexNode ) nodes;
+	b3Array( b3VertexNode ) nodes;
 	const b3Vec3* vertices;
 	int vertexCount;
 	b3VertexMap vertexMap;
@@ -491,7 +491,7 @@ static int b3WeldVertices( b3WeldData* data, float tolerance )
 	// Create spatial hash and find duplicates
 	b3SpatialHash spatialHash;
 	b3SpatialHash_Create( &spatialHash, data->srcVertices, vertexCount, tolerance );
-	b3ArrayC( int ) vertexMapping = { 0 };
+	b3Array( int ) vertexMapping = { 0 };
 	b3Array_Resize( vertexMapping, vertexCount );
 
 	for ( int i = 0; i < vertexCount; ++i )
@@ -870,7 +870,7 @@ static bool b3ValidateSplit( int count, b3Primitive* primitives, const b3Split* 
 
 #endif
 
-static int b3BuildRecursive( b3ArrayC( b3MeshNode ) * nodes, int count, b3Primitive* primitives, b3Primitive* base,
+static int b3BuildRecursive( b3Array( b3MeshNode ) * nodes, int count, b3Primitive* primitives, b3Primitive* base,
 							 bool useMedianSplit, int* height )
 {
 	if ( count > B3_DESIRED_TRIANGLES_PER_LEAF )
@@ -955,10 +955,10 @@ static bool b3SortMeshTriangles( b3MeshData* mesh )
 
 	// Sort triangles in depth-first-order
 	int offset = 0;
-	b3ArrayC( b3MeshTriangle ) tempTriangles;
+	b3Array( b3MeshTriangle ) tempTriangles;
 	b3Array_CreateN( tempTriangles, mesh->triangleCount );
 
-	b3ArrayC( uint8_t ) tempMaterialIndices;
+	b3Array( uint8_t ) tempMaterialIndices;
 	b3Array_CreateN( tempMaterialIndices, mesh->triangleCount );
 
 	int count = 0;
@@ -1220,7 +1220,7 @@ b3MeshData* b3CreateGridMesh( int xCount, int zCount, float cellWidth, int mater
 	// Create vertices
 	int vertexCount = ( xCount + 1 ) * ( zCount + 1 );
 
-	b3ArrayC( b3Vec3 ) vertices = { 0 };
+	b3Array( b3Vec3 ) vertices = { 0 };
 	b3Array_Resize( vertices, vertexCount );
 	int index = 0;
 
@@ -1244,10 +1244,10 @@ b3MeshData* b3CreateGridMesh( int xCount, int zCount, float cellWidth, int mater
 	// Triangles
 	int triangleCount = 2 * xCount * zCount;
 
-	b3ArrayC( int ) indices = { 0 };
+	b3Array( int ) indices = { 0 };
 	b3Array_Resize( indices, 3 * triangleCount );
 
-	b3ArrayC( uint8_t ) materialIndices = { 0 };
+	b3Array( uint8_t ) materialIndices = { 0 };
 	b3Array_Resize( materialIndices, triangleCount );
 
 	int materialIndex = 0;
@@ -1310,7 +1310,7 @@ b3MeshData* b3CreateWaveMesh( int xCount, int zCount, float cellWidth, float amp
 	// Create vertices
 	int vertexCount = ( xCount + 1 ) * ( zCount + 1 );
 
-	b3ArrayC( b3Vec3 ) vertices = { 0 };
+	b3Array( b3Vec3 ) vertices = { 0 };
 	b3Array_Resize( vertices, vertexCount );
 	int index = 0;
 
@@ -1342,7 +1342,7 @@ b3MeshData* b3CreateWaveMesh( int xCount, int zCount, float cellWidth, float amp
 	// Triangles
 	int triangleCount = 2 * xCount * zCount;
 
-	b3ArrayC( int ) indices = { 0 };
+	b3Array( int ) indices = { 0 };
 	b3Array_Resize( indices, 3 * triangleCount );
 
 	index = 0;
@@ -1392,7 +1392,7 @@ b3MeshData* b3CreateWaveMesh( int xCount, int zCount, float cellWidth, float amp
 b3MeshData* b3CreateTorusMesh( int radialResolution, int tubularResolution, float radius, float thickness )
 {
 	// Create vertices
-	b3ArrayC( b3Vec3 ) vertices = { 0 };
+	b3Array( b3Vec3 ) vertices = { 0 };
 
 	for ( int radialIndex = 0; radialIndex < radialResolution; radialIndex++ )
 	{
@@ -1411,7 +1411,7 @@ b3MeshData* b3CreateTorusMesh( int radialResolution, int tubularResolution, floa
 	}
 
 	// Triangles
-	b3ArrayC( int ) indices = { 0 };
+	b3Array( int ) indices = { 0 };
 	for ( int radialIndex1 = 0; radialIndex1 < radialResolution; radialIndex1++ )
 	{
 		int radialIndex2 = ( radialIndex1 + 1 ) % radialResolution;
@@ -1570,10 +1570,10 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	b3AABB meshBounds = B3_BOUNDS3_EMPTY;
 
 	// Clone indices and vertices to support welding
-	b3ArrayC( int ) indices;
+	b3Array( int ) indices;
 	b3Array_CreateN( indices, 3 * triangleCount );
 
-	b3ArrayC( b3Vec3 ) vertices;
+	b3Array( b3Vec3 ) vertices;
 	b3Array_CreateN( vertices, vertexCount );
 
 	if ( def->weldVertices && def->weldTolerance > 0.0f )
@@ -1598,7 +1598,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 		b3Array_Append( indices, def->indices, 3 * triangleCount );
 	}
 
-	b3ArrayC( b3Primitive ) primitives;
+	b3Array( b3Primitive ) primitives;
 	b3Array_CreateN( primitives, triangleCount );
 	int degenerateCount = 0;
 	float minArea = 0.01f * B3_LINEAR_SLOP * B3_LINEAR_SLOP;
@@ -1668,7 +1668,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	}
 
 	// Build the tree (this reorders the builder triangles)
-	b3ArrayC( b3MeshNode ) tempNodes;
+	b3Array( b3MeshNode ) tempNodes;
 	b3Array_CreateN( tempNodes, 2 * triangleCount - 1 );
 
 	int treeHeight = 0;

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #if defined( _MSC_VER ) && !defined( __clang__ )
@@ -11,7 +12,7 @@
 
 // https://en.wikipedia.org/wiki/Find_first_set
 
-B3_INLINE uint32_t b3CTZ32( uint32_t block )
+static inline uint32_t b3CTZ32( uint32_t block )
 {
 	unsigned long index;
 	_BitScanForward( &index, block );
@@ -19,7 +20,7 @@ B3_INLINE uint32_t b3CTZ32( uint32_t block )
 }
 
 // This function doesn't need to be fast, so using the Ivy Bridge fallback.
-B3_INLINE uint32_t b3CLZ32( uint32_t value )
+static inline uint32_t b3CLZ32( uint32_t value )
 {
 #if 0
 
@@ -45,7 +46,7 @@ B3_INLINE uint32_t b3CLZ32( uint32_t value )
 #endif
 }
 
-B3_INLINE uint32_t b3CTZ64( uint64_t block )
+static inline uint32_t b3CTZ64( uint64_t block )
 {
 	unsigned long index;
 
@@ -67,41 +68,41 @@ B3_INLINE uint32_t b3CTZ64( uint64_t block )
 	return index;
 }
 
-B3_INLINE int b3PopCount64( uint64_t block )
+static inline int b3PopCount64( uint64_t block )
 {
 	return (int)__popcnt64( block );
 }
 
 #else
 
-B3_INLINE uint32_t b3CTZ32( uint32_t block )
+static inline uint32_t b3CTZ32( uint32_t block )
 {
 	return __builtin_ctz( block );
 }
 
-B3_INLINE uint32_t b3CLZ32( uint32_t value )
+static inline uint32_t b3CLZ32( uint32_t value )
 {
 	return __builtin_clz( value );
 }
 
-B3_INLINE uint32_t b3CTZ64( uint64_t block )
+static inline uint32_t b3CTZ64( uint64_t block )
 {
 	return __builtin_ctzll( block );
 }
 
-B3_INLINE int b3PopCount64( uint64_t block )
+static inline int b3PopCount64( uint64_t block )
 {
 	return __builtin_popcountll( block );
 }
 
 #endif
 
-B3_INLINE bool b3IsPowerOf2( int x )
+static inline bool b3IsPowerOf2( int x )
 {
 	return ( x & ( x - 1 ) ) == 0;
 }
 
-B3_INLINE int b3BoundingPowerOf2( int x )
+static inline int b3BoundingPowerOf2( int x )
 {
 	if ( x <= 1 )
 	{
@@ -111,7 +112,7 @@ B3_INLINE int b3BoundingPowerOf2( int x )
 	return 32 - (int)b3CLZ32( (uint32_t)x - 1 );
 }
 
-B3_INLINE int b3RoundUpPowerOf2( int x )
+static inline int b3RoundUpPowerOf2( int x )
 {
 	if ( x <= 1 )
 	{
@@ -121,7 +122,7 @@ B3_INLINE int b3RoundUpPowerOf2( int x )
 	return 1 << ( 32 - (int)b3CLZ32( (uint32_t)x - 1 ) );
 }
 
-B3_INLINE int b3LowerPowerOf2Exponent( int x )
+static inline int b3LowerPowerOf2Exponent( int x )
 {
 	B3_ASSERT( x > 0 );
 	int clz = (int)b3CLZ32( (uint32_t)x );

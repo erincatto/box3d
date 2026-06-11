@@ -22,12 +22,12 @@ b3DeclareArray( Foo );
 
 typedef struct Bar
 {
-	b3ArrayC( int ) a;
+	b3Array( int ) a;
 } Bar;
 
 static int TestCreateDestroy( void )
 {
-	b3ArrayC( int ) a;
+	b3Array( int ) a;
 	b3Array_Create( a );
 	b3Array_Destroy( a );
 	return 0;
@@ -35,7 +35,7 @@ static int TestCreateDestroy( void )
 
 static int TestAccess( void )
 {
-	b3ArrayC( int ) a;
+	b3Array( int ) a;
 	b3Array_Create( a );
 	b3Array_Push( a, 42 );
 	int* element = b3Array_Get( a, 0 );
@@ -46,7 +46,7 @@ static int TestAccess( void )
 
 static int TestIteration( void )
 {
-	b3ArrayC( int ) a = { 0 };
+	b3Array( int ) a = { 0 };
 	b3Array_Push( a, 1 );
 	b3Array_Push( a, 2 );
 	b3Array_Push( a, 3 );
@@ -64,7 +64,7 @@ static int TestIteration( void )
 
 static int TestArrayOfStruct( void )
 {
-	b3ArrayC( Foo ) a;
+	b3Array( Foo ) a;
 	b3Array_Create( a );
 	b3Array_Push( a, ( (Foo){ .a = 1, .b = 5.0f } ) );
 	b3Array_Push( a, ( (Foo){ .a = 2, .b = 6.0f } ) );
@@ -107,7 +107,7 @@ static int TestStructWithArray( void )
 
 static int TestArrayEmplace( void )
 {
-	b3ArrayC( int ) a = { 0 };
+	b3Array( int ) a = { 0 };
 
 	int n = 100;
 	for ( int i = 0; i < n; ++i )
@@ -130,7 +130,7 @@ static int TestArrayEmplace( void )
 
 static int TestArrayRemove( void )
 {
-	b3ArrayC( int16_t ) a = { 0 };
+	b3Array( int16_t ) a = { 0 };
 
 	int n = 100;
 	b3Array_Reserve( a, n );
@@ -157,7 +157,7 @@ static int TestArrayRemove( void )
 
 static int TestArrayPop( void )
 {
-	b3ArrayC( int ) a = { 0 };
+	b3Array( int ) a = { 0 };
 
 	int n = 10;
 	b3Array_Resize( a, n );

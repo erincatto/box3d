@@ -269,8 +269,8 @@ int b3CollideMoverAndCapsule( b3PlaneResult* result, const b3Capsule* shape, con
 {
 	float totalRadius = mover->radius + shape->radius;
 
-	b3ClosestApproachResult approach =
-		b3ClosestApproachSegments( shape->center1, shape->center2, mover->center1, mover->center2 );
+	b3SegmentDistanceResult approach =
+		b3SegmentDistance( shape->center1, shape->center2, mover->center1, mover->center2 );
 
 	// The normal points from the shape toward the mover.
 	float distance;

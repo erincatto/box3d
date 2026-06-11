@@ -83,8 +83,7 @@ typedef struct b3ContactEdge
 
 typedef struct b3MeshContact
 {
-	// todo use block allocator for this for faster shutdown
-	b3ArrayC( b3TriangleCache ) triangleCache;
+	b3Array( b3TriangleCache ) triangleCache;
 	b3AABB queryBounds;
 } b3MeshContact;
 

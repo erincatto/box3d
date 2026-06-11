@@ -7,7 +7,7 @@
 
 typedef struct b3IdPool
 {
-	b3ArrayC( int ) freeArray;
+	b3Array( int ) freeArray;
 	int nextIndex;
 } b3IdPool;
 

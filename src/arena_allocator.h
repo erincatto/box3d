@@ -51,7 +51,7 @@ b3DeclareArray( b3OverflowBlock );
 // across copies -- hence this pointer-shared block.
 typedef struct b3ArenaSharedState
 {
-	b3ArrayC( b3OverflowBlock ) overflows;
+	b3Array( b3OverflowBlock ) overflows;
 	int maxIndex;          // high water mark of the bump pointer this step
 	int overflowBytes;     // total bytes in overflow blocks this step
 	int peakDemand;        // all-time peak of (maxIndex + overflowBytes), survives sync

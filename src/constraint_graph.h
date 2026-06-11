@@ -44,10 +44,10 @@ typedef struct b3GraphColor
 	b3BitSet bodySet;
 
 	// cache friendly arrays
-	b3ArrayC( b3JointSim ) jointSims;
+	b3Array( b3JointSim ) jointSims;
 
-	b3ArrayC( int ) convexContacts;
-	b3ArrayC( b3ContactSpec ) contacts;
+	b3Array( int ) convexContacts;
+	b3Array( b3ContactSpec ) contacts;
 
 	// These are used for convex contacts
 	struct b3ContactConstraintWide* wideConstraints;

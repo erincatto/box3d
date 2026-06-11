@@ -26,9 +26,9 @@ b3DeclareArray( b3Visitor );
 
 typedef struct b3Sensor
 {
-	b3ArrayC( b3Visitor ) hits;
-	b3ArrayC( b3Visitor ) overlaps1;
-	b3ArrayC( b3Visitor ) overlaps2;
+	b3Array( b3Visitor ) hits;
+	b3Array( b3Visitor ) overlaps1;
+	b3Array( b3Visitor ) overlaps2;
 	int shapeId;
 } b3Sensor;
 
