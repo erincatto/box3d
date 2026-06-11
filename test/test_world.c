@@ -910,6 +910,28 @@ static int TestHullDatabase( void )
 	// The shared copy is owned by the world, not the caller's stack hull
 	ENSURE( gotA.data != &box.base );
 
+	// A box built on an independent stack frame must de-duplicate to the same shared copy.
+	// This holds only if content hashing sees deterministic padding bytes.
+	b3BoxHull box2 = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3Hull instanceC = b3MakeHull( &box2.base, 1.0f );
+	b3BodyId bodyC = b3CreateBody( worldId, &bodyDef );
+	b3ShapeId shapeC = b3CreateHullShape( bodyC, &shapeDef, &instanceC );
+	ENSURE( b3Shape_GetHull( shapeC ).data == gotA.data );
+	b3DestroyShape( shapeC, true );
+
+	// Setting a shape's hull to its own sole shared copy must not free it mid update.
+	b3BoxHull box3 = b3MakeBoxHull( 0.3f, 0.3f, 0.3f );
+	b3Hull instanceD = b3MakeHull( &box3.base, 1.0f );
+	b3BodyId bodyD = b3CreateBody( worldId, &bodyDef );
+	b3ShapeId shapeD = b3CreateHullShape( bodyD, &shapeDef, &instanceD );
+	b3Hull gotD = b3Shape_GetHull( shapeD );
+	gotD.scale = 3.0f;
+	b3Shape_SetHull( shapeD, &gotD );
+	b3Hull afterD = b3Shape_GetHull( shapeD );
+	ENSURE( afterD.scale == 3.0f );
+	ENSURE( afterD.data == gotD.data );
+	b3DestroyShape( shapeD, true );
+
 	// Releasing one reference keeps the other alive
 	b3DestroyShape( shapeA, true );
 	b3Hull stillB = b3Shape_GetHull( shapeB );

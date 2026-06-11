@@ -294,6 +294,10 @@ void b3ValidateContacts( b3World* world );
 // share one copy with a reference count. The input may be freed after this call.
 const b3HullData* b3AddHullToDatabase( b3World* world, const b3HullData* src );
 
+// Like b3AddHullToDatabase but takes ownership of a heap hull: inserted directly on a miss,
+// freed on a hit. Avoids cloning data the caller already allocated.
+const b3HullData* b3AddOwnedHullToDatabase( b3World* world, b3HullData* owned );
+
 // Release a reference to a shared hull. The owned copy is freed when the count reaches zero.
 void b3RemoveHullFromDatabase( b3World* world, const b3HullData* data );
 

@@ -9,6 +9,7 @@
 
 #include <stdbool.h>
 
+typedef struct b3Arena b3Arena;
 typedef struct b3BroadPhase b3BroadPhase;
 typedef struct b3World b3World;
 
@@ -75,7 +76,7 @@ float b3GetShapeArea( const b3Shape* shape );
 float b3GetShapeProjectedArea( const b3Shape* shape, b3Vec3 planeNormal );
 uint64_t b3GetShapeUserMaterialId( const b3Shape* shape, int childIndex, int triangleIndex );
 
-// For a scaled hull the proxy points are written into pointBuffer (capacity B3_MAX_HULL_VERTICES);
+// For a scaled hull the proxy points are written into pointBuffer (capacity B3_HULL_LIMIT);
 // for other shapes or unit scale the buffer is unused and the proxy points at shape data.
 b3ShapeProxy b3MakeShapeProxy( const b3Shape* shape, b3Vec3* pointBuffer );
 b3ShapeProxy b3MakeLocalProxy( const b3ShapeProxy* proxy, b3Transform transform, b3Vec3* buffer );
@@ -109,6 +110,18 @@ float b3ComputeHullProjectedArea( const b3HullData* hull, float scale, b3Vec3 di
 // original when scale is 1. Topology is unchanged so all hull routines accept the result. The buffer
 // must be aligned for b3HullData.
 const b3HullData* b3ScaleHullData( const b3HullData* hull, float scale, void* buffer );
+
+// Returns the hull points scaled into buffer (must hold B3_HULL_LIMIT points), or the hull's own
+// points when scale is 1.
+const b3Vec3* b3GetScaledHullPoints( const b3HullData* hull, float scale, b3Vec3* buffer );
+
+// Returns a uniformly scaled copy of the hull bumped from the arena, or the original when scale is 1.
+const b3HullData* b3GetScaledHull( const b3HullData* hull, float scale, b3Arena* arena );
+
+// Content hash and equality over the whole baked hull. Shared by every hull de-duplication map so
+// they agree on identity.
+uint64_t b3HashHullData( const b3HullData* hull );
+bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 );
 
 // Height field
 b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int triangleIndex );

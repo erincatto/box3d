@@ -509,11 +509,7 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 		B3_ASSERT( typeA == b3_hullShape );
 
 		// Apply uniform scale by working against a scaled copy. Unit scale uses the shared data directly.
-		const b3HullData* hullA = shapeA->hull.data;
-		if ( shapeA->hull.scale != 1.0f )
-		{
-			hullA = b3ScaleHullData( shapeA->hull.data, shapeA->hull.scale, b3Bump( &arena, shapeA->hull.data->byteCount ) );
-		}
+		const b3HullData* hullA = b3GetScaledHull( shapeA->hull.data, shapeA->hull.scale, &arena );
 
 		if ( typeB == b3_sphereShape )
 		{
@@ -529,11 +525,7 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 		{
 			B3_ASSERT( typeB == b3_hullShape );
 
-			const b3HullData* hullB = shapeB->hull.data;
-			if ( shapeB->hull.scale != 1.0f )
-			{
-				hullB = b3ScaleHullData( shapeB->hull.data, shapeB->hull.scale, b3Bump( &arena, shapeB->hull.data->byteCount ) );
-			}
+			const b3HullData* hullB = b3GetScaledHull( shapeB->hull.data, shapeB->hull.scale, &arena );
 
 			b3CollideHulls( &geomManifold, pointCapacity, hullA, hullB, transformBtoA, &cache->satCache );
 			world->taskContexts.data[workerIndex].satCallCount += 1;

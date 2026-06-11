@@ -195,32 +195,11 @@ b3ChildShape b3GetCompoundChild( const b3Compound* compound, int childIndex )
 
 static inline size_t vt_wyhash( const void* key, size_t len );
 
-static inline uint64_t b3HashHull( const b3HullData* hull )
-{
-	return vt_wyhash( hull, hull->byteCount );
-}
-
-static bool b3CompareHulls( const b3HullData* hull1, const b3HullData* hull2 )
-{
-	if ( hull1 == hull2 )
-	{
-		return true;
-	}
-
-	if ( hull1->byteCount != hull2->byteCount )
-	{
-		return false;
-	}
-
-	int result = memcmp( hull1, hull2, hull1->byteCount );
-	return result == 0;
-}
-
 #define NAME b3HullMap
 #define KEY_TY const b3HullData*
 #define VAL_TY int
-#define HASH_FN b3HashHull
-#define CMPR_FN b3CompareHulls
+#define HASH_FN b3HashHullData
+#define CMPR_FN b3CompareHullData
 #define MALLOC_FN b3Alloc
 #define FREE_FN b3Free
 #include "verstable.h"

@@ -1467,13 +1467,9 @@ static void DrawMenuBar( SampleContext* context )
 			{
 				context->sample->ResetProfile();
 			}
-			if ( ImGui::MenuItem( "Dump" ) )
+			if ( ImGui::MenuItem( "Dump Mem Stats" ) )
 			{
-				b3World_Dump( context->sample->m_worldId );
-			}
-			if ( ImGui::MenuItem( "Dump Awake" ) )
-			{
-				b3World_DumpAwake( context->sample->m_worldId );
+				b3World_DumpMemoryStats( context->sample->m_worldId );
 			}
 			ImGui::Separator();
 			if ( ImGui::MenuItem( "Quit", "Esc" ) )

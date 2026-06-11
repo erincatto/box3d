@@ -30,7 +30,7 @@ static bool b3OverlapSensor( b3Shape* sensorShape, b3Transform sensorTransform, 
 {
 	b3ShapeType type = sensorShape->type;
 
-	b3Vec3 proxyPoints[B3_MAX_HULL_VERTICES];
+	b3Vec3 proxyPoints[B3_HULL_LIMIT];
 	b3ShapeProxy proxy = b3MakeShapeProxy( visitorShape, proxyPoints );
 
 	// Get the visitor shape in the frame of the sensor

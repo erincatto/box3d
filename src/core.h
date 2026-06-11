@@ -120,8 +120,8 @@ typedef struct b3AtomicU32
 #define B3_CHECK_DEF( DEF ) B3_ASSERT( DEF->internalValue == B3_SECRET_COOKIE )
 #define B3_CHECK_JOINT_DEF( DEF ) B3_ASSERT( DEF->base.internalValue == B3_SECRET_COOKIE )
 
-// Hull vertex, edge and face counts are encoded with uint8_t so they cannot exceed this.
-#define B3_MAX_HULL_VERTICES 256
+// Final hull is index-encoded with uint8_t, so vertex/edge/face counts are capped at UINT8_MAX.
+#define B3_HULL_LIMIT UINT8_MAX
 
 // These macros help avoid sizeof bugs
 #define B3_ALLOC( T, N ) (T*)b3Alloc( N * sizeof( T ) );

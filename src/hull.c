@@ -4,6 +4,7 @@
 // Dirk Gregorius contributed portions of this code
 
 #include "algorithm.h"
+#include "arena_allocator.h"
 #include "math_internal.h"
 #include "shape.h"
 
@@ -24,9 +25,6 @@
 
 #define B3_MARK_VISIBLE 0
 #define B3_MARK_DELETE 1
-
-// Final hull is index-encoded with uint8_t, so vertex/edge/face counts are capped at UINT8_MAX.
-#define B3_HULL_LIMIT UINT8_MAX
 
 typedef struct b3QHListNode
 {
@@ -2178,6 +2176,28 @@ b3HullData* b3CloneHull( const b3HullData* hull )
 	return clone;
 }
 
+uint64_t b3HashHullData( const b3HullData* hull )
+{
+	// The baked content hash already covers byteCount. Spread the 32 bits across 64 so the table
+	// can use the high bits for its fast reject fragment.
+	return (uint64_t)hull->hash * 0x9E3779B97F4A7C15ull;
+}
+
+bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 )
+{
+	if ( hull1 == hull2 )
+	{
+		return true;
+	}
+
+	if ( hull1->byteCount != hull2->byteCount )
+	{
+		return false;
+	}
+
+	return memcmp( hull1, hull2, hull1->byteCount ) == 0;
+}
+
 const b3HullData* b3ScaleHullData( const b3HullData* hull, float scale, void* buffer )
 {
 	if ( scale == 1.0f )
@@ -2216,6 +2236,32 @@ const b3HullData* b3ScaleHullData( const b3HullData* hull, float scale, void* bu
 	scaled->centralInertia = b3MulSM( s5, scaled->centralInertia );
 
 	return scaled;
+}
+
+const b3Vec3* b3GetScaledHullPoints( const b3HullData* hull, float scale, b3Vec3* buffer )
+{
+	const b3Vec3* points = b3GetHullPoints( hull );
+	if ( scale == 1.0f )
+	{
+		return points;
+	}
+
+	for ( int i = 0; i < hull->vertexCount; ++i )
+	{
+		buffer[i] = b3MulSV( scale, points[i] );
+	}
+
+	return buffer;
+}
+
+const b3HullData* b3GetScaledHull( const b3HullData* hull, float scale, b3Arena* arena )
+{
+	if ( scale == 1.0f )
+	{
+		return hull;
+	}
+
+	return b3ScaleHullData( hull, scale, b3Bump( arena, hull->byteCount ) );
 }
 
 b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform transform, b3Vec3 scale )
@@ -2408,15 +2454,7 @@ b3AABB b3ComputeSweptHullAABB( const b3HullData* shape, float scale, b3Transform
 bool b3OverlapHull( const b3HullData* shape, float scale, b3Transform shapeTransform, const b3ShapeProxy* proxy )
 {
 	b3Vec3 scaledPoints[B3_HULL_LIMIT];
-	const b3Vec3* points = b3GetHullPoints( shape );
-	if ( scale != 1.0f )
-	{
-		for ( int i = 0; i < shape->vertexCount; ++i )
-		{
-			scaledPoints[i] = b3MulSV( scale, points[i] );
-		}
-		points = scaledPoints;
-	}
+	const b3Vec3* points = b3GetScaledHullPoints( shape, scale, scaledPoints );
 
 	b3DistanceInput input;
 	input.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
@@ -2501,15 +2539,7 @@ b3CastOutput b3RayCastHull( const b3HullData* shape, float scale, const b3RayCas
 b3CastOutput b3ShapeCastHull( const b3HullData* shape, float scale, const b3ShapeCastInput* input )
 {
 	b3Vec3 scaledPoints[B3_HULL_LIMIT];
-	const b3Vec3* points = b3GetHullPoints( shape );
-	if ( scale != 1.0f )
-	{
-		for ( int i = 0; i < shape->vertexCount; ++i )
-		{
-			scaledPoints[i] = b3MulSV( scale, points[i] );
-		}
-		points = scaledPoints;
-	}
+	const b3Vec3* points = b3GetScaledHullPoints( shape, scale, scaledPoints );
 
 	b3ShapeCastPairInput pairInput;
 	pairInput.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
@@ -2527,15 +2557,7 @@ b3CastOutput b3ShapeCastHull( const b3HullData* shape, float scale, const b3Shap
 int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, float scale, const b3Capsule* mover )
 {
 	b3Vec3 scaledPoints[B3_HULL_LIMIT];
-	const b3Vec3* points = b3GetHullPoints( shape );
-	if ( scale != 1.0f )
-	{
-		for ( int i = 0; i < shape->vertexCount; ++i )
-		{
-			scaledPoints[i] = b3MulSV( scale, points[i] );
-		}
-		points = scaledPoints;
-	}
+	const b3Vec3* points = b3GetScaledHullPoints( shape, scale, scaledPoints );
 
 	b3DistanceInput distanceInput;
 	distanceInput.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
@@ -2678,7 +2700,10 @@ static const b3BoxHull s_boxHull = {
 
 b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform transform )
 {
-	b3BoxHull boxHull = s_boxHull;
+	// Copy bytes, not the struct, so padding is the template's zero. Content hashing and
+	// de-duplication compare the whole byteCount, including padding.
+	b3BoxHull boxHull;
+	memcpy( &boxHull, &s_boxHull, sizeof( b3BoxHull ) );
 
 	float minH = 0.2f * B3_LINEAR_SLOP;
 	b3Vec3 h = b3Max( (b3Vec3){ minH, minH, minH }, (b3Vec3){ hx, hy, hz } );

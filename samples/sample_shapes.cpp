@@ -1071,4 +1071,4 @@ public:
 	}
 };
 
-static int sampleHullScale = RegisterSample( "Shape", "Hull Scale Stack", HullScaleStack::Create );
+static int sampleHullScale = RegisterSample( "Shapes", "Hull Scale Stack", HullScaleStack::Create );

@@ -35,28 +35,6 @@ b3World b3_worlds[B3_MAX_WORLDS];
 b3AtomicInt b3_worldCount;
 int b3_maxWorldCount;
 
-static inline size_t vt_wyhash( const void* key, size_t len );
-
-static inline uint64_t b3HashHullData( const b3HullData* hull )
-{
-	return vt_wyhash( hull, hull->byteCount );
-}
-
-static bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 )
-{
-	if ( hull1 == hull2 )
-	{
-		return true;
-	}
-
-	if ( hull1->byteCount != hull2->byteCount )
-	{
-		return false;
-	}
-
-	return memcmp( hull1, hull2, hull1->byteCount ) == 0;
-}
-
 #define NAME b3HullDatabase
 #define KEY_TY const b3HullData*
 #define VAL_TY int
@@ -79,6 +57,23 @@ const b3HullData* b3AddHullToDatabase( b3World* world, const b3HullData* src )
 	}
 
 	b3HullData* owned = b3CloneHull( src );
+	B3_ASSERT( owned != NULL );
+	b3HullDatabase_insert( database, owned, 1 );
+	return owned;
+}
+
+const b3HullData* b3AddOwnedHullToDatabase( b3World* world, b3HullData* owned )
+{
+	b3HullDatabase* database = world->hullDatabase;
+
+	b3HullDatabase_itr itr = b3HullDatabase_get( database, owned );
+	if ( b3HullDatabase_is_end( itr ) == false )
+	{
+		itr.data->val += 1;
+		b3DestroyHull( owned );
+		return itr.data->key;
+	}
+
 	b3HullDatabase_insert( database, owned, 1 );
 	return owned;
 }
@@ -92,9 +87,9 @@ void b3RemoveHullFromDatabase( b3World* world, const b3HullData* data )
 
 	if ( --itr.data->val == 0 )
 	{
-		// Erase first because erase re-runs the content compare on the stored key.
+		// Erase through the iterator we already have so the lookup runs once.
 		b3HullData* owned = (b3HullData*)itr.data->key;
-		b3HullDatabase_erase( database, data );
+		b3HullDatabase_erase_itr( database, itr );
 		b3DestroyHull( owned );
 	}
 }
@@ -3090,7 +3085,7 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 
 	b3Transform transform = b3GetBodyTransformQuick( world, body );
 
-	b3Vec3 proxyPoints[B3_MAX_HULL_VERTICES];
+	b3Vec3 proxyPoints[B3_HULL_LIMIT];
 	b3DistanceInput input;
 	input.proxyA = b3MakeShapeProxy( shape, proxyPoints );
 	input.proxyB = (b3ShapeProxy){ &explosionContext->position, 1, 0.0f };
