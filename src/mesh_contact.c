@@ -571,9 +571,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 
 	b3TriangleCache* triangleCaches = meshContact->triangleCache.data;
 
-	// Build a scaled hull copy once and reuse it across all triangles. Unit scale uses the shared data.
-	const b3HullData* hullB =
-		shapeB->type == b3_hullShape ? b3GetScaledHull( shapeB->hull.data, shapeB->hull.scale, &arena ) : NULL;
+	const b3HullData* hullB = shapeB->type == b3_hullShape ? shapeB->hull : NULL;
 
 	for ( int index = 0; index < triangleCount && totalPointCount + 3 < pointBufferCapacity; ++index )
 	{
@@ -1173,7 +1171,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	}
 	else if ( shapeB->type == b3_hullShape )
 	{
-		radiusB = shapeB->hull.scale * shapeB->hull.data->innerRadius;
+		radiusB = shapeB->hull->innerRadius;
 	}
 
 	contact->rollingResistance = shapeB->materials[0].rollingResistance * radiusB;

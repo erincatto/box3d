@@ -337,7 +337,7 @@ b3Compound* b3CreateCompound( const b3CompoundDef* def )
 		{
 			const b3CompoundHullDef* hullDef = def->hulls + i;
 			const b3HullData* hull = hullDef->hull;
-			b3AABB aabb = b3ComputeHullAABB( hull, 1.0f, hullDef->transform );
+			b3AABB aabb = b3ComputeHullAABB( hull, hullDef->transform );
 			b3DynamicTree_CreateProxy( &tree, aabb, ~0ull, childIndex );
 			childIndex += 1;
 
@@ -711,7 +711,7 @@ static bool b3CompoundOverlapCallback( int proxyId, uint64_t userData, void* con
 			break;
 
 		case b3_hullShape:
-			overlap = b3OverlapHull( child.hull, 1.0f, transform, &overlapContext->proxy );
+			overlap = b3OverlapHull( child.hull, transform, &overlapContext->proxy );
 			break;
 
 		case b3_meshShape:
@@ -794,7 +794,7 @@ static float b3CompoundRayCastCallback( const b3RayCastInput* input, int proxyId
 			break;
 
 		case b3_hullShape:
-			output = b3RayCastHull( child.hull, 1.0f, &localInput );
+			output = b3RayCastHull( child.hull, &localInput );
 			output.materialIndex = child.materialIndices[0];
 			break;
 
@@ -878,7 +878,7 @@ static float b3CompoundShapeCastCallback( const b3ShapeCastInput* input, int pro
 			break;
 
 		case b3_hullShape:
-			output = b3ShapeCastHull( child.hull, 1.0f, &localInput );
+			output = b3ShapeCastHull( child.hull, &localInput );
 			output.materialIndex = child.materialIndices[0];
 			break;
 
@@ -1137,7 +1137,7 @@ static bool b3CompoundMoverCallback( int proxyId, uint64_t userData, void* conte
 			break;
 
 		case b3_hullShape:
-			planeCount = b3CollideMoverAndHull( planes, child.hull, 1.0f, &localMover );
+			planeCount = b3CollideMoverAndHull( planes, child.hull, &localMover );
 			break;
 
 		case b3_meshShape:

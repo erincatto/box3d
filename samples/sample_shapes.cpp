@@ -30,8 +30,7 @@ public:
 		b3BoxHull planeBox = b3MakeBoxHull( 16.0f, 0.5f, 10.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.friction = 1.0f;
-		b3Hull planeHull = b3MakeHull( &planeBox.base, 1.0f );
-		b3CreateHullShape( planeBody, &shapeDef, &planeHull );
+		b3CreateHullShape( planeBody, &shapeDef, &planeBox.base );
 
 		b3BoxHull box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
 		bodyDef.type = b3_dynamicBody;
@@ -40,8 +39,7 @@ public:
 			bodyDef.position = { -10.0f + 5.0f * index, 15.75f, -10.6f };
 			b3BodyId boxBody = b3CreateBody( m_worldId, &bodyDef );
 			shapeDef.baseMaterial.friction = ( index + 1 ) * ( index + 1 ) * 0.04f;
-			b3Hull hull = b3MakeHull( &box.base, 1.0f );
-			b3CreateHullShape( boxBody, &shapeDef, &hull );
+			b3CreateHullShape( boxBody, &shapeDef, &box.base );
 		}
 	}
 
@@ -76,8 +74,7 @@ public:
 		b3BodyId planeBody = b3CreateBody( m_worldId, &bodyDef );
 
 		b3BoxHull plane = b3MakeBoxHull( 32.0f, 0.5f, 15.0f );
-		b3Hull planeHull = b3MakeHull( &plane.base, 1.0f );
-		b3CreateHullShape( planeBody, &shapeDef, &planeHull );
+		b3CreateHullShape( planeBody, &shapeDef, &plane.base );
 
 		b3Sphere sphere = { b3Vec3_zero, 1.0f };
 		bodyDef.type = b3_dynamicBody;
@@ -181,8 +178,7 @@ public:
 			bodyDef.rotation = orientation;
 			bodyDef.linearVelocity = velocity;
 			b3BodyId boxBody = b3CreateBody( m_worldId, &bodyDef );
-			b3Hull hull = b3MakeHull( &box.base, 1.0f );
-			b3CreateHullShape( boxBody, &shapeDef, &hull );
+			b3CreateHullShape( boxBody, &shapeDef, &box.base );
 		}
 	}
 
@@ -222,8 +218,7 @@ public:
 
 		b3BoxHull plane = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
 		shapeDef.baseMaterial.friction = 0.6f;
-		b3Hull planeHull = b3MakeHull( &plane.base, 1.0f );
-		b3CreateHullShape( planeBody, &shapeDef, &planeHull );
+		b3CreateHullShape( planeBody, &shapeDef, &plane.base );
 
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.0f, 5.0f, 0.0f };
@@ -232,8 +227,7 @@ public:
 		b3BodyId boxBody = b3CreateBody( m_worldId, &bodyDef );
 		b3BoxHull mBox = b3MakeBoxHull( 1.0f, 0.5f, 1.0f );
 		shapeDef.baseMaterial.friction = 0.3f;
-		b3Hull boxHull = b3MakeHull( &mBox.base, 1.0f );
-		b3CreateHullShape( boxBody, &shapeDef, &boxHull );
+		b3CreateHullShape( boxBody, &shapeDef, &mBox.base );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -304,8 +298,7 @@ public:
 			}
 			else
 			{
-				b3Hull hull = b3MakeHull( &box.base, 1.0f );
-				b3CreateHullShape( bodyId, &shapeDef, &hull );
+				b3CreateHullShape( bodyId, &shapeDef, &box.base );
 			}
 
 			shapeDef.baseMaterial.restitution += dr;
@@ -467,8 +460,7 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.baseMaterial.friction = 0.8f;
 			shapeDef.baseMaterial.tangentVelocity = { 2.0f, 0.0f, 0.0f };
-			b3Hull hull = b3MakeHull( &box.base, 1.0f );
-			b3CreateHullShape( bodyId, &shapeDef, &hull );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 		}
 
 		// Boxes
@@ -481,8 +473,7 @@ public:
 			bodyDef.position = { -10.0f + 2.0f * i, 7.0f, 0.0f };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
-			b3Hull hull = b3MakeHull( &cube.base, 1.0f );
-			b3CreateHullShape( bodyId, &shapeDef, &hull );
+			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
 		}
 	}
 
@@ -590,8 +581,7 @@ public:
 			bodyDef.position = { -8.5f + 0.9f * i, 1.5f, -5.5f };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
-			b3Hull hull = b3MakeHull( m_cylinderHull, 1.0f );
-			b3CreateHullShape( bodyId, &shapeDef, &hull );
+			b3CreateHullShape( bodyId, &shapeDef, m_cylinderHull );
 		}
 
 #if 0
@@ -770,8 +760,7 @@ public:
 			}
 			else
 			{
-				b3Hull hull = b3MakeHull( &box.base, 1.0f );
-				b3CreateHullShape( m_bodyIds[i], &shapeDef, &hull );
+				b3CreateHullShape( m_bodyIds[i], &shapeDef, &box.base );
 			}
 
 			jointDef.base.bodyIdB = m_bodyIds[i];
@@ -888,8 +877,7 @@ public:
 		bodyDef.position = { 0.0f, 10.0f, 0.0f };
 		b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
-		b3Hull hull = b3MakeHull( &box.base, 1.0f );
-		m_shapeId = b3CreateHullShape( bodyId, &shapeDef, &hull );
+		m_shapeId = b3CreateHullShape( bodyId, &shapeDef, &box.base );
 	}
 
 	void Step() override
@@ -954,13 +942,11 @@ public:
 		shapeDef.density = 5.0f;
 		bodyDef.position = { -2.0f * a, y, 0.0f };
 		b3BodyId wingBodyId1 = b3CreateBody( m_worldId, &bodyDef );
-		b3Hull hull1 = b3MakeHull( &box1.base, 1.0f );
-		m_shapeId1 = b3CreateHullShape( wingBodyId1, &shapeDef, &hull1 );
+		m_shapeId1 = b3CreateHullShape( wingBodyId1, &shapeDef, &box1.base );
 
 		bodyDef.position = { 2.0f * a, y, 0.0f };
 		b3BodyId wingBodyId2 = b3CreateBody( m_worldId, &bodyDef );
-		b3Hull hull2 = b3MakeHull( &box2.base, 1.0f );
-		m_shapeId2 = b3CreateHullShape( wingBodyId2, &shapeDef, &hull2 );
+		m_shapeId2 = b3CreateHullShape( wingBodyId2, &shapeDef, &box2.base );
 
 		bodyDef.position = { 0.0f, y, 0.0f };
 		// bodyDef.type = b3_staticBody;
@@ -1032,43 +1018,3 @@ public:
 };
 
 static int sampleWindFlap = RegisterSample( "Shapes", "Wind Flap", WindFlap::Create );
-
-// This tests using hull scale.
-class HullScaleStack : public Sample
-{
-public:
-	explicit HullScaleStack( SampleContext* context )
-		: Sample( context )
-	{
-		if ( context->restart == false )
-		{
-			m_camera->SetView( 15.0f, 20.0f, 30.0f, { 0.0f, 2.0f, 0.0f } );
-		}
-
-		AddGroundBox( 50.0f );
-
-		float a = 1.0f;
-		b3BoxHull box = b3MakeCubeHull( a );
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = { 0.0f, a, 0.0f };
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		float scale = 1.0f;
-		for ( int row = 0; row < 10; ++row )
-		{
-			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3Hull hull = b3MakeHull( &box.base, scale );
-			b3CreateHullShape( bodyId, &shapeDef, &hull );
-			bodyDef.position.y += scale * a;
-			scale *= 0.8f;
-			bodyDef.position.y += scale * a;
-		}
-	}
-
-	static Sample* Create( SampleContext* context )
-	{
-		return new HullScaleStack( context );
-	}
-};
-
-static int sampleHullScale = RegisterSample( "Shapes", "Hull Scale Stack", HullScaleStack::Create );

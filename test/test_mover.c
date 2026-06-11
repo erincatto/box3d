@@ -193,7 +193,7 @@ static int MoverHullSeparated( void )
 	b3Capsule mover = { { -0.3f, 5.0f, 0.0f }, { 0.3f, 5.0f, 0.0f }, 0.2f };
 
 	b3PlaneResult result = { 0 };
-	int count = b3CollideMoverAndHull( &result, &box.base, 1.0f, &mover );
+	int count = b3CollideMoverAndHull( &result, &box.base, &mover );
 	ENSURE( count == 0 );
 
 	return 0;
@@ -207,7 +207,7 @@ static int MoverHullTouching( void )
 	b3Capsule mover = { { -0.3f, 0.6f, 0.0f }, { 0.3f, 0.6f, 0.0f }, 0.2f };
 
 	b3PlaneResult result = { 0 };
-	int count = b3CollideMoverAndHull( &result, &box.base, 1.0f, &mover );
+	int count = b3CollideMoverAndHull( &result, &box.base, &mover );
 	ENSURE( count == 1 );
 	ENSURE( b3IsNormalized( result.plane.normal ) );
 	ENSURE( result.plane.normal.y > 0.99f );
@@ -224,7 +224,7 @@ static int MoverHullDeepOverlap( void )
 	b3Capsule mover = { { -0.2f, 0.0f, 0.0f }, { 0.2f, 0.0f, 0.0f }, 0.1f };
 
 	b3PlaneResult result = { 0 };
-	int count = b3CollideMoverAndHull( &result, &box.base, 1.0f, &mover );
+	int count = b3CollideMoverAndHull( &result, &box.base, &mover );
 
 	// The overlap guard drops the plane rather than emit a zero normal.
 	// todo replace with SAT once b3CollideMoverAndHull resolves overlaps.

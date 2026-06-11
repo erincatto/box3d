@@ -591,9 +591,9 @@ public:
 
 		if ( m_hull != nullptr )
 		{
-			b3MassData lowerMassData = b3ComputeHullMass( m_hull, 1.0f, 1.0f );
+			b3MassData lowerMassData = b3ComputeHullMass( m_hull, 1.0f );
 			b3MassData massData = b3ComputeCapsuleMass( &m_capsule, 1.0f );
-			b3MassData upperMassData = b3ComputeHullMass( &m_box.base, 1.0f, 1.0f );
+			b3MassData upperMassData = b3ComputeHullMass( &m_box.base, 1.0f );
 
 			DrawTextLine( "mass hull:    %g", lowerMassData.mass );
 			DrawTextLine( "mass capsule: %g", massData.mass );

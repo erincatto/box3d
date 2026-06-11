@@ -109,16 +109,14 @@ public:
 			{
 				b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
 				// shapeDef.baseMaterial.friction = 0.01f;
-				b3Hull hull = b3MakeHull( &box.base, 1.0f );
-				b3CreateHullShape( m_bodyId, &shapeDef, &hull );
+				b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
 			}
 			break;
 
 			case ShapeType::cylinder:
 			{
 				shapeDef.baseMaterial.rollingResistance = 0.02f;
-				b3Hull hull = b3MakeHull( m_cylinderHull, 1.0f );
-				b3CreateHullShape( m_bodyId, &shapeDef, &hull );
+				b3CreateHullShape( m_bodyId, &shapeDef, m_cylinderHull );
 			}
 			break;
 
@@ -288,15 +286,13 @@ public:
 			{
 				b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
 				// shapeDef.baseMaterial.friction = 0.01f;
-				b3Hull hull = b3MakeHull( &box.base, 1.0f );
-				b3CreateHullShape( m_bodyId, &shapeDef, &hull );
+				b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
 			}
 			break;
 
 			case ShapeType::cylinder:
 			{
-				b3Hull hull = b3MakeHull( m_cylinderHull, 1.0f );
-				b3CreateHullShape( m_bodyId, &shapeDef, &hull );
+				b3CreateHullShape( m_bodyId, &shapeDef, m_cylinderHull );
 			}
 			break;
 
@@ -466,15 +462,13 @@ public:
 			{
 				b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
 				// b3BoxHull box = b3MakeBoxHull( 0.1f, 1.0f, 0.1f );
-				b3Hull hull = b3MakeHull( &box.base, 1.0f );
-				b3CreateHullShape( m_bodyId, &shapeDef, &hull );
+				b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
 			}
 			break;
 
 			case ShapeType::cylinder:
 			{
-				b3Hull hull = b3MakeHull( m_cylinderHull, 1.0f );
-				b3CreateHullShape( m_bodyId, &shapeDef, &hull );
+				b3CreateHullShape( m_bodyId, &shapeDef, m_cylinderHull );
 			}
 			break;
 
@@ -637,8 +631,7 @@ public:
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			b3BoxHull hull = b3MakeBoxHull( 0.25f, 0.5f, 0.75f );
 			shapeDef.baseMaterial.userMaterialId = 555;
-			b3Hull hullInstance = b3MakeHull( &hull.base, 1.0f );
-			b3CreateHullShape( body, &shapeDef, &hullInstance );
+			b3CreateHullShape( body, &shapeDef, &hull.base );
 		}
 
 		float frictionTorque = 5.0f;
@@ -1461,8 +1454,7 @@ public:
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.baseMaterial.rollingResistance = 0.1f;
-			b3Hull hullInstance = b3MakeHull( hull, 1.0f );
-			b3CreateHullShape( bodyId, &shapeDef, &hullInstance );
+			b3CreateHullShape( bodyId, &shapeDef, hull );
 			b3DestroyHull( hull );
 		}
 
@@ -1535,8 +1527,7 @@ public:
 			{
 				bodyDef.position = positions[i];
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-				b3Hull hull = b3MakeHull( cylinderHull, 1.0f );
-				b3CreateHullShape( bodyId, &shapeDef, &hull );
+				b3CreateHullShape( bodyId, &shapeDef, cylinderHull );
 			}
 
 			b3DestroyHull( cylinderHull );

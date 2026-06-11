@@ -9,7 +9,6 @@
 
 #include <stdbool.h>
 
-typedef struct b3Arena b3Arena;
 typedef struct b3BroadPhase b3BroadPhase;
 typedef struct b3World b3World;
 
@@ -50,7 +49,7 @@ typedef struct b3Shape
 	{
 		b3Capsule capsule;
 		b3Sphere sphere;
-		b3Hull hull;
+		const b3HullData* hull;
 		b3Mesh mesh;
 		const b3HeightField* heightField;
 		const b3Compound* compound;
@@ -76,9 +75,7 @@ float b3GetShapeArea( const b3Shape* shape );
 float b3GetShapeProjectedArea( const b3Shape* shape, b3Vec3 planeNormal );
 uint64_t b3GetShapeUserMaterialId( const b3Shape* shape, int childIndex, int triangleIndex );
 
-// For a scaled hull the proxy points are written into pointBuffer (capacity B3_HULL_LIMIT);
-// for other shapes or unit scale the buffer is unused and the proxy points at shape data.
-b3ShapeProxy b3MakeShapeProxy( const b3Shape* shape, b3Vec3* pointBuffer );
+b3ShapeProxy b3MakeShapeProxy( const b3Shape* shape );
 b3ShapeProxy b3MakeLocalProxy( const b3ShapeProxy* proxy, b3Transform transform, b3Vec3* buffer );
 b3AABB b3ComputeProxyAABB( const b3ShapeProxy* proxy );
 
@@ -92,7 +89,7 @@ b3TOIOutput b3ShapeTimeOfImpact( b3Shape* shapeA, b3Shape* shapeB, b3Sweep* swee
 
 int b3CollideMoverAndSphere( b3PlaneResult* result, const b3Sphere* shape, const b3Capsule* mover );
 int b3CollideMoverAndCapsule( b3PlaneResult* result, const b3Capsule* shape, const b3Capsule* mover );
-int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, float scale, const b3Capsule* mover );
+int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, const b3Capsule* mover );
 int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* shape, const b3Capsule* mover );
 int b3CollideMoverAndHeightField( b3PlaneResult* results, int capacity, const b3HeightField* shape, const b3Capsule* mover );
 int b3CollideMover( b3PlaneResult* planes, int planeCapacity, const b3Shape* shape, b3Transform transform,
@@ -102,21 +99,9 @@ int b3CollideMover( b3PlaneResult* planes, int planeCapacity, const b3Shape* sha
 int b3FindHullSupportVertex( const b3HullData* hull, b3Vec3 direction );
 int b3FindHullSupportFace( const b3HullData* hull, b3Vec3 direction );
 bool b3IsValidHull( const b3HullData* hull );
-b3AABB b3ComputeSweptHullAABB( const b3HullData* shape, float scale, b3Transform xf1, b3Transform xf2 );
-b3ShapeExtent b3ComputeHullExtent( const b3HullData* hull, float scale, b3Vec3 origin );
-float b3ComputeHullProjectedArea( const b3HullData* hull, float scale, b3Vec3 direction );
-
-// Returns a uniformly scaled copy of the hull in buffer (must hold hull->byteCount bytes), or the
-// original when scale is 1. Topology is unchanged so all hull routines accept the result. The buffer
-// must be aligned for b3HullData.
-const b3HullData* b3ScaleHullData( const b3HullData* hull, float scale, void* buffer );
-
-// Returns the hull points scaled into buffer (must hold B3_HULL_LIMIT points), or the hull's own
-// points when scale is 1.
-const b3Vec3* b3GetScaledHullPoints( const b3HullData* hull, float scale, b3Vec3* buffer );
-
-// Returns a uniformly scaled copy of the hull bumped from the arena, or the original when scale is 1.
-const b3HullData* b3GetScaledHull( const b3HullData* hull, float scale, b3Arena* arena );
+b3AABB b3ComputeSweptHullAABB( const b3HullData* shape, b3Transform xf1, b3Transform xf2 );
+b3ShapeExtent b3ComputeHullExtent( const b3HullData* hull, b3Vec3 origin );
+float b3ComputeHullProjectedArea( const b3HullData* hull, b3Vec3 direction );
 
 // Content hash and equality over the whole baked hull. Shared by every hull de-duplication map so
 // they agree on identity.

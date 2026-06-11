@@ -46,7 +46,7 @@ static float b3ComputeShapeMargin( b3Shape* shape )
 
 		case b3_hullShape:
 		{
-			const b3HullData* hull = shape->hull.data;
+			const b3HullData* hull = shape->hull;
 			const b3Vec3* points = b3GetHullPoints( hull );
 			float maxExtentSqr = 0.0f;
 			int count = hull->vertexCount;
@@ -55,7 +55,7 @@ static float b3ComputeShapeMargin( b3Shape* shape )
 				float distSqr = b3DistanceSquared( points[i], hull->center );
 				maxExtentSqr = b3MaxFloat( maxExtentSqr, distSqr );
 			}
-			margin = shape->hull.scale * sqrtf( maxExtentSqr );
+			margin = sqrtf( maxExtentSqr );
 		}
 		break;
 
@@ -153,14 +153,11 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3Transform
 					return NULL;
 				}
 
-				shape->hull.data = b3AddOwnedHullToDatabase( world, baked );
-				shape->hull.scale = 1.0f;
+				shape->hull = b3AddOwnedHullToDatabase( world, baked );
 			}
 			else
 			{
-				const b3Hull* input = (const b3Hull*)geometry;
-				shape->hull.data = b3AddHullToDatabase( world, input->data );
-				shape->hull.scale = input->scale;
+				shape->hull = b3AddHullToDatabase( world, (const b3HullData*)geometry );
 			}
 			break;
 
@@ -342,11 +339,10 @@ b3ShapeId b3CreateCapsuleShape( b3BodyId bodyId, const b3ShapeDef* def, const b3
 	return b3CreateShape( bodyId, def, capsule, b3_capsuleShape, b3Transform_identity, b3Vec3_one, false );
 }
 
-b3ShapeId b3CreateHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Hull* hull )
+b3ShapeId b3CreateHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HullData* hull )
 {
-	B3_VALIDATE( b3IsValidHull( hull->data ) );
-	B3_VALIDATE( hull->data->hash != 0 );
-	B3_ASSERT( b3IsValidFloat( hull->scale ) && hull->scale > 0.0f );
+	B3_VALIDATE( b3IsValidHull( hull ) );
+	B3_VALIDATE( hull->hash != 0 );
 	return b3CreateShape( bodyId, def, hull, b3_hullShape, b3Transform_identity, b3Vec3_one, false );
 }
 
@@ -508,7 +504,7 @@ b3AABB b3ComputeShapeAABB( const b3Shape* shape, b3Transform transform )
 			return b3ComputeHeightFieldAABB( shape->heightField, transform );
 
 		case b3_hullShape:
-			return b3ComputeHullAABB( shape->hull.data, shape->hull.scale, transform );
+			return b3ComputeHullAABB( shape->hull, transform );
 
 		case b3_meshShape:
 			return b3ComputeMeshAABB( shape->mesh.data, transform, shape->mesh.scale );
@@ -537,7 +533,7 @@ b3AABB b3ComputeSweptShapeAABB( const b3Shape* shape, const b3Sweep* sweep, floa
 			return b3ComputeSweptCapsuleAABB( &shape->capsule, xf1, xf2 );
 
 		case b3_hullShape:
-			return b3ComputeSweptHullAABB( shape->hull.data, shape->hull.scale, xf1, xf2 );
+			return b3ComputeSweptHullAABB( shape->hull, xf1, xf2 );
 
 		case b3_sphereShape:
 			return b3ComputeSweptSphereAABB( &shape->sphere, xf1, xf2 );
@@ -562,7 +558,7 @@ b3Vec3 b3GetShapeCentroid( const b3Shape* shape )
 		case b3_sphereShape:
 			return shape->sphere.center;
 		case b3_hullShape:
-			return b3MulSV( shape->hull.scale, shape->hull.data->center );
+			return shape->hull->center;
 		case b3_meshShape:
 		{
 			b3AABB aabb = b3ComputeMeshAABB( shape->mesh.data, b3Transform_identity, shape->mesh.scale );
@@ -588,7 +584,7 @@ float b3GetShapeArea( const b3Shape* shape )
 				   2.0f * B3_PI * shape->capsule.radius;
 
 		case b3_hullShape:
-			return shape->hull.scale * shape->hull.scale * shape->hull.data->surfaceArea;
+			return shape->hull->surfaceArea;
 
 		case b3_sphereShape:
 			return 2.0f * B3_PI * shape->sphere.radius;
@@ -614,7 +610,7 @@ float b3GetShapeProjectedArea( const b3Shape* shape, b3Vec3 planeNormal )
 		}
 
 		case b3_hullShape:
-			return b3ComputeHullProjectedArea( shape->hull.data, shape->hull.scale, planeNormal );
+			return b3ComputeHullProjectedArea( shape->hull, planeNormal );
 
 		case b3_sphereShape:
 			return B3_PI * shape->sphere.radius * shape->sphere.radius;
@@ -632,7 +628,7 @@ b3MassData b3ComputeShapeMass( const b3Shape* shape )
 			return b3ComputeCapsuleMass( &shape->capsule, shape->density );
 
 		case b3_hullShape:
-			return b3ComputeHullMass( shape->hull.data, shape->hull.scale, shape->density );
+			return b3ComputeHullMass( shape->hull, shape->density );
 
 		case b3_sphereShape:
 			return b3ComputeSphereMass( &shape->sphere, shape->density );
@@ -682,7 +678,7 @@ b3ShapeExtent b3ComputeShapeExtent( const b3Shape* shape, b3Vec3 localCenter )
 		break;
 
 		case b3_hullShape:
-			extent = b3ComputeHullExtent( shape->hull.data, shape->hull.scale, localCenter );
+			extent = b3ComputeHullExtent( shape->hull, localCenter );
 			break;
 
 		case b3_meshShape:
@@ -723,7 +719,7 @@ b3CastOutput b3RayCastShape( const b3Shape* shape, b3Transform transform, const 
 			output = b3RayCastSphere( &shape->sphere, &localInput );
 			break;
 		case b3_hullShape:
-			output = b3RayCastHull( shape->hull.data, shape->hull.scale, &localInput );
+			output = b3RayCastHull( shape->hull, &localInput );
 			break;
 		case b3_meshShape:
 			output = b3RayCastMesh( &shape->mesh, &localInput );
@@ -770,7 +766,7 @@ b3CastOutput b3ShapeCastShape( const b3Shape* shape, b3Transform transform, cons
 			break;
 
 		case b3_hullShape:
-			output = b3ShapeCastHull( shape->hull.data, shape->hull.scale, &localInput );
+			output = b3ShapeCastHull( shape->hull, &localInput );
 			break;
 
 		case b3_meshShape:
@@ -804,7 +800,7 @@ bool b3OverlapShape( const b3Shape* shape, b3Transform transform, const b3ShapeP
 			return b3OverlapHeightField( shape->heightField, transform, proxy );
 
 		case b3_hullShape:
-			return b3OverlapHull( shape->hull.data, shape->hull.scale, transform, proxy );
+			return b3OverlapHull( shape->hull, transform, proxy );
 
 		case b3_meshShape:
 			return b3OverlapMesh( &shape->mesh, transform, proxy );
@@ -873,7 +869,7 @@ int b3CollideMover( b3PlaneResult* planes, int planeCapacity, const b3Shape* sha
 			break;
 
 		case b3_hullShape:
-			planeCount = b3CollideMoverAndHull( planes, shape->hull.data, shape->hull.scale, &localMover );
+			planeCount = b3CollideMoverAndHull( planes, shape->hull, &localMover );
 			break;
 
 		case b3_meshShape:
@@ -925,9 +921,8 @@ static void b3DestroyShapeAllocationForShapeChange( b3World* world, b3Shape* sha
 	switch ( type )
 	{
 		case b3_hullShape:
-			b3RemoveHullFromDatabase( world, shape->hull.data );
-			shape->hull.data = NULL;
-			shape->hull.scale = 0.0f;
+			b3RemoveHullFromDatabase( world, shape->hull );
+			shape->hull = NULL;
 			break;
 
 		default:
@@ -962,7 +957,7 @@ void b3DestroyShapeAllocations( b3World* world, b3Shape* shape )
 	// Sensor data is destroyed elsewhere
 }
 
-b3ShapeProxy b3MakeShapeProxy( const b3Shape* shape, b3Vec3* pointBuffer )
+b3ShapeProxy b3MakeShapeProxy( const b3Shape* shape )
 {
 	switch ( shape->type )
 	{
@@ -974,8 +969,8 @@ b3ShapeProxy b3MakeShapeProxy( const b3Shape* shape, b3Vec3* pointBuffer )
 
 		case b3_hullShape:
 		{
-			const b3HullData* hull = shape->hull.data;
-			const b3Vec3* points = b3GetScaledHullPoints( hull, shape->hull.scale, pointBuffer );
+			const b3HullData* hull = shape->hull;
+			const b3Vec3* points = b3GetHullPoints( hull );
 			return (b3ShapeProxy){ points, hull->vertexCount, 0.0f };
 		}
 
@@ -1119,7 +1114,7 @@ b3CastOutput b3Shape_RayCast( b3ShapeId shapeId, const b3RayCastInput* input )
 			break;
 
 		case b3_hullShape:
-			output = b3RayCastHull( shape->hull.data, shape->hull.scale, &localInput );
+			output = b3RayCastHull( shape->hull, &localInput );
 			break;
 
 		case b3_heightShape:
@@ -1446,7 +1441,7 @@ b3Capsule b3Shape_GetCapsule( b3ShapeId shapeId )
 	return shape->capsule;
 }
 
-b3Hull b3Shape_GetHull( b3ShapeId shapeId )
+const b3HullData* b3Shape_GetHull( b3ShapeId shapeId )
 {
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
@@ -1522,11 +1517,10 @@ void b3Shape_SetCapsule( b3ShapeId shapeId, const b3Capsule* capsule )
 	world->locked = false;
 }
 
-void b3Shape_SetHull( b3ShapeId shapeId, const b3Hull* hull )
+void b3Shape_SetHull( b3ShapeId shapeId, const b3HullData* hull )
 {
-	B3_VALIDATE( b3IsValidHull( hull->data ) );
-	B3_VALIDATE( hull->data->hash != 0 );
-	B3_ASSERT( b3IsValidFloat( hull->scale ) && hull->scale > 0.0f );
+	B3_VALIDATE( b3IsValidHull( hull ) );
+	B3_VALIDATE( hull->hash != 0 );
 
 	b3World* world = b3GetUnlockedWorld( shapeId.world0 );
 	if ( world == NULL )
@@ -1540,13 +1534,11 @@ void b3Shape_SetHull( b3ShapeId shapeId, const b3Hull* hull )
 
 	// Acquire the new hull before releasing the old so the input may safely alias
 	// the shape's current shared data.
-	const b3HullData* data = b3AddHullToDatabase( world, hull->data );
-	float scale = hull->scale;
+	const b3HullData* data = b3AddHullToDatabase( world, hull );
 
 	b3DestroyShapeAllocationForShapeChange( world, shape );
 
-	shape->hull.data = data;
-	shape->hull.scale = scale;
+	shape->hull = data;
 	shape->type = b3_hullShape;
 	shape->aabbMargin = b3ComputeShapeMargin( shape );
 
@@ -1741,9 +1733,8 @@ b3Vec3 b3Shape_GetClosestPoint( b3ShapeId shapeId, b3Vec3 target )
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
 	b3Transform transform = b3GetBodyTransformQuick( world, body );
 
-	b3Vec3 proxyPoints[B3_HULL_LIMIT];
 	b3DistanceInput input;
-	input.proxyA = b3MakeShapeProxy( shape, proxyPoints );
+	input.proxyA = b3MakeShapeProxy( shape );
 	input.proxyB = (b3ShapeProxy){ &target, 1, 0.0f };
 	input.transformA = transform;
 	input.transformB = b3Transform_identity;
@@ -1868,12 +1859,11 @@ void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift, 
 		{
 			b3Matrix3 matrix = b3MakeMatrixFromQuat( transform.q );
 
-			int faceCount = shape->hull.data->faceCount;
-			const b3Vec3* points = b3GetHullPoints( shape->hull.data );
-			const b3HullFace* faces = b3GetHullFaces( shape->hull.data );
-			const b3HullHalfEdge* edges = b3GetHullEdges( shape->hull.data );
-			const b3Plane* planes = b3GetHullPlanes( shape->hull.data );
-			float hullScale = shape->hull.scale;
+			int faceCount = shape->hull->faceCount;
+			const b3Vec3* points = b3GetHullPoints( shape->hull );
+			const b3HullFace* faces = b3GetHullFaces( shape->hull );
+			const b3HullHalfEdge* edges = b3GetHullEdges( shape->hull );
+			const b3Plane* planes = b3GetHullPlanes( shape->hull );
 
 			b3Vec3 linearVelocity = state->linearVelocity;
 			b3Vec3 angularVelocity = state->angularVelocity;
@@ -1887,19 +1877,19 @@ void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift, 
 				const b3HullHalfEdge* edge3 = edges + edge2->next;
 
 				B3_ASSERT( edge1 != edge3 );
-				B3_ASSERT( edge1->origin < shape->hull.data->vertexCount );
-				B3_ASSERT( edge2->origin < shape->hull.data->vertexCount );
+				B3_ASSERT( edge1->origin < shape->hull->vertexCount );
+				B3_ASSERT( edge2->origin < shape->hull->vertexCount );
 
-				b3Vec3 localPoint1 = b3MulSV( hullScale, points[edge1->origin] );
-				b3Vec3 localPoint2 = b3MulSV( hullScale, points[edge2->origin] );
+				b3Vec3 localPoint1 = points[edge1->origin];
+				b3Vec3 localPoint2 = points[edge2->origin];
 				b3Vec3 v1 = b3MulMV( matrix, localPoint1 );
 				b3Vec3 v2 = b3MulMV( matrix, localPoint2 );
 				b3Vec3 normal = b3MulMV( matrix, planes[i].normal );
 
 				do
 				{
-					B3_ASSERT( edge3->origin < shape->hull.data->vertexCount );
-					b3Vec3 localPoint3 = b3MulSV( hullScale, points[edge3->origin] );
+					B3_ASSERT( edge3->origin < shape->hull->vertexCount );
+					b3Vec3 localPoint3 = points[edge3->origin];
 					b3Vec3 v3 = b3MulMV( matrix, localPoint3 );
 
 					// Triangle center
@@ -2144,16 +2134,12 @@ b3TOIOutput b3ShapeTimeOfImpact( b3Shape* shapeA, b3Shape* shapeB, b3Sweep* swee
 {
 	bool isSensor = shapeA->sensorIndex != B3_NULL_INDEX;
 
-	// Scratch for scaled hull proxy points. Must outlive the proxies built below.
-	b3Vec3 proxyPointsA[B3_HULL_LIMIT];
-	b3Vec3 proxyPointsB[B3_HULL_LIMIT];
-
 	b3ShapeType typeA = shapeA->type;
 	if ( typeA == b3_compoundShape )
 	{
 		// todo implement b3CompoundTimeOfImpact
 		b3CompoundImpactContext context = { 0 };
-		context.toiInput.proxyB = b3MakeShapeProxy( shapeB, proxyPointsB );
+		context.toiInput.proxyB = b3MakeShapeProxy( shapeB );
 		context.toiInput.sweepB = *sweepB;
 		context.toiInput.maxFraction = maxFraction;
 
@@ -2188,7 +2174,7 @@ b3TOIOutput b3ShapeTimeOfImpact( b3Shape* shapeA, b3Shape* shapeB, b3Sweep* swee
 		b3MeshImpactContext context = { 0 };
 		context.toiInput.sweepA = *sweepA;
 		context.toiInput.proxyA.count = 3;
-		context.toiInput.proxyB = b3MakeShapeProxy( shapeB, proxyPointsB );
+		context.toiInput.proxyB = b3MakeShapeProxy( shapeB );
 		context.toiInput.sweepB = *sweepB;
 		context.toiInput.maxFraction = maxFraction;
 		context.isSensor = isSensor;
@@ -2245,8 +2231,8 @@ b3TOIOutput b3ShapeTimeOfImpact( b3Shape* shapeA, b3Shape* shapeB, b3Sweep* swee
 	B3_ASSERT( shapeB->type != b3_compoundShape && shapeB->type != b3_meshShape && shapeB->type != b3_heightShape );
 
 	b3TOIInput input;
-	input.proxyA = b3MakeShapeProxy( shapeA, proxyPointsA );
-	input.proxyB = b3MakeShapeProxy( shapeB, proxyPointsB );
+	input.proxyA = b3MakeShapeProxy( shapeA );
+	input.proxyB = b3MakeShapeProxy( shapeB );
 	input.sweepA = *sweepA;
 	input.sweepB = *sweepB;
 	input.maxFraction = maxFraction;
@@ -2369,7 +2355,7 @@ void b3DumpShape( b3World* world, int shapeIndex )
 
 		case b3_hullShape:
 		{
-			const b3HullData* s = shape->hull.data;
+			const b3HullData* s = shape->hull;
 			int vertexCount = s->vertexCount;
 			const b3Vec3* vs = b3GetHullPoints( s );
 			b3Dump( "    b3Vec3 vs[%d];\n", vertexCount );
@@ -2378,8 +2364,7 @@ void b3DumpShape( b3World* world, int shapeIndex )
 				b3Dump( "    vs[%d] = {%.9g, %.9g, %.9g};\n", i, vs[i].x, vs[i].y, vs[i].z );
 			}
 			b3Dump( "    b3HullData* hullData = b3CreateHull(vs, %d, %d);\n", vertexCount, vertexCount );
-			b3Dump( "    b3Hull hull = { hullData, %.9g };\n", shape->hull.scale );
-			b3Dump( "    b3CreateHullShape(bodyId, &sd, &hull);\n" );
+			b3Dump( "    b3CreateHullShape(bodyId, &sd, hullData);\n" );
 			b3Dump( "    b3DestroyHull(hullData);\n" );
 		}
 		break;

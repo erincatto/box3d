@@ -42,7 +42,7 @@ int HelloWorld( void )
 
 	// Add the box shape to the ground body.
 	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
-	b3CreateHullShape( groundId, &groundShapeDef, &(b3Hull){ &groundBox.base, 1.0f } );
+	b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
 
 	// Define the dynamic body. We set its position and call the body factory.
 	b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -64,7 +64,7 @@ int HelloWorld( void )
 	shapeDef.baseMaterial.friction = 0.3f;
 
 	// Add the shape to the body.
-	b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ &dynamicBox.base, 1.0f } );
+	b3CreateHullShape( bodyId, &shapeDef, &dynamicBox.base );
 
 	// Prepare for simulation. Typically we use a time step of 1/60 of a
 	// second (60Hz) and 4 sub-steps. This provides a high quality simulation
@@ -145,7 +145,7 @@ int DestroyAllBodiesWorld( void )
 				bodyIds[count] = b3CreateBody( worldId, &bodyDef );
 
 				b3ShapeDef shapeDef = b3DefaultShapeDef();
-				b3CreateHullShape( bodyIds[count], &shapeDef, &(b3Hull){ &cube.base, 1.0f } );
+				b3CreateHullShape( bodyIds[count], &shapeDef, &cube.base );
 				count += 1;
 			}
 			else
@@ -341,7 +341,7 @@ static int TestSensor( void )
 	b3BoxHull box = b3MakeBoxHull( 0.5f, 10.0f, 1.0f );
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 	shapeDef.enableSensorEvents = true;
-	b3CreateHullShape( wallId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+	b3CreateHullShape( wallId, &shapeDef, &box.base );
 
 	// Bullet fired towards the wall
 	bodyDef = b3DefaultBodyDef();
@@ -407,7 +407,7 @@ static int TestContactEvents( void )
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 	b3BoxHull groundBox = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
 	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
-	b3ShapeId groundShapeId = b3CreateHullShape( groundId, &groundShapeDef, &(b3Hull){ &groundBox.base, 1.0f } );
+	b3ShapeId groundShapeId = b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
 
 	// Dynamic sphere dropped onto the ground; restitution causes it to bounce so we get end events
 	bodyDef = b3DefaultBodyDef();
@@ -469,7 +469,7 @@ static int TestHitEvents( void )
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 	b3BoxHull groundBox = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
 	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
-	b3CreateHullShape( groundId, &groundShapeDef, &(b3Hull){ &groundBox.base, 1.0f } );
+	b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
 
 	// Sphere driven into the ground fast enough to clear the hit threshold
 	bodyDef = b3DefaultBodyDef();
@@ -893,49 +893,40 @@ static int TestHullDatabase( void )
 
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 
-	// Same data, different scale. The scale lives in the instance, not the shared data.
-	b3Hull instanceA = b3MakeHull( &box.base, 1.0f );
-	b3Hull instanceB = b3MakeHull( &box.base, 2.0f );
-	b3ShapeId shapeA = b3CreateHullShape( bodyA, &shapeDef, &instanceA );
-	b3ShapeId shapeB = b3CreateHullShape( bodyB, &shapeDef, &instanceB );
+	// Two shapes built from identical data share one owned copy in the world database.
+	b3ShapeId shapeA = b3CreateHullShape( bodyA, &shapeDef, &box.base );
+	b3ShapeId shapeB = b3CreateHullShape( bodyB, &shapeDef, &box.base );
 
-	b3Hull gotA = b3Shape_GetHull( shapeA );
-	b3Hull gotB = b3Shape_GetHull( shapeB );
+	const b3HullData* gotA = b3Shape_GetHull( shapeA );
+	const b3HullData* gotB = b3Shape_GetHull( shapeB );
 
 	// Both shapes point at the single shared copy
-	ENSURE( gotA.data == gotB.data );
-	ENSURE( gotA.scale == 1.0f );
-	ENSURE( gotB.scale == 2.0f );
+	ENSURE( gotA == gotB );
 
 	// The shared copy is owned by the world, not the caller's stack hull
-	ENSURE( gotA.data != &box.base );
+	ENSURE( gotA != &box.base );
 
 	// A box built on an independent stack frame must de-duplicate to the same shared copy.
 	// This holds only if content hashing sees deterministic padding bytes.
 	b3BoxHull box2 = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
-	b3Hull instanceC = b3MakeHull( &box2.base, 1.0f );
 	b3BodyId bodyC = b3CreateBody( worldId, &bodyDef );
-	b3ShapeId shapeC = b3CreateHullShape( bodyC, &shapeDef, &instanceC );
-	ENSURE( b3Shape_GetHull( shapeC ).data == gotA.data );
+	b3ShapeId shapeC = b3CreateHullShape( bodyC, &shapeDef, &box2.base );
+	ENSURE( b3Shape_GetHull( shapeC ) == gotA );
 	b3DestroyShape( shapeC, true );
 
 	// Setting a shape's hull to its own sole shared copy must not free it mid update.
 	b3BoxHull box3 = b3MakeBoxHull( 0.3f, 0.3f, 0.3f );
-	b3Hull instanceD = b3MakeHull( &box3.base, 1.0f );
 	b3BodyId bodyD = b3CreateBody( worldId, &bodyDef );
-	b3ShapeId shapeD = b3CreateHullShape( bodyD, &shapeDef, &instanceD );
-	b3Hull gotD = b3Shape_GetHull( shapeD );
-	gotD.scale = 3.0f;
-	b3Shape_SetHull( shapeD, &gotD );
-	b3Hull afterD = b3Shape_GetHull( shapeD );
-	ENSURE( afterD.scale == 3.0f );
-	ENSURE( afterD.data == gotD.data );
+	b3ShapeId shapeD = b3CreateHullShape( bodyD, &shapeDef, &box3.base );
+	const b3HullData* gotD = b3Shape_GetHull( shapeD );
+	b3Shape_SetHull( shapeD, gotD );
+	ENSURE( b3Shape_GetHull( shapeD ) == gotD );
 	b3DestroyShape( shapeD, true );
 
 	// Releasing one reference keeps the other alive
 	b3DestroyShape( shapeA, true );
-	b3Hull stillB = b3Shape_GetHull( shapeB );
-	ENSURE( stillB.data == gotB.data );
+	const b3HullData* stillB = b3Shape_GetHull( shapeB );
+	ENSURE( stillB == gotB );
 
 	b3DestroyShape( shapeB, true );
 

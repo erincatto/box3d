@@ -53,8 +53,7 @@ public:
 		bodyDef.position = { 2.0f, 3.0f, 0.0f };
 		bodyDef.angularVelocity = { 0.8f, 0.4f, 0.8f };
 		b3BodyId hullBody = b3CreateBody( m_worldId, &bodyDef );
-		b3Hull hull = b3MakeHull( &box.base, 1.0f );
-		b3CreateHullShape( hullBody, &shapeDef, &hull );
+		b3CreateHullShape( hullBody, &shapeDef, &box.base );
 
 		bodyDef.position = { 6.0f, 3.0f, 0.0f };
 		bodyDef.angularVelocity = { 0.8f, 0.4f, 0.8f };
@@ -458,8 +457,7 @@ public:
 				case b3_hullShape:
 				{
 					shapeDef.baseMaterial.userMaterialId = 33;
-					b3Hull hull = b3MakeHull( &m_box.base, 1.0f );
-					b3CreateHullShape( bodyId, &shapeDef, &hull );
+					b3CreateHullShape( bodyId, &shapeDef, &m_box.base );
 				}
 				break;
 
@@ -929,8 +927,7 @@ public:
 			bodyDef.position = { 2.0f, 3.0f + 2.0f * index, 0.0f };
 			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.25f * B3_PI );
 			b3BodyId hullBody = b3CreateBody( m_worldId, &bodyDef );
-			b3Hull hull = b3MakeHull( &box.base, 1.0f );
-			b3CreateHullShape( hullBody, &shapeDef, &hull );
+			b3CreateHullShape( hullBody, &shapeDef, &box.base );
 
 			bodyDef.position = { 6.0f, 3.0f + 2.0f * index, 0.0f };
 			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 0.5f * B3_PI );
@@ -1208,8 +1205,7 @@ public:
 			bodyDef.position = { 0.0f, 3.0f + 2.0f * index, 0.0f };
 			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.25f * B3_PI );
 			b3BodyId hullBody = b3CreateBody( m_worldId, &bodyDef );
-			b3Hull hull = b3MakeHull( &m_box.base, 1.0f );
-			b3CreateHullShape( hullBody, &shapeDef, &hull );
+			b3CreateHullShape( hullBody, &shapeDef, &m_box.base );
 
 			bodyDef.type = type;
 			bodyDef.position = { 3.0f, 3.0f + 2.0f * index, 0.0f };

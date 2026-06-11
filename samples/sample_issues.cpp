@@ -78,13 +78,11 @@ public:
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
-		b3Hull hull1 = b3MakeHull( &box.base, 1.0f );
-		b3CreateHullShape( m_bodyId1, &shapeDef, &hull1 );
+		b3CreateHullShape( m_bodyId1, &shapeDef, &box.base );
 
 		bodyDef.position = { -2.0f, 4.0f, 0.0f };
 		m_bodyId2 = b3CreateBody( m_worldId, &bodyDef );
-		b3Hull hull2 = b3MakeHull( &box.base, 1.0f );
-		b3CreateHullShape( m_bodyId2, &shapeDef, &hull2 );
+		b3CreateHullShape( m_bodyId2, &shapeDef, &box.base );
 	}
 
 	~Crash() override
@@ -152,8 +150,7 @@ public:
 			bodyDef.position = { 0.0f, 0.6f + 1.2f * i, 0.0f };
 			bodyDef.type = b3_dynamicBody;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3Hull hull = b3MakeHull( &box.base, 1.0f );
-			b3CreateHullShape( bodyId, &shapeDef, &hull );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
 			jointDef.base.bodyIdB = bodyId;
 			b3CreatePrismaticJoint( m_worldId, &jointDef );
@@ -327,8 +324,7 @@ public:
 
 			b3HullData* hull = b3CreateHull( points, count, count );
 
-			b3Hull hullInstance = b3MakeHull( hull, 1.0f );
-			b3CreateHullShape( bodyId, &shapeDef, &hullInstance );
+			b3CreateHullShape( bodyId, &shapeDef, hull );
 			b3DestroyHull( hull );
 		}
 
@@ -373,8 +369,7 @@ public:
 
 			b3HullData* hull = b3CreateHull( points, count, count );
 
-			b3Hull hullInstance = b3MakeHull( hull, 1.0f );
-			b3CreateHullShape( bodyId, &shapeDef, &hullInstance );
+			b3CreateHullShape( bodyId, &shapeDef, hull );
 			b3DestroyHull( hull );
 		}
 	}
@@ -435,8 +430,7 @@ public:
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			b3BoxHull box = b3MakeBoxHull( 0.25f, 1.0f, 0.25f );
-			b3Hull hull = b3MakeHull( &box.base, 1.0f );
-			b3CreateHullShape( bodyId, &shapeDef, &hull );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 		}
 	}
 
@@ -484,8 +478,7 @@ public:
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			b3BoxHull ground = b3MakeBoxHull( 50.0f, 0.1f, 50.0f );
-			b3Hull groundHull = b3MakeHull( &ground.base, 1.0f );
-			b3CreateHullShape( body, &shapeDef, &groundHull );
+			b3CreateHullShape( body, &shapeDef, &ground.base );
 		}
 
 		// --- Building mesh on top of ground ---

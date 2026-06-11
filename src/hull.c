@@ -4,7 +4,6 @@
 // Dirk Gregorius contributed portions of this code
 
 #include "algorithm.h"
-#include "arena_allocator.h"
 #include "math_internal.h"
 #include "shape.h"
 
@@ -25,6 +24,9 @@
 
 #define B3_MARK_VISIBLE 0
 #define B3_MARK_DELETE 1
+
+// Final hull is index-encoded with uint8_t, so vertex/edge/face counts are capped at UINT8_MAX.
+#define B3_HULL_LIMIT UINT8_MAX
 
 typedef struct b3QHListNode
 {
@@ -2198,72 +2200,6 @@ bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 )
 	return memcmp( hull1, hull2, hull1->byteCount ) == 0;
 }
 
-const b3HullData* b3ScaleHullData( const b3HullData* hull, float scale, void* buffer )
-{
-	if ( scale == 1.0f )
-	{
-		return hull;
-	}
-
-	// Topology is scale invariant so only the points, plane offsets and baked
-	// quantities change. Indices remain valid against the copied arrays.
-	b3HullData* scaled = (b3HullData*)buffer;
-	memcpy( scaled, hull, hull->byteCount );
-
-	float s2 = scale * scale;
-	float s3 = s2 * scale;
-	float s5 = s3 * s2;
-
-	b3Vec3* points = b3GetHullPointsWrite( scaled );
-	for ( int i = 0; i < scaled->vertexCount; ++i )
-	{
-		points[i] = b3MulSV( scale, points[i] );
-	}
-
-	// Uniform positive scale leaves face normals unchanged and scales the offset.
-	b3Plane* planes = b3GetHullPlanesWrite( scaled );
-	for ( int i = 0; i < scaled->faceCount; ++i )
-	{
-		planes[i].offset *= scale;
-	}
-
-	scaled->aabb.lowerBound = b3MulSV( scale, scaled->aabb.lowerBound );
-	scaled->aabb.upperBound = b3MulSV( scale, scaled->aabb.upperBound );
-	scaled->center = b3MulSV( scale, scaled->center );
-	scaled->innerRadius *= scale;
-	scaled->surfaceArea *= s2;
-	scaled->volume *= s3;
-	scaled->centralInertia = b3MulSM( s5, scaled->centralInertia );
-
-	return scaled;
-}
-
-const b3Vec3* b3GetScaledHullPoints( const b3HullData* hull, float scale, b3Vec3* buffer )
-{
-	const b3Vec3* points = b3GetHullPoints( hull );
-	if ( scale == 1.0f )
-	{
-		return points;
-	}
-
-	for ( int i = 0; i < hull->vertexCount; ++i )
-	{
-		buffer[i] = b3MulSV( scale, points[i] );
-	}
-
-	return buffer;
-}
-
-const b3HullData* b3GetScaledHull( const b3HullData* hull, float scale, b3Arena* arena )
-{
-	if ( scale == 1.0f )
-	{
-		return hull;
-	}
-
-	return b3ScaleHullData( hull, scale, b3Bump( arena, hull->byteCount ) );
-}
-
 b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform transform, b3Vec3 scale )
 {
 	if ( original == NULL || b3IsValidHull( original ) == false )
@@ -2415,46 +2351,32 @@ void b3DestroyHull( b3HullData* hull )
 	b3Free( hull, hull->byteCount );
 }
 
-b3MassData b3ComputeHullMass( const b3HullData* shape, float scale, float density )
+b3MassData b3ComputeHullMass( const b3HullData* shape, float density )
 {
-	float s2 = scale * scale;
-	float s3 = s2 * scale;
-	float s5 = s3 * s2;
-
 	b3MassData out;
-	out.mass = density * shape->volume * s3;
-	out.center = b3MulSV( scale, shape->center );
+	out.mass = density * shape->volume;
+	out.center = shape->center;
 
 	// todo_erin switch to central
-	out.inertia = b3AddMM( b3MulSM( density * s5, shape->centralInertia ), b3Steiner( out.mass, out.center ) );
+	out.inertia = b3AddMM( b3MulSM( density, shape->centralInertia ), b3Steiner( out.mass, out.center ) );
 	return out;
 }
 
-static b3AABB b3ScaleHullAABB( const b3HullData* shape, float scale )
+b3AABB b3ComputeHullAABB( const b3HullData* shape, b3Transform transform )
 {
-	b3AABB aabb = shape->aabb;
-	aabb.lowerBound = b3MulSV( scale, aabb.lowerBound );
-	aabb.upperBound = b3MulSV( scale, aabb.upperBound );
-	return aabb;
+	return b3AABB_Transform( transform, shape->aabb );
 }
 
-b3AABB b3ComputeHullAABB( const b3HullData* shape, float scale, b3Transform transform )
+b3AABB b3ComputeSweptHullAABB( const b3HullData* shape, b3Transform xf1, b3Transform xf2 )
 {
-	return b3AABB_Transform( transform, b3ScaleHullAABB( shape, scale ) );
-}
-
-b3AABB b3ComputeSweptHullAABB( const b3HullData* shape, float scale, b3Transform xf1, b3Transform xf2 )
-{
-	b3AABB local = b3ScaleHullAABB( shape, scale );
-	b3AABB aabb1 = b3AABB_Transform( xf1, local );
-	b3AABB aabb2 = b3AABB_Transform( xf2, local );
+	b3AABB aabb1 = b3AABB_Transform( xf1, shape->aabb );
+	b3AABB aabb2 = b3AABB_Transform( xf2, shape->aabb );
 	return b3AABB_Union( aabb1, aabb2 );
 }
 
-bool b3OverlapHull( const b3HullData* shape, float scale, b3Transform shapeTransform, const b3ShapeProxy* proxy )
+bool b3OverlapHull( const b3HullData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
 {
-	b3Vec3 scaledPoints[B3_HULL_LIMIT];
-	const b3Vec3* points = b3GetScaledHullPoints( shape, scale, scaledPoints );
+	const b3Vec3* points = b3GetHullPoints( shape );
 
 	b3DistanceInput input;
 	input.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
@@ -2468,7 +2390,7 @@ bool b3OverlapHull( const b3HullData* shape, float scale, b3Transform shapeTrans
 	return output.distance < B3_OVERLAP_SLOP;
 }
 
-b3CastOutput b3RayCastHull( const b3HullData* shape, float scale, const b3RayCastInput* input )
+b3CastOutput b3RayCastHull( const b3HullData* shape, const b3RayCastInput* input )
 {
 	B3_ASSERT( b3IsValidRay( input ) );
 	b3CastOutput output = { 0 };
@@ -2483,7 +2405,7 @@ b3CastOutput b3RayCastHull( const b3HullData* shape, float scale, const b3RayCas
 	{
 		b3Plane plane = planes[faceIndex];
 
-		float distance = scale * plane.offset - b3Dot( plane.normal, input->origin );
+		float distance = plane.offset - b3Dot( plane.normal, input->origin );
 		float denominator = b3Dot( plane.normal, input->translation );
 
 		if ( denominator == 0.0f )
@@ -2536,10 +2458,9 @@ b3CastOutput b3RayCastHull( const b3HullData* shape, float scale, const b3RayCas
 	return output;
 }
 
-b3CastOutput b3ShapeCastHull( const b3HullData* shape, float scale, const b3ShapeCastInput* input )
+b3CastOutput b3ShapeCastHull( const b3HullData* shape, const b3ShapeCastInput* input )
 {
-	b3Vec3 scaledPoints[B3_HULL_LIMIT];
-	const b3Vec3* points = b3GetScaledHullPoints( shape, scale, scaledPoints );
+	const b3Vec3* points = b3GetHullPoints( shape );
 
 	b3ShapeCastPairInput pairInput;
 	pairInput.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
@@ -2554,10 +2475,9 @@ b3CastOutput b3ShapeCastHull( const b3HullData* shape, float scale, const b3Shap
 	return output;
 }
 
-int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, float scale, const b3Capsule* mover )
+int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, const b3Capsule* mover )
 {
-	b3Vec3 scaledPoints[B3_HULL_LIMIT];
-	const b3Vec3* points = b3GetScaledHullPoints( shape, scale, scaledPoints );
+	const b3Vec3* points = b3GetHullPoints( shape );
 
 	b3DistanceInput distanceInput;
 	distanceInput.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
@@ -2590,23 +2510,23 @@ int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, float
 	return 0;
 }
 
-b3ShapeExtent b3ComputeHullExtent( const b3HullData* hull, float scale, b3Vec3 origin )
+b3ShapeExtent b3ComputeHullExtent( const b3HullData* hull, b3Vec3 origin )
 {
 	const b3Vec3* points = b3GetHullPoints( hull );
 
 	b3ShapeExtent extent;
-	extent.minExtent = scale * hull->innerRadius;
+	extent.minExtent = hull->innerRadius;
 	extent.maxExtent = b3Vec3_zero;
 	for ( int index = 0; index < hull->vertexCount; ++index )
 	{
-		b3Vec3 point = b3MulSV( scale, points[index] );
+		b3Vec3 point = points[index];
 		extent.maxExtent = b3Max( extent.maxExtent, b3Abs( b3Sub( point, origin ) ) );
 	}
 
 	return extent;
 }
 
-float b3ComputeHullProjectedArea( const b3HullData* hull, float scale, b3Vec3 direction )
+float b3ComputeHullProjectedArea( const b3HullData* hull, b3Vec3 direction )
 {
 	float area = 0.0f;
 
@@ -2646,8 +2566,7 @@ float b3ComputeHullProjectedArea( const b3HullData* hull, float scale, b3Vec3 di
 		while ( edgeIndex != baseEdge );
 	}
 
-	// Areas scale with the square of a uniform scale.
-	return 0.5f * area * scale * scale;
+	return 0.5f * area;
 }
 
 // Constant template box (vertex/edge/face/topology). b3MakeTransformedBoxHull copies and

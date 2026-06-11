@@ -104,8 +104,7 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, 5.0f, 0.1f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
-			b3CreateHullShape( m_groundId, &shapeDef, &hull );
+			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
 		}
 
 		{
@@ -114,8 +113,7 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, 5.0f, 0.1f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
-			b3CreateHullShape( m_groundId, &shapeDef, &hull );
+			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
 		}
 
 		{
@@ -124,8 +122,7 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 20.0f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
-			b3CreateHullShape( m_groundId, &shapeDef, &hull );
+			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
 		}
 
 		{
@@ -134,8 +131,7 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, 5.0f, 20.0f, transform );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
-			b3CreateHullShape( m_groundId, &shapeDef, &hull );
+			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
 		}
 
 		m_jointFrictionTorque = 5.0f;

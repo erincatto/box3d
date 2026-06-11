@@ -558,13 +558,10 @@ B3_API b3ShapeId b3CreateSphereShape( b3BodyId bodyId, const b3ShapeDef* def, co
 /// @return the shape id for accessing the shape
 B3_API b3ShapeId b3CreateCapsuleShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Capsule* capsule );
 
-/// Create a convex hull shape and attach it to a body. The hull instance carries a uniform scale
-/// that is applied at collision time rather than baked into the data. The shape definition is fully
-/// cloned. The hull data is shared through a reference-counted world database that keeps a fully
-/// owned copy, so the input data may be destroyed after this call. Contacts are not created until
-/// the next time step.
+/// Create a convex hull shape and attach it to a body. The shape definition is fully cloned. Contacts are not created
+/// until the next time step.
 /// @return the shape id for accessing the shape
-B3_API b3ShapeId b3CreateHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Hull* hull );
+B3_API b3ShapeId b3CreateHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HullData* hull );
 
 /// Create a convex hull shape and attach it to a body. The hull is cloned then transformed with scale applied first.
 /// Use this for non-uniform or mirrored scale or a baked local transform. The baked result is shared through the
@@ -706,8 +703,8 @@ B3_API b3Sphere b3Shape_GetSphere( b3ShapeId shapeId );
 /// Get a copy of the shape's capsule. Asserts the type is correct.
 B3_API b3Capsule b3Shape_GetCapsule( b3ShapeId shapeId );
 
-/// Get the shape's convex hull instance (shared data plus uniform scale). Asserts the type is correct.
-B3_API b3Hull b3Shape_GetHull( b3ShapeId shapeId );
+/// Get the shape's convex hull. Asserts the type is correct.
+B3_API const b3HullData* b3Shape_GetHull( b3ShapeId shapeId );
 
 /// Get the shape's mesh. Asserts the type is correct.
 B3_API b3Mesh b3Shape_GetMesh( b3ShapeId shapeId );
@@ -728,7 +725,7 @@ B3_API void b3Shape_SetCapsule( b3ShapeId shapeId, const b3Capsule* capsule );
 /// Allows you to change a shape to be a hull or update the current hull.
 /// This does not modify the mass properties.
 /// @see b3Body_ApplyMassFromShapes
-B3_API void b3Shape_SetHull( b3ShapeId shapeId, const b3Hull* hull );
+B3_API void b3Shape_SetHull( b3ShapeId shapeId, const b3HullData* hull );
 
 /// Allows you to change a shape to be a mesh or update the current mesh.
 /// This does not modify the mass properties.

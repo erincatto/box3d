@@ -111,7 +111,7 @@ void CreateLargePyramid( b3WorldId worldId )
 
 		b3BoxHull box = b3MakeBoxHull( 100.0f, 1.0f, 100.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
 	b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -136,7 +136,7 @@ void CreateLargePyramid( b3WorldId worldId )
 			bodyDef.position = (b3Vec3){ x, y, 0.0f };
 
 			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 		}
 	}
 }
@@ -150,7 +150,7 @@ void CreateWidePyramid( b3WorldId worldId )
 
 		b3BoxHull box = b3MakeBoxHull( 100.0f, 1.0f, 100.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
 	const float boxSize = 2.0f;
@@ -177,7 +177,7 @@ void CreateWidePyramid( b3WorldId worldId )
 				bodyDef.position = (b3Vec3){ x, y, z };
 
 				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
-				b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+				b3CreateHullShape( bodyId, &shapeDef, &box.base );
 			}
 		}
 	}
@@ -204,7 +204,7 @@ static void CreateSmallPyramid( b3WorldId worldId, int baseCount, float extent, 
 			bodyDef.position = (b3Vec3){ x, y, baseZ };
 
 			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 		}
 	}
 }
@@ -224,7 +224,7 @@ void CreateManyPyramids( b3WorldId worldId )
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		b3BoxHull box = b3MakeBoxHull( groundExtent, 1.0f, groundExtent );
-		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
 	float baseWidth = 2.0f * extent * baseCount;
@@ -470,7 +470,7 @@ void CreateLargeWorld( b3WorldId worldId )
 			float z = -halfSpan + ( j + 0.5f ) * cell;
 			bodyDef.position = (b3Vec3){ x, 0.0f, z };
 			b3BodyId body = b3CreateBody( worldId, &bodyDef );
-			b3CreateHullShape( body, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+			b3CreateHullShape( body, &shapeDef, &box.base );
 		}
 	}
 }
@@ -544,7 +544,7 @@ void CreateWasher( b3WorldId worldId )
 
 		b3BoxHull box = b3MakeBoxHull( 60.0f, 1.0f, 60.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
 
 	{
@@ -604,7 +604,7 @@ void CreateWasher( b3WorldId worldId )
 
 				b3Vec3 points[8] = { p1, p2, p3, p4, p5, p6, p7, p8 };
 				b3HullData* hull = b3CreateHull( points, 8, 8 );
-				b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ hull, 1.0f } );
+				b3CreateHullShape( bodyId, &shapeDef, hull );
 				b3DestroyHull( hull );
 			}
 
@@ -621,7 +621,7 @@ void CreateWasher( b3WorldId worldId )
 
 				b3Vec3 points[8] = { p1, p2, p3, p4, p5, p6, p7, p8 };
 				b3HullData* hull = b3CreateHull( points, 8, 8 );
-				b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ hull, 1.0f } );
+				b3CreateHullShape( bodyId, &shapeDef, hull );
 				b3DestroyHull( hull );
 			}
 
@@ -662,7 +662,7 @@ void CreateWasher( b3WorldId worldId )
 				bodyDef.position = (b3Vec3){ x, y, z };
 				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
-				b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ &cube.base, 1.0f } );
+				b3CreateHullShape( bodyId, &shapeDef, &cube.base );
 				z += 4.0f * a;
 			}
 
@@ -744,7 +744,7 @@ static void CreateTrees( b3WorldId worldId, int scale )
 			// xf.q = b3MakeQuatFromAxisAngle( (b3Vec3){ 0.0f, 1.0f, 0.0f }, angle );
 			// b3Vec3 scale = {1.0f, 1.0f, 1.0f};
 			// b3CreateTransformedHullShape( bodyId, &shapeDef, hulls[shapeIndex], xf, scale );
-			b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ hulls[shapeIndex], 1.0f } );
+			b3CreateHullShape( bodyId, &shapeDef, hulls[shapeIndex] );
 		}
 
 		float velocityScale = 0.5f + ( 0.5f * bodyIndex ) / bodyCount;
@@ -806,27 +806,27 @@ void CreateJunkyard( b3WorldId worldId )
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		{
 			b3BoxHull box = b3MakeBoxHull( 120.0f, 1.0f, 120.0f );
-			g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+			g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 		{
 			b3Vec3 offset = { -50.0f, 8.0f, 0.0f };
 			b3BoxHull box = b3MakeOffsetBoxHull( 1.0f, 8.0f, 50.0f, offset );
-			b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+			b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 		{
 			b3Vec3 offset = { 50.0f, 8.0f, 0.0f };
 			b3BoxHull box = b3MakeOffsetBoxHull( 1.0f, 8.0f, 50.0f, offset );
-			b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+			b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 		{
 			b3Vec3 offset = { 0.0f, 8.0f, -50.0f };
 			b3BoxHull box = b3MakeOffsetBoxHull( 50.0f, 8.0f, 1.0f, offset );
-			b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+			b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 		{
 			b3Vec3 offset = { 0.0f, 8.0f, 50.0f };
 			b3BoxHull box = b3MakeOffsetBoxHull( 50.0f, 8.0f, 1.0f, offset );
-			b3CreateHullShape( groundId, &shapeDef, &(b3Hull){ &box.base, 1.0f } );
+			b3CreateHullShape( groundId, &shapeDef, &box.base );
 		}
 	}
 	{
@@ -869,7 +869,7 @@ void CreateJunkyard( b3WorldId worldId )
 					bodyDef.position.y = 4.0f * Y + height + 1.0f;
 					bodyDef.position.z = -40.0f + 4.0f * Z;
 					b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
-					b3CreateHullShape( bodyId, &shapeDef, &(b3Hull){ hull, 1.0f } );
+					b3CreateHullShape( bodyId, &shapeDef, hull );
 				}
 			}
 		}
@@ -887,7 +887,7 @@ void CreateJunkyard( b3WorldId worldId )
 	g_junkyardData.pusherId = b3CreateBody( worldId, &bodyDef );
 	g_junkyardData.degrees = 0.0f;
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	b3CreateHullShape( g_junkyardData.pusherId, &shapeDef, &(b3Hull){ hull, 1.0f } );
+	b3CreateHullShape( g_junkyardData.pusherId, &shapeDef, hull );
 	b3DestroyHull( hull );
 }
 
@@ -905,3 +905,5 @@ void StepJunkyard( b3WorldId worldId, int stepCount )
 	b3Transform target = { .p = targetPos, .q = b3Quat_identity };
 	b3Body_SetTargetTransform( g_junkyardData.pusherId, target, timeStep, false );
 }
+
+

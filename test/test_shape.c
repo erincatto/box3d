@@ -31,7 +31,7 @@ static int ShapeMassTest( void )
 
 	// Analytic box hull
 	{
-		b3MassData md = b3ComputeHullMass( &box.base, 1.0f, 1.0f );
+		b3MassData md = b3ComputeHullMass( &box.base, 1.0f );
 		float mass = 2.0f * 2.0f * 2.0f;
 		ENSURE_SMALL( md.mass - mass, FLT_EPSILON );
 		ENSURE_SMALL( md.center.x, FLT_EPSILON );
@@ -54,8 +54,8 @@ static int ShapeMassTest( void )
 		b3BoxHull b1 = b3MakeBoxHull( h.x, h.y, h.z );
 		b3BoxHull b2 = b3MakeTransformedBoxHull( h.x, h.y, h.z, transform );
 
-		b3MassData m1 = b3ComputeHullMass( &b1.base, 1.0f, 1.0f );
-		b3MassData m2 = b3ComputeHullMass( &b2.base, 1.0f, 1.0f );
+		b3MassData m1 = b3ComputeHullMass( &b1.base, 1.0f );
+		b3MassData m2 = b3ComputeHullMass( &b2.base, 1.0f );
 
 		ENSURE_SMALL( m1.mass - m2.mass, FLT_EPSILON );
 
@@ -87,8 +87,8 @@ static int ShapeMassTest( void )
 		b3BoxHull b1 = b3MakeTransformedBoxHull( h1.x, h1.y, h1.z, transform );
 		b3BoxHull b2 = b3MakeBoxHull( h2.x, h2.y, h2.z );
 
-		b3MassData m1 = b3ComputeHullMass( &b1.base, 1.0f, 1.0f );
-		b3MassData m2 = b3ComputeHullMass( &b2.base, 1.0f, 1.0f );
+		b3MassData m1 = b3ComputeHullMass( &b1.base, 1.0f );
+		b3MassData m2 = b3ComputeHullMass( &b2.base, 1.0f );
 
 		ENSURE_SMALL( m1.mass - m2.mass, FLT_EPSILON );
 
@@ -121,8 +121,8 @@ static int ShapeMassTest( void )
 		b3BoxHull b1 = b3MakeTransformedBoxHull( h1.x, h1.y, h1.z, transform );
 		b3BoxHull b2 = b3MakeBoxHull( h2.x, h2.y, h2.z );
 
-		b3MassData m1 = b3ComputeHullMass( &b1.base, 1.0f, 1.0f );
-		b3MassData m2 = b3ComputeHullMass( &b2.base, 1.0f, 1.0f );
+		b3MassData m1 = b3ComputeHullMass( &b1.base, 1.0f );
+		b3MassData m2 = b3ComputeHullMass( &b2.base, 1.0f );
 
 		ENSURE_SMALL( m1.mass - m2.mass, FLT_EPSILON );
 
@@ -152,7 +152,7 @@ static int ShapeMassTest( void )
 
 		// Box that fully contains capsule. Upper bound on capsule mass.
 		b3BoxHull r = b3MakeBoxHull( radius + 0.5f * length, radius, radius );
-		b3MassData mdUpper = b3ComputeHullMass( &r.base, 1.0f, 1.0f );
+		b3MassData mdUpper = b3ComputeHullMass( &r.base, 1.0f );
 
 		// Approximate capsule using convex hull. This should be a lower bound on the
 		// capsule mass.
@@ -198,7 +198,7 @@ static int ShapeMassTest( void )
 		ENSURE( index == 2 * N * N );
 
 		b3HullData* hull = b3CreateHull( points, 2 * N * N, 2 * N * N );
-		b3MassData mdLower = b3ComputeHullMass( hull, 1.0f, 1.0f );
+		b3MassData mdLower = b3ComputeHullMass( hull, 1.0f );
 
 		ENSURE( mdLower.mass < md.mass && md.mass < mdUpper.mass );
 		ENSURE( mdLower.inertia.cx.x < md.inertia.cx.x && md.inertia.cx.x < mdUpper.inertia.cx.x );
@@ -233,7 +233,7 @@ static int ShapeAABBTest( void )
 		ENSURE_SMALL( b.upperBound.z - 1.0f, FLT_EPSILON );
 	}
 	{
-		b3AABB b = b3ComputeHullAABB( &box.base, 1.0f, b3Transform_identity );
+		b3AABB b = b3ComputeHullAABB( &box.base, b3Transform_identity );
 		ENSURE_SMALL( b.lowerBound.x + 1.0f, FLT_EPSILON );
 		ENSURE_SMALL( b.lowerBound.y + 1.0f, FLT_EPSILON );
 		ENSURE_SMALL( b.lowerBound.z + 1.0f, FLT_EPSILON );
@@ -298,44 +298,13 @@ static int RayCastShapeTest( void )
 	}
 
 	{
-		b3CastOutput output = b3RayCastHull( &box.base, 1.0f, &input );
+		b3CastOutput output = b3RayCastHull( &box.base, &input );
 		ENSURE( output.hit );
 		ENSURE_SMALL( output.normal.x + 1.0f, FLT_EPSILON );
 		ENSURE_SMALL( output.normal.y, FLT_EPSILON );
 		ENSURE_SMALL( output.normal.z, FLT_EPSILON );
 		ENSURE_SMALL( output.fraction - 3.0f / 8.0f, FLT_EPSILON );
 	}
-
-	return 0;
-}
-
-// Uniform scale is applied at query time, not baked into the data.
-static int ScaledHullTest( void )
-{
-	float density = 2.5f;
-
-	b3MassData m1 = b3ComputeHullMass( &box.base, 1.0f, density );
-	b3MassData m2 = b3ComputeHullMass( &box.base, 2.0f, density );
-
-	// Mass scales with volume, central inertia with the fifth power
-	ENSURE_SMALL( m2.mass - 8.0f * m1.mass, 1e-4f );
-	ENSURE_SMALL( m2.inertia.cx.x - 32.0f * m1.inertia.cx.x, 1e-3f );
-	ENSURE_SMALL( m2.inertia.cy.y - 32.0f * m1.inertia.cy.y, 1e-3f );
-	ENSURE_SMALL( m2.inertia.cz.z - 32.0f * m1.inertia.cz.z, 1e-3f );
-
-	// Centroid scales linearly
-	b3BoxHull offsetBox = b3MakeOffsetBoxHull( 1.0f, 1.0f, 1.0f, (b3Vec3){ 3.0f, -1.0f, 0.5f } );
-	b3MassData o1 = b3ComputeHullMass( &offsetBox.base, 1.0f, density );
-	b3MassData o2 = b3ComputeHullMass( &offsetBox.base, 2.0f, density );
-	ENSURE_SMALL( o2.center.x - 2.0f * o1.center.x, 1e-4f );
-	ENSURE_SMALL( o2.center.y - 2.0f * o1.center.y, 1e-4f );
-	ENSURE_SMALL( o2.center.z - 2.0f * o1.center.z, 1e-4f );
-
-	// AABB scales linearly
-	b3AABB a1 = b3ComputeHullAABB( &box.base, 1.0f, b3Transform_identity );
-	b3AABB a2 = b3ComputeHullAABB( &box.base, 2.0f, b3Transform_identity );
-	ENSURE_SMALL( a2.upperBound.x - 2.0f * a1.upperBound.x, FLT_EPSILON );
-	ENSURE_SMALL( a2.lowerBound.z - 2.0f * a1.lowerBound.z, FLT_EPSILON );
 
 	return 0;
 }
@@ -348,7 +317,6 @@ int ShapeTest( void )
 	RUN_SUBTEST( ShapeAABBTest );
 	// RUN_SUBTEST( PointInShapeTest );
 	RUN_SUBTEST( RayCastShapeTest );
-	RUN_SUBTEST( ScaledHullTest );
 
 	return 0;
 }

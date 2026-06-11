@@ -2003,18 +2003,6 @@ typedef struct b3BoxHull
 	b3Plane boxPlanes[6];		 ///< Box face planes.
 } b3BoxHull;
 
-/// A convex hull instance: shared immutable data plus a uniform scale.
-/// The scale is not baked into the data, so the same b3HullData backs many
-/// sizes. Identical hulls share one copy in the world hull database.
-typedef struct b3Hull
-{
-	/// Immutable pointer to the shared hull data.
-	const b3HullData* data;
-
-	/// Uniform scale applied to the data. Must be positive.
-	float scale;
-} b3Hull;
-
 /**@}*/ // hull
 
 /**
@@ -2910,7 +2898,7 @@ typedef struct b3DebugShape
 		const b3Capsule* capsule;		  ///< Capsule shape.
 		const b3Compound* compound;		  ///< Compound shape.
 		const b3HeightField* heightField; ///< Height-field shape.
-		const b3Hull* hull;				  ///< Convex hull shape with scale.
+		const b3HullData* hull;			  ///< Convex hull shape.
 		const b3Mesh* mesh;				  ///< Mesh shape with scale.
 		const b3Sphere* sphere;			  ///< Sphere shape.
 	};

@@ -51,8 +51,7 @@ public:
 						b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 						shapeDef.density = count == 1 ? ( j + 1.0f ) * 100.0f : 1.0f;
-						b3Hull hull = b3MakeHull( &box.base, 1.0f );
-						b3CreateHullShape( bodyId, &shapeDef, &hull );
+						b3CreateHullShape( bodyId, &shapeDef, &box.base );
 					}
 
 					--count;
@@ -107,8 +106,7 @@ public:
 					bodyDef.position = { x, y, 0.0f };
 
 					b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-					b3Hull hull = b3MakeHull( &box.base, 1.0f );
-					b3CreateHullShape( bodyId, &shapeDef, &hull );
+					b3CreateHullShape( bodyId, &shapeDef, &box.base );
 				}
 			}
 		}
@@ -190,8 +188,7 @@ public:
 				bodyDef.position = { x, y };
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
-				b3Hull hull = b3MakeHull( &box.base, 1.0f );
-				b3CreateHullShape( bodyId, &shapeDef, &hull );
+				b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
 				m_bodyIds[bodyIndex++] = bodyId;
 
@@ -319,8 +316,7 @@ public:
 		shapeDef.density = 1000.0f;
 
 		b3BoxHull box = b3MakeTransformedBoxHull( 1.0f, 0.25f, 0.5f, { { 0.0f, 0.25f, 0.0f }, b3Quat_identity } );
-		b3Hull hull = b3MakeHull( &box.base, 1.0f );
-		b3CreateHullShape( m_chassisId, &shapeDef, &hull );
+		b3CreateHullShape( m_chassisId, &shapeDef, &box.base );
 
 		shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.rollingResistance = 0.02f;

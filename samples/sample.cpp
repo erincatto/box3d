@@ -462,8 +462,7 @@ b3BodyId Sample::AddGroundBox( float extent )
 
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 	b3BoxHull hull = b3MakeBoxHull( extent, 1.0f, extent );
-	b3Hull hullWrapper = b3MakeHull( &hull.base, 1.0f );
-	b3ShapeId shapeId = b3CreateHullShape( groundId, &shapeDef, &hullWrapper );
+	b3ShapeId shapeId = b3CreateHullShape( groundId, &shapeDef, &hull.base );
 
 	// Draw the ground with the procedural grid material
 	SetGroundShape( shapeId );
@@ -1121,8 +1120,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3HullData* hull = b3CreateCylinder( 2.0f, 0.15f, 0.0f, 6 );
-			b3Hull hullWrapper = b3MakeHull( hull, 1.0f );
-			b3CreateHullShape( bodyId, &shapeDef, &hullWrapper );
+			b3CreateHullShape( bodyId, &shapeDef, hull );
 			b3DestroyHull( hull );
 		}
 		else if ( modifiers & MOD_ALT )

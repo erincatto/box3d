@@ -277,8 +277,7 @@ public:
 					{
 						bodyDef.position = { -16.0f * a + 4.0f * a * j, 4.0f * a * i + 5.0f * a, -16.0f * a + 4.0f * a * k };
 						b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-						b3Hull hull = b3MakeHull( &box.base, 1.0f );
-						b3CreateHullShape( bodyId, &shapeDef, &hull );
+						b3CreateHullShape( bodyId, &shapeDef, &box.base );
 					}
 				}
 			}
@@ -323,8 +322,7 @@ public:
 					{
 						bodyDef.position = { -10.0f + 2.5f * j, 1.0f * i, -10.0f + 2.5f * k };
 						b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-						b3Hull hull = b3MakeHull( m_convex, 1.0f );
-						b3CreateHullShape( bodyId, &shapeDef, &hull );
+						b3CreateHullShape( bodyId, &shapeDef, m_convex );
 					}
 				}
 			}
@@ -400,8 +398,7 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, hy, 0.1f, transform );
 			shapeDef.name = "wall1";
-			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
-			b3CreateHullShape( groundId, &shapeDef, &hull );
+			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
 		{
@@ -410,8 +407,7 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, hy, 0.1f, transform );
 			shapeDef.name = "wall2";
-			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
-			b3CreateHullShape( groundId, &shapeDef, &hull );
+			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
 		{
@@ -420,8 +416,7 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, hy, 20.0f, transform );
 			shapeDef.name = "wall3";
-			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
-			b3CreateHullShape( groundId, &shapeDef, &hull );
+			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
 		{
@@ -430,8 +425,7 @@ public:
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, hy, 20.0f, transform );
 			shapeDef.name = "wall4";
-			b3Hull hull = b3MakeHull( &wallBox.base, 1.0f );
-			b3CreateHullShape( groundId, &shapeDef, &hull );
+			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
 		// Using 15 sides rather than 16 to avoid manifold degeneracies
@@ -449,8 +443,7 @@ public:
 				bodyDef.position = { 1.0f * i, 0.0f, 1.0f * k };
 
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-				b3Hull hull = b3MakeHull( m_cylinder, 1.0f );
-				b3CreateHullShape( bodyId, &shapeDef, &hull );
+				b3CreateHullShape( bodyId, &shapeDef, m_cylinder );
 			}
 		}
 
@@ -783,8 +776,7 @@ public:
 			{
 				bodyDef.position = { x, y, 0.0f };
 				b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-				b3Hull hull = b3MakeHull( &box.base, 1.0f );
-				b3CreateHullShape( groundId, &shapeDef, &hull );
+				b3CreateHullShape( groundId, &shapeDef, &box.base );
 				x += gridSize;
 			}
 		}
@@ -828,8 +820,7 @@ public:
 					float x = i * shift - xCenter;
 					bodyDef.position = { x, y, 0.0f };
 					b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
-					b3Hull hull = b3MakeHull( &box.base, 1.0f );
-					b3CreateHullShape( groundId, &shapeDef, &hull );
+					b3CreateHullShape( groundId, &shapeDef, &box.base );
 				}
 			}
 		}
@@ -1371,8 +1362,7 @@ public:
 										 ( 2.0f * k - m_gridCount + 1.0f ) * a };
 
 					b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-					b3Hull hull = b3MakeHull( &box.base, 1.0f );
-					b3CreateHullShape( bodyId, &shapeDef, &hull );
+					b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
 					m_bodyIds[m_bodyCount] = bodyId;
 					m_bodyCount += 1;

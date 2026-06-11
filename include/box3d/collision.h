@@ -197,13 +197,6 @@ B3_INLINE const b3Plane* b3GetHullPlanes( const b3HullData* hull )
 	return (const b3Plane*)( (intptr_t)hull + hull->planeOffset );
 }
 
-/// Make a hull instance from shared data and a uniform positive scale.
-B3_INLINE b3Hull b3MakeHull( const b3HullData* data, float scale )
-{
-	b3Hull hull = { data, scale };
-	return hull;
-}
-
 /// Create a tessellated cylinder as a hull.
 B3_API b3HullData* b3CreateCylinder( float height, float radius, float yOffset, int sides );
 
@@ -432,8 +425,8 @@ B3_API b3MassData b3ComputeSphereMass( const b3Sphere* shape, float density );
 /// Compute mass properties of a capsule
 B3_API b3MassData b3ComputeCapsuleMass( const b3Capsule* shape, float density );
 
-/// Compute mass properties of a hull with a uniform scale
-B3_API b3MassData b3ComputeHullMass( const b3HullData* shape, float scale, float density );
+/// Compute mass properties of a hull
+B3_API b3MassData b3ComputeHullMass( const b3HullData* shape, float density );
 
 /// Compute the bounding box of a transformed sphere
 B3_API b3AABB b3ComputeSphereAABB( const b3Sphere* shape, b3Transform transform );
@@ -441,8 +434,8 @@ B3_API b3AABB b3ComputeSphereAABB( const b3Sphere* shape, b3Transform transform 
 /// Compute the bounding box of a transformed capsule
 B3_API b3AABB b3ComputeCapsuleAABB( const b3Capsule* shape, b3Transform transform );
 
-/// Compute the bounding box of a transformed hull with a uniform scale
-B3_API b3AABB b3ComputeHullAABB( const b3HullData* shape, float scale, b3Transform transform );
+/// Compute the bounding box of a transformed hull
+B3_API b3AABB b3ComputeHullAABB( const b3HullData* shape, b3Transform transform );
 
 /// Compute the bounding box of a transformed mesh. Scale may be non-uniform and have negative components.
 B3_API b3AABB b3ComputeMeshAABB( const b3MeshData* shape, b3Transform transform, b3Vec3 scale );
@@ -472,8 +465,8 @@ B3_API bool b3OverlapCompound( const b3Compound* shape, b3Transform shapeTransfo
 /// Overlap shape versus height field
 B3_API bool b3OverlapHeightField( const b3HeightField* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
 
-/// Overlap shape versus hull with a uniform scale
-B3_API bool b3OverlapHull( const b3HullData* shape, float scale, b3Transform shapeTransform, const b3ShapeProxy* proxy );
+/// Overlap shape versus hull
+B3_API bool b3OverlapHull( const b3HullData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
 
 /// Overlap shape versus mesh
 B3_API bool b3OverlapMesh( const b3Mesh* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
@@ -493,8 +486,8 @@ B3_API b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInp
 /// Ray cast versus compound in local space. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3RayCastCompound( const b3Compound* shape, const b3RayCastInput* input );
 
-/// Ray cast versus hull shape in local space with a uniform scale. Initial overlap is treated as a miss.
-B3_API b3CastOutput b3RayCastHull( const b3HullData* shape, float scale, const b3RayCastInput* input );
+/// Ray cast versus hull shape in local space. Initial overlap is treated as a miss.
+B3_API b3CastOutput b3RayCastHull( const b3HullData* shape, const b3RayCastInput* input );
 
 /// Ray cast versus mesh in local space.
 B3_API b3CastOutput b3RayCastMesh( const b3Mesh* shape, const b3RayCastInput* input );
@@ -511,8 +504,8 @@ B3_API b3CastOutput b3ShapeCastCapsule( const b3Capsule* shape, const b3ShapeCas
 /// Shape cast versus compound. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3ShapeCastCompound( const b3Compound* shape, const b3ShapeCastInput* input );
 
-/// Shape cast versus a hull with a uniform scale. Initial overlap is treated as a miss.
-B3_API b3CastOutput b3ShapeCastHull( const b3HullData* shape, float scale, const b3ShapeCastInput* input );
+/// Shape cast versus a hull. Initial overlap is treated as a miss.
+B3_API b3CastOutput b3ShapeCastHull( const b3HullData* shape, const b3ShapeCastInput* input );
 
 /// Shape cast versus a mesh. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3ShapeCastMesh( const b3Mesh* shape, const b3ShapeCastInput* input );
