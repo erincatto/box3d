@@ -70,12 +70,11 @@ ground slab below is 100 units wide in X, 20 units tall in Y, and 100 units deep
 b3BoxHull groundBox = b3MakeBoxHull(50.0f, 10.0f, 50.0f);
 
 b3ShapeDef groundShapeDef = b3DefaultShapeDef();
-b3Hull groundHull = b3MakeHull(&groundBox.base, 1.0f);
-b3CreateHullShape(groundId, &groundShapeDef, &groundHull);
+b3CreateHullShape(groundId, &groundShapeDef, &groundBox.base);
 ```
 
-`b3MakeHull` wraps the `b3HullData` in `.base` with a uniform scale (`1.0f` for none). Box3D
-copies the hull data into a shared internal database, so `groundBox` does not need to outlive
+The `.base` field holds the `b3HullData` that `b3CreateHullShape` expects. Box3D copies
+the hull data into a shared internal database, so `groundBox` does not need to outlive
 the call. Do not call `b3DestroyHull` on a `b3BoxHull`; it is stack-allocated.
 
 Box3D is tuned for meters, kilograms, and seconds, so the extents above are in meters.
@@ -111,8 +110,7 @@ b3ShapeDef shapeDef = b3DefaultShapeDef();
 shapeDef.density = 1.0f;
 shapeDef.baseMaterial.friction = 0.3f;
 
-b3Hull dynamicHull = b3MakeHull(&dynamicBox.base, 1.0f);
-b3CreateHullShape(bodyId, &shapeDef, &dynamicHull);
+b3CreateHullShape(bodyId, &shapeDef, &dynamicBox.base);
 ```
 
 `b3MakeCubeHull(r)` is a convenience that produces a cube with half-extent `r` on all

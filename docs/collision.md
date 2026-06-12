@@ -64,11 +64,9 @@ capsule.radius = 0.25f;
 ### Convex Hulls
 
 Box3D convex hulls are solid convex polyhedra. The geometry lives in a heavy, immutable
-`b3HullData` object. A `b3Hull` is a lightweight instance of that data: a pointer plus a
-uniform positive scale that is applied at collision time rather than baked into the geometry.
-This lets one `b3HullData` back many sizes, and the world shares identical hull data through a
-reference counted database. A shape is convex when all line segments connecting two interior
-points remain inside the shape.
+`b3HullData` object. The world shares identical hull data through a reference counted
+database, so many shapes built from the same data hold one copy. A shape is convex when
+all line segments connecting two interior points remain inside the shape.
 
 <!-- TODO: 3D diagram needed -->
 
@@ -81,12 +79,10 @@ b3BoxHull cube = b3MakeCubeHull(0.5f);              // uniform half-width
 ```
 
 `b3BoxHull` stores everything inline — do not call `b3DestroyHull` on one.
-Its `.base` member is a `b3HullData`. Wrap it in a `b3Hull` instance to pass to shape
-creation, supplying a uniform scale (use `1.0f` for none):
+Its `.base` member is the `b3HullData` that you pass to shape creation:
 
 ```c
-b3Hull hull = b3MakeHull(&box.base, 1.0f);
-b3CreateHullShape(bodyId, &shapeDef, &hull);
+b3CreateHullShape(bodyId, &shapeDef, &box.base);
 ```
 
 For a box that is offset or rotated from the body origin:
@@ -104,8 +100,7 @@ if (data == NULL)
 {
     // degenerate input: coincident or coplanar points, or insufficient volume
 }
-b3Hull hull = b3MakeHull(data, 1.0f);
-b3CreateHullShape(bodyId, &shapeDef, &hull);
+b3CreateHullShape(bodyId, &shapeDef, data);
 // The world keeps its own copy, so you may free yours immediately
 b3DestroyHull(data);
 ```

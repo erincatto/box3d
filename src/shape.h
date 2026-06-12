@@ -103,11 +103,6 @@ b3AABB b3ComputeSweptHullAABB( const b3HullData* shape, b3Transform xf1, b3Trans
 b3ShapeExtent b3ComputeHullExtent( const b3HullData* hull, b3Vec3 origin );
 float b3ComputeHullProjectedArea( const b3HullData* hull, b3Vec3 direction );
 
-// Content hash and equality over the whole baked hull. Shared by every hull de-duplication map so
-// they agree on identity.
-uint64_t b3HashHullData( const b3HullData* hull );
-bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 );
-
 // Height field
 b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int triangleIndex );
 int b3GetHeightFieldMaterial( const b3HeightField* heightField, int triangleIndex );

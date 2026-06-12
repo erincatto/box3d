@@ -71,6 +71,7 @@ static int ShapeCastTest( void )
 	input.transformB = b3Transform_identity;
 	input.translationB = (b3Vec3){ -2.0f, 0.0f };
 	input.maxFraction = 1.0f;
+	input.canEncroach = false;
 
 	b3CastOutput output = b3ShapeCast( &input );
 

@@ -1758,7 +1758,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	b3Array_Destroy( vertices );
 
 	mesh->hash = 0;
-	mesh->hash = b3Hash( B3_HASH_INIT, (uint8_t*)mesh, mesh->byteCount );
+	mesh->hash = b3NonZeroHash( b3Hash( B3_HASH_INIT, (uint8_t*)mesh, mesh->byteCount ) );
 
 	return mesh;
 }

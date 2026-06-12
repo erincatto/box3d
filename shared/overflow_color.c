@@ -80,4 +80,3 @@ OverflowColorPileData CreateOverflowColorPile( b3WorldId worldId )
 
 	return data;
 }
-

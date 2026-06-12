@@ -3,6 +3,7 @@
 
 #include "compound.h"
 
+#include "hull_map.h"
 #include "math_internal.h"
 #include "shape.h"
 
@@ -194,15 +195,6 @@ b3ChildShape b3GetCompoundChild( const b3Compound* compound, int childIndex )
 }
 
 static inline size_t vt_wyhash( const void* key, size_t len );
-
-#define NAME b3HullMap
-#define KEY_TY const b3HullData*
-#define VAL_TY int
-#define HASH_FN b3HashHullData
-#define CMPR_FN b3CompareHullData
-#define MALLOC_FN b3Alloc
-#define FREE_FN b3Free
-#include "verstable.h"
 
 static inline uint64_t b3HashMesh( const b3MeshData* mesh )
 {

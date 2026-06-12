@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "box3d/base.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 

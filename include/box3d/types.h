@@ -1989,6 +1989,10 @@ typedef struct b3HullData
 
 	/// Offset of the face plane array in bytes from the struct address.
 	int planeOffset;
+
+	/// Explicit padding. Hull identity is a content hash and memcmp over raw bytes,
+	/// so there must be no unnamed padding for struct copies to scramble.
+	int padding;
 } b3HullData;
 
 /// Efficient box hull
@@ -2000,6 +2004,7 @@ typedef struct b3BoxHull
 	b3Vec3 boxPoints[8];		 ///< Box points.
 	b3HullHalfEdge boxEdges[24]; ///< Box half-edges.
 	b3HullFace boxFaces[6];		 ///< Box faces.
+	uint8_t padding[2];			 ///< Explicit padding, see b3HullData::padding.
 	b3Plane boxPlanes[6];		 ///< Box face planes.
 } b3BoxHull;
 

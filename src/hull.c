@@ -4,6 +4,7 @@
 // Dirk Gregorius contributed portions of this code
 
 #include "algorithm.h"
+#include "hull_map.h"
 #include "math_internal.h"
 #include "shape.h"
 
@@ -2160,7 +2161,7 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	}
 
 	hull->hash = 0;
-	hull->hash = b3Hash( B3_HASH_INIT, (uint8_t*)hull, hull->byteCount );
+	hull->hash = b3NonZeroHash( b3Hash( B3_HASH_INIT, (uint8_t*)hull, hull->byteCount ) );
 
 	return hull;
 }
@@ -2198,6 +2199,32 @@ bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 )
 	}
 
 	return memcmp( hull1, hull2, hull1->byteCount ) == 0;
+}
+
+// Hull identity covers every byte, so the structs carry explicit padding. These lock
+// the layout, re-audit padding if a size changes.
+_Static_assert( sizeof( b3HullData ) == 136, "unexpected hull data size" );
+_Static_assert( sizeof( b3BoxHull ) == 440, "unexpected box hull size" );
+
+#define NAME b3HullMap
+#define KEY_TY const b3HullData*
+#define VAL_TY int
+#define HASH_FN b3HashHullData
+#define CMPR_FN b3CompareHullData
+#define MALLOC_FN b3Alloc
+#define FREE_FN b3Free
+#define IMPLEMENTATION_MODE
+#include "verstable.h"
+
+size_t b3HullMapByteCount( b3HullMap* map )
+{
+	// The map owns a combined bucket and metadata allocation, valid only when buckets exist
+	size_t byteCount = sizeof( b3HullMap );
+	if ( b3HullMap_bucket_count( map ) > 0 )
+	{
+		byteCount += b3HullMap_total_alloc_size( map );
+	}
+	return byteCount;
 }
 
 b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform transform, b3Vec3 scale )
@@ -2339,7 +2366,7 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 	}
 
 	hull->hash = 0;
-	hull->hash = b3Hash( B3_HASH_INIT, (uint8_t*)hull, hull->byteCount );
+	hull->hash = b3NonZeroHash( b3Hash( B3_HASH_INIT, (uint8_t*)hull, hull->byteCount ) );
 
 	B3_VALIDATE( b3IsValidHull( hull ) );
 
@@ -2478,7 +2505,6 @@ b3CastOutput b3ShapeCastHull( const b3HullData* shape, const b3ShapeCastInput* i
 int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, const b3Capsule* mover )
 {
 	const b3Vec3* points = b3GetHullPoints( shape );
-
 	b3DistanceInput distanceInput;
 	distanceInput.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
 	distanceInput.proxyB = (b3ShapeProxy){ &mover->center1, 2, mover->radius };
@@ -2619,10 +2645,7 @@ static const b3BoxHull s_boxHull = {
 
 b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform transform )
 {
-	// Copy bytes, not the struct, so padding is the template's zero. Content hashing and
-	// de-duplication compare the whole byteCount, including padding.
-	b3BoxHull boxHull;
-	memcpy( &boxHull, &s_boxHull, sizeof( b3BoxHull ) );
+	b3BoxHull boxHull = s_boxHull;
 
 	float minH = 0.2f * B3_LINEAR_SLOP;
 	b3Vec3 h = b3Max( (b3Vec3){ minH, minH, minH }, (b3Vec3){ hx, hy, hz } );
@@ -2656,7 +2679,7 @@ b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform tr
 	boxHull.boxPoints[7] = b3TransformPoint( transform, (b3Vec3){ h.x, -h.y, -h.z } );
 
 	boxHull.base.hash = 0;
-	boxHull.base.hash = b3Hash( B3_HASH_INIT, (uint8_t*)&boxHull, sizeof( b3BoxHull ) );
+	boxHull.base.hash = b3NonZeroHash( b3Hash( B3_HASH_INIT, (uint8_t*)&boxHull, sizeof( b3BoxHull ) ) );
 
 	return boxHull;
 }

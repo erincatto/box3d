@@ -222,7 +222,7 @@ B3_API void b3World_SetWorkerCount( b3WorldId worldId, int count );
 /// Get the worker count.
 B3_API int b3World_GetWorkerCount( b3WorldId worldId );
 
-/// Dump memory stats to box3d_memory.txt
+/// Dump memory stats to log.
 B3_API void b3World_DumpMemoryStats( b3WorldId worldId );
 
 /// Dump shape bounds to box3d_bounds.txt

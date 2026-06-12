@@ -1536,6 +1536,14 @@ void b3Shape_SetHull( b3ShapeId shapeId, const b3HullData* hull )
 	// the shape's current shared data.
 	const b3HullData* data = b3AddHullToDatabase( world, hull );
 
+	// Same shared hull, avoid destroying contacts and recreating the proxy
+	if ( shape->type == b3_hullShape && data == shape->hull )
+	{
+		b3RemoveHullFromDatabase( world, data );
+		world->locked = false;
+		return;
+	}
+
 	b3DestroyShapeAllocationForShapeChange( world, shape );
 
 	shape->hull = data;

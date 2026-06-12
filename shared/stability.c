@@ -72,4 +72,3 @@ void DestroyMeshDrop( MeshDropData* data )
 {
 	b3DestroyMesh( data->mesh );
 }
-

@@ -84,7 +84,7 @@ int TableTest( void )
 		}
 
 		float ms = b3GetMilliseconds( ticks );
-		printf( "set: count = %d, b2ContainsKey = %.5f ms, ave = %.5f us\n", itemCount, ms, 1000.0f * ms / itemCount );
+		printf( "set: count = %d, b3ContainsKey = %.5f ms, ave = %.5f us\n", itemCount, ms, 1000.0f * ms / itemCount );
 
 #ifndef NDEBUG
 		int probeCount = b3AtomicLoadInt( &b3_probeCount );

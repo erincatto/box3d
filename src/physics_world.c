@@ -12,6 +12,7 @@
 #include "contact.h"
 #include "core.h"
 #include "ctz.h"
+#include "hull_map.h"
 #include "island.h"
 #include "joint.h"
 #include "parallel_for.h"
@@ -35,22 +36,13 @@ b3World b3_worlds[B3_MAX_WORLDS];
 b3AtomicInt b3_worldCount;
 int b3_maxWorldCount;
 
-#define NAME b3HullDatabase
-#define KEY_TY const b3HullData*
-#define VAL_TY int
-#define HASH_FN b3HashHullData
-#define CMPR_FN b3CompareHullData
-#define MALLOC_FN b3Alloc
-#define FREE_FN b3Free
-#include "verstable.h"
-
 const b3HullData* b3AddHullToDatabase( b3World* world, const b3HullData* src )
 {
-	b3HullDatabase* database = world->hullDatabase;
+	b3HullMap* database = world->hullDatabase;
 
 	// Compare by content so an unowned query hull finds the shared copy.
-	b3HullDatabase_itr itr = b3HullDatabase_get( database, src );
-	if ( b3HullDatabase_is_end( itr ) == false )
+	b3HullMap_itr itr = b3HullMap_get( database, src );
+	if ( b3HullMap_is_end( itr ) == false )
 	{
 		itr.data->val += 1;
 		return itr.data->key;
@@ -58,38 +50,39 @@ const b3HullData* b3AddHullToDatabase( b3World* world, const b3HullData* src )
 
 	b3HullData* owned = b3CloneHull( src );
 	B3_ASSERT( owned != NULL );
-	b3HullDatabase_insert( database, owned, 1 );
+	b3HullMap_insert( database, owned, 1 );
 	return owned;
 }
 
 const b3HullData* b3AddOwnedHullToDatabase( b3World* world, b3HullData* owned )
 {
-	b3HullDatabase* database = world->hullDatabase;
+	b3HullMap* database = world->hullDatabase;
 
-	b3HullDatabase_itr itr = b3HullDatabase_get( database, owned );
-	if ( b3HullDatabase_is_end( itr ) == false )
+	b3HullMap_itr itr = b3HullMap_get( database, owned );
+	if ( b3HullMap_is_end( itr ) == false )
 	{
 		itr.data->val += 1;
 		b3DestroyHull( owned );
 		return itr.data->key;
 	}
 
-	b3HullDatabase_insert( database, owned, 1 );
+	// Take ownership of input hull.
+	b3HullMap_insert( database, owned, 1 );
 	return owned;
 }
 
 void b3RemoveHullFromDatabase( b3World* world, const b3HullData* data )
 {
-	b3HullDatabase* database = world->hullDatabase;
+	b3HullMap* database = world->hullDatabase;
 
-	b3HullDatabase_itr itr = b3HullDatabase_get( database, data );
-	B3_ASSERT( b3HullDatabase_is_end( itr ) == false );
+	b3HullMap_itr itr = b3HullMap_get( database, data );
+	B3_ASSERT( b3HullMap_is_end( itr ) == false );
 
 	if ( --itr.data->val == 0 )
 	{
 		// Erase through the iterator we already have so the lookup runs once.
 		b3HullData* owned = (b3HullData*)itr.data->key;
-		b3HullDatabase_erase_itr( database, itr );
+		b3HullMap_erase_itr( database, itr );
 		b3DestroyHull( owned );
 	}
 }
@@ -294,8 +287,8 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 	int shapeCapacity = b3MaxInt( 16, def->capacity.staticShapeCount + def->capacity.dynamicShapeCount );
 	b3Array_Reserve( world->shapes, shapeCapacity );
 
-	world->hullDatabase = b3Alloc( sizeof( b3HullDatabase ) );
-	b3HullDatabase_init( world->hullDatabase );
+	world->hullDatabase = b3Alloc( sizeof( b3HullMap ) );
+	b3HullMap_init( world->hullDatabase );
 
 	world->contactIdPool = b3CreateIdPool();
 	b3Array_Reserve( world->contacts, b3MaxInt( 16, def->capacity.contactCount ) );
@@ -472,9 +465,9 @@ void b3DestroyWorld( b3WorldId worldId )
 	}
 
 	// Destroying every shape above released all hull references, so the database is empty.
-	B3_ASSERT( b3HullDatabase_size( (b3HullDatabase*)world->hullDatabase ) == 0 );
-	b3HullDatabase_cleanup( world->hullDatabase );
-	b3Free( world->hullDatabase, sizeof( b3HullDatabase ) );
+	B3_ASSERT( b3HullMap_size( (b3HullMap*)world->hullDatabase ) == 0 );
+	b3HullMap_cleanup( world->hullDatabase );
+	b3Free( world->hullDatabase, sizeof( b3HullMap ) );
 	world->hullDatabase = NULL;
 
 	b3Array_Destroy( world->shapes );
@@ -2213,7 +2206,8 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 		return;
 	}
 
-	int total = 0;
+	// Large worlds can exceed 2GB, sum in 64 bits
+	uint64_t total = 0;
 
 	// id pools
 	int bodyIdBytes = b3GetIdBytes( &world->bodyIdPool );
@@ -2222,7 +2216,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	int contactIdBytes = b3GetIdBytes( &world->contactIdPool );
 	int islandIdBytes = b3GetIdBytes( &world->islandIdPool );
 	int shapeIdBytes = b3GetIdBytes( &world->shapeIdPool );
-	total += bodyIdBytes + solverSetIdBytes + jointIdBytes + contactIdBytes + islandIdBytes + shapeIdBytes;
+	total += (uint64_t)bodyIdBytes + solverSetIdBytes + jointIdBytes + contactIdBytes + islandIdBytes + shapeIdBytes;
 
 	b3Log( "id pools" );
 	b3Log( "body ids: %d", bodyIdBytes );
@@ -2250,7 +2244,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	int islandArrayBytes = b3Array_ByteCount( world->islands );
 	int shapeArrayBytes = b3Array_ByteCount( world->shapes );
 	int sensorArrayBytes = b3Array_ByteCount( world->sensors );
-	total += bodyArrayBytes + solverSetArrayBytes + jointArrayBytes + contactArrayBytes + islandArrayBytes +
+	total += (uint64_t)bodyArrayBytes + solverSetArrayBytes + jointArrayBytes + contactArrayBytes + islandArrayBytes +
 			 islandLinkBytes + shapeArrayBytes + sensorArrayBytes;
 
 	b3Log( "world arrays" );
@@ -2279,25 +2273,21 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 
 	// Shared hull database. The map owns a combined bucket and metadata allocation
 	// plus the small map struct. Each stored key is an owned clone sized by byteCount.
-	b3HullDatabase* hullDatabase = world->hullDatabase;
-	int hullCount = (int)b3HullDatabase_size( hullDatabase );
-	int hullBucketCount = (int)b3HullDatabase_bucket_count( hullDatabase );
-	int hullMapBytes = (int)sizeof( b3HullDatabase );
-	if ( hullBucketCount > 0 )
-	{
-		hullMapBytes += (int)b3HullDatabase_total_alloc_size( hullDatabase );
-	}
-	int hullDataBytes = 0;
-	for ( b3HullDatabase_itr itr = b3HullDatabase_first( hullDatabase ); b3HullDatabase_is_end( itr ) == false;
-		  itr = b3HullDatabase_next( itr ) )
+	b3HullMap* hullDatabase = world->hullDatabase;
+	int hullCount = (int)b3HullMap_size( hullDatabase );
+	int hullBucketCount = (int)b3HullMap_bucket_count( hullDatabase );
+	uint64_t hullMapBytes = b3HullMapByteCount( hullDatabase );
+	uint64_t hullDataBytes = 0;
+	for ( b3HullMap_itr itr = b3HullMap_first( hullDatabase ); b3HullMap_is_end( itr ) == false;
+		  itr = b3HullMap_next( itr ) )
 	{
 		hullDataBytes += itr.data->key->byteCount;
 	}
 	total += hullMapBytes + hullDataBytes;
 
 	b3Log( "hulls" );
-	b3Log( "database: %d (%d, %d)", hullMapBytes, hullCount, hullBucketCount );
-	b3Log( "hull data: %d", hullDataBytes );
+	b3Log( "database: %llu (%d, %d)", (unsigned long long)hullMapBytes, hullCount, hullBucketCount );
+	b3Log( "hull data: %llu", (unsigned long long)hullDataBytes );
 
 	// broad-phase
 	int staticTreeBytes = b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_staticBody );
@@ -2311,7 +2301,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	int moveArrayBytes = b3Array_ByteCount( world->broadPhase.moveArray );
 	b3HashSet* pairSet = &world->broadPhase.pairSet;
 	int pairSetBytes = b3GetHashSetBytes( pairSet );
-	total += staticTreeBytes + kinematicTreeBytes + dynamicTreeBytes + movedBytes + moveArrayBytes + pairSetBytes;
+	total += (uint64_t)staticTreeBytes + kinematicTreeBytes + dynamicTreeBytes + movedBytes + moveArrayBytes + pairSetBytes;
 
 	b3Log( "broad-phase" );
 	b3Log( "static tree: %d", staticTreeBytes );
@@ -2330,7 +2320,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 		manifoldBlockBytes += b3Array_ByteCount( allocator->blocks );
 		manifoldBlockBytes += allocator->blocks.count * B3_BLOCK_SIZE * allocator->elementSize;
 	}
-	total += manifoldArrayBytes + manifoldBlockBytes;
+	total += (uint64_t)manifoldArrayBytes + manifoldBlockBytes;
 
 	b3Log( "manifold allocators" );
 	b3Log( "allocator array: %d", manifoldArrayBytes );
@@ -2363,7 +2353,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	int setJointSimBytes = jointSimCapacity * (int)sizeof( b3JointSim );
 	int setContactSimBytes = contactIndexCapacity * (int)sizeof( int );
 	int setIslandSimBytes = islandSimCapacity * (int)sizeof( b3IslandSim );
-	total += setBodySimBytes + setBodyStateBytes + setJointSimBytes + setContactSimBytes + setIslandSimBytes;
+	total += (uint64_t)setBodySimBytes + setBodyStateBytes + setJointSimBytes + setContactSimBytes + setIslandSimBytes;
 
 	b3Log( "solver sets" );
 	b3Log( "body sim: %d", setBodySimBytes );
@@ -2383,7 +2373,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 		graphContactBytes += b3Array_ByteCount( c->convexContacts ) + b3Array_ByteCount( c->contacts );
 		graphJointSimBytes += b3Array_ByteCount( c->jointSims );
 	}
-	total += bodyBitSetBytes + graphJointSimBytes + graphContactBytes;
+	total += (uint64_t)bodyBitSetBytes + graphJointSimBytes + graphContactBytes;
 
 	b3Log( "constraint graph" );
 	b3Log( "body bit sets: %d", bodyBitSetBytes );
@@ -2409,7 +2399,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 		b3SensorTaskContext* taskContext = world->sensorTaskContexts.data + i;
 		sensorTaskContextBytes += b3GetBitSetBytes( &taskContext->eventBits );
 	}
-	total += taskContextBytes + sensorTaskContextBytes;
+	total += (uint64_t)taskContextBytes + sensorTaskContextBytes;
 
 	b3Log( "task contexts" );
 	b3Log( "worker: %d", taskContextBytes );
@@ -2444,7 +2434,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	total += world->stack.capacity;
 	b3Log( "stack allocator: %d", world->stack.capacity );
 
-	b3Log( "total: %d", total );
+	b3Log( "total: %llu", (unsigned long long)total );
 }
 
 void b3World_DumpShapeBounds( b3WorldId worldId, b3BodyType type )

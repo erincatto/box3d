@@ -110,22 +110,22 @@
 #define b3Array_AddIndex( a )                                                                                                    \
 	( b3EmplaceHelper( (void**)&( a ).data, &( a ).count, &( a ).capacity, sizeof( *( a ).data ) ), ( a ).count - 1 )
 
-// Append a contiguous run of values.
+// Append a contiguous run of values. _n is used to cache the input count while avoiding naming conflicts.
 #define b3Array_Append( a, src, n )                                                                                              \
 	do                                                                                                                           \
 	{                                                                                                                            \
-		int m = ( n );                                                                                                        \
-		if ( ( a ).count + m > ( a ).capacity )                                                                               \
+		int _n = ( n );                                                                                                          \
+		if ( ( a ).count + _n > ( a ).capacity )                                                                                 \
 		{                                                                                                                        \
-			int req = ( a ).count + m;                                                                                        \
+			int req = ( a ).count + _n;                                                                                          \
 			int newCapacity = req > 2 ? req + ( req >> 1 ) : 8;                                                                  \
 			int oldSize = ( a ).capacity * sizeof( *( a ).data );                                                                \
 			int newSize = newCapacity * sizeof( *( a ).data );                                                                   \
 			( a ).data = (B3_TYPE_OF( ( a ).data ))b3GrowAlloc( ( a ).data, oldSize, newSize );                                  \
 			( a ).capacity = newCapacity;                                                                                        \
 		}                                                                                                                        \
-		memcpy( ( a ).data + ( a ).count, ( src ), m * sizeof( *( a ).data ) );                                               \
-		( a ).count += m;                                                                                                     \
+		memcpy( ( a ).data + ( a ).count, ( src ), _n * sizeof( *( a ).data ) );                                                 \
+		( a ).count += _n;                                                                                                       \
 	}                                                                                                                            \
 	while ( 0 )
 

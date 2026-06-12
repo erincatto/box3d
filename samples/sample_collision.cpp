@@ -455,11 +455,9 @@ public:
 					break;
 
 				case b3_hullShape:
-				{
 					shapeDef.baseMaterial.userMaterialId = 33;
 					b3CreateHullShape( bodyId, &shapeDef, &m_box.base );
-				}
-				break;
+					break;
 
 				case b3_meshShape:
 					shapeDef.baseMaterial.userMaterialId = 44;

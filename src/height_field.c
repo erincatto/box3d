@@ -465,7 +465,7 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 	h = b3Hash( h, (const uint8_t*)hf->materialIndices, cellCount * (int)sizeof( uint8_t ) );
 	h = b3Hash( h, (const uint8_t*)hf->flags, triangleCount * (int)sizeof( uint8_t ) );
 	h = b3Hash( h, (const uint8_t*)&hf->aabb, (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, aabb ) ) );
-	hf->hash = h;
+	hf->hash = b3NonZeroHash( h );
 
 	return hf;
 }

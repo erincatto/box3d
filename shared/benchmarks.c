@@ -905,5 +905,3 @@ void StepJunkyard( b3WorldId worldId, int stepCount )
 	b3Transform target = { .p = targetPos, .q = b3Quat_identity };
 	b3Body_SetTargetTransform( g_junkyardData.pusherId, target, timeStep, false );
 }
-
-
