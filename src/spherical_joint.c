@@ -46,8 +46,8 @@ float b3SphericalJoint_GetConeAngle( b3JointId jointId )
 {
 	b3World* world = b3GetWorld( jointId.world0 );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
-	b3Transform transformB = b3GetBodyTransform( world, base->bodyIdB );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformB = b3GetBodyTransform( world, base->bodyIdB );
 
 	b3Quat quatA = b3MulQuat( transformA.q, base->localFrameA.q );
 	b3Quat quatB = b3MulQuat( transformB.q, base->localFrameB.q );
@@ -109,8 +109,8 @@ float b3SphericalJoint_GetTwistAngle( b3JointId jointId )
 {
 	b3World* world = b3GetWorld( jointId.world0 );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
-	b3Transform transformB = b3GetBodyTransform( world, base->bodyIdB );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformB = b3GetBodyTransform( world, base->bodyIdB );
 
 	b3Quat quatA = b3MulQuat( transformA.q, base->localFrameA.q );
 	b3Quat quatB = b3MulQuat( transformB.q, base->localFrameB.q );
@@ -231,8 +231,8 @@ b3Vec3 b3GetSphericalJointForce( b3World* world, b3JointSim* base )
 
 b3Vec3 b3GetSphericalJointTorque( b3World* world, b3JointSim* base )
 {
-	b3Transform xfA = b3GetBodyTransform( world, base->bodyIdA );
-	b3Transform xfB = b3GetBodyTransform( world, base->bodyIdB );
+	b3WorldTransform xfA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform xfB = b3GetBodyTransform( world, base->bodyIdB );
 	b3Quat qA = b3MulQuat( xfA.q, base->localFrameA.q );
 	b3Quat qB = b3MulQuat( xfB.q, base->localFrameB.q );
 
@@ -300,7 +300,7 @@ void b3PrepareSphericalJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.q = b3MulQuat( bodySimB->transform.q, base->localFrameB.q );
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
-	joint->deltaCenter = b3Sub( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
 
 	// Cone axis is the z-axis of body A.
 	b3Vec3 coneAxis = b3RotateVector( joint->frameA.q, b3Vec3_axisZ );

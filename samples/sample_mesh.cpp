@@ -903,7 +903,7 @@ public:
 	}
 
 	// This callback finds the closest hit.
-	static float CastCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t surfaceType,
+	static float CastCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t surfaceType,
 							   int triangleIndex, int childIndex, void* context )
 	{
 		(void)shapeId;
@@ -913,7 +913,7 @@ public:
 
 		CastContext* castContext = (CastContext*)context;
 
-		castContext->point = point;
+		castContext->point = b3ToVec3( point );
 		castContext->normal = normal;
 		castContext->fraction = fraction;
 		castContext->hit = true;
@@ -933,7 +933,7 @@ public:
 			// m_rayOrigin = { 0.0f, -FLT_EPSILON, 0.0f };
 			// m_rayTranslation = { -1000.0f, 0.0f, 0.0 };
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, m_rayOrigin, m_rayTranslation, b3DefaultQueryFilter() );
+			b3RayResult result = b3World_CastRayClosest( m_worldId, b3MakePosition( m_rayOrigin ), m_rayTranslation, b3DefaultQueryFilter() );
 
 			DrawPoint( m_rayOrigin, 6.0f, MakeColor( b3_colorGreenYellow ) );
 			DrawPoint( m_rayOrigin + m_rayTranslation, 6.0f, MakeColor( b3_colorRed ) );
@@ -941,7 +941,7 @@ public:
 
 			if ( result.hit )
 			{
-				b3Vec3 point = result.point;
+				b3Vec3 point = b3ToVec3( result.point );
 				DrawLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGray ) );
 				DrawPoint( point, 10.0f, MakeColor( b3_colorOrange ) );
 			}
@@ -1390,7 +1390,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.name = "ground";
-			bodyDef.position = origin;
+			bodyDef.position = b3MakePosition( origin );
 			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 			float scale = 0.01f;
@@ -1447,7 +1447,7 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.name = "cylinder";
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = b3Vec3{ 5020.27734, 3506.22559, -6986.48584 };
+			bodyDef.position = b3MakePosition( b3Vec3{ 5020.27734f, 3506.22559f, -6986.48584f } );
 			bodyDef.rotation = { { 0.664546967, 0.669287264, 0.135021493 }, 0.303646326 };
 
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
@@ -1525,7 +1525,7 @@ public:
 
 			for (int i = 0; i < 6; ++i)
 			{
-				bodyDef.position = positions[i];
+				bodyDef.position = b3MakePosition( positions[i] );
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 				b3CreateHullShape( bodyId, &shapeDef, cylinderHull );
 			}
@@ -1544,7 +1544,7 @@ public:
 
 			for (int i = 0; i < 8; ++i)
 			{
-				bodyDef.position = positions[i];
+				bodyDef.position = b3MakePosition( positions[i] );
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 				b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
 			}

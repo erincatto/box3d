@@ -84,10 +84,10 @@ public:
 			b3Vec3 rayOrigin = { x, 8.0f, m_offset };
 			b3Vec3 rayTranslation = b3Vec3{ x, 0.0f, m_offset } - rayOrigin;
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, rayOrigin, rayTranslation, b3DefaultQueryFilter() );
+			b3RayResult result = b3World_CastRayClosest( m_worldId, b3MakePosition( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
 			if ( result.hit )
 			{
-				b3Vec3 point = result.point;
+				b3Vec3 point = b3ToVec3( result.point );
 
 				DrawLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGreen ) );
 			}
@@ -134,7 +134,7 @@ struct CastContext
 };
 
 // This callback finds the closest hit. This is the most common callback used in games.
-static float RayCastClosestCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t materialId,
+static float RayCastClosestCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId,
 									 int triangleIndex, int childIndex, void* context )
 {
 	CastContext* rayContext = (CastContext*)context;
@@ -156,7 +156,7 @@ static float RayCastClosestCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 nor
 		return -1.0f;
 	}
 
-	rayContext->points[0] = point;
+	rayContext->points[0] = b3ToVec3( point );
 	rayContext->normals[0] = normal;
 	rayContext->fractions[0] = fraction;
 	rayContext->materialIds[0] = materialId;
@@ -173,7 +173,7 @@ static float RayCastClosestCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 nor
 // This callback finds any hit. For this type of query we are usually just checking for obstruction,
 // so the hit data is not relevant.
 // NOTE: shape hits are not ordered, so this may not return the closest hit
-static float RayCastAnyCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t materialId,
+static float RayCastAnyCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId,
 								 int triangleIndex, int childIndex, void* context )
 {
 	CastContext* rayContext = (CastContext*)context;
@@ -194,7 +194,7 @@ static float RayCastAnyCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal,
 		return -1.0f;
 	}
 
-	rayContext->points[0] = point;
+	rayContext->points[0] = b3ToVec3( point );
 	rayContext->normals[0] = normal;
 	rayContext->fractions[0] = fraction;
 	rayContext->materialIds[0] = materialId;
@@ -213,7 +213,7 @@ static float RayCastAnyCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal,
 // NOTE: shape hits are not ordered, so this may return hits in any order. This means that
 // if you limit the number of results, you may discard the closest hit. You can see this
 // behavior in the sample.
-static float RayCastMultipleCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t materialId,
+static float RayCastMultipleCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId,
 									  int triangleIndex, int childIndex, void* context )
 {
 	CastContext* rayContext = (CastContext*)context;
@@ -237,7 +237,7 @@ static float RayCastMultipleCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 no
 	int count = rayContext->count;
 	assert( count < 3 );
 
-	rayContext->points[count] = point;
+	rayContext->points[count] = b3ToVec3( point );
 	rayContext->normals[count] = normal;
 	rayContext->fractions[count] = fraction;
 	rayContext->materialIds[count] = materialId;
@@ -257,7 +257,7 @@ static float RayCastMultipleCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 no
 }
 
 // This ray cast collects multiple hits along the ray and sorts them.
-static float RayCastSortedCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t materialId,
+static float RayCastSortedCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId,
 									int triangleIndex, int childIndex, void* context )
 {
 	CastContext* rayContext = (CastContext*)context;
@@ -311,7 +311,7 @@ static float RayCastSortedCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 norm
 		rayContext->childIndices[j] = rayContext->childIndices[j - 1];
 	}
 
-	rayContext->points[index] = point;
+	rayContext->points[index] = b3ToVec3( point );
 	rayContext->normals[index] = normal;
 	rayContext->fractions[index] = fraction;
 	rayContext->materialIds[index] = materialId;
@@ -430,7 +430,7 @@ public:
 				bodyDef.type = b3_staticBody;
 			}
 
-			bodyDef.position = RandomVec3Uniform( -20.0f, 20.0f );
+			bodyDef.position = b3MakePosition( RandomVec3Uniform( -20.0f, 20.0f ) );
 
 			b3Vec3 axis = RandomVec3Uniform( -1.0f, 1.0f );
 			axis = b3Normalize( axis );
@@ -690,7 +690,7 @@ public:
 
 		if ( m_castType == e_rayCast )
 		{
-			b3World_CastRay( m_worldId, m_origin, m_translation, b3DefaultQueryFilter(), modeFcn, &m_castContext );
+			b3World_CastRay( m_worldId, b3MakePosition( m_origin ), m_translation, b3DefaultQueryFilter(), modeFcn, &m_castContext );
 		}
 		else
 		{
@@ -874,10 +874,10 @@ public:
 		}
 		else
 		{
-			b3RayResult result = b3World_CastRayClosest( m_worldId, rayOrigin, rayTranslation, b3DefaultQueryFilter() );
+			b3RayResult result = b3World_CastRayClosest( m_worldId, b3MakePosition( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
 			if ( result.hit )
 			{
-				b3Vec3 point = result.point;
+				b3Vec3 point = b3ToVec3( result.point );
 				DrawLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGreen ) );
 				DrawPoint( point, 5.0f, MakeColor( b3_colorYellow ) );
 			}

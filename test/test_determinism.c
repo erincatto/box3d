@@ -14,8 +14,15 @@
 	#define TracyCFrameMark
 #endif
 
+// Double precision accumulates body positions in double, so the settle/sleep step and the
+// state hash differ from the float build. Both modes are internally deterministic.
+#if defined( BOX3D_DOUBLE_PRECISION )
+#define EXPECTED_SLEEP_STEP 309
+#define EXPECTED_HASH 0x4CD4499F
+#else
 #define EXPECTED_SLEEP_STEP 306
 #define EXPECTED_HASH 0x596EA165
+#endif
 
 static int SingleMultithreadingTest( int workerCount )
 {

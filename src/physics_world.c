@@ -629,8 +629,8 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 			}
 		}
 
-		b3Transform transformA = bodySimA->transform;
-		b3Transform transformB = bodySimB->transform;
+		b3WorldTransform transformA = bodySimA->transform;
+		b3WorldTransform transformB = bodySimB->transform;
 
 		bool isFast = ( bodySimA->flags & b3_isFast ) || ( bodySimB->flags & b3_isFast );
 
@@ -651,8 +651,8 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 			float angleB = b3DotQuat( transformB.q, contact->cachedTransformB.q );
 			float angularDistance = b3MinFloat( angleA * angleA, angleB * angleB );
 
-			b3Transform xf = b3InvMulTransforms( transformA, transformB );
-			b3Transform xfc = b3InvMulTransforms( contact->cachedTransformA, contact->cachedTransformB );
+			b3Transform xf = b3InvMulWorldTransforms( transformA, transformB );
+			b3Transform xfc = b3InvMulWorldTransforms( contact->cachedTransformA, contact->cachedTransformB );
 			b3Vec3 maxExtentA = isStaticA ? b3Vec3_zero : bodySimA->maxExtent;
 			b3Vec3 maxExtentB = isStaticB ? b3Vec3_zero : bodySimB->maxExtent;
 			b3Vec3 maxExtent = b3Max( maxExtentA, maxExtentB );
@@ -686,7 +686,7 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 					b3Matrix3 matrixB = b3MakeMatrixFromQuat( dqB );
 
 					// Minimize round-off
-					b3Vec3 dc = b3Sub( bodySimB->center, bodySimA->center );
+					b3Vec3 dc = b3PositionDelta( bodySimB->center, bodySimA->center );
 
 					int manifoldCount = contact->manifoldCount;
 					for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
@@ -1309,7 +1309,7 @@ static bool DrawQueryCallback( int proxyId, uint64_t userData, void* context )
 
 		if ( shape->userShape != NULL )
 		{
-			draw->DrawShapeFcn( shape->userShape, bodySim->transform, color, draw->context );
+			draw->DrawShapeFcn( shape->userShape, b3ToRelativeTransform( bodySim->transform, draw->drawOrigin ), color, draw->context );
 		}
 	}
 
@@ -1383,7 +1383,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 			if ( draw->drawBodyNames && body->name[0] != 0 )
 			{
 				b3Vec3 offset = { 0.05f, 0.05f, 0.05f };
-				b3Transform transform = { bodySim->center, bodySim->transform.q };
+				b3Transform transform = { b3PositionDelta( bodySim->center, draw->drawOrigin ), bodySim->transform.q };
 				b3Vec3 p = b3TransformPoint( transform, offset );
 				draw->DrawStringFcn( p, body->name, b3_colorOrange, draw->context );
 			}
@@ -1392,7 +1392,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 			{
 				b3Vec3 offset = { 0.1f, 0.1f, 0.1f };
 
-				b3Transform transform = { bodySim->center, bodySim->transform.q };
+				b3Transform transform = { b3PositionDelta( bodySim->center, draw->drawOrigin ), bodySim->transform.q };
 				draw->DrawTransformFcn( transform, draw->context );
 				b3Vec3 p = b3TransformPoint( transform, offset );
 
@@ -1463,11 +1463,11 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 								b3Vec3 p;
 								if ( draw->drawAnchorA == 1 )
 								{
-									p = b3Add( bodySimA->center, mp->anchorA );
+									p = b3PositionDelta( b3OffsetPosition( bodySimA->center, mp->anchorA ), draw->drawOrigin );
 								}
 								else
 								{
-									p = b3Add( bodySimB->center, mp->anchorB );
+									p = b3PositionDelta( b3OffsetPosition( bodySimB->center, mp->anchorB ), draw->drawOrigin );
 								}
 
 								frictionCenter = b3Add( frictionCenter, p );
@@ -2559,7 +2559,8 @@ static bool b3TreeOverlapCallback( int proxyId, uint64_t userData, void* context
 	}
 
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	// Overlap query is a documented float carve-out far from the origin
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Position_zero );
 
 	bool overlapping = b3OverlapShape( shape, transform, &worldContext->proxy );
 	if ( overlapping == false )
@@ -2628,7 +2629,8 @@ static bool TreeCollideCallback( int proxyId, uint64_t userData, void* context )
 	}
 
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	// Mover query is a documented float carve-out far from the origin
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Position_zero );
 
 	b3PlaneResult buffer[64];
 	int count = b3CollideMover( buffer, 64, shape, transform, &worldContext->mover );
@@ -2695,7 +2697,8 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 	}
 
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	// World ray cast operates in float world space (documented carve-out far from the origin)
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Position_zero );
 	b3CastOutput output = b3RayCastShape( shape, transform, input );
 
 	if ( output.hit )
@@ -2709,8 +2712,8 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 
 		int triangleIndex = output.triangleIndex;
 		int childIndex = output.childIndex;
-		float fraction = worldContext->fcn( id, output.point, output.normal, output.fraction, userMaterialId, triangleIndex,
-											childIndex, worldContext->userContext );
+		float fraction = worldContext->fcn( id, b3MakePosition( output.point ), output.normal, output.fraction, userMaterialId,
+											triangleIndex, childIndex, worldContext->userContext );
 
 		// The user may return -1 to skip this shape
 		if ( 0.0f <= fraction && fraction <= 1.0f )
@@ -2724,7 +2727,7 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 	return input->maxFraction;
 }
 
-b3TreeStats b3World_CastRay( b3WorldId worldId, b3Vec3 origin, b3Vec3 translation, b3QueryFilter filter, b3CastResultFcn* fcn,
+b3TreeStats b3World_CastRay( b3WorldId worldId, b3Position origin, b3Vec3 translation, b3QueryFilter filter, b3CastResultFcn* fcn,
 							 void* context )
 {
 	b3TreeStats treeStats = { 0 };
@@ -2735,10 +2738,11 @@ b3TreeStats b3World_CastRay( b3WorldId worldId, b3Vec3 origin, b3Vec3 translatio
 		return treeStats;
 	}
 
-	B3_ASSERT( b3IsValidVec3( origin ) );
+	B3_ASSERT( b3IsValidPosition( origin ) );
 	B3_ASSERT( b3IsValidVec3( translation ) );
 
-	b3RayCastInput input = { origin, translation, 1.0f };
+	// World ray cast operates in float world space (documented carve-out far from the origin)
+	b3RayCastInput input = { b3ToVec3( origin ), translation, 1.0f };
 
 	WorldRayCastContext worldContext = { world, fcn, filter, 1.0f, context };
 
@@ -2761,7 +2765,7 @@ b3TreeStats b3World_CastRay( b3WorldId worldId, b3Vec3 origin, b3Vec3 translatio
 }
 
 // This callback finds the closest hit. This is the most common callback used in games.
-static float b3RayCastClosestFcn( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+static float b3RayCastClosestFcn( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
 								  int triangleIndex, int childIndex, void* context )
 {
 	// Ignore initial overlap
@@ -2782,7 +2786,7 @@ static float b3RayCastClosestFcn( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal
 	return fraction;
 }
 
-b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Vec3 origin, b3Vec3 translation, b3QueryFilter filter )
+b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Position origin, b3Vec3 translation, b3QueryFilter filter )
 {
 	b3RayResult result = { 0 };
 
@@ -2792,10 +2796,11 @@ b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Vec3 origin, b3Vec3 tra
 		return result;
 	}
 
-	B3_ASSERT( b3IsValidVec3( origin ) );
+	B3_ASSERT( b3IsValidPosition( origin ) );
 	B3_ASSERT( b3IsValidVec3( translation ) );
 
-	b3RayCastInput input = { origin, translation, 1.0f };
+	// World ray cast operates in float world space (documented carve-out far from the origin)
+	b3RayCastInput input = { b3ToVec3( origin ), translation, 1.0f };
 	WorldRayCastContext worldContext = {
 		.world = world,
 		.fcn = b3RayCastClosestFcn,
@@ -2840,7 +2845,8 @@ static float b3ShapeCastCallback( const b3ShapeCastInput* input, int proxyId, ui
 	}
 
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	// World shape cast operates in float world space (documented carve-out far from the origin)
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Position_zero );
 
 	b3CastOutput output = b3ShapeCastShape( shape, transform, input );
 
@@ -2852,8 +2858,8 @@ static float b3ShapeCastCallback( const b3ShapeCastInput* input, int proxyId, ui
 
 		int triangleIndex = output.triangleIndex;
 		int childIndex = output.childIndex;
-		float fraction = worldContext->fcn( id, output.point, output.normal, output.fraction, userMaterialId, triangleIndex,
-											childIndex, worldContext->userContext );
+		float fraction = worldContext->fcn( id, b3MakePosition( output.point ), output.normal, output.fraction, userMaterialId,
+											triangleIndex, childIndex, worldContext->userContext );
 
 		// The user may return -1 to skip this shape
 		if ( 0.0f <= fraction && fraction <= 1.0f )
@@ -2943,7 +2949,8 @@ static float MoverCastCallback( const b3ShapeCastInput* input, int proxyId, uint
 	}
 
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	// World shape cast operates in float world space (documented carve-out far from the origin)
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Position_zero );
 
 	b3CastOutput output = b3ShapeCastShape( shape, transform, input );
 	if ( output.fraction == 0.0f )
@@ -3056,7 +3063,8 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
 	B3_ASSERT( body->type == b3_dynamicBody );
 
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	// Explosion is a documented float carve-out far from the origin
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Position_zero );
 
 	b3DistanceInput input;
 	input.proxyA = b3MakeShapeProxy( shape );
@@ -3115,7 +3123,8 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, localIndex );
 	state->linearVelocity = b3MulAdd( state->linearVelocity, bodySim->invMass, impulse );
 	state->angularVelocity = b3Add(
-		state->angularVelocity, b3MulMV( bodySim->invInertiaWorld, b3Cross( b3Sub( closestPoint, bodySim->center ), impulse ) ) );
+		state->angularVelocity,
+		b3MulMV( bodySim->invInertiaWorld, b3Cross( b3PositionDelta( b3MakePosition( closestPoint ), bodySim->center ), impulse ) ) );
 
 	return true;
 }
@@ -3123,7 +3132,7 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 void b3World_Explode( b3WorldId worldId, const b3ExplosionDef* explosionDef )
 {
 	uint64_t maskBits = explosionDef->maskBits;
-	b3Vec3 position = explosionDef->position;
+	b3Vec3 position = b3ToVec3( explosionDef->position );
 	float radius = explosionDef->radius;
 	float falloff = explosionDef->falloff;
 	float impulsePerArea = explosionDef->impulsePerArea;

@@ -67,6 +67,30 @@ typedef struct b3Transform
 	b3Quat q;
 } b3Transform;
 
+#if defined( BOX3D_DOUBLE_PRECISION )
+
+/// A world position. Double precision in large world mode so coordinates stay accurate far
+/// from the origin.
+typedef struct b3Position
+{
+	double x, y, z;
+} b3Position;
+
+/// A world transform with double precision translation and float quaternion rotation. Rotation
+/// is frame local and never needs the extra range, the same split as Jolt's DMat44.
+typedef struct b3WorldTransform
+{
+	b3Position p;
+	b3Quat q;
+} b3WorldTransform;
+
+#else
+
+typedef b3Vec3 b3Position;
+typedef b3Transform b3WorldTransform;
+
+#endif
+
 /// A 3x3 matrix.
 typedef struct b3Matrix3
 {
@@ -105,6 +129,10 @@ static const b3Matrix3 b3Mat3_identity = {
 	{ 0.0f, 1.0f, 0.0f },
 	{ 0.0f, 0.0f, 1.0f },
 };
+
+// Valid in both modes: 0.0f promotes to double, the identity rotation stays float
+static const b3Position b3Position_zero = { 0.0f, 0.0f, 0.0f };
+static const b3WorldTransform b3WorldTransform_identity = { { 0.0f, 0.0f, 0.0f }, { { 0.0f, 0.0f, 0.0f }, 1.0f } };
 
 /// @return the minimum of two integers.
 B3_INLINE int b3MinInt( int a, int b )
@@ -591,6 +619,136 @@ B3_INLINE b3Vec3 b3InvTransformPoint( b3Transform t, b3Vec3 v )
 	return b3InvRotateVector( t.q, b3Sub( v, t.p ) );
 }
 
+// World position boundary. These cross between the double precision world space at the public
+// boundary and the float interior. One set of bodies serves both modes: the typedefs collapse
+// the types in float mode and the explicit float casts become no-ops.
+
+/// Convert a vector to a world position.
+B3_INLINE b3Position b3MakePosition( b3Vec3 v )
+{
+	return B3_LITERAL( b3Position ){ v.x, v.y, v.z };
+}
+
+/// Lossy conversion of a world position to a float vector.
+B3_INLINE b3Vec3 b3ToVec3( b3Position p )
+{
+	return B3_LITERAL( b3Vec3 ){ (float)p.x, (float)p.y, (float)p.z };
+}
+
+/// Narrow a world coordinate to float, rounding toward negative infinity. Use with
+/// b3RoundUpFloat to build a conservative float box that always contains the double bounds,
+/// where plain rounding far from the origin could clip. nextafterf is an exact IEEE operation,
+/// so this is cross-platform deterministic. With large world mode off this is a plain conversion.
+B3_INLINE float b3RoundDownFloat( double x )
+{
+#if defined( BOX3D_DOUBLE_PRECISION )
+	float f = (float)x;
+	return (double)f > x ? nextafterf( f, -FLT_MAX ) : f;
+#else
+	return (float)x;
+#endif
+}
+
+/// Narrow a world coordinate to float, rounding toward positive infinity.
+B3_INLINE float b3RoundUpFloat( double x )
+{
+#if defined( BOX3D_DOUBLE_PRECISION )
+	float f = (float)x;
+	return (double)f < x ? nextafterf( f, FLT_MAX ) : f;
+#else
+	return (float)x;
+#endif
+}
+
+/// a - b, demoted to float. The primary precision boundary operation.
+B3_INLINE b3Vec3 b3PositionDelta( b3Position a, b3Position b )
+{
+	return B3_LITERAL( b3Vec3 ){ (float)( a.x - b.x ), (float)( a.y - b.y ), (float)( a.z - b.z ) };
+}
+
+/// p + d
+B3_INLINE b3Position b3OffsetPosition( b3Position p, b3Vec3 d )
+{
+	return B3_LITERAL( b3Position ){ p.x + d.x, p.y + d.y, p.z + d.z };
+}
+
+/// World position interpolation for sweeps and sampling.
+B3_INLINE b3Position b3LerpPosition( b3Position a, b3Position b, float t )
+{
+	return B3_LITERAL( b3Position ){
+		( 1.0f - t ) * a.x + t * b.x,
+		( 1.0f - t ) * a.y + t * b.y,
+		( 1.0f - t ) * a.z + t * b.z,
+	};
+}
+
+/// Transform a local point to a world position. Rotation in float, translation in double.
+B3_INLINE b3Position b3TransformWorldPoint( b3WorldTransform t, b3Vec3 p )
+{
+	b3Vec3 r = b3RotateVector( t.q, p );
+	return B3_LITERAL( b3Position ){ t.p.x + r.x, t.p.y + r.y, t.p.z + r.z };
+}
+
+/// Transform a world position to a local point. One double subtraction, then float.
+B3_INLINE b3Vec3 b3InvTransformWorldPoint( b3WorldTransform t, b3Position p )
+{
+	b3Vec3 d = { (float)( p.x - t.p.x ), (float)( p.y - t.p.y ), (float)( p.z - t.p.z ) };
+	return b3InvRotateVector( t.q, d );
+}
+
+/// Relative transform of frame B in frame A. The narrow phase boundary.
+B3_INLINE b3Transform b3InvMulWorldTransforms( b3WorldTransform A, b3WorldTransform B )
+{
+	b3Transform C;
+	C.q = b3InvMulQuat( A.q, B.q );
+	b3Vec3 d = { (float)( B.p.x - A.p.x ), (float)( B.p.y - A.p.y ), (float)( B.p.z - A.p.z ) };
+	C.p = b3InvRotateVector( A.q, d );
+	return C;
+}
+
+/// Compose a world transform with a local transform.
+B3_INLINE b3WorldTransform b3MulWorldTransforms( b3WorldTransform A, b3Transform B )
+{
+	b3WorldTransform C;
+	C.q = b3MulQuat( A.q, B.q );
+	b3Vec3 r = b3RotateVector( A.q, B.p );
+	C.p = B3_LITERAL( b3Position ){ A.p.x + r.x, A.p.y + r.y, A.p.z + r.z };
+	return C;
+}
+
+/// Shift a world transform into the frame of a base position.
+B3_INLINE b3Transform b3ToRelativeTransform( b3WorldTransform t, b3Position base )
+{
+	b3Transform r;
+	r.q = t.q;
+	r.p = B3_LITERAL( b3Vec3 ){ (float)( t.p.x - base.x ), (float)( t.p.y - base.y ), (float)( t.p.z - base.z ) };
+	return r;
+}
+
+/// Promote a float transform to a world transform. Lossless.
+B3_INLINE b3WorldTransform b3MakeWorldTransform( b3Transform t )
+{
+	b3WorldTransform w;
+	w.p = b3MakePosition( t.p );
+	w.q = t.q;
+	return w;
+}
+
+/// Translate a local AABB by a world origin, rounding outward so the float box always contains
+/// the double box. Far from the origin a plain conversion could clip a shape out of its own box.
+/// In float mode the origin is float and the rounding is a no-op.
+B3_INLINE b3AABB b3OffsetAABB( b3AABB localBox, b3Position origin )
+{
+	b3AABB out;
+	out.lowerBound.x = b3RoundDownFloat( origin.x + localBox.lowerBound.x );
+	out.lowerBound.y = b3RoundDownFloat( origin.y + localBox.lowerBound.y );
+	out.lowerBound.z = b3RoundDownFloat( origin.z + localBox.lowerBound.z );
+	out.upperBound.x = b3RoundUpFloat( origin.x + localBox.upperBound.x );
+	out.upperBound.y = b3RoundUpFloat( origin.y + localBox.upperBound.y );
+	out.upperBound.z = b3RoundUpFloat( origin.z + localBox.upperBound.z );
+	return out;
+}
+
 /// Compute the determinant of a 3-by-3 matrix.
 B3_INLINE float b3Det( b3Matrix3 m )
 {
@@ -896,6 +1054,12 @@ B3_API bool b3IsSaneAABB( b3AABB a );
 /// Is this a valid plane? Normal is a unit vector. Not Nan or infinity.
 B3_API bool b3IsValidPlane( b3Plane a );
 
+/// Is this a valid world position? Not NaN or infinity.
+B3_API bool b3IsValidPosition( b3Position p );
+
+/// Is this a valid world transform? Not NaN or infinity. Rotation is normalized.
+B3_API bool b3IsValidWorldTransform( b3WorldTransform t );
+
 /**@}*/ // math
 
 /**
@@ -970,6 +1134,22 @@ B3_FORCE_INLINE b3Vec3 operator-( b3Vec3 a, b3Vec3 b )
 {
 	return { a.x - b.x, a.y - b.y, a.z - b.z };
 }
+
+#if defined( BOX3D_DOUBLE_PRECISION )
+
+/// Offset a world position by a vector.
+B3_FORCE_INLINE b3Position operator+( b3Position a, b3Vec3 b )
+{
+	return { a.x + b.x, a.y + b.y, a.z + b.z };
+}
+
+/// Delta between two world positions, demoted to float.
+B3_FORCE_INLINE b3Vec3 operator-( b3Position a, b3Position b )
+{
+	return { (float)( a.x - b.x ), (float)( a.y - b.y ), (float)( a.z - b.z ) };
+}
+
+#endif
 
 #endif
 

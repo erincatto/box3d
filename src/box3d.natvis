@@ -14,6 +14,15 @@
 		<DisplayString>[ {v}, {s} ]</DisplayString>
 	</Type>
 
+	<!-- Distinct types only in BOX3D_DOUBLE_PRECISION builds; otherwise they alias b3Vec3 / b3Transform -->
+	<Type Name="b3Position">
+		<DisplayString>[ {x}, {y}, {z} ]</DisplayString>
+	</Type>
+
+	<Type Name="b3WorldTransform">
+		<DisplayString>[ {p}, {q} ]</DisplayString>
+	</Type>
+
 	<Type Name="b3WorldId">
 		<DisplayString>index: {index1}</DisplayString>
 		<Expand>

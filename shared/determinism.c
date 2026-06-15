@@ -98,8 +98,8 @@ bool UpdateFallingRagdolls( b3WorldId worldId, FallingRagdollData* data )
 						for ( int b = 0; b < bone_count; ++b )
 						{
 							b3BodyId bodyId = human->bones[b].bodyId;
-							b3Transform xf = b3Body_GetTransform( bodyId );
-							data->hash = b3Hash( data->hash, (uint8_t*)( &xf ), sizeof( b3Transform ) );
+							b3WorldTransform xf = b3Body_GetTransform( bodyId );
+							data->hash = b3Hash( data->hash, (uint8_t*)( &xf ), sizeof( b3WorldTransform ) );
 						}
 					}
 				}

@@ -131,6 +131,26 @@ bool b3IsValidPlane( b3Plane a )
 	return b3IsValidFloat( a.offset );
 }
 
+bool b3IsValidPosition( b3Position p )
+{
+	if ( isnan( p.x ) || isnan( p.y ) || isnan( p.z ) )
+	{
+		return false;
+	}
+
+	if ( isinf( p.x ) || isinf( p.y ) || isinf( p.z ) )
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool b3IsValidWorldTransform( b3WorldTransform t )
+{
+	return b3IsValidPosition( t.p ) && b3IsValidQuat( t.q );
+}
+
 // https://stackoverflow.com/questions/46210708/atan2-approximation-with-11bits-in-mantissa-on-x86with-sse2-and-armwith-vfpv4
 float b3Atan2( float y, float x )
 {

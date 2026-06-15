@@ -323,7 +323,7 @@ float b3WheelJoint_GetSteeringTorque( b3JointId jointId )
 
 b3Vec3 b3GetWheelJointForce( b3World* world, b3JointSim* base )
 {
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
 	b3WheelJoint* joint = &base->wheelJoint;
 
 	// impulse in joint space
@@ -416,7 +416,7 @@ void b3PrepareWheelJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
 	// Compute the initial center delta. Incremental position updates are relative to this.
-	joint->deltaCenter = b3Sub( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
 
 	b3Vec3 rA = joint->frameA.p;
 	b3Vec3 rB = joint->frameB.p;

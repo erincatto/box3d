@@ -650,7 +650,7 @@ public:
 		{
 			PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
+			b3RayResult result = b3World_CastRayClosest( m_worldId, b3MakePosition( pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
 
 			if ( result.hit )
 			{
@@ -669,7 +669,7 @@ public:
 				continue;
 			}
 
-			b3Vec3 massCenter = b3Body_GetWorldCenterOfMass( bodyId );
+			b3Vec3 massCenter = b3ToVec3( b3Body_GetWorldCenterOfMass( bodyId ) );
 			if ( massCenter.y < -2.0f )
 			{
 				IndexPair pair = ConvertToPair( b3Body_GetUserData( bodyId ) );

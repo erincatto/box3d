@@ -14,9 +14,14 @@ B3_API void b3SetLengthUnitsPerMeter( float lengthUnits );
 /// Get the current length units per meter.
 B3_API float b3GetLengthUnitsPerMeter( void );
 
-// Used to detect bad values. Positions greater than about 16km will have precision
-// problems, so 100km as a limit should be fine in all cases.
+// Used to detect bad values. In float mode positions greater than about 16km have precision
+// problems, so 100km is a safe limit. Large world mode keeps coordinates accurate much farther
+// from the origin, so the sanity limit widens to keep valid far-field positions from tripping it.
+#if defined( BOX3D_DOUBLE_PRECISION )
+#define B3_HUGE ( 1.0e9f * b3GetLengthUnitsPerMeter() )
+#else
 #define B3_HUGE ( 100000.0f * b3GetLengthUnitsPerMeter() )
+#endif
 
 /// Maximum parallel workers. Used for some fixed size arrays.
 #define B3_MAX_WORKERS 32

@@ -57,7 +57,7 @@ typedef struct b3Shape
 
 } b3Shape;
 
-void b3CreateShapeProxy( b3Shape* shape, b3BroadPhase* bp, b3BodyType type, b3Transform transform, bool forcePairCreation );
+void b3CreateShapeProxy( b3Shape* shape, b3BroadPhase* bp, b3BodyType type, b3WorldTransform transform, bool forcePairCreation );
 void b3DestroyShapeProxy( b3Shape* shape, b3BroadPhase* bp );
 
 void b3DestroyShapeAllocations( b3World* world, b3Shape* shape );
@@ -69,6 +69,10 @@ b3AABB b3ComputeSweptSphereAABB( const b3Sphere* shape, b3Transform xf1, b3Trans
 b3AABB b3ComputeSweptCapsuleAABB( const b3Capsule* shape, b3Transform xf1, b3Transform xf2 );
 
 b3AABB b3ComputeShapeAABB( const b3Shape* shape, b3Transform transform );
+
+// Conservative world AABB for a shape inflated by extra margin. In double precision mode the
+// box is built in the body local frame, translated by the double origin, and rounded outward.
+b3AABB b3ComputeFatShapeAABB( const b3Shape* shape, b3WorldTransform transform, float extra );
 b3AABB b3ComputeSweptShapeAABB( const b3Shape* shape, const b3Sweep* sweep, float time );
 b3Vec3 b3GetShapeCentroid( const b3Shape* shape );
 float b3GetShapeArea( const b3Shape* shape );

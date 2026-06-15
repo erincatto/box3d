@@ -74,7 +74,7 @@ static int b3QueryHeightFieldTriangles( int* indices, int capacity, const b3Heig
 	return context.count;
 }
 
-static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3Transform xfA, const b3AABB* bounds )
+static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3WorldTransform xfA, const b3AABB* bounds )
 {
 	B3_ASSERT( shapeA->type == b3_meshShape || shapeA->type == b3_heightShape );
 
@@ -106,8 +106,10 @@ static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3Transfo
 
 	int triangleIndices[B3_MAX_MESH_CONTACT_TRIANGLES];
 
-	// Bounds are in world space. Convert to the local mesh frame.
-	b3AABB localBounds = b3AABB_Transform( b3InvertTransform( xfA ), meshContact->queryBounds );
+	// Bounds are in world space. Convert to the local mesh frame. The broadphase bounds are float,
+	// so the demoted mesh transform is the matching float world frame (exact in float mode).
+	b3Transform meshTransform = b3ToRelativeTransform( xfA, b3Position_zero );
+	b3AABB localBounds = b3AABB_Transform( b3InvertTransform( meshTransform ), meshContact->queryBounds );
 	int triangleCount;
 	if ( shapeA->type == b3_meshShape )
 	{
@@ -521,7 +523,7 @@ typedef struct b3Cluster
 } b3Cluster;
 
 bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact, const b3Shape* shapeA, const int* materialMap,
-							 b3Transform xfA, const b3Shape* shapeB, b3Transform xfB, bool isFast, b3Arena arena )
+							 b3WorldTransform xfA, const b3Shape* shapeB, b3WorldTransform xfB, bool isFast, b3Arena arena )
 {
 	B3_ASSERT( shapeA->type == b3_meshShape || shapeA->type == b3_heightShape );
 	B3_UNUSED( workerIndex );
@@ -549,7 +551,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	foundVertices.count = 0;
 
 	// This transform converts from mesh frame into the shapeB frame
-	b3Transform transformAtoB = b3InvMulTransforms( xfB, xfA );
+	b3Transform transformAtoB = b3InvMulWorldTransforms( xfB, xfA );
 	b3Matrix3 relativeMatrix = b3MakeMatrixFromQuat( transformAtoB.q );
 	float linearSlop = B3_LINEAR_SLOP;
 
@@ -1006,7 +1008,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	}
 
 	b3Matrix3 matrixB = b3MakeMatrixFromQuat( xfB.q );
-	b3Vec3 offsetA = b3Sub( xfB.p, xfA.p );
+	b3Vec3 offsetA = b3PositionDelta( xfB.p, xfA.p );
 
 	const float normalMatchTolerance = 0.995f;
 	for ( int i = 0; i < clusterCount; ++i )

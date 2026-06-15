@@ -86,8 +86,8 @@ float b3RevoluteJoint_GetAngle( b3JointId jointId )
 {
 	b3World* world = b3GetWorld( jointId.world0 );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
-	b3Transform transformB = b3GetBodyTransform( world, base->bodyIdB );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformB = b3GetBodyTransform( world, base->bodyIdB );
 
 	b3Quat quatA = b3MulQuat( transformA.q, base->localFrameA.q );
 	b3Quat quatB = b3MulQuat( transformB.q, base->localFrameB.q );
@@ -208,7 +208,7 @@ b3Vec3 b3GetRevoluteJointForce( b3World* world, b3JointSim* base )
 
 b3Vec3 b3GetRevoluteJointTorque( b3World* world, b3JointSim* base )
 {
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
 	b3RevoluteJoint* joint = &base->revoluteJoint;
 	b3Vec3 axis = b3RotateVector( base->localFrameA.q, b3Vec3_axisZ );
 	axis = b3RotateVector( transformA.q, axis );
@@ -274,7 +274,7 @@ void b3PrepareRevoluteJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.q = b3MulQuat( bodySimB->transform.q, base->localFrameB.q );
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
-	joint->deltaCenter = b3Sub( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
 
 	{
 		// Rotation axis is the z-axis of body A.

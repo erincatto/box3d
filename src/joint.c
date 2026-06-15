@@ -1045,8 +1045,8 @@ void b3GetJointReaction( b3World* world, b3JointSim* sim, float invTimeStep, flo
 			b3SphericalJoint* joint = &sim->sphericalJoint;
 			linearImpulse = b3Length( joint->linearImpulse );
 
-			b3Transform xfA = b3GetBodyTransform( world, sim->bodyIdA );
-			b3Transform xfB = b3GetBodyTransform( world, sim->bodyIdB );
+			b3WorldTransform xfA = b3GetBodyTransform( world, sim->bodyIdA );
+			b3WorldTransform xfB = b3GetBodyTransform( world, sim->bodyIdB );
 			b3Quat qA = b3MulQuat( xfA.q, sim->localFrameA.q );
 			b3Quat qB = b3MulQuat( xfB.q, sim->localFrameB.q );
 
@@ -1185,12 +1185,12 @@ float b3Joint_GetLinearSeparation( b3JointId jointId )
 	b3Joint* joint = b3GetJointFullId( world, jointId );
 	b3JointSim* base = b3GetJointSim( world, joint );
 
-	b3Transform xfA = b3GetBodyTransform( world, joint->edges[0].bodyId );
-	b3Transform xfB = b3GetBodyTransform( world, joint->edges[1].bodyId );
+	b3WorldTransform xfA = b3GetBodyTransform( world, joint->edges[0].bodyId );
+	b3WorldTransform xfB = b3GetBodyTransform( world, joint->edges[1].bodyId );
 
-	b3Vec3 pA = b3TransformPoint( xfA, base->localFrameA.p );
-	b3Vec3 pB = b3TransformPoint( xfB, base->localFrameB.p );
-	b3Vec3 dp = b3Sub( pB, pA );
+	b3Position pA = b3TransformWorldPoint( xfA, base->localFrameA.p );
+	b3Position pB = b3TransformWorldPoint( xfB, base->localFrameB.p );
+	b3Vec3 dp = b3PositionDelta( pB, pA );
 
 	switch ( joint->type )
 	{
@@ -1309,8 +1309,8 @@ float b3Joint_GetAngularSeparation( b3JointId jointId )
 	b3Joint* joint = b3GetJointFullId( world, jointId );
 	b3JointSim* base = b3GetJointSim( world, joint );
 
-	b3Transform xfA = b3GetBodyTransform( world, joint->edges[0].bodyId );
-	b3Transform xfB = b3GetBodyTransform( world, joint->edges[1].bodyId );
+	b3WorldTransform xfA = b3GetBodyTransform( world, joint->edges[0].bodyId );
+	b3WorldTransform xfB = b3GetBodyTransform( world, joint->edges[1].bodyId );
 
 	b3Quat relQ = b3InvMulQuat( xfA.q, xfB.q );
 
@@ -1638,58 +1638,65 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 
 	b3JointSim* jointSim = b3GetJointSim( world, joint );
 
-	b3Transform transformA = b3GetBodyTransformQuick( world, bodyA );
-	b3Transform transformB = b3GetBodyTransformQuick( world, bodyB );
-	b3Vec3 pA = b3TransformPoint( transformA, jointSim->localFrameA.p );
-	b3Vec3 pB = b3TransformPoint( transformB, jointSim->localFrameB.p );
+	b3WorldTransform transformA = b3GetBodyTransformQuick( world, bodyA );
+	b3WorldTransform transformB = b3GetBodyTransformQuick( world, bodyB );
+	b3Position pA = b3TransformWorldPoint( transformA, jointSim->localFrameA.p );
+	b3Position pB = b3TransformWorldPoint( transformB, jointSim->localFrameB.p );
 
 	b3HexColor color = b3_colorDarkSeaGreen;
 
 	float scale = b3MaxFloat( 0.0001f, draw->jointScale * joint->drawScale );
 
+	// Debug draw demotes world coordinates to float. Far from the origin these lose precision
+	// until the sample host applies a draw origin.
+	b3Transform drawTransformA = b3ToRelativeTransform( transformA, draw->drawOrigin );
+	b3Transform drawTransformB = b3ToRelativeTransform( transformB, draw->drawOrigin );
+	b3Vec3 drawPA = b3PositionDelta( pA, draw->drawOrigin );
+	b3Vec3 drawPB = b3PositionDelta( pB, draw->drawOrigin );
+
 	switch ( joint->type )
 	{
 		case b3_parallelJoint:
-			b3DrawParallelJoint( draw, jointSim, transformA, transformB, scale );
+			b3DrawParallelJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
 			break;
 
 		case b3_distanceJoint:
-			b3DrawDistanceJoint( draw, jointSim, transformA, transformB );
+			b3DrawDistanceJoint( draw, jointSim, drawTransformA, drawTransformB );
 			break;
 
 		case b3_filterJoint:
-			draw->DrawSegmentFcn( pA, pB, b3_colorGold, draw->context );
+			draw->DrawSegmentFcn( drawPA, drawPB, b3_colorGold, draw->context );
 			break;
 
 		case b3_motorJoint:
-			draw->DrawPointFcn( pA, 8.0f, b3_colorYellowGreen, draw->context );
-			draw->DrawPointFcn( pB, 8.0f, b3_colorPlum, draw->context );
+			draw->DrawPointFcn( drawPA, 8.0f, b3_colorYellowGreen, draw->context );
+			draw->DrawPointFcn( drawPB, 8.0f, b3_colorPlum, draw->context );
 			break;
 
 		case b3_prismaticJoint:
-			b3DrawPrismaticJoint( draw, jointSim, transformA, transformB, scale );
+			b3DrawPrismaticJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
 			break;
 
 		case b3_revoluteJoint:
-			b3DrawRevoluteJoint( draw, jointSim, transformA, transformB, scale );
+			b3DrawRevoluteJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
 			break;
 
 		case b3_sphericalJoint:
-			b3DrawSphericalJoint( draw, jointSim, transformA, transformB, scale );
+			b3DrawSphericalJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
 			break;
 
 		case b3_weldJoint:
-			b3DrawWeldJoint( draw, jointSim, transformA, transformB, scale );
+			b3DrawWeldJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
 			break;
 
 		case b3_wheelJoint:
-			b3DrawWheelJoint( draw, jointSim, transformA, transformB, scale );
+			b3DrawWheelJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
 			break;
 
 		default:
-			draw->DrawSegmentFcn( transformA.p, pA, color, draw->context );
-			draw->DrawSegmentFcn( pA, pB, color, draw->context );
-			draw->DrawSegmentFcn( transformB.p, pB, color, draw->context );
+			draw->DrawSegmentFcn( drawTransformA.p, drawPA, color, draw->context );
+			draw->DrawSegmentFcn( drawPA, drawPB, color, draw->context );
+			draw->DrawSegmentFcn( drawTransformB.p, drawPB, color, draw->context );
 			break;
 	}
 
@@ -1705,7 +1712,7 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 		int colorIndex = joint->colorIndex;
 		if ( colorIndex != B3_NULL_INDEX )
 		{
-			b3Vec3 p = b3Lerp( pA, pB, 0.5f );
+			b3Vec3 p = b3Lerp( drawPA, drawPB, 0.5f );
 			draw->DrawPointFcn( p, 5.0f, graphColors[colorIndex], draw->context );
 		}
 	}
@@ -1714,7 +1721,7 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 	{
 		b3Vec3 force = b3GetJointConstraintForce( world, joint );
 		b3Vec3 torque = b3GetJointConstraintTorque( world, joint );
-		b3Vec3 p = b3Lerp( pA, pB, 0.5f );
+		b3Vec3 p = b3Lerp( drawPA, drawPB, 0.5f );
 
 		draw->DrawSegmentFcn( p, b3MulAdd( p, 0.001f, force ), b3_colorAzure, draw->context );
 

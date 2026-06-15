@@ -20,7 +20,7 @@ OverflowColorPileData CreateOverflowColorPile( b3WorldId worldId )
 	// Static ground (top surface at y = 0)
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = (b3Vec3){ 0.0f, -1.0f, 0.0f };
+		bodyDef.position = b3MakePosition( (b3Vec3){ 0.0f, -1.0f, 0.0f } );
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
 		b3BoxHull box = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
@@ -37,7 +37,7 @@ OverflowColorPileData CreateOverflowColorPile( b3WorldId worldId )
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = (b3Vec3){ 0.0f, hubHalfY, 0.0f };
+		bodyDef.position = b3MakePosition( (b3Vec3){ 0.0f, hubHalfY, 0.0f } );
 		data.hubId = b3CreateBody( worldId, &bodyDef );
 
 		b3BoxHull box = b3MakeBoxHull( hubHalfX, hubHalfY, hubHalfZ );
@@ -71,7 +71,7 @@ OverflowColorPileData CreateOverflowColorPile( b3WorldId worldId )
 
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = (b3Vec3){ ringRadius * cosf( theta ), y, ringRadius * sinf( theta ) };
+			bodyDef.position = b3MakePosition( (b3Vec3){ ringRadius * cosf( theta ), y, ringRadius * sinf( theta ) } );
 			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
 			b3CreateHullShape( bodyId, &neighborShape, &neighborBox.base );

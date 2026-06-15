@@ -66,7 +66,7 @@ void CreateJointGrid( b3WorldId worldId )
 				bodyDef.type = b3_dynamicBody;
 			}
 
-			bodyDef.position = (b3Vec3){ fk, -fi, 0.0f };
+			bodyDef.position = b3MakePosition( (b3Vec3){ fk, -fi, 0.0f } );
 
 			b3BodyId body = b3CreateBody( worldId, &bodyDef );
 
@@ -106,7 +106,7 @@ void CreateLargePyramid( b3WorldId worldId )
 
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = (b3Vec3){ 0.0f, -1.0f, 0.0f };
+		bodyDef.position = b3MakePosition( (b3Vec3){ 0.0f, -1.0f, 0.0f } );
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
 		b3BoxHull box = b3MakeBoxHull( 100.0f, 1.0f, 100.0f );
@@ -133,7 +133,7 @@ void CreateLargePyramid( b3WorldId worldId )
 		{
 			float x = ( i + 1.0f ) * shift + 2.0f * ( j - i ) * shift - h * baseCount;
 
-			bodyDef.position = (b3Vec3){ x, y, 0.0f };
+			bodyDef.position = b3MakePosition( (b3Vec3){ x, y, 0.0f } );
 
 			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
@@ -145,7 +145,7 @@ void CreateWidePyramid( b3WorldId worldId )
 {
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = (b3Vec3){ 0.0f, -1.0f, 0.0f };
+		bodyDef.position = b3MakePosition( (b3Vec3){ 0.0f, -1.0f, 0.0f } );
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
 		b3BoxHull box = b3MakeBoxHull( 100.0f, 1.0f, 100.0f );
@@ -174,7 +174,7 @@ void CreateWidePyramid( b3WorldId worldId )
 				float x = -pyramidHeight + boxSize * j + ( i & 1 ? halfBoxSize : 0.0f );
 				float y = 1.0f + ( boxSize + boxSeparation ) * i;
 				float z = -pyramidHeight + boxSize * k + ( i & 1 ? halfBoxSize : 0.0f );
-				bodyDef.position = (b3Vec3){ x, y, z };
+				bodyDef.position = b3MakePosition( (b3Vec3){ x, y, z } );
 
 				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 				b3CreateHullShape( bodyId, &shapeDef, &box.base );
@@ -201,7 +201,7 @@ static void CreateSmallPyramid( b3WorldId worldId, int baseCount, float extent, 
 		for ( int j = i; j < baseCount; ++j )
 		{
 			float x = ( i + 1.0f ) * extent + 2.0f * ( j - i ) * extent + centerX - 0.5f;
-			bodyDef.position = (b3Vec3){ x, y, baseZ };
+			bodyDef.position = b3MakePosition( (b3Vec3){ x, y, baseZ } );
 
 			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
@@ -219,7 +219,7 @@ void CreateManyPyramids( b3WorldId worldId )
 
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = (b3Vec3){ 0.0f, -1.0f, 0.0f };
+		bodyDef.position = b3MakePosition( (b3Vec3){ 0.0f, -1.0f, 0.0f } );
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -468,7 +468,7 @@ void CreateLargeWorld( b3WorldId worldId )
 		for ( int j = 0; j < gridCount; ++j )
 		{
 			float z = -halfSpan + ( j + 0.5f ) * cell;
-			bodyDef.position = (b3Vec3){ x, 0.0f, z };
+			bodyDef.position = b3MakePosition( (b3Vec3){ x, 0.0f, z } );
 			b3BodyId body = b3CreateBody( worldId, &bodyDef );
 			b3CreateHullShape( body, &shapeDef, &box.base );
 		}
@@ -512,7 +512,7 @@ void StepLargeWorld( b3WorldId worldId, int stepCount )
 
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
-	bodyDef.position = (b3Vec3){ x, 1.5f, z };
+	bodyDef.position = b3MakePosition( (b3Vec3){ x, 1.5f, z } );
 
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
@@ -551,7 +551,7 @@ void CreateWasher( b3WorldId worldId )
 		float motorSpeed = 25.0f;
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.position = (b3Vec3){ 0.0f, 21.0f, 0.0f };
+		bodyDef.position = b3MakePosition( (b3Vec3){ 0.0f, 21.0f, 0.0f } );
 
 		if ( kinematic == true )
 		{
@@ -659,7 +659,7 @@ void CreateWasher( b3WorldId worldId )
 			float z = -2.0f * a * gridCount;
 			for ( int k = 0; k < gridCount; ++k )
 			{
-				bodyDef.position = (b3Vec3){ x, y, z };
+				bodyDef.position = b3MakePosition( (b3Vec3){ x, y, z } );
 				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
 				b3CreateHullShape( bodyId, &shapeDef, &cube.base );
@@ -685,7 +685,7 @@ static void CreateTrees( b3WorldId worldId, int scale )
 	// float tilt = 0.15f * B3_PI;
 	float tilt = 0.0f * B3_PI;
 	b3BodyDef bodyDef = b3DefaultBodyDef();
-	bodyDef.position = (b3Vec3){ 0.0f, 0.0f, 0.0f };
+	bodyDef.position = b3MakePosition( (b3Vec3){ 0.0f, 0.0f, 0.0f } );
 	bodyDef.rotation = b3MakeQuatFromAxisAngle( (b3Vec3){ 1.0f, 0.0f, 0.0 }, tilt );
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
@@ -732,7 +732,7 @@ static void CreateTrees( b3WorldId worldId, int scale )
 	float yTilt = cs.sine / cs.cosine;
 	for ( int bodyIndex = 0; bodyIndex < bodyCount; ++bodyIndex )
 	{
-		bodyDef.position = (b3Vec3){ 0.0, 1.0f - z * yTilt, z };
+		bodyDef.position = b3MakePosition( (b3Vec3){ 0.0, 1.0f - z * yTilt, z } );
 		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
 		for ( int shapeIndex = 0; shapeIndex < 22; ++shapeIndex )
@@ -749,9 +749,9 @@ static void CreateTrees( b3WorldId worldId, int scale )
 
 		float velocityScale = 0.5f + ( 0.5f * bodyIndex ) / bodyCount;
 		b3Body_ApplyMassFromShapes( bodyId );
-		b3Vec3 center = b3Body_GetWorldCenterOfMass( bodyId );
+		b3Position center = b3Body_GetWorldCenterOfMass( bodyId );
 		b3Vec3 omega = { 0.0f, 0.0f, velocityScale * angularVelocity };
-		b3Vec3 v = b3Cross( omega, b3Sub( center, bodyDef.position ) );
+		b3Vec3 v = b3Cross( omega, b3PositionDelta( center, bodyDef.position ) );
 		b3Body_SetAngularVelocity( bodyId, omega );
 		b3Body_SetLinearVelocity( bodyId, v );
 
@@ -883,7 +883,7 @@ void CreateJunkyard( b3WorldId worldId )
 	b3HullData* hull = b3CreateCylinder( mHeight, 4.0f, 0.0f, 16 );
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_kinematicBody;
-	bodyDef.position = (b3Vec3){ g_junkyardData.radius, 0.0f, 0.0f };
+	bodyDef.position = b3MakePosition( (b3Vec3){ g_junkyardData.radius, 0.0f, 0.0f } );
 	g_junkyardData.pusherId = b3CreateBody( worldId, &bodyDef );
 	g_junkyardData.degrees = 0.0f;
 	b3ShapeDef shapeDef = b3DefaultShapeDef();

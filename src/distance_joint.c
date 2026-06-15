@@ -80,12 +80,12 @@ float b3DistanceJoint_GetCurrentLength( b3JointId jointId )
 		return 0.0f;
 	}
 
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
-	b3Transform transformB = b3GetBodyTransform( world, base->bodyIdB );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformB = b3GetBodyTransform( world, base->bodyIdB );
 
-	b3Vec3 pA = b3TransformPoint( transformA, base->localFrameA.p );
-	b3Vec3 pB = b3TransformPoint( transformB, base->localFrameB.p );
-	b3Vec3 d = b3Sub( pB, pA );
+	b3Position pA = b3TransformWorldPoint( transformA, base->localFrameA.p );
+	b3Position pB = b3TransformWorldPoint( transformB, base->localFrameB.p );
+	b3Vec3 d = b3PositionDelta( pB, pA );
 	float length = b3Length( d );
 	return length;
 }
@@ -195,12 +195,12 @@ b3Vec3 b3GetDistanceJointForce( b3World* world, b3JointSim* base )
 {
 	b3DistanceJoint* joint = &base->distanceJoint;
 
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
-	b3Transform transformB = b3GetBodyTransform( world, base->bodyIdB );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformB = b3GetBodyTransform( world, base->bodyIdB );
 
-	b3Vec3 pA = b3TransformPoint( transformA, base->localFrameA.p );
-	b3Vec3 pB = b3TransformPoint( transformB, base->localFrameB.p );
-	b3Vec3 d = b3Sub( pB, pA );
+	b3Position pA = b3TransformWorldPoint( transformA, base->localFrameA.p );
+	b3Position pB = b3TransformWorldPoint( transformB, base->localFrameB.p );
+	b3Vec3 d = b3PositionDelta( pB, pA );
 	b3Vec3 axis = b3Normalize( d );
 	float force = ( joint->impulse + joint->lowerImpulse - joint->upperImpulse + joint->motorImpulse ) * world->inv_h;
 	return b3MulSV( force, axis );
@@ -262,7 +262,7 @@ void b3PrepareDistanceJoint( b3JointSim* base, b3StepContext* context )
 	// initial anchors in world space
 	joint->anchorA = b3RotateVector( bodySimA->transform.q, b3Sub( base->localFrameA.p, bodySimA->localCenter ) );
 	joint->anchorB = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
-	joint->deltaCenter = b3Sub( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
 
 	b3Vec3 rA = joint->anchorA;
 	b3Vec3 rB = joint->anchorB;

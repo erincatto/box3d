@@ -12,6 +12,7 @@ set(BOX3D_TEST_FILES
     test_height_field.c
     test_hull.c
     test_id.c
+    test_large_world.c
     test_macros.h
     test_math.c
 	test_mover.c

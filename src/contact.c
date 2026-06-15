@@ -471,8 +471,8 @@ void b3DestroyContact( b3World* world, b3Contact* contact, bool wakeBodies )
 	}
 }
 
-static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact* contact, const b3Shape* shapeA, b3Transform xfA,
-									 const b3Shape* shapeB, b3Transform xfB, b3Arena arena )
+static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact* contact, const b3Shape* shapeA,
+									 b3WorldTransform xfA, const b3Shape* shapeB, b3WorldTransform xfB, b3Arena arena )
 {
 	b3ShapeType typeA = shapeA->type;
 	b3ShapeType typeB = shapeB->type;
@@ -485,7 +485,7 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 	b3LocalManifold geomManifold = { 0 };
 	geomManifold.points = pointBuffer;
 
-	b3Transform transformBtoA = b3InvMulTransforms( xfA, xfB );
+	b3Transform transformBtoA = b3InvMulWorldTransforms( xfA, xfB );
 
 	if ( typeA == b3_sphereShape )
 	{
@@ -567,7 +567,7 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 
 		// Contact points are computed in frame A
 		target->anchorA = b3MulMV( matrixA, source->point );
-		target->anchorB = b3Add( target->anchorA, b3Sub( xfA.p, xfB.p ) );
+		target->anchorB = b3Add( target->anchorA, b3PositionDelta( xfA.p, xfB.p ) );
 		target->separation = source->separation;
 		target->featureId = b3MakeFeatureId( source->pair );
 		target->triangleIndex = B3_NULL_INDEX;
@@ -606,8 +606,8 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 	return true;
 }
 
-static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* contact, b3Shape* shapeA, b3Transform xfA,
-								   b3Shape* shapeB, b3Transform xfB, bool flip, b3Arena arena )
+static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* contact, b3Shape* shapeA, b3WorldTransform xfA,
+								   b3Shape* shapeB, b3WorldTransform xfB, bool flip, b3Arena arena )
 {
 	// Compute new manifold
 	bool touching = b3ComputeConvexManifold( world, workerIndex, contact, shapeA, xfA, shapeB, xfB, arena );
@@ -693,7 +693,7 @@ static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* c
 		b3ShapeId shapeIdB = { shapeB->id + 1, world->worldId, shapeB->generation };
 
 		// this call assumes thread safety
-		b3Vec3 point = b3Add( contact->manifolds[0].points[0].anchorA, xfA.p );
+		b3Position point = b3OffsetPosition( xfA.p, contact->manifolds[0].points[0].anchorA );
 		b3Vec3 normal = contact->manifolds[0].normal;
 		touching = world->preSolveFcn( shapeIdA, shapeIdB, point, normal, world->preSolveContext );
 		if ( touching == false )
@@ -720,8 +720,8 @@ static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* c
 
 // Update the contact manifold and touching status.
 // Note: do not assume the shape AABBs are overlapping or are valid.
-bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Shape* shapeA, b3Vec3 localCenterA, b3Transform xfA,
-					  b3Shape* shapeB, b3Vec3 localCenterB, b3Transform xfB, bool isFast, b3Arena arena )
+bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Shape* shapeA, b3Vec3 localCenterA, b3WorldTransform xfA,
+					  b3Shape* shapeB, b3Vec3 localCenterB, b3WorldTransform xfB, bool isFast, b3Arena arena )
 {
 	bool touching;
 
@@ -756,14 +756,14 @@ bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Sha
 		else if ( child.type == b3_hullShape )
 		{
 			childShapeA.hull = child.hull;
-			b3Transform xfChild = b3MulTransforms( xfA, child.transform );
+			b3WorldTransform xfChild = b3MulWorldTransforms( xfA, child.transform );
 			bool flip = false;
 			touching = b3UpdateConvexContact( world, workerIndex, contact, &childShapeA, xfChild, shapeB, xfB, flip, arena );
 		}
 		else if ( child.type == b3_meshShape )
 		{
 			childShapeA.mesh = child.mesh;
-			b3Transform xfChild = b3MulTransforms( xfA, child.transform );
+			b3WorldTransform xfChild = b3MulWorldTransforms( xfA, child.transform );
 
 			touching = b3ComputeMeshManifolds( world, workerIndex, contact, &childShapeA, child.materialIndices, xfChild, shapeB,
 											   xfB, isFast, arena );

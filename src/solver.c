@@ -319,6 +319,8 @@ typedef struct b3ContinuousContext
 	b3Shape* fastShape;
 	b3Vec3 centroid1, centroid2;
 	b3Sweep sweep;
+	// World base for re-centering sweeps. Keeps TOI in float precision far from the origin.
+	b3Position base;
 	float fraction;
 	b3SensorHit sensorHits[B2_MAX_CONTINUOUS_SENSOR_HITS];
 	float sensorFractions[B2_MAX_CONTINUOUS_SENSOR_HITS];
@@ -406,7 +408,7 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 	}
 
 	// todo does having a sweep on shapeA help with bullets?
-	b3Sweep sweepA = b3MakeSweep( bodySim );
+	b3Sweep sweepA = b3MakeRelativeSweep( bodySim, continuousContext->base );
 
 	// Time of impact versus shape. Supports all shape types
 	b3TOIOutput output = b3ShapeTimeOfImpact( shape, fastShape, &sweepA, &continuousContext->sweep, continuousContext->fraction );
@@ -436,7 +438,8 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 		{
 			b3ShapeId shapeIdA = { shape->id + 1, world->worldId, shape->generation };
 			b3ShapeId shapeIdB = { fastShape->id + 1, world->worldId, fastShape->generation };
-			didHit = world->preSolveFcn( shapeIdA, shapeIdB, output.point, output.normal, world->preSolveContext );
+			b3Position point = b3OffsetPosition( continuousContext->base, output.point );
+			didHit = world->preSolveFcn( shapeIdA, shapeIdB, point, output.normal, world->preSolveContext );
 		}
 
 		if ( didHit )
@@ -462,7 +465,15 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	b3BodySim* fastBodySim = b3Array_Get( awakeSet->bodySims, bodySimIndex );
 	B3_ASSERT( fastBodySim->flags & b3_isFast );
 
-	b3Sweep sweep = b3MakeSweep( fastBodySim );
+	// Re-center the sweeps to a base position so TOI stays in float precision far from the origin.
+	// In float mode the base is zero and everything below is identical to an absolute world sweep.
+#if defined( BOX3D_DOUBLE_PRECISION )
+	b3Position base = fastBodySim->center0;
+#else
+	b3Position base = b3Position_zero;
+#endif
+
+	b3Sweep sweep = b3MakeRelativeSweep( fastBodySim, base );
 
 	b3Transform xf1;
 	xf1.q = sweep.q1;
@@ -480,6 +491,7 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	b3ContinuousContext context = { 0 };
 	context.world = world;
 	context.sweep = sweep;
+	context.base = base;
 	context.fastBodySim = fastBodySim;
 	context.fraction = 1.0f;
 
@@ -496,7 +508,8 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 		context.centroid2 = b3TransformPoint( xf2, fastShape->localCentroid );
 
 		b3AABB box1 = fastShape->aabb;
-		b3AABB box2 = b3ComputeShapeAABB( fastShape, xf2 );
+		// xf2 is relative to the base, so translate the box back to world space, rounding outward
+		b3AABB box2 = b3OffsetAABB( b3ComputeShapeAABB( fastShape, xf2 ), base );
 
 		// Store this to avoid double computation in the case there is no impact event
 		fastShape->aabb = box2;
@@ -524,21 +537,22 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	}
 
 	const float speculativeScalar = B3_SPECULATIVE_DISTANCE;
-	const b3Vec3 speculativeMargin = { speculativeScalar, speculativeScalar, speculativeScalar };
 
 	if ( context.fraction < 1.0f )
 	{
-		// Handle time of impact event
+		// Handle time of impact event. The sweep is relative to the base, so re-add the base
+		// to return the advanced pose to world space.
 		b3Quat q = b3NLerp( sweep.q1, sweep.q2, context.fraction );
 		b3Vec3 c = b3Lerp( sweep.c1, sweep.c2, context.fraction );
 		b3Vec3 origin = b3Sub( c, b3RotateVector( q, sweep.localCenter ) );
 
 		// Advance body
-		b3Transform transform = { origin, q };
+		b3WorldTransform transform = { b3OffsetPosition( base, origin ), q };
+		b3Position center = b3OffsetPosition( base, c );
 		fastBodySim->transform = transform;
-		fastBodySim->center = c;
+		fastBodySim->center = center;
 		fastBodySim->rotation0 = q;
-		fastBodySim->center0 = c;
+		fastBodySim->center0 = center;
 
 		// Prepare AABBs for broad-phase.
 		// Even though a body is fast, it may not move much. So the AABB may not need enlargement.
@@ -549,16 +563,18 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 			b3Shape* shape = b3Array_Get( world->shapes, shapeId );
 
 			// Must recompute aabb at the interpolated transform
-			b3AABB aabb = b3ComputeShapeAABB( shape, transform );
-			aabb.lowerBound = b3Sub( aabb.lowerBound, speculativeMargin );
-			aabb.upperBound = b3Add( aabb.upperBound, speculativeMargin );
+			b3AABB aabb = b3ComputeFatShapeAABB( shape, transform, speculativeScalar );
 			shape->aabb = aabb;
 
 			if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 			{
 				float marginScalar = shape->aabbMargin;
+#if defined( BOX3D_DOUBLE_PRECISION )
+				shape->fatAABB = b3ComputeFatShapeAABB( shape, transform, speculativeScalar + marginScalar );
+#else
 				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 				shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
+#endif
 
 				shape->enlargedAABB = true;
 				fastBodySim->flags |= b3_enlargeBounds;
@@ -586,15 +602,19 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 			if ( b3AABB_Contains( shape->fatAABB, shape->aabb ) == false )
 			{
 				float marginScalar = shape->aabbMargin;
+#if defined( BOX3D_DOUBLE_PRECISION )
+				shape->fatAABB = b3ComputeFatShapeAABB( shape, fastBodySim->transform, marginScalar );
+#else
 				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 				shape->fatAABB = (b3AABB){
 					.lowerBound = b3Sub( shape->aabb.lowerBound, aabbMargin ),
 					.upperBound = b3Add( shape->aabb.upperBound, aabbMargin ),
 				};
+#endif
 
 				if ( b3IsSaneAABB( shape->fatAABB ) == false )
 				{
-					b3Vec3 c = fastBodySim->center;
+					b3Position c = fastBodySim->center;
 					b3Log( "body %s out of bounds at %g %g %g", fastBody->name, c.x, c.y, c.z );
 				}
 
@@ -650,7 +670,6 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 	b3BitSet* awakeIslandBitSet = &taskContext->awakeIslandBitSet;
 
 	const float speculativeScalar = B3_SPECULATIVE_DISTANCE;
-	const b3Vec3 speculativeMargin = { speculativeScalar, speculativeScalar, speculativeScalar };
 
 	for ( int simIndex = startIndex; simIndex < endIndex; ++simIndex )
 	{
@@ -670,7 +689,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		B3_ASSERT( b3IsValidVec3( v ) );
 		B3_ASSERT( b3IsValidVec3( w ) );
 
-		sim->center = b3Add( sim->center, state->deltaPosition );
+		sim->center = b3OffsetPosition( sim->center, state->deltaPosition );
 		sim->transform.q = b3NormalizeQuat( b3MulQuat( state->deltaRotation, sim->transform.q ) );
 
 		// Use the velocity of the farthest point on the body to account for rotation.
@@ -691,7 +710,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		state->deltaPosition = b3Vec3_zero;
 		state->deltaRotation = b3Quat_identity;
 
-		sim->transform.p = b3Sub( sim->center, b3RotateVector( sim->transform.q, sim->localCenter ) );
+		sim->transform.p = b3OffsetPosition( sim->center, b3Neg( b3RotateVector( sim->transform.q, sim->localCenter ) ) );
 
 		// cache miss here, however I need the shape list below
 		b3Body* body = bodies + sim->bodyId;
@@ -777,7 +796,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		}
 
 		// Update shapes AABBs
-		b3Transform transform = sim->transform;
+		b3WorldTransform transform = sim->transform;
 		bool isFast = ( sim->flags & b3_isFast ) != 0;
 		int shapeId = body->headShapeId;
 		while ( shapeId != B3_NULL_INDEX )
@@ -795,9 +814,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 			}
 			else
 			{
-				b3AABB aabb = b3ComputeShapeAABB( shape, transform );
-				aabb.lowerBound = b3Sub( aabb.lowerBound, speculativeMargin );
-				aabb.upperBound = b3Add( aabb.upperBound, speculativeMargin );
+				b3AABB aabb = b3ComputeFatShapeAABB( shape, transform, speculativeScalar );
 				shape->aabb = aabb;
 
 				B3_ASSERT( shape->enlargedAABB == false );
@@ -805,8 +822,12 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 				if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 				{
 					float marginScalar = shape->aabbMargin;
+#if defined( BOX3D_DOUBLE_PRECISION )
+					shape->fatAABB = b3ComputeFatShapeAABB( shape, transform, speculativeScalar + marginScalar );
+#else
 					b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 					shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
+#endif
 					shape->enlargedAABB = true;
 
 					// Bit-set to keep the move array sorted
@@ -1972,7 +1993,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 					b3Body* bodyB = b3Array_Get( world->bodies, shapeB->bodyId );
 					b3BodySim* simA = b3GetBodySim( world, bodyA );
 					b3BodySim* simB = b3GetBodySim( world, bodyB );
-					b3Vec3 midCenter = b3Lerp( simA->center, simB->center, 0.5f );
+					b3Position midCenter = b3LerpPosition( simA->center, simB->center, 0.5f );
 
 					b3ContactHitEvent event = { 0 };
 					event.approachSpeed = threshold;
@@ -1993,7 +2014,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 							if ( approachSpeed > event.approachSpeed && mp->totalNormalImpulse > 0.0f )
 							{
 								event.approachSpeed = approachSpeed;
-								event.point = b3Add( midCenter, b3Lerp( mp->anchorA, mp->anchorB, 0.5f ) );
+								event.point = b3OffsetPosition( midCenter, b3Lerp( mp->anchorA, mp->anchorB, 0.5f ) );
 								event.normal = manifold->normal;
 								triangleIndex = mp->triangleIndex;
 								found = true;

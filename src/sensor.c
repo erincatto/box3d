@@ -148,7 +148,7 @@ static bool b3SensorQueryCallback( int proxyId, uint64_t userData, void* context
 		}
 	}
 
-	b3Transform otherTransform = b3GetBodyTransform( world, otherShape->bodyId );
+	b3Transform otherTransform = b3ToRelativeTransform( b3GetBodyTransform( world, otherShape->bodyId ), b3Position_zero );
 
 	bool overlap = b3OverlapSensor( sensorShape, queryContext->transform, otherShape, otherTransform );
 	if ( overlap == false )
@@ -217,7 +217,7 @@ static void b3SensorTask( int startIndex, int endIndex, int workerIndex, void* c
 			continue;
 		}
 
-		b3Transform transform = b3GetBodyTransformQuick( world, body );
+		b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Position_zero );
 
 		b3SensorQueryContext queryContext = {
 			.world = world,

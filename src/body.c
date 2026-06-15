@@ -33,14 +33,14 @@ b3Body* b3GetBodyFullId( b3World* world, b3BodyId bodyId )
 	return b3Array_Get( world->bodies, bodyId.index1 - 1 );
 }
 
-b3Transform b3GetBodyTransformQuick( b3World* world, b3Body* body )
+b3WorldTransform b3GetBodyTransformQuick( b3World* world, b3Body* body )
 {
 	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, body->localIndex );
 	return bodySim->transform;
 }
 
-b3Transform b3GetBodyTransform( b3World* world, int bodyId )
+b3WorldTransform b3GetBodyTransform( b3World* world, int bodyId )
 {
 	b3Body* body = b3Array_Get( world->bodies, bodyId );
 	return b3GetBodyTransformQuick( world, body );
@@ -156,7 +156,7 @@ static void b3DestroyBodyContacts( b3World* world, b3Body* body, bool wakeBodies
 b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 {
 	B3_CHECK_DEF( def );
-	B3_ASSERT( b3IsValidVec3( def->position ) );
+	B3_ASSERT( b3IsValidPosition( def->position ) );
 	B3_ASSERT( b3IsValidQuat( def->rotation ) );
 	B3_ASSERT( b3IsValidVec3( def->linearVelocity ) );
 	B3_ASSERT( b3IsValidVec3( def->angularVelocity ) );
@@ -508,8 +508,9 @@ b3AABB b3Body_ComputeAABB( b3BodyId bodyId )
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	if ( body->headShapeId == B3_NULL_INDEX )
 	{
-		b3Transform transform = b3GetBodyTransform( world, body->id );
-		return (b3AABB){ transform.p, transform.p };
+		b3WorldTransform transform = b3GetBodyTransform( world, body->id );
+		b3Vec3 p = b3ToVec3( transform.p );
+		return (b3AABB){ p, p };
 	}
 
 	b3Shape* shape = b3Array_Get( world->shapes, body->headShapeId );
@@ -533,7 +534,8 @@ float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target )
 	}
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	b3Transform transform = b3GetBodyTransform( world, body->id );
+	b3WorldTransform worldTransform = b3GetBodyTransform( world, body->id );
+	b3Transform transform = b3ToRelativeTransform( worldTransform, b3Position_zero );
 
 	float closestDistance = FLT_MAX;
 	b3Vec3 closestPoint = transform.p;
@@ -859,16 +861,16 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 	}
 
 	// Move center of mass.
-	b3Vec3 oldCenter = bodySim->center;
+	b3Position oldCenter = bodySim->center;
 	bodySim->localCenter = localCenter;
-	bodySim->center = b3TransformPoint( bodySim->transform, bodySim->localCenter );
+	bodySim->center = b3TransformWorldPoint( bodySim->transform, bodySim->localCenter );
 	bodySim->center0 = bodySim->center;
 
 	// Update center of mass velocity
 	b3BodyState* state = b3GetBodyState( world, body );
 	if ( state != NULL )
 	{
-		b3Vec3 deltaLinear = b3Cross( state->angularVelocity, b3Sub( bodySim->center, oldCenter ) );
+		b3Vec3 deltaLinear = b3Cross( state->angularVelocity, b3PositionDelta( bodySim->center, oldCenter ) );
 		state->linearVelocity = b3Add( state->linearVelocity, deltaLinear );
 	}
 
@@ -899,7 +901,7 @@ void b3DumpBody( b3World* world, b3Body* body )
 	// int32 bodyIndex = m_islandIndex;
 
 	b3BodySim* sim = b3GetBodySim( world, body );
-	b3Vec3 p = sim->transform.p;
+	b3Vec3 p = b3ToVec3( sim->transform.p );
 	b3Quat q = sim->transform.q;
 
 	b3Vec3 v = b3Vec3_zero;
@@ -946,11 +948,11 @@ void b3DumpBody( b3World* world, b3Body* body )
 	b3Dump( "}\n" );
 }
 
-b3Vec3 b3Body_GetPosition( b3BodyId bodyId )
+b3Position b3Body_GetPosition( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	b3WorldTransform transform = b3GetBodyTransformQuick( world, body );
 	return transform.p;
 }
 
@@ -958,38 +960,38 @@ b3Quat b3Body_GetRotation( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	b3WorldTransform transform = b3GetBodyTransformQuick( world, body );
 	return transform.q;
 }
 
-b3Transform b3Body_GetTransform( b3BodyId bodyId )
+b3WorldTransform b3Body_GetTransform( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	return b3GetBodyTransformQuick( world, body );
 }
 
-b3Vec3 b3Body_GetLocalPoint( b3BodyId bodyId, b3Vec3 worldPoint )
+b3Vec3 b3Body_GetLocalPoint( b3BodyId bodyId, b3Position worldPoint )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
-	return b3InvTransformPoint( transform, worldPoint );
+	b3WorldTransform transform = b3GetBodyTransformQuick( world, body );
+	return b3InvTransformWorldPoint( transform, worldPoint );
 }
 
-b3Vec3 b3Body_GetWorldPoint( b3BodyId bodyId, b3Vec3 localPoint )
+b3Position b3Body_GetWorldPoint( b3BodyId bodyId, b3Vec3 localPoint )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
-	return b3TransformPoint( transform, localPoint );
+	b3WorldTransform transform = b3GetBodyTransformQuick( world, body );
+	return b3TransformWorldPoint( transform, localPoint );
 }
 
 b3Vec3 b3Body_GetLocalVector( b3BodyId bodyId, b3Vec3 worldVector )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	b3WorldTransform transform = b3GetBodyTransformQuick( world, body );
 	return b3InvRotateVector( transform.q, worldVector );
 }
 
@@ -997,13 +999,13 @@ b3Vec3 b3Body_GetWorldVector( b3BodyId bodyId, b3Vec3 localVector )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	b3WorldTransform transform = b3GetBodyTransformQuick( world, body );
 	return b3RotateVector( transform.q, localVector );
 }
 
-void b3Body_SetTransform( b3BodyId bodyId, b3Vec3 position, b3Quat rotation )
+void b3Body_SetTransform( b3BodyId bodyId, b3Position position, b3Quat rotation )
 {
-	B3_ASSERT( b3IsValidVec3( position ) );
+	B3_ASSERT( b3IsValidPosition( position ) );
 	B3_ASSERT( b3IsValidQuat( rotation ) );
 	B3_ASSERT( b3Body_IsValid( bodyId ) );
 	b3World* world = b3GetWorld( bodyId.world0 );
@@ -1014,7 +1016,7 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Vec3 position, b3Quat rotation )
 
 	bodySim->transform.p = position;
 	bodySim->transform.q = rotation;
-	bodySim->center = b3TransformPoint( bodySim->transform, bodySim->localCenter );
+	bodySim->center = b3TransformWorldPoint( bodySim->transform, bodySim->localCenter );
 
 	b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
 	bodySim->invInertiaWorld = b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
@@ -1024,25 +1026,22 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Vec3 position, b3Quat rotation )
 
 	b3BroadPhase* broadPhase = &world->broadPhase;
 
-	b3Transform transform = bodySim->transform;
+	b3WorldTransform transform = bodySim->transform;
 	const float speculativeDistance = B3_SPECULATIVE_DISTANCE;
 
 	int shapeId = body->headShapeId;
 	while ( shapeId != B3_NULL_INDEX )
 	{
 		b3Shape* shape = b3Array_Get( world->shapes, shapeId );
-		b3AABB aabb = b3ComputeShapeAABB( shape, transform );
-		aabb.lowerBound.x -= speculativeDistance;
-		aabb.lowerBound.y -= speculativeDistance;
-		aabb.lowerBound.z -= speculativeDistance;
-		aabb.upperBound.x += speculativeDistance;
-		aabb.upperBound.y += speculativeDistance;
-		aabb.upperBound.z += speculativeDistance;
+		b3AABB aabb = b3ComputeFatShapeAABB( shape, transform, speculativeDistance );
 		shape->aabb = aabb;
 
 		if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 		{
 			float margin = shape->aabbMargin;
+#if defined( BOX3D_DOUBLE_PRECISION )
+			b3AABB fatAABB = b3ComputeFatShapeAABB( shape, transform, speculativeDistance + margin );
+#else
 			b3AABB fatAABB;
 			fatAABB.lowerBound.x = aabb.lowerBound.x - margin;
 			fatAABB.lowerBound.y = aabb.lowerBound.y - margin;
@@ -1050,6 +1049,7 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Vec3 position, b3Quat rotation )
 			fatAABB.upperBound.x = aabb.upperBound.x + margin;
 			fatAABB.upperBound.y = aabb.upperBound.y + margin;
 			fatAABB.upperBound.z = aabb.upperBound.z + margin;
+#endif
 			shape->fatAABB = fatAABB;
 
 			// The body could be disabled
@@ -1170,10 +1170,10 @@ void b3Body_SetTargetTransform( b3BodyId bodyId, b3Transform target, float timeS
 	b3BodySim* sim = b3GetBodySim( world, body );
 
 	// Compute linear velocity
-	b3Vec3 center1 = sim->center;
-	b3Vec3 center2 = b3TransformPoint( target, sim->localCenter );
+	b3Position center1 = sim->center;
+	b3Position center2 = b3TransformWorldPoint( b3MakeWorldTransform( target ), sim->localCenter );
 	float invTimeStep = 1.0f / timeStep;
-	b3Vec3 linearVelocity = b3MulSV( invTimeStep, b3Sub( center2, center1 ) );
+	b3Vec3 linearVelocity = b3MulSV( invTimeStep, b3PositionDelta( center2, center1 ) );
 
 	// Compute angular velocity:
 	// q' = 0.5 * w * q
@@ -1232,7 +1232,7 @@ b3Vec3 b3Body_GetLocalPointVelocity( b3BodyId bodyId, b3Vec3 localPoint )
 	return v;
 }
 
-b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Vec3 worldPoint )
+b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Position worldPoint )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1245,7 +1245,7 @@ b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Vec3 worldPoint )
 	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, body->localIndex );
 
-	b3Vec3 r = b3Sub( worldPoint, bodySim->center );
+	b3Vec3 r = b3PositionDelta( worldPoint, bodySim->center );
 	b3Vec3 v = b3Add( state->linearVelocity, b3Cross( state->angularVelocity, r ) );
 	return v;
 }
@@ -1266,7 +1266,7 @@ void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Vec3 point, bool wake )
 	{
 		b3BodySim* bodySim = b3GetBodySim( world, body );
 		bodySim->force = b3Add( bodySim->force, force );
-		bodySim->torque = b3Add( bodySim->torque, b3Cross( b3Sub( point, bodySim->center ), force ) );
+		bodySim->torque = b3Add( bodySim->torque, b3Cross( b3PositionDelta( b3MakePosition( point ), bodySim->center ), force ) );
 	}
 }
 
@@ -1336,7 +1336,7 @@ void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Vec3 point, b
 			state->linearVelocity = b3MulSV( maxLinearSpeed, b3Normalize( state->linearVelocity ) );
 		}
 
-		b3Vec3 delta = b3MulMV( bodySim->invInertiaWorld, b3Cross( b3Sub( point, bodySim->center ), impulse ) );
+		b3Vec3 delta = b3MulMV( bodySim->invInertiaWorld, b3Cross( b3PositionDelta( b3MakePosition( point ), bodySim->center ), impulse ) );
 		state->angularVelocity = b3Add( state->angularVelocity, delta );
 	}
 }
@@ -1597,7 +1597,7 @@ void b3Body_SetType( b3BodyId bodyId, b3BodyType type )
 	}
 
 	// Recreate shape proxies in broadphase
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	b3WorldTransform transform = b3GetBodyTransformQuick( world, body );
 	int shapeId = body->headShapeId;
 	while ( shapeId != B3_NULL_INDEX )
 	{
@@ -1729,7 +1729,7 @@ b3Vec3 b3Body_GetLocalCenterOfMass( b3BodyId bodyId )
 	return bodySim->localCenter;
 }
 
-b3Vec3 b3Body_GetWorldCenterOfMass( b3BodyId bodyId )
+b3Position b3Body_GetWorldCenterOfMass( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1756,7 +1756,7 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 	body->inertia = massData.inertia;
 	bodySim->localCenter = massData.center;
 
-	b3Vec3 center = b3TransformPoint( bodySim->transform, massData.center );
+	b3Position center = b3TransformWorldPoint( bodySim->transform, massData.center );
 	bodySim->center = center;
 	bodySim->center0 = center;
 
@@ -2048,7 +2048,7 @@ void b3Body_Enable( b3BodyId bodyId )
 
 	b3TransferBody( world, targetSet, disabledSet, body );
 
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	b3WorldTransform transform = b3GetBodyTransformQuick( world, body );
 
 	// Add shapes to broad-phase
 	b3BodyType proxyType = body->type;

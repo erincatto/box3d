@@ -160,6 +160,7 @@ set(SAMPLE_FILES
     sample_manifold.cpp
     sample_continuous.cpp
     sample_joint.cpp
+    sample_large_world.cpp
 )
 
 add_executable(samples ${SAMPLE_FILES})

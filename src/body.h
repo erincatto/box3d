@@ -180,15 +180,15 @@ static const b3BodyState b3_identityBodyState = {
 // Transform data used for collision and solver preparation.
 typedef struct b3BodySim
 {
-	// transform for body origin
-	b3Transform transform;
+	// transform for body origin, double translation in large world mode
+	b3WorldTransform transform;
 
 	// center of mass position in world space
-	b3Vec3 center;
+	b3Position center;
 
 	// previous rotation and COM for TOI
 	b3Quat rotation0;
-	b3Vec3 center0;
+	b3Position center0;
 
 	// location of center of mass relative to the body origin
 	b3Vec3 localCenter;
@@ -220,8 +220,8 @@ typedef struct b3BodySim
 // Get a validated body from a world using an id.
 b3Body* b3GetBodyFullId( b3World* world, b3BodyId bodyId );
 
-b3Transform b3GetBodyTransformQuick( b3World* world, b3Body* body );
-b3Transform b3GetBodyTransform( b3World* world, int bodyId );
+b3WorldTransform b3GetBodyTransformQuick( b3World* world, b3Body* body );
+b3WorldTransform b3GetBodyTransform( b3World* world, int bodyId );
 
 // Create a b3BodyId from a raw id.
 b3BodyId b3MakeBodyId( b3World* world, int bodyId );
@@ -239,11 +239,13 @@ bool b3WakeBodyWithLock( b3World* world, b3Body* body );
 void b3UpdateBodyMassData( b3World* world, b3Body* body );
 void b3DumpBody( b3World* world, b3Body* body );
 
-static inline b3Sweep b3MakeSweep( const b3BodySim* bodySim )
+// Make a sweep relative to a base position to keep TOI in float precision far from the origin.
+// In float mode the base is zero so the sweep is identical to the absolute world sweep.
+static inline b3Sweep b3MakeRelativeSweep( const b3BodySim* bodySim, b3Position base )
 {
 	b3Sweep s;
-	s.c1 = bodySim->center0;
-	s.c2 = bodySim->center;
+	s.c1 = b3PositionDelta( bodySim->center0, base );
+	s.c2 = b3PositionDelta( bodySim->center, base );
 	s.q1 = bodySim->rotation0;
 	s.q2 = bodySim->transform.q;
 	s.localCenter = bodySim->localCenter;

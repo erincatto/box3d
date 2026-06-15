@@ -298,7 +298,7 @@ public:
 	{
 		Sample::Step();
 
-		b3Vec3 position = b3Body_GetPosition( m_bodyId );
+		b3Vec3 position = b3ToVec3( b3Body_GetPosition( m_bodyId ) );
 		DrawTextLine( "(x, y, z) = (%.2g, %.2g, %.2g)", position.x, position.y, position.z );
 	}
 
@@ -611,7 +611,7 @@ public:
 
 			b3Quat orientation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, -B3_DEG_TO_RAD * alpha );
 
-			bodyDef.position = position;
+			bodyDef.position = b3MakePosition( position );
 			bodyDef.rotation = orientation;
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( body, &shapeDef, &box.base );

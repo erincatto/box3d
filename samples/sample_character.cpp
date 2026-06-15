@@ -488,7 +488,7 @@ public:
 			b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = bodyId;
-			jointDef.base.localFrameA.p = b3Add( bodyDef.position, offset );
+			jointDef.base.localFrameA.p = b3Add( b3ToVec3( bodyDef.position ), offset );
 			jointDef.base.localFrameA.q = axisQuat;
 			jointDef.base.localFrameB.p = offset;
 			jointDef.base.localFrameB.q = axisQuat;
@@ -602,7 +602,7 @@ struct ClosestShapeCastContext
 	bool startedSolid;
 };
 
-static float ClosestShapeCastCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+static float ClosestShapeCastCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
 									   int triangleIndex, int childIndex, void* context )
 {
 	auto* ctx = static_cast<ClosestShapeCastContext*>( context );
@@ -625,7 +625,7 @@ static float ClosestShapeCastCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 n
 	{
 		ctx->closestFraction = fraction;
 		ctx->closestNormal = normal;
-		ctx->closestPoint = point;
+		ctx->closestPoint = b3ToVec3( point );
 		ctx->closestShape = shapeId;
 		ctx->hit = true;
 	}
@@ -716,7 +716,7 @@ struct RigidbodyCharacter
 		// Create dynamic body with all rotation locked
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = position;
+		bodyDef.position = b3MakePosition( position );
 		bodyDef.motionLocks.angularX = true;
 		bodyDef.motionLocks.angularY = true;
 		bodyDef.motionLocks.angularZ = true;
@@ -863,7 +863,7 @@ struct RigidbodyCharacter
 	// Get feet position from body center position
 	b3Vec3 GetFeetPosition() const
 	{
-		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
+		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_bodyId ) );
 		return { pos.x, pos.y - m_totalHeight * 0.5f, pos.z };
 	}
 
@@ -929,7 +929,7 @@ struct RigidbodyCharacter
 			return;
 		}
 
-		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
+		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_bodyId ) );
 
 		b3Vec3 from = { pos.x, pos.y + 0.05f, pos.z };
 		b3Vec3 to = { pos.x, pos.y - stepSize, pos.z };
@@ -953,7 +953,7 @@ struct RigidbodyCharacter
 			float deltaY = targetPos.y - pos.y;
 
 			b3Quat rot = b3Body_GetRotation( m_bodyId );
-			b3Body_SetTransform( m_bodyId, targetPos, rot );
+			b3Body_SetTransform( m_bodyId, b3MakePosition( targetPos ), rot );
 
 			// If we moved upward, kill vertical velocity to prevent bouncing
 			if ( deltaY > 0.01f )
@@ -971,7 +971,7 @@ struct RigidbodyCharacter
 	// Returns true if a step was taken and m_stepPosition was set.
 	bool TryStep( float maxStepHeight )
 	{
-		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
+		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_bodyId ) );
 		b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
 
 		// Only step when on ground and moving
@@ -1087,7 +1087,7 @@ struct RigidbodyCharacter
 		// Teleport body to step position
 		b3Vec3 stepPos = { trDown.endPosition.x, trDown.endPosition.y + 0.01f, trDown.endPosition.z };
 		b3Quat rot = b3Body_GetRotation( m_bodyId );
-		b3Body_SetTransform( m_bodyId, stepPos, rot );
+		b3Body_SetTransform( m_bodyId, b3MakePosition( stepPos ), rot );
 
 		// Kill vertical velocity, scale horizontal by 0.9
 		b3Vec3 newVel = b3Body_GetLinearVelocity( m_bodyId );
@@ -1109,7 +1109,7 @@ struct RigidbodyCharacter
 
 		// After physics, restore to step position to prevent double-velocity
 		b3Quat rot = b3Body_GetRotation( m_bodyId );
-		b3Body_SetTransform( m_bodyId, m_stepPosition, rot );
+		b3Body_SetTransform( m_bodyId, b3MakePosition( m_stepPosition ), rot );
 		m_didStep = false;
 	}
 
@@ -1256,7 +1256,7 @@ struct RigidbodyCharacter
 		// 3. TryStep — 4-phase step-up
 		m_didStep = TryStep( m_stepUpHeight );
 
-		m_massCenterWorld = b3Body_GetWorldCenterOfMass( m_bodyId );
+		m_massCenterWorld = b3ToVec3( b3Body_GetWorldCenterOfMass( m_bodyId ) );
 	}
 
 	// --- PostStep: RestoreStep + Reground + CategorizeGround ---
@@ -1296,7 +1296,7 @@ struct RigidbodyCharacter
 
 	void DrawDebug() const
 	{
-		b3Vec3 pos = b3Body_GetPosition( m_bodyId );
+		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_bodyId ) );
 		b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
 
 		// Draw velocity vector (purple)
@@ -1576,7 +1576,7 @@ public:
 		m_character.LateStep( timeStep );
 
 		// Update camera pivot to follow character
-		b3Vec3 pos = b3Body_GetPosition( m_character.m_bodyId );
+		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_character.m_bodyId ) );
 		if ( m_camera->m_thirdPerson )
 		{
 			m_camera->m_pivot = pos;
@@ -1599,7 +1599,7 @@ public:
 				proxy.radius = cameraRadius;
 
 				b3QueryFilter filter = b3DefaultQueryFilter();
-				b3RayResult rayResult = b3World_CastRayClosest( m_worldId, pos, translation, filter );
+				b3RayResult rayResult = b3World_CastRayClosest( m_worldId, b3MakePosition( pos ), translation, filter );
 
 				if ( rayResult.hit )
 				{
@@ -1655,7 +1655,7 @@ public:
 		ImGui::Text( "Vertical: %.2f m/s", vel.y );
 
 		b3Vec3 mc = m_character.m_massCenterWorld;
-		b3Vec3 pos = b3Body_GetPosition( m_character.m_bodyId );
+		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_character.m_bodyId ) );
 		ImGui::Text( "Mass center offset: %.2f", mc.y - pos.y );
 
 		return true;

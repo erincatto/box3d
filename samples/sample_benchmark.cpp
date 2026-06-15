@@ -503,7 +503,7 @@ public:
 		bool hit;
 	};
 
-	static float CastCallback( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+	static float CastCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
 							   int triangleIndex, int childIndex, void* context )
 	{
 		(void)shapeId;
@@ -512,7 +512,7 @@ public:
 		(void)childIndex;
 
 		Context* rayContext = (Context*)context;
-		rayContext->point = point;
+		rayContext->point = b3ToVec3( point );
 		rayContext->normal = normal;
 		rayContext->fraction = fraction;
 		rayContext->hit = true;
@@ -585,7 +585,7 @@ public:
 				b3RayResult result = {};
 				if ( m_radius == 0.0f )
 				{
-					result = b3World_CastRayClosest( m_worldId, rayOrigin, rayTranslation, b3DefaultQueryFilter() );
+					result = b3World_CastRayClosest( m_worldId, b3MakePosition( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
 				}
 				else
 				{
@@ -595,7 +595,7 @@ public:
 
 					if ( context.hit )
 					{
-						result.point = context.point;
+						result.point = b3MakePosition( context.point );
 						result.normal = context.normal;
 						result.fraction = context.fraction;
 						result.hit = true;
@@ -609,7 +609,7 @@ public:
 					hitCount += 1;
 					if ( m_isDebug )
 					{
-						b3Vec3 point = result.point;
+						b3Vec3 point = b3ToVec3( result.point );
 						DrawLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGreen ) );
 						DrawPoint( point, 10.0f, MakeColor( b3_colorGreen ) );
 
@@ -1383,11 +1383,11 @@ public:
 		DrawTextLine( "destroy = %.2f ms", m_destroyMilliseconds );
 
 		float r = m_explosionDef.radius;
-		b3Sphere sphere1 = { m_explosionDef.position, r };
+		b3Sphere sphere1 = { b3ToVec3( m_explosionDef.position ), r };
 		DrawWireSphere( b3Transform_identity, &sphere1, 24, MakeColor( b3_colorAqua ) );
 
 		float rf = r + m_explosionDef.falloff;
-		b3Sphere sphere2 = { m_explosionDef.position, rf };
+		b3Sphere sphere2 = { b3ToVec3( m_explosionDef.position ), rf };
 		DrawWireSphere( b3Transform_identity, &sphere2, 24, MakeColor( b3_colorCornsilk ) );
 	}
 

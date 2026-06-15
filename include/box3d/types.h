@@ -80,7 +80,7 @@ typedef bool b3CustomFilterFcn( b3ShapeId shapeIdA, b3ShapeId shapeIdB, void* co
 /// full contact manifold.
 /// @warning Do not attempt to modify the world inside this callback
 /// @ingroup world
-typedef bool b3PreSolveFcn( b3ShapeId shapeIdA, b3ShapeId shapeIdB, b3Vec3 point, b3Vec3 normal, void* context );
+typedef bool b3PreSolveFcn( b3ShapeId shapeIdA, b3ShapeId shapeIdB, b3Position point, b3Vec3 normal, void* context );
 
 /// Prototype callback for overlap queries.
 /// Called for each shape found in the query.
@@ -107,7 +107,7 @@ typedef bool b3OverlapResultFcn( b3ShapeId shapeId, void* context );
 /// @return -1 to filter, 0 to terminate, fraction to clip the ray for closest hit, 1 to continue
 /// @see b3World_CastRay
 /// @ingroup world
-typedef float b3CastResultFcn( b3ShapeId shapeId, b3Vec3 point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+typedef float b3CastResultFcn( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
 							   int triangleIndex, int childIndex, void* context );
 
 /// Optional world capacities that can be use to avoid run-time allocations
@@ -268,7 +268,7 @@ typedef struct b3BodyDef
 	/// The initial world position of the body. Bodies should be created with the desired position.
 	/// @note Creating bodies at the origin and then moving them nearly doubles the cost of body creation, especially
 	/// if the body is moved after shapes have been added.
-	b3Vec3 position;
+	b3Position position;
 
 	/// The initial world rotation of the body.
 	b3Quat rotation;
@@ -1009,7 +1009,7 @@ typedef struct b3ExplosionDef
 	uint64_t maskBits;
 
 	/// The center of the explosion in world space
-	b3Vec3 position;
+	b3Position position;
 
 	/// The radius of the explosion
 	float radius;
@@ -1143,7 +1143,7 @@ typedef struct b3ContactHitEvent
 	/// Point where the shapes hit at the beginning of the time step.
 	/// This is a mid-point between the two surfaces. It could be at speculative
 	/// point where the two shapes were not touching at the beginning of the time step.
-	b3Vec3 point;
+	b3Position point;
 
 	/// Normal vector pointing from shape A to shape B
 	b3Vec3 normal;
@@ -1199,7 +1199,7 @@ typedef struct b3BodyMoveEvent
 	void* userData;
 
 	/// The body transform.
-	b3Transform transform;
+	b3WorldTransform transform;
 
 	/// The body id.
 	b3BodyId bodyId;
@@ -1313,7 +1313,7 @@ typedef struct b3RayResult
 	b3ShapeId shapeId;
 
 	/// The world point of the hit.
-	b3Vec3 point;
+	b3Position point;
 
 	/// The world normal of the shape surface at the hit point.
 	b3Vec3 normal;
@@ -1637,7 +1637,7 @@ typedef struct b3TOIOutput
  * @{
  */
 
-/// Flags for dynamic tree nodes. Internal usage.
+/// Flags for tree nodes. For internal usage.
 typedef enum b3TreeNodeFlags
 {
 	b3_allocatedNode = 0x0001,
@@ -1645,7 +1645,7 @@ typedef enum b3TreeNodeFlags
 	b3_leafNode = 0x0004,
 } b3TreeNodeFlags;
 
-/// Flags for dynamic tree node child indices. Internal usage.
+/// Tree node child indices. For internal usage.
 typedef struct b3TreeNodeChildren
 {
 	int child1; ///< child node index 1
@@ -2935,6 +2935,11 @@ typedef struct b3DebugDraw
 
 	/// World bounds to use for debug draw
 	b3AABB drawingBounds;
+
+	/// World position the debug geometry is drawn relative to. The draw callbacks receive
+	/// coordinates demoted to float against this origin, so a host that keeps it near the camera
+	/// renders crisply far from the world origin. Zero by default, which matches absolute coordinates.
+	b3Position drawOrigin;
 
 	/// Scale to use when drawing forces
 	float forceScale;

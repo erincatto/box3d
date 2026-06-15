@@ -133,8 +133,8 @@ typedef struct b3Contact
 	b3Manifold* manifolds;
 	int manifoldCount;
 
-	b3Transform cachedTransformA;
-	b3Transform cachedTransformB;
+	b3WorldTransform cachedTransformA;
+	b3WorldTransform cachedTransformB;
 
 	// Mixed friction and restitution
 	float friction;
@@ -171,8 +171,8 @@ void b3InitializeContactRegisters( void );
 void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int childIndex );
 void b3DestroyContact( b3World* world, b3Contact* contact, bool wakeBodies );
 
-bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Shape* shapeA, b3Vec3 localCenterA, b3Transform xfA,
-					  b3Shape* shapeB, b3Vec3 localCenterB, b3Transform xfB, bool isFast, b3Arena arena );
+bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Shape* shapeA, b3Vec3 localCenterA, b3WorldTransform xfA,
+					  b3Shape* shapeB, b3Vec3 localCenterB, b3WorldTransform xfB, bool isFast, b3Arena arena );
 
 bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact, const b3Shape* shapeA, const int* materialMap,
-							 b3Transform xfA, const b3Shape* shapeB, b3Transform xfB, bool isFast, b3Arena arena );
+							 b3WorldTransform xfA, const b3Shape* shapeB, b3WorldTransform xfB, bool isFast, b3Arena arena );

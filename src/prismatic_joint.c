@@ -94,15 +94,15 @@ float b3PrismaticJoint_GetTranslation( b3JointId jointId )
 {
 	b3World* world = b3GetWorld( jointId.world0 );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
-	b3Transform transformB = b3GetBodyTransform( world, base->bodyIdB );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformB = b3GetBodyTransform( world, base->bodyIdB );
 
 	b3Vec3 jointAxis = b3RotateVector( base->localFrameA.q, b3Vec3_axisX );
 	jointAxis = b3RotateVector( transformA.q, jointAxis );
 
 	b3Vec3 anchorA = b3RotateVector( transformA.q, base->localFrameA.p );
 	b3Vec3 anchorB = b3RotateVector( transformB.q, base->localFrameB.p );
-	b3Vec3 d = b3Add( b3Sub( transformB.p, transformA.p ), b3Sub( anchorB, anchorA ) );
+	b3Vec3 d = b3Add( b3PositionDelta( transformB.p, transformA.p ), b3Sub( anchorB, anchorA ) );
 	float translation = b3Dot( d, jointAxis );
 	return translation;
 }
@@ -206,7 +206,7 @@ float b3PrismaticJoint_GetMaxMotorForce( b3JointId jointId )
 
 b3Vec3 b3GetPrismaticJointForce( b3World* world, b3JointSim* base )
 {
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
 	b3PrismaticJoint* joint = &base->prismaticJoint;
 
 	// impulse in joint space
@@ -229,7 +229,7 @@ b3Vec3 b3GetPrismaticJointForce( b3World* world, b3JointSim* base )
 
 b3Vec3 b3GetPrismaticJointTorque( b3World* world, b3JointSim* base )
 {
-	b3Transform transformA = b3GetBodyTransform( world, base->bodyIdA );
+	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
 	b3PrismaticJoint* joint = &base->prismaticJoint;
 
 	b3Vec3 torque = b3MulSV( world->inv_h, joint->angularImpulse );
@@ -275,7 +275,7 @@ void b3PreparePrismaticJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.q = b3MulQuat( bodySimB->transform.q, base->localFrameB.q );
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
-	joint->deltaCenter = b3Sub( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
 	joint->rotationMass = b3InvertMatrix( invInertiaSum );
 
 	// Initial joint axes in world space

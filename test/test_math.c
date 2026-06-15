@@ -273,5 +273,69 @@ int MathTest( void )
 		ENSURE_SMALL( b3Dot( normal, perp ), 2.0f * FLT_EPSILON );
 	}
 
+	{
+		// World position boundary helpers. The query agrees with the built type sizes.
+		ENSURE( b3IsDoublePrecision() == ( sizeof( b3Position ) > sizeof( b3Vec3 ) ) );
+
+		// Deltas and offsets round trip exactly for representable inputs in both modes.
+		b3Vec3 a = { 3.0f, -5.0f, 2.0f };
+		b3Vec3 b = { 1.0f, 4.0f, -6.0f };
+		b3Position pa = b3MakePosition( a );
+		b3Position pb = b3MakePosition( b );
+
+		b3Vec3 d = b3PositionDelta( pa, pb );
+		b3Vec3 sub = b3Sub( a, b );
+		ENSURE( d.x == sub.x && d.y == sub.y && d.z == sub.z );
+
+		b3Vec3 back = b3PositionDelta( b3OffsetPosition( pb, sub ), pa );
+		ENSURE( back.x == 0.0f && back.y == 0.0f && back.z == 0.0f );
+
+		b3Vec3 r = b3ToVec3( pa );
+		ENSURE( r.x == a.x && r.y == a.y && r.z == a.z );
+
+		ENSURE( b3IsValidPosition( pa ) );
+
+		// World transform relative ops match the pure float transform ops. Float mode is
+		// bit identical, double mode keeps the relative result in float.
+		b3Vec3 axis = b3Normalize( (b3Vec3){ 0.3f, -0.7f, 0.5f } );
+		b3Transform tA = { a, b3MakeQuatFromAxisAngle( axis, 0.4f ) };
+		b3Transform tB = { b, b3MakeQuatFromAxisAngle( axis, -1.1f ) };
+		b3WorldTransform wA = b3MakeWorldTransform( tA );
+		b3WorldTransform wB = b3MakeWorldTransform( tB );
+		ENSURE( b3IsValidWorldTransform( wA ) );
+
+		b3Transform relRef = b3InvMulTransforms( tA, tB );
+		b3Transform rel = b3InvMulWorldTransforms( wA, wB );
+		ENSURE_SMALL( rel.p.x - relRef.p.x, 1.0e-5f );
+		ENSURE_SMALL( rel.p.y - relRef.p.y, 1.0e-5f );
+		ENSURE_SMALL( rel.p.z - relRef.p.z, 1.0e-5f );
+		ENSURE_SMALL( rel.q.s - relRef.q.s, 1.0e-5f );
+
+		// Local point to world and back.
+		b3Vec3 local = { 0.5f, -0.25f, 1.5f };
+		b3Vec3 back2 = b3InvTransformWorldPoint( wA, b3TransformWorldPoint( wA, local ) );
+		ENSURE_SMALL( back2.x - local.x, 1.0e-5f );
+		ENSURE_SMALL( back2.y - local.y, 1.0e-5f );
+		ENSURE_SMALL( back2.z - local.z, 1.0e-5f );
+
+		// Compose with a local transform, then strip it back off.
+		b3Transform relAB = b3InvMulWorldTransforms( wA, b3MulWorldTransforms( wA, tB ) );
+		ENSURE_SMALL( relAB.p.x - tB.p.x, 1.0e-5f );
+		ENSURE_SMALL( relAB.p.y - tB.p.y, 1.0e-5f );
+		ENSURE_SMALL( relAB.p.z - tB.p.z, 1.0e-5f );
+	}
+
+#if defined( BOX3D_DOUBLE_PRECISION )
+	{
+		// Far from the origin the double layer keeps the relative result accurate where pure
+		// float would quantize. Two poses one meter apart at x = 1e8.
+		b3Position base = { 1.0e8, 0.0, 0.0 };
+		b3WorldTransform wA = { base, b3Quat_identity };
+		b3WorldTransform wB = { b3OffsetPosition( base, (b3Vec3){ 1.0f, 0.0f, 0.0f } ), b3Quat_identity };
+		b3Transform rel = b3InvMulWorldTransforms( wA, wB );
+		ENSURE( rel.p.x == 1.0f && rel.p.y == 0.0f && rel.p.z == 0.0f );
+	}
+#endif
+
 	return 0;
 }

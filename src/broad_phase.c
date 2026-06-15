@@ -176,7 +176,8 @@ static bool b3PairQueryCallback( int proxyId, uint64_t userData, void* context )
 		b3Shape* shape = b3Array_Get( world->shapes, shapeIndex );
 		if ( shape->type == b3_compoundShape )
 		{
-			b3Transform compoundTransform = b3GetBodyTransform( world, shape->bodyId );
+			// Query bounds are float world space, so the demoted transform is the matching float frame
+			b3Transform compoundTransform = b3ToRelativeTransform( b3GetBodyTransform( world, shape->bodyId ), b3Position_zero );
 			b3AABB localAABB = b3AABB_Transform( b3InvertTransform( compoundTransform ), queryContext->aabb );
 
 			// recurse

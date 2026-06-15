@@ -77,23 +77,21 @@ static float b3ComputeShapeMargin( b3Shape* shape )
 	return b3MinFloat( B3_MAX_AABB_MARGIN, B3_AABB_MARGIN_FRACTION * margin );
 }
 
-static void b3UpdateShapeAABBs( b3Shape* shape, b3Transform transform, b3BodyType proxyType )
+static void b3UpdateShapeAABBs( b3Shape* shape, b3WorldTransform transform, b3BodyType proxyType )
 {
 	// Compute a bounding box with a speculative margin
 	const float speculativeDistance = B3_SPECULATIVE_DISTANCE;
 	const float aabbMargin = shape->aabbMargin;
 
-	b3AABB aabb = b3ComputeShapeAABB( shape, transform );
-	aabb.lowerBound.x -= speculativeDistance;
-	aabb.lowerBound.y -= speculativeDistance;
-	aabb.lowerBound.z -= speculativeDistance;
-	aabb.upperBound.x += speculativeDistance;
-	aabb.upperBound.y += speculativeDistance;
-	aabb.upperBound.z += speculativeDistance;
+	b3AABB aabb = b3ComputeFatShapeAABB( shape, transform, speculativeDistance );
 	shape->aabb = aabb;
 
 	// Smaller margin for static bodies. Cannot be zero due to TOI tolerance.
 	float margin = proxyType == b3_staticBody ? speculativeDistance : aabbMargin;
+#if defined( BOX3D_DOUBLE_PRECISION )
+	// Fold the margin into the double translation so it survives far from the origin
+	b3AABB fatAABB = b3ComputeFatShapeAABB( shape, transform, speculativeDistance + margin );
+#else
 	b3AABB fatAABB;
 	fatAABB.lowerBound.x = aabb.lowerBound.x - margin;
 	fatAABB.lowerBound.y = aabb.lowerBound.y - margin;
@@ -101,12 +99,13 @@ static void b3UpdateShapeAABBs( b3Shape* shape, b3Transform transform, b3BodyTyp
 	fatAABB.upperBound.x = aabb.upperBound.x + margin;
 	fatAABB.upperBound.y = aabb.upperBound.y + margin;
 	fatAABB.upperBound.z = aabb.upperBound.z + margin;
+#endif
 	shape->fatAABB = fatAABB;
 
 	B3_VALIDATE( b3IsSaneAABB( fatAABB ) );
 }
 
-static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3Transform bodyTransform, const b3ShapeDef* def,
+static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTransform bodyTransform, const b3ShapeDef* def,
 									   const void* geometry, b3ShapeType shapeType, b3Transform shapeTransform, b3Vec3 scale,
 									   bool haveShapeTransform )
 {
@@ -297,7 +296,7 @@ static b3ShapeId b3CreateShape( b3BodyId bodyId, const b3ShapeDef* def, const vo
 
 	world->locked = true;
 
-	b3Transform bodyTransform = b3GetBodyTransformQuick( world, body );
+	b3WorldTransform bodyTransform = b3GetBodyTransformQuick( world, body );
 
 	b3Shape* shape =
 		b3CreateShapeInternal( world, body, bodyTransform, def, geometry, shapeType, transform, scale, haveTransform );
@@ -519,6 +518,26 @@ b3AABB b3ComputeShapeAABB( const b3Shape* shape, b3Transform transform )
 			return empty;
 		}
 	}
+}
+
+b3AABB b3ComputeFatShapeAABB( const b3Shape* shape, b3WorldTransform transform, float extra )
+{
+	b3Vec3 r = { extra, extra, extra };
+#if defined( BOX3D_DOUBLE_PRECISION )
+	// Build the box in the body local frame, inflate, then translate by the double origin and
+	// round outward. Inflating before the single rounding matters far from the origin where the
+	// float margin would otherwise vanish.
+	b3Transform rotation = { b3Vec3_zero, transform.q };
+	b3AABB localBox = b3ComputeShapeAABB( shape, rotation );
+	localBox.lowerBound = b3Sub( localBox.lowerBound, r );
+	localBox.upperBound = b3Add( localBox.upperBound, r );
+	return b3OffsetAABB( localBox, transform.p );
+#else
+	b3AABB aabb = b3ComputeShapeAABB( shape, transform );
+	aabb.lowerBound = b3Sub( aabb.lowerBound, r );
+	aabb.upperBound = b3Add( aabb.upperBound, r );
+	return aabb;
+#endif
 }
 
 b3AABB b3ComputeSweptShapeAABB( const b3Shape* shape, const b3Sweep* sweep, float time )
@@ -894,7 +913,7 @@ int b3CollideMover( b3PlaneResult* planes, int planeCapacity, const b3Shape* sha
 	return planeCount;
 }
 
-void b3CreateShapeProxy( b3Shape* shape, b3BroadPhase* bp, b3BodyType type, b3Transform transform, bool forcePairCreation )
+void b3CreateShapeProxy( b3Shape* shape, b3BroadPhase* bp, b3BodyType type, b3WorldTransform transform, bool forcePairCreation )
 {
 	B3_ASSERT( shape->proxyKey == B3_NULL_INDEX );
 
@@ -1086,7 +1105,8 @@ b3CastOutput b3Shape_RayCast( b3ShapeId shapeId, const b3RayCastInput* input )
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
 
-	b3Transform transform = b3GetBodyTransform( world, shape->bodyId );
+	// Low level shape ray cast is a documented float carve-out far from the origin
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransform( world, shape->bodyId ), b3Position_zero );
 
 	// input in local coordinates
 	b3RayCastInput localInput;
@@ -1280,7 +1300,7 @@ static void b3ResetProxy( b3World* world, b3Shape* shape, bool wakeBodies, bool 
 		}
 	}
 
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	b3WorldTransform transform = b3GetBodyTransformQuick( world, body );
 	if ( shape->proxyKey != B3_NULL_INDEX )
 	{
 		b3BodyType proxyType = B3_PROXY_TYPE( shape->proxyKey );
@@ -1739,7 +1759,8 @@ b3Vec3 b3Shape_GetClosestPoint( b3ShapeId shapeId, b3Vec3 target )
 
 	b3Shape* shape = b3GetShape( world, shapeId );
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3GetBodyTransformQuick( world, body );
+	// Low level closest point query is a documented float carve-out far from the origin
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Position_zero );
 
 	b3DistanceInput input;
 	input.proxyA = b3MakeShapeProxy( shape );
@@ -1804,7 +1825,8 @@ void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift, 
 	B3_ASSERT( body->setIndex == b3_awakeSet );
 
 	b3BodyState* state = b3GetBodyState( world, body );
-	b3Transform transform = sim->transform;
+	// Only the rotation is used below, so the demoted world transform is exact
+	b3Transform transform = b3ToRelativeTransform( sim->transform, b3Position_zero );
 
 	float lengthUnits = b3GetLengthUnitsPerMeter();
 	float volumeUnits = lengthUnits * lengthUnits * lengthUnits;

@@ -708,7 +708,7 @@ public:
 
 		{
 			CastClosestContext context = {};
-			(void)b3World_CastRay( m_worldId, m_rayOrigin, translation, filter, CastClosestCallback, &context );
+			(void)b3World_CastRay( m_worldId, b3MakePosition( m_rayOrigin ), translation, filter, CastClosestCallback, &context );
 
 			DrawLine( m_rayOrigin, m_rayOrigin + translation, MakeColor( b3_colorAliceBlue ) );
 			if ( context.hit )

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 // clang-format off
@@ -147,6 +148,9 @@ typedef struct b3Version
 
 /// Get the current version of Box3D
 B3_API b3Version b3GetVersion( void );
+
+/// @return true if the library was built with BOX3D_DOUBLE_PRECISION (large world mode)
+B3_API bool b3IsDoublePrecision( void );
 
 /**@}*/
 
