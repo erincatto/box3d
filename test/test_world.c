@@ -29,7 +29,7 @@ int HelloWorld( void )
 
 	// Define the ground body.
 	b3BodyDef groundBodyDef = b3DefaultBodyDef();
-	groundBodyDef.position = b3ToPos( (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+	groundBodyDef.position = (b3Pos){ 0.0f, -10.0f, 0.0f };
 
 	// Call the body factory which allocates memory for the ground body
 	// from a pool and creates the ground box shape (also from a pool).
@@ -47,7 +47,7 @@ int HelloWorld( void )
 	// Define the dynamic body. We set its position and call the body factory.
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
-	bodyDef.position = b3ToPos( (b3Vec3){ 0.0f, 4.0f, 0.0f } );
+	bodyDef.position = (b3Pos){ 0.0f, 4.0f, 0.0f };
 
 	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
@@ -336,7 +336,7 @@ static int TestSensor( void )
 	// Wall from x = 1 to x = 2
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_staticBody;
-	bodyDef.position = b3ToPos( (b3Vec3){ 1.5f, 11.0f, 0.0f } );
+	bodyDef.position = (b3Pos){ 1.5f, 11.0f, 0.0f };
 	b3BodyId wallId = b3CreateBody( worldId, &bodyDef );
 	b3BoxHull box = b3MakeBoxHull( 0.5f, 10.0f, 1.0f );
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -348,7 +348,7 @@ static int TestSensor( void )
 	bodyDef.type = b3_dynamicBody;
 	bodyDef.isBullet = true;
 	bodyDef.gravityScale = 0.0f;
-	bodyDef.position = b3ToPos( (b3Vec3){ 7.39814f, 4.0f, 0.0f } );
+	bodyDef.position = (b3Pos){ 7.39814f, 4.0f, 0.0f };
 	bodyDef.linearVelocity = (b3Vec3){ -20.0f, 0.0f, 0.0f };
 	b3BodyId bulletId = b3CreateBody( worldId, &bodyDef );
 	shapeDef = b3DefaultShapeDef();
@@ -403,7 +403,7 @@ static int TestContactEvents( void )
 	// Static ground
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_staticBody;
-	bodyDef.position = b3ToPos( (b3Vec3){ 0.0f, -0.5f, 0.0f } );
+	bodyDef.position = (b3Pos){ 0.0f, -0.5f, 0.0f };
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 	b3BoxHull groundBox = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
 	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
@@ -412,7 +412,7 @@ static int TestContactEvents( void )
 	// Dynamic sphere dropped onto the ground; restitution causes it to bounce so we get end events
 	bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
-	bodyDef.position = b3ToPos( (b3Vec3){ 0.0f, 5.0f, 0.0f } );
+	bodyDef.position = (b3Pos){ 0.0f, 5.0f, 0.0f };
 	b3BodyId sphereBodyId = b3CreateBody( worldId, &bodyDef );
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 	shapeDef.density = 1.0f;
@@ -465,7 +465,7 @@ static int TestHitEvents( void )
 	// Static ground
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_staticBody;
-	bodyDef.position = b3ToPos( (b3Vec3){ 0.0f, -0.5f, 0.0f } );
+	bodyDef.position = (b3Pos){ 0.0f, -0.5f, 0.0f };
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 	b3BoxHull groundBox = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
 	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
@@ -475,7 +475,7 @@ static int TestHitEvents( void )
 	bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
 	bodyDef.gravityScale = 0.0f;
-	bodyDef.position = b3ToPos( (b3Vec3){ 0.0f, 2.0f, 0.0f } );
+	bodyDef.position = (b3Pos){ 0.0f, 2.0f, 0.0f };
 	bodyDef.linearVelocity = (b3Vec3){ 0.0f, -30.0f, 0.0f };
 	b3BodyId sphereBodyId = b3CreateBody( worldId, &bodyDef );
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -576,7 +576,7 @@ static int TestCompoundHitEvents( void )
 		bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.gravityScale = 0.0f;
-		bodyDef.position = b3ToPos( (b3Vec3){ spawnX, 3.0f, 0.0f } );
+		bodyDef.position = (b3Pos){ spawnX, 3.0f, 0.0f };
 		bodyDef.linearVelocity = (b3Vec3){ 0.0f, -30.0f, 0.0f };
 		b3BodyId sphereBodyId = b3CreateBody( worldId, &bodyDef );
 		b3ShapeDef sphereShapeDef = b3DefaultShapeDef();

@@ -1250,7 +1250,7 @@ b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Pos worldPoint )
 	return v;
 }
 
-void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Vec3 point, bool wake )
+void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Pos point, bool wake )
 {
 	B3_ASSERT( b3IsValidVec3( force ) );
 
@@ -1266,7 +1266,7 @@ void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Vec3 point, bool wake )
 	{
 		b3BodySim* bodySim = b3GetBodySim( world, body );
 		bodySim->force = b3Add( bodySim->force, force );
-		bodySim->torque = b3Add( bodySim->torque, b3Cross( b3SubPos( b3ToPos( point ), bodySim->center ), force ) );
+		bodySim->torque = b3Add( bodySim->torque, b3Cross( b3SubPos( point, bodySim->center ), force ) );
 	}
 }
 
@@ -1308,10 +1308,10 @@ void b3Body_ApplyTorque( b3BodyId bodyId, b3Vec3 torque, bool wake )
 	}
 }
 
-void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Vec3 point, bool wake )
+void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Pos point, bool wake )
 {
 	B3_ASSERT( b3IsValidVec3( impulse ) );
-	B3_ASSERT( b3IsValidVec3( point ) );
+	B3_ASSERT( b3IsValidPosition( point ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1336,7 +1336,7 @@ void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Vec3 point, b
 			state->linearVelocity = b3MulSV( maxLinearSpeed, b3Normalize( state->linearVelocity ) );
 		}
 
-		b3Vec3 delta = b3MulMV( bodySim->invInertiaWorld, b3Cross( b3SubPos( b3ToPos( point ), bodySim->center ), impulse ) );
+		b3Vec3 delta = b3MulMV( bodySim->invInertiaWorld, b3Cross( b3SubPos( point, bodySim->center ), impulse ) );
 		state->angularVelocity = b3Add( state->angularVelocity, delta );
 	}
 }

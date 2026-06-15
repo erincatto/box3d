@@ -22,7 +22,7 @@ typedef struct StackResult
 // position relative to the base and the step on which the stack settles.
 static StackResult RunStack( float baseX )
 {
-	b3Pos base = b3ToPos( (b3Vec3){ baseX, 0.0f, 0.0f } );
+	b3Pos base = (b3Pos){ baseX, 0.0f, 0.0f };
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	b3WorldId worldId = b3CreateWorld( &worldDef );
@@ -98,7 +98,7 @@ static int LargeWorldStackTest( void )
 // continuous collision works the bullet stops at the wall instead of tunneling past it.
 static float RunBullet( float baseX )
 {
-	b3Pos base = b3ToPos( (b3Vec3){ baseX, 0.0f, 0.0f } );
+	b3Pos base = (b3Pos){ baseX, 0.0f, 0.0f };
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	b3WorldId worldId = b3CreateWorld( &worldDef );

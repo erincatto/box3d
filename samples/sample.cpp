@@ -2103,7 +2103,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		b3Vec3 P = b3MulSV( impulse, normal );
 		m_velocity = b3MulSub( m_velocity, invMassA, P );
 
-		b3Body_ApplyLinearImpulse( bodyId, P, point, true );
+		b3Body_ApplyLinearImpulse( bodyId, P, b3ToPos( point ), true );
 	}
 
 	if ( clipVelocity )

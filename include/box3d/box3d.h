@@ -349,7 +349,7 @@ B3_API b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Pos worldPoint );
 /// @param force The world force vector, usually in newtons (N)
 /// @param point The world position of the point of application
 /// @param wake Option to wake up the body
-B3_API void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Vec3 point, bool wake );
+B3_API void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Pos point, bool wake );
 
 /// Apply a force to the center of mass. This optionally wakes up the body.
 /// The force is ignored if the body is not awake.
@@ -375,7 +375,7 @@ B3_API void b3Body_ApplyTorque( b3BodyId bodyId, b3Vec3 torque, bool wake );
 /// @param wake also wake up the body
 /// @warning This should be used for one-shot impulses. If you need a steady force,
 /// use a force instead, which will work better with the sub-stepping solver.
-B3_API void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Vec3 point, bool wake );
+B3_API void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Pos point, bool wake );
 
 /// Apply an impulse to the center of mass. This immediately modifies the velocity.
 /// The impulse is ignored if the body is not awake. This optionally wakes the body.

@@ -1723,7 +1723,7 @@ public:
 				b3BodyId bodyId = b3Shape_GetBody( result.shapeId );
 
 				b3Vec3 impulse = m_magnitude * b3Normalize( pickRay.translation );
-				b3Body_ApplyLinearImpulse( bodyId, impulse, b3ToVec3( result.point ), true );
+				b3Body_ApplyLinearImpulse( bodyId, impulse, result.point, true );
 			}
 		}
 		else
@@ -1738,7 +1738,7 @@ public:
 
 		if ( ImGui::Button( "Impulse##Door" ) )
 		{
-			b3Vec3 p = b3ToVec3( b3Body_GetWorldPoint( m_doorId, { 0.75f, 0.0f, 0.0f } ) );
+			b3Pos p = b3Body_GetWorldPoint( m_doorId, { 0.75f, 0.0f, 0.0f } );
 			b3Body_ApplyLinearImpulse( m_doorId, { 0.0f, 0.0f, -m_magnitude }, p, true );
 			m_translationError1 = 0.0f;
 			m_translationError2 = 0.0f;

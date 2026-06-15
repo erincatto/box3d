@@ -618,7 +618,7 @@ public:
 
 			if ( alpha == 0.0f )
 			{
-				b3Body_ApplyLinearImpulse( body, { 0.0f, 0.0f, 25.0f }, position + b3Vec3{ 0.0f, 0.8f, 0.0f }, true );
+				b3Body_ApplyLinearImpulse( body, { 0.0f, 0.0f, 25.0f }, b3ToPos( position + b3Vec3{ 0.0f, 0.8f, 0.0f } ), true );
 			}
 		}
 	}

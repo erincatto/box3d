@@ -37,7 +37,7 @@ public:
 	// float renderer works in a small relative frame.
 	void BuildScene()
 	{
-		b3Pos base = b3ToPos( { 1000.0f * m_offsetKilometers, 0.0f, 0.0f } );
+		b3Pos base = { 1000.0f * m_offsetKilometers, 0.0f, 0.0f };
 		m_drawOrigin = base;
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();

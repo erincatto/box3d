@@ -55,7 +55,7 @@ MeshDropData CreateMeshDrop( b3WorldId worldId )
 				b3Vec3 linearVelocity = RandomVec3Uniform( -1.0f, 1.0f );
 				b3Vec3 angularVelocity = RandomVec3Uniform( -5.0f, 5.0f );
 
-				bodyDef.position = b3ToPos( (b3Vec3){ 0.5f * ( i - 0.5f * gridCount ), 5.0f, 0.5f * ( j - 0.5f * gridCount ) } );
+				bodyDef.position = (b3Pos){ 0.5f * ( i - 0.5f * gridCount ), 5.0f, 0.5f * ( j - 0.5f * gridCount ) };
 				bodyDef.linearVelocity = linearVelocity;
 				bodyDef.angularVelocity = angularVelocity;
 				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );

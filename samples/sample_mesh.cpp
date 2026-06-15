@@ -1447,7 +1447,7 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.name = "cylinder";
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = b3ToPos( b3Vec3{ 5020.27734f, 3506.22559f, -6986.48584f } );
+			bodyDef.position = { 5020.27734f, 3506.22559f, -6986.48584f };
 			bodyDef.rotation = { { 0.664546967, 0.669287264, 0.135021493 }, 0.303646326 };
 
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
