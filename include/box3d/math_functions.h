@@ -71,22 +71,22 @@ typedef struct b3Transform
 
 /// A world position. Double precision in large world mode so coordinates stay accurate far
 /// from the origin.
-typedef struct b3Position
+typedef struct b3Pos
 {
 	double x, y, z;
-} b3Position;
+} b3Pos;
 
 /// A world transform with double precision translation and float quaternion rotation. Rotation
 /// is frame local and never needs the extra range, the same split as Jolt's DMat44.
 typedef struct b3WorldTransform
 {
-	b3Position p;
+	b3Pos p;
 	b3Quat q;
 } b3WorldTransform;
 
 #else
 
-typedef b3Vec3 b3Position;
+typedef b3Vec3 b3Pos;
 typedef b3Transform b3WorldTransform;
 
 #endif
@@ -131,7 +131,7 @@ static const b3Matrix3 b3Mat3_identity = {
 };
 
 // Valid in both modes: 0.0f promotes to double, the identity rotation stays float
-static const b3Position b3Position_zero = { 0.0f, 0.0f, 0.0f };
+static const b3Pos b3Pos_zero = { 0.0f, 0.0f, 0.0f };
 static const b3WorldTransform b3WorldTransform_identity = { { 0.0f, 0.0f, 0.0f }, { { 0.0f, 0.0f, 0.0f }, 1.0f } };
 
 /// @return the minimum of two integers.
@@ -624,13 +624,13 @@ B3_INLINE b3Vec3 b3InvTransformPoint( b3Transform t, b3Vec3 v )
 // the types in float mode and the explicit float casts become no-ops.
 
 /// Convert a vector to a world position.
-B3_INLINE b3Position b3MakePosition( b3Vec3 v )
+B3_INLINE b3Pos b3ToPos( b3Vec3 v )
 {
-	return B3_LITERAL( b3Position ){ v.x, v.y, v.z };
+	return B3_LITERAL( b3Pos ){ v.x, v.y, v.z };
 }
 
 /// Lossy conversion of a world position to a float vector.
-B3_INLINE b3Vec3 b3ToVec3( b3Position p )
+B3_INLINE b3Vec3 b3ToVec3( b3Pos p )
 {
 	return B3_LITERAL( b3Vec3 ){ (float)p.x, (float)p.y, (float)p.z };
 }
@@ -661,21 +661,21 @@ B3_INLINE float b3RoundUpFloat( double x )
 }
 
 /// a - b, demoted to float. The primary precision boundary operation.
-B3_INLINE b3Vec3 b3PositionDelta( b3Position a, b3Position b )
+B3_INLINE b3Vec3 b3SubPos( b3Pos a, b3Pos b )
 {
 	return B3_LITERAL( b3Vec3 ){ (float)( a.x - b.x ), (float)( a.y - b.y ), (float)( a.z - b.z ) };
 }
 
 /// p + d
-B3_INLINE b3Position b3OffsetPosition( b3Position p, b3Vec3 d )
+B3_INLINE b3Pos b3OffsetPos( b3Pos p, b3Vec3 d )
 {
-	return B3_LITERAL( b3Position ){ p.x + d.x, p.y + d.y, p.z + d.z };
+	return B3_LITERAL( b3Pos ){ p.x + d.x, p.y + d.y, p.z + d.z };
 }
 
 /// World position interpolation for sweeps and sampling.
-B3_INLINE b3Position b3LerpPosition( b3Position a, b3Position b, float t )
+B3_INLINE b3Pos b3LerpPosition( b3Pos a, b3Pos b, float t )
 {
-	return B3_LITERAL( b3Position ){
+	return B3_LITERAL( b3Pos ){
 		( 1.0f - t ) * a.x + t * b.x,
 		( 1.0f - t ) * a.y + t * b.y,
 		( 1.0f - t ) * a.z + t * b.z,
@@ -683,14 +683,14 @@ B3_INLINE b3Position b3LerpPosition( b3Position a, b3Position b, float t )
 }
 
 /// Transform a local point to a world position. Rotation in float, translation in double.
-B3_INLINE b3Position b3TransformWorldPoint( b3WorldTransform t, b3Vec3 p )
+B3_INLINE b3Pos b3TransformWorldPoint( b3WorldTransform t, b3Vec3 p )
 {
 	b3Vec3 r = b3RotateVector( t.q, p );
-	return B3_LITERAL( b3Position ){ t.p.x + r.x, t.p.y + r.y, t.p.z + r.z };
+	return B3_LITERAL( b3Pos ){ t.p.x + r.x, t.p.y + r.y, t.p.z + r.z };
 }
 
 /// Transform a world position to a local point. One double subtraction, then float.
-B3_INLINE b3Vec3 b3InvTransformWorldPoint( b3WorldTransform t, b3Position p )
+B3_INLINE b3Vec3 b3InvTransformWorldPoint( b3WorldTransform t, b3Pos p )
 {
 	b3Vec3 d = { (float)( p.x - t.p.x ), (float)( p.y - t.p.y ), (float)( p.z - t.p.z ) };
 	return b3InvRotateVector( t.q, d );
@@ -712,12 +712,12 @@ B3_INLINE b3WorldTransform b3MulWorldTransforms( b3WorldTransform A, b3Transform
 	b3WorldTransform C;
 	C.q = b3MulQuat( A.q, B.q );
 	b3Vec3 r = b3RotateVector( A.q, B.p );
-	C.p = B3_LITERAL( b3Position ){ A.p.x + r.x, A.p.y + r.y, A.p.z + r.z };
+	C.p = B3_LITERAL( b3Pos ){ A.p.x + r.x, A.p.y + r.y, A.p.z + r.z };
 	return C;
 }
 
 /// Shift a world transform into the frame of a base position.
-B3_INLINE b3Transform b3ToRelativeTransform( b3WorldTransform t, b3Position base )
+B3_INLINE b3Transform b3ToRelativeTransform( b3WorldTransform t, b3Pos base )
 {
 	b3Transform r;
 	r.q = t.q;
@@ -729,7 +729,7 @@ B3_INLINE b3Transform b3ToRelativeTransform( b3WorldTransform t, b3Position base
 B3_INLINE b3WorldTransform b3MakeWorldTransform( b3Transform t )
 {
 	b3WorldTransform w;
-	w.p = b3MakePosition( t.p );
+	w.p = b3ToPos( t.p );
 	w.q = t.q;
 	return w;
 }
@@ -737,7 +737,7 @@ B3_INLINE b3WorldTransform b3MakeWorldTransform( b3Transform t )
 /// Translate a local AABB by a world origin, rounding outward so the float box always contains
 /// the double box. Far from the origin a plain conversion could clip a shape out of its own box.
 /// In float mode the origin is float and the rounding is a no-op.
-B3_INLINE b3AABB b3OffsetAABB( b3AABB localBox, b3Position origin )
+B3_INLINE b3AABB b3OffsetAABB( b3AABB localBox, b3Pos origin )
 {
 	b3AABB out;
 	out.lowerBound.x = b3RoundDownFloat( origin.x + localBox.lowerBound.x );
@@ -1055,7 +1055,7 @@ B3_API bool b3IsSaneAABB( b3AABB a );
 B3_API bool b3IsValidPlane( b3Plane a );
 
 /// Is this a valid world position? Not NaN or infinity.
-B3_API bool b3IsValidPosition( b3Position p );
+B3_API bool b3IsValidPosition( b3Pos p );
 
 /// Is this a valid world transform? Not NaN or infinity. Rotation is normalized.
 B3_API bool b3IsValidWorldTransform( b3WorldTransform t );
@@ -1138,13 +1138,19 @@ B3_FORCE_INLINE b3Vec3 operator-( b3Vec3 a, b3Vec3 b )
 #if defined( BOX3D_DOUBLE_PRECISION )
 
 /// Offset a world position by a vector.
-B3_FORCE_INLINE b3Position operator+( b3Position a, b3Vec3 b )
+B3_FORCE_INLINE b3Pos operator+( b3Pos a, b3Vec3 b )
 {
 	return { a.x + b.x, a.y + b.y, a.z + b.z };
 }
 
+/// Offset a world position by a vector.
+B3_FORCE_INLINE b3Pos operator-( b3Pos a, b3Vec3 b )
+{
+	return { a.x - b.x, a.y - b.y, a.z - b.z };
+}
+
 /// Delta between two world positions, demoted to float.
-B3_FORCE_INLINE b3Vec3 operator-( b3Position a, b3Position b )
+B3_FORCE_INLINE b3Vec3 operator-( b3Pos a, b3Pos b )
 {
 	return { (float)( a.x - b.x ), (float)( a.y - b.y ), (float)( a.z - b.z ) };
 }

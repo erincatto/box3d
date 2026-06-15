@@ -268,7 +268,7 @@ Sample::Sample( SampleContext* context )
 	}
 
 	m_worldId = b3_nullWorldId;
-	m_drawOrigin = b3Position_zero;
+	m_drawOrigin = b3Pos_zero;
 
 	m_mouseBodyId = {};
 	m_mouseJointId = {};
@@ -349,6 +349,10 @@ void Sample::Step()
 {
 	m_didStep = false;
 
+	// Host overlays demote against the same origin the engine uses for debug shapes, so the
+	// DrawWorld* helpers issued during the step stay precise far from the world origin.
+	SetDrawOrigin( m_drawOrigin );
+
 	float timeStep = 0.0f;
 	if ( m_context->pause == false || m_context->singleStep > 0 )
 	{
@@ -370,7 +374,7 @@ void Sample::Step()
 
 	if ( B3_IS_NON_NULL( m_mouseBodyId ) && timeStep > 0.0f )
 	{
-		b3Body_SetTargetTransform( m_mouseBodyId, { b3ToVec3( m_mousePoint ), b3Quat_identity }, timeStep, true );
+		b3Body_SetTargetTransform( m_mouseBodyId, { m_mousePoint, b3Quat_identity }, timeStep, true );
 	}
 
 	b3World_EnableSleeping( m_worldId, m_context->enableSleep );
@@ -405,7 +409,7 @@ void Sample::Step()
 		PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
 		b3RayResult result =
-			b3World_CastRayClosest( m_worldId, b3OffsetPosition( m_drawOrigin, pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
+			b3World_CastRayClosest( m_worldId, b3OffsetPos( m_drawOrigin, pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
 
 		b3BodyId hovered = b3_nullBodyId;
 		if ( result.hit )
@@ -443,7 +447,7 @@ void Sample::Render()
 	// draw set and lazily fire createDebugShape. The cull bounds live in absolute world space to
 	// match the broad-phase tree, so add the draw origin back to the relative eye.
 	b3Vec3 eye = m_camera->GetPosition();
-	b3Vec3 center = b3ToVec3( b3OffsetPosition( m_drawOrigin, eye ) );
+	b3Vec3 center = b3ToVec3( b3OffsetPos( m_drawOrigin, eye ) );
 	b3Vec3 r = { 1000.0f, 1000.0f, 1000.0f };
 	debugDraw.drawingBounds = { center - r, center + r };
 
@@ -1058,7 +1062,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 		PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 
 		b3RayResult result =
-			b3World_CastRayClosest( m_worldId, b3OffsetPosition( m_drawOrigin, pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
+			b3World_CastRayClosest( m_worldId, b3OffsetPos( m_drawOrigin, pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
 
 		if ( result.hit )
 		{
@@ -1124,7 +1128,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = b3OffsetPosition( m_drawOrigin, pickRay.origin + 2.0f * direction );
+			bodyDef.position = b3OffsetPos( m_drawOrigin, pickRay.origin + 2.0f * direction );
 			bodyDef.linearVelocity = ( 10.0f * m_launchSpeedScale ) * direction;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
@@ -1144,7 +1148,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = b3OffsetPosition( m_drawOrigin, pickRay.origin + 2.0f * direction );
+			bodyDef.position = b3OffsetPos( m_drawOrigin, pickRay.origin + 2.0f * direction );
 			bodyDef.linearVelocity = ( 20.0f * m_launchSpeedScale ) * direction;
 			bodyDef.isBullet = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
@@ -1192,7 +1196,7 @@ void Sample::MouseMove( b3Vec2 p )
 	PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 	if ( B3_IS_NON_NULL( m_mouseJointId ) )
 	{
-		m_mousePoint = b3OffsetPosition( m_drawOrigin, pickRay.origin + m_mouseFraction * pickRay.translation );
+		m_mousePoint = b3OffsetPos( m_drawOrigin, pickRay.origin + m_mouseFraction * pickRay.translation );
 	}
 }
 
@@ -1858,7 +1862,7 @@ void Sample::ToggleThirdPerson()
 	}
 }
 
-float CastClosestCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId, int triangleIndex,
+float CastClosestCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t materialId, int triangleIndex,
 						   int childIndex, void* context )
 {
 	CastClosestContext* rayContext = (CastClosestContext*)context;
@@ -2002,7 +2006,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 	b3Vec3 rayOrigin = b3TransformPoint( m_transform, m_capsule.center1 );
 	b3Vec3 rayTranslation = -rayLength * b3Vec3_axisY;
 	b3QueryFilter skipTeamFilter = { 1, ~2u };
-	b3RayResult rayResult = b3World_CastRayClosest( worldId, b3MakePosition( rayOrigin ), rayTranslation, skipTeamFilter );
+	b3RayResult rayResult = b3World_CastRayClosest( worldId, b3ToPos( rayOrigin ), rayTranslation, skipTeamFilter );
 
 	if ( rayResult.hit == false )
 	{

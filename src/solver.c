@@ -320,7 +320,7 @@ typedef struct b3ContinuousContext
 	b3Vec3 centroid1, centroid2;
 	b3Sweep sweep;
 	// World base for re-centering sweeps. Keeps TOI in float precision far from the origin.
-	b3Position base;
+	b3Pos base;
 	float fraction;
 	b3SensorHit sensorHits[B2_MAX_CONTINUOUS_SENSOR_HITS];
 	float sensorFractions[B2_MAX_CONTINUOUS_SENSOR_HITS];
@@ -438,7 +438,7 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 		{
 			b3ShapeId shapeIdA = { shape->id + 1, world->worldId, shape->generation };
 			b3ShapeId shapeIdB = { fastShape->id + 1, world->worldId, fastShape->generation };
-			b3Position point = b3OffsetPosition( continuousContext->base, output.point );
+			b3Pos point = b3OffsetPos( continuousContext->base, output.point );
 			didHit = world->preSolveFcn( shapeIdA, shapeIdB, point, output.normal, world->preSolveContext );
 		}
 
@@ -468,9 +468,9 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	// Re-center the sweeps to a base position so TOI stays in float precision far from the origin.
 	// In float mode the base is zero and everything below is identical to an absolute world sweep.
 #if defined( BOX3D_DOUBLE_PRECISION )
-	b3Position base = fastBodySim->center0;
+	b3Pos base = fastBodySim->center0;
 #else
-	b3Position base = b3Position_zero;
+	b3Pos base = b3Pos_zero;
 #endif
 
 	b3Sweep sweep = b3MakeRelativeSweep( fastBodySim, base );
@@ -547,8 +547,8 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 		b3Vec3 origin = b3Sub( c, b3RotateVector( q, sweep.localCenter ) );
 
 		// Advance body
-		b3WorldTransform transform = { b3OffsetPosition( base, origin ), q };
-		b3Position center = b3OffsetPosition( base, c );
+		b3WorldTransform transform = { b3OffsetPos( base, origin ), q };
+		b3Pos center = b3OffsetPos( base, c );
 		fastBodySim->transform = transform;
 		fastBodySim->center = center;
 		fastBodySim->rotation0 = q;
@@ -614,7 +614,7 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 
 				if ( b3IsSaneAABB( shape->fatAABB ) == false )
 				{
-					b3Position c = fastBodySim->center;
+					b3Pos c = fastBodySim->center;
 					b3Log( "body %s out of bounds at %g %g %g", fastBody->name, c.x, c.y, c.z );
 				}
 
@@ -689,7 +689,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		B3_ASSERT( b3IsValidVec3( v ) );
 		B3_ASSERT( b3IsValidVec3( w ) );
 
-		sim->center = b3OffsetPosition( sim->center, state->deltaPosition );
+		sim->center = b3OffsetPos( sim->center, state->deltaPosition );
 		sim->transform.q = b3NormalizeQuat( b3MulQuat( state->deltaRotation, sim->transform.q ) );
 
 		// Use the velocity of the farthest point on the body to account for rotation.
@@ -710,7 +710,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		state->deltaPosition = b3Vec3_zero;
 		state->deltaRotation = b3Quat_identity;
 
-		sim->transform.p = b3OffsetPosition( sim->center, b3Neg( b3RotateVector( sim->transform.q, sim->localCenter ) ) );
+		sim->transform.p = b3OffsetPos( sim->center, b3Neg( b3RotateVector( sim->transform.q, sim->localCenter ) ) );
 
 		// cache miss here, however I need the shape list below
 		b3Body* body = bodies + sim->bodyId;
@@ -1993,7 +1993,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 					b3Body* bodyB = b3Array_Get( world->bodies, shapeB->bodyId );
 					b3BodySim* simA = b3GetBodySim( world, bodyA );
 					b3BodySim* simB = b3GetBodySim( world, bodyB );
-					b3Position midCenter = b3LerpPosition( simA->center, simB->center, 0.5f );
+					b3Pos midCenter = b3LerpPosition( simA->center, simB->center, 0.5f );
 
 					b3ContactHitEvent event = { 0 };
 					event.approachSpeed = threshold;
@@ -2014,7 +2014,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 							if ( approachSpeed > event.approachSpeed && mp->totalNormalImpulse > 0.0f )
 							{
 								event.approachSpeed = approachSpeed;
-								event.point = b3OffsetPosition( midCenter, b3Lerp( mp->anchorA, mp->anchorB, 0.5f ) );
+								event.point = b3OffsetPos( midCenter, b3Lerp( mp->anchorA, mp->anchorB, 0.5f ) );
 								event.normal = manifold->normal;
 								triangleIndex = mp->triangleIndex;
 								found = true;

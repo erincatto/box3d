@@ -174,7 +174,7 @@ public:
 			b3Quat orientation = b3MakeQuatFromAxisAngle( { 0.0f, 1.0f, 0.0f }, -alpha );
 			b3Vec3 velocity = { 25.0f * cs.cosine, 0.0f, 25.0f * cs.sine };
 
-			bodyDef.position = b3MakePosition( position );
+			bodyDef.position = b3ToPos( position );
 			bodyDef.rotation = orientation;
 			bodyDef.linearVelocity = velocity;
 			b3BodyId boxBody = b3CreateBody( m_worldId, &bodyDef );
@@ -558,7 +558,7 @@ public:
 			// m_meshTransform.q = b3Quat_identity;
 
 			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = b3MakePosition( m_meshTransform.p );
+			bodyDef.position = b3ToPos( m_meshTransform.p );
 			bodyDef.rotation = m_meshTransform.q;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
@@ -651,7 +651,7 @@ public:
 			b3Vec3 p = 1.0f / 3.0f * ( v1 + v2 + v3 );
 			p = b3TransformPoint( m_meshTransform, p );
 
-			DrawWorldString( p, MakeColor( b3_colorAqua ), "%d", i );
+			DrawString3D( p, MakeColor( b3_colorAqua ), "%d", i );
 
 			int materialIndex = materialIndices[i];
 

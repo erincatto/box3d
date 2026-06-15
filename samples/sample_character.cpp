@@ -602,7 +602,7 @@ struct ClosestShapeCastContext
 	bool startedSolid;
 };
 
-static float ClosestShapeCastCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+static float ClosestShapeCastCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
 									   int triangleIndex, int childIndex, void* context )
 {
 	auto* ctx = static_cast<ClosestShapeCastContext*>( context );
@@ -716,7 +716,7 @@ struct RigidbodyCharacter
 		// Create dynamic body with all rotation locked
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = b3MakePosition( position );
+		bodyDef.position = b3ToPos( position );
 		bodyDef.motionLocks.angularX = true;
 		bodyDef.motionLocks.angularY = true;
 		bodyDef.motionLocks.angularZ = true;
@@ -953,7 +953,7 @@ struct RigidbodyCharacter
 			float deltaY = targetPos.y - pos.y;
 
 			b3Quat rot = b3Body_GetRotation( m_bodyId );
-			b3Body_SetTransform( m_bodyId, b3MakePosition( targetPos ), rot );
+			b3Body_SetTransform( m_bodyId, b3ToPos( targetPos ), rot );
 
 			// If we moved upward, kill vertical velocity to prevent bouncing
 			if ( deltaY > 0.01f )
@@ -1087,7 +1087,7 @@ struct RigidbodyCharacter
 		// Teleport body to step position
 		b3Vec3 stepPos = { trDown.endPosition.x, trDown.endPosition.y + 0.01f, trDown.endPosition.z };
 		b3Quat rot = b3Body_GetRotation( m_bodyId );
-		b3Body_SetTransform( m_bodyId, b3MakePosition( stepPos ), rot );
+		b3Body_SetTransform( m_bodyId, b3ToPos( stepPos ), rot );
 
 		// Kill vertical velocity, scale horizontal by 0.9
 		b3Vec3 newVel = b3Body_GetLinearVelocity( m_bodyId );
@@ -1109,7 +1109,7 @@ struct RigidbodyCharacter
 
 		// After physics, restore to step position to prevent double-velocity
 		b3Quat rot = b3Body_GetRotation( m_bodyId );
-		b3Body_SetTransform( m_bodyId, b3MakePosition( m_stepPosition ), rot );
+		b3Body_SetTransform( m_bodyId, b3ToPos( m_stepPosition ), rot );
 		m_didStep = false;
 	}
 
@@ -1599,7 +1599,7 @@ public:
 				proxy.radius = cameraRadius;
 
 				b3QueryFilter filter = b3DefaultQueryFilter();
-				b3RayResult rayResult = b3World_CastRayClosest( m_worldId, b3MakePosition( pos ), translation, filter );
+				b3RayResult rayResult = b3World_CastRayClosest( m_worldId, b3ToPos( pos ), translation, filter );
 
 				if ( rayResult.hit )
 				{

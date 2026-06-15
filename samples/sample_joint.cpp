@@ -96,8 +96,8 @@ public:
 			b3Vec3 pivotB = { m_length * ( i + 1.0f ), yOffset, 0.0f };
 			jointDef.base.bodyIdA = prevBodyId;
 			jointDef.base.bodyIdB = m_bodyIds[i];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( prevBodyId, b3MakePosition( pivotA ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( m_bodyIds[i], b3MakePosition( pivotB ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( prevBodyId, b3ToPos( pivotA ) );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( m_bodyIds[i], b3ToPos( pivotB ) );
 			m_jointIds[i] = b3CreateDistanceJoint( m_worldId, &jointDef );
 
 			prevBodyId = m_bodyIds[i];
@@ -299,7 +299,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_kinematicBody;
-			bodyDef.position = b3MakePosition( m_transform.p );
+			bodyDef.position = m_transform.p;
 			m_targetId = b3CreateBody( m_worldId, &bodyDef );
 		}
 
@@ -307,7 +307,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = b3MakePosition( m_transform.p );
+			bodyDef.position = m_transform.p;
 			m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3BoxHull box = b3MakeBoxHull( 1.0f, 0.25f, 0.25f );
@@ -401,7 +401,7 @@ public:
 		{
 			m_time += m_speed * timeStep;
 
-			b3Vec3 linearOffset;
+			b3Pos linearOffset;
 			linearOffset.x = 6.0f * sinf( 2.0f * m_time );
 			linearOffset.y = 10.0f + 4.0f * sinf( 1.0f * m_time );
 			linearOffset.z = 0.0f;
@@ -412,7 +412,7 @@ public:
 			b3Body_SetTargetTransform( m_targetId, m_transform, timeStep, true );
 		}
 
-		DrawAxes( m_transform, 1.0f );
+		DrawWorldAxes( m_transform, 1.0f );
 
 		Sample::Step();
 
@@ -430,7 +430,7 @@ public:
 	b3BodyId m_targetId;
 	b3BodyId m_bodyId;
 	b3JointId m_jointId;
-	b3Transform m_transform;
+	b3WorldTransform m_transform;
 	float m_time;
 	float m_speed;
 	float m_maxForce;
@@ -524,7 +524,7 @@ public:
 		{
 			b3Sphere sphere = { { 0.0f, 10.0f, 0.0 }, 10.0f };
 			b3ExplosionDef def = b3DefaultExplosionDef();
-			def.position = b3MakePosition( sphere.center );
+			def.position = b3ToPos( sphere.center );
 			def.radius = sphere.radius;
 			def.falloff = 5.0f;
 			def.impulsePerArea = 10000.0f;
@@ -1716,7 +1716,7 @@ public:
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, b3MakePosition( pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
+			b3RayResult result = b3World_CastRayClosest( m_worldId, b3ToPos( pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
 
 			if ( result.hit )
 			{
@@ -1790,8 +1790,8 @@ public:
 	{
 		Sample::Step();
 
-		b3Vec3 p = b3ToVec3( b3Body_GetWorldPoint( m_doorId, { 0.75f, 0.0f, 0.0f } ) );
-		DrawPoint( p, 10.0f, MakeColor( b3_colorDarkKhaki ) );
+		b3Pos p = b3Body_GetWorldPoint( m_doorId, { 0.75f, 0.0f, 0.0f } );
+		DrawWorldPoint( p, 10.0f, MakeColor( b3_colorDarkKhaki ) );
 
 		float translationError1 = b3Joint_GetLinearSeparation( m_jointId1 );
 		m_translationError1 = b3MaxFloat( m_translationError1, translationError1 );
@@ -1879,8 +1879,8 @@ public:
 					b3Vec3 pivot = { xbase + 2.0f * a * i, 20.0f, -0.5f };
 					jointDef.base.bodyIdA = prevBodyId;
 					jointDef.base.bodyIdB = m_bodyIds[i];
-					jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3MakePosition( pivot ) );
-					jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3MakePosition( pivot ) );
+					jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
+					jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
 					b3CreateSphericalJoint( m_worldId, &jointDef );
 					// b3CreateRevoluteJoint( m_worldId, &jointDef );
 				}
@@ -1889,8 +1889,8 @@ public:
 					b3Vec3 pivot = { xbase + 2.0f * a * i, 20.0f, 0.5f };
 					jointDef.base.bodyIdA = prevBodyId;
 					jointDef.base.bodyIdB = m_bodyIds[i];
-					jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3MakePosition( pivot ) );
-					jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3MakePosition( pivot ) );
+					jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
+					jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
 					b3CreateSphericalJoint( m_worldId, &jointDef );
 					// b3CreateRevoluteJoint( m_worldId, &jointDef );
 				}
@@ -1902,8 +1902,8 @@ public:
 				b3Vec3 pivot = { xbase + 2.0f * a * m_count, 20.0f, -0.5f };
 				jointDef.base.bodyIdA = prevBodyId;
 				jointDef.base.bodyIdB = groundId;
-				jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3MakePosition( pivot ) );
-				jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3MakePosition( pivot ) );
+				jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
+				jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
 				b3CreateSphericalJoint( m_worldId, &jointDef );
 				// b3CreateRevoluteJoint( m_worldId, &jointDef );
 			}
@@ -1912,8 +1912,8 @@ public:
 				b3Vec3 pivot = { xbase + 2.0f * a * m_count, 20.0f, 0.5f };
 				jointDef.base.bodyIdA = prevBodyId;
 				jointDef.base.bodyIdB = groundId;
-				jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3MakePosition( pivot ) );
-				jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3MakePosition( pivot ) );
+				jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
+				jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
 				b3CreateSphericalJoint( m_worldId, &jointDef );
 				// b3CreateRevoluteJoint( m_worldId, &jointDef );
 			}
@@ -1994,7 +1994,7 @@ public:
 		{
 			assert( m_count < m_capacity );
 
-			bodyDef.position = b3MakePosition( position );
+			bodyDef.position = b3ToPos( position );
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
@@ -2004,8 +2004,8 @@ public:
 			b3DistanceJointDef jointDef = b3DefaultDistanceJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = m_bodyIds[m_count];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3MakePosition( pivot1 ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3MakePosition( pivot2 ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot1 ) );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot2 ) );
 			jointDef.length = length;
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
@@ -2022,7 +2022,7 @@ public:
 		{
 			assert( m_bodyCount < e_count );
 
-			bodyDef.position = b3MakePosition( position );
+			bodyDef.position = b3ToPos( position );
 			m_bodyIds[m_bodyCount] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_bodyCount], &shapeDef, &box.base );
 
@@ -2047,7 +2047,7 @@ public:
 		{
 			assert( m_count < m_capacity );
 
-			bodyDef.position = b3MakePosition( position );
+			bodyDef.position = b3ToPos( position );
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
@@ -2055,8 +2055,8 @@ public:
 			b3PrismaticJointDef jointDef = b3DefaultPrismaticJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = m_bodyIds[m_count];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3MakePosition( pivot ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3MakePosition( pivot ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
 			jointDef.base.collideConnected = true;
@@ -2071,7 +2071,7 @@ public:
 		{
 			assert( m_count < m_capacity );
 
-			bodyDef.position = b3MakePosition( position );
+			bodyDef.position = b3ToPos( position );
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
@@ -2079,8 +2079,8 @@ public:
 			b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = m_bodyIds[m_count];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3MakePosition( pivot ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3MakePosition( pivot ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
 			jointDef.base.collideConnected = true;
@@ -2095,7 +2095,7 @@ public:
 		{
 			assert( m_count < m_capacity );
 
-			bodyDef.position = b3MakePosition( position );
+			bodyDef.position = b3ToPos( position );
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
@@ -2103,8 +2103,8 @@ public:
 			b3WeldJointDef jointDef = b3DefaultWeldJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = m_bodyIds[m_count];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3MakePosition( pivot ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3MakePosition( pivot ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
 			jointDef.angularHertz = 2.0f;
 			jointDef.angularDampingRatio = 0.5f;
 			jointDef.base.forceThreshold = forceThreshold;
@@ -2122,7 +2122,7 @@ public:
 		{
 			assert( index < e_count );
 
-			bodyDef.position = b3MakePosition( position );
+			bodyDef.position = b3ToPos( position );
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 

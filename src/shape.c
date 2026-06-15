@@ -1106,7 +1106,7 @@ b3CastOutput b3Shape_RayCast( b3ShapeId shapeId, const b3RayCastInput* input )
 	b3Shape* shape = b3GetShape( world, shapeId );
 
 	// Low level shape ray cast is a documented float carve-out far from the origin
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransform( world, shape->bodyId ), b3Position_zero );
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransform( world, shape->bodyId ), b3Pos_zero );
 
 	// input in local coordinates
 	b3RayCastInput localInput;
@@ -1760,7 +1760,7 @@ b3Vec3 b3Shape_GetClosestPoint( b3ShapeId shapeId, b3Vec3 target )
 	b3Shape* shape = b3GetShape( world, shapeId );
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
 	// Low level closest point query is a documented float carve-out far from the origin
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Position_zero );
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Pos_zero );
 
 	b3DistanceInput input;
 	input.proxyA = b3MakeShapeProxy( shape );
@@ -1826,7 +1826,7 @@ void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift, 
 
 	b3BodyState* state = b3GetBodyState( world, body );
 	// Only the rotation is used below, so the demoted world transform is exact
-	b3Transform transform = b3ToRelativeTransform( sim->transform, b3Position_zero );
+	b3Transform transform = b3ToRelativeTransform( sim->transform, b3Pos_zero );
 
 	float lengthUnits = b3GetLengthUnitsPerMeter();
 	float volumeUnits = lengthUnits * lengthUnits * lengthUnits;

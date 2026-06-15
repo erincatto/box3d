@@ -84,7 +84,7 @@ public:
 			b3Vec3 rayOrigin = { x, 8.0f, m_offset };
 			b3Vec3 rayTranslation = b3Vec3{ x, 0.0f, m_offset } - rayOrigin;
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, b3MakePosition( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
+			b3RayResult result = b3World_CastRayClosest( m_worldId, b3ToPos( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
 			if ( result.hit )
 			{
 				b3Vec3 point = b3ToVec3( result.point );
@@ -134,7 +134,7 @@ struct CastContext
 };
 
 // This callback finds the closest hit. This is the most common callback used in games.
-static float RayCastClosestCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId,
+static float RayCastClosestCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t materialId,
 									 int triangleIndex, int childIndex, void* context )
 {
 	CastContext* rayContext = (CastContext*)context;
@@ -173,7 +173,7 @@ static float RayCastClosestCallback( b3ShapeId shapeId, b3Position point, b3Vec3
 // This callback finds any hit. For this type of query we are usually just checking for obstruction,
 // so the hit data is not relevant.
 // NOTE: shape hits are not ordered, so this may not return the closest hit
-static float RayCastAnyCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId,
+static float RayCastAnyCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t materialId,
 								 int triangleIndex, int childIndex, void* context )
 {
 	CastContext* rayContext = (CastContext*)context;
@@ -213,7 +213,7 @@ static float RayCastAnyCallback( b3ShapeId shapeId, b3Position point, b3Vec3 nor
 // NOTE: shape hits are not ordered, so this may return hits in any order. This means that
 // if you limit the number of results, you may discard the closest hit. You can see this
 // behavior in the sample.
-static float RayCastMultipleCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId,
+static float RayCastMultipleCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t materialId,
 									  int triangleIndex, int childIndex, void* context )
 {
 	CastContext* rayContext = (CastContext*)context;
@@ -257,7 +257,7 @@ static float RayCastMultipleCallback( b3ShapeId shapeId, b3Position point, b3Vec
 }
 
 // This ray cast collects multiple hits along the ray and sorts them.
-static float RayCastSortedCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId,
+static float RayCastSortedCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t materialId,
 									int triangleIndex, int childIndex, void* context )
 {
 	CastContext* rayContext = (CastContext*)context;
@@ -430,7 +430,7 @@ public:
 				bodyDef.type = b3_staticBody;
 			}
 
-			bodyDef.position = b3MakePosition( RandomVec3Uniform( -20.0f, 20.0f ) );
+			bodyDef.position = b3ToPos( RandomVec3Uniform( -20.0f, 20.0f ) );
 
 			b3Vec3 axis = RandomVec3Uniform( -1.0f, 1.0f );
 			axis = b3Normalize( axis );
@@ -690,7 +690,7 @@ public:
 
 		if ( m_castType == e_rayCast )
 		{
-			b3World_CastRay( m_worldId, b3MakePosition( m_origin ), m_translation, b3DefaultQueryFilter(), modeFcn, &m_castContext );
+			b3World_CastRay( m_worldId, b3ToPos( m_origin ), m_translation, b3DefaultQueryFilter(), modeFcn, &m_castContext );
 		}
 		else
 		{
@@ -874,7 +874,7 @@ public:
 		}
 		else
 		{
-			b3RayResult result = b3World_CastRayClosest( m_worldId, b3MakePosition( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
+			b3RayResult result = b3World_CastRayClosest( m_worldId, b3ToPos( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
 			if ( result.hit )
 			{
 				b3Vec3 point = b3ToVec3( result.point );
@@ -1719,7 +1719,7 @@ public:
 		for ( int i = 0; i < m_boxB.base.vertexCount; ++i )
 		{
 			b3Vec3 p = b3TransformPoint( m_transformB, m_boxB.boxPoints[i] );
-			DrawWorldString( p, MakeColor( b3_colorAliceBlue ), " %d", i );
+			DrawString3D( p, MakeColor( b3_colorAliceBlue ), " %d", i );
 		}
 
 		DrawPoint( output.pointA, 5.0f, MakeColor( b3_colorWhite ) );
@@ -2195,13 +2195,13 @@ public:
 			for ( int i = 0; i < m_proxyA.count; ++i )
 			{
 				b3Vec3 p = m_proxyA.points[i];
-				DrawWorldString( p, MakeColor( b3_colorWhite ), " %d", i );
+				DrawString3D( p, MakeColor( b3_colorWhite ), " %d", i );
 			}
 
 			for ( int i = 0; i < m_proxyB.count; ++i )
 			{
 				b3Vec3 p = b3TransformPoint( m_transform, m_proxyB.points[i] );
-				DrawWorldString( p, MakeColor( b3_colorWhite ), " %d", i );
+				DrawString3D( p, MakeColor( b3_colorWhite ), " %d", i );
 			}
 		}
 
@@ -2361,9 +2361,9 @@ public:
 				DrawLine( p1, p2, MakeColor( color ) );
 				DrawLine( p2, p3, MakeColor( color ) );
 				DrawLine( p3, p1, MakeColor( color ) );
-				DrawWorldString( p1, MakeColor( b3_colorWhite ), "0" );
-				DrawWorldString( p2, MakeColor( b3_colorWhite ), "1" );
-				DrawWorldString( p3, MakeColor( b3_colorWhite ), "2" );
+				DrawString3D( p1, MakeColor( b3_colorWhite ), "0" );
+				DrawString3D( p2, MakeColor( b3_colorWhite ), "1" );
+				DrawString3D( p3, MakeColor( b3_colorWhite ), "2" );
 			}
 			break;
 

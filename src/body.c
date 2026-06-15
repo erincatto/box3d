@@ -535,7 +535,7 @@ float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target )
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3WorldTransform worldTransform = b3GetBodyTransform( world, body->id );
-	b3Transform transform = b3ToRelativeTransform( worldTransform, b3Position_zero );
+	b3Transform transform = b3ToRelativeTransform( worldTransform, b3Pos_zero );
 
 	float closestDistance = FLT_MAX;
 	b3Vec3 closestPoint = transform.p;
@@ -861,7 +861,7 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 	}
 
 	// Move center of mass.
-	b3Position oldCenter = bodySim->center;
+	b3Pos oldCenter = bodySim->center;
 	bodySim->localCenter = localCenter;
 	bodySim->center = b3TransformWorldPoint( bodySim->transform, bodySim->localCenter );
 	bodySim->center0 = bodySim->center;
@@ -870,7 +870,7 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 	b3BodyState* state = b3GetBodyState( world, body );
 	if ( state != NULL )
 	{
-		b3Vec3 deltaLinear = b3Cross( state->angularVelocity, b3PositionDelta( bodySim->center, oldCenter ) );
+		b3Vec3 deltaLinear = b3Cross( state->angularVelocity, b3SubPos( bodySim->center, oldCenter ) );
 		state->linearVelocity = b3Add( state->linearVelocity, deltaLinear );
 	}
 
@@ -948,7 +948,7 @@ void b3DumpBody( b3World* world, b3Body* body )
 	b3Dump( "}\n" );
 }
 
-b3Position b3Body_GetPosition( b3BodyId bodyId )
+b3Pos b3Body_GetPosition( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -971,7 +971,7 @@ b3WorldTransform b3Body_GetTransform( b3BodyId bodyId )
 	return b3GetBodyTransformQuick( world, body );
 }
 
-b3Vec3 b3Body_GetLocalPoint( b3BodyId bodyId, b3Position worldPoint )
+b3Vec3 b3Body_GetLocalPoint( b3BodyId bodyId, b3Pos worldPoint )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -979,7 +979,7 @@ b3Vec3 b3Body_GetLocalPoint( b3BodyId bodyId, b3Position worldPoint )
 	return b3InvTransformWorldPoint( transform, worldPoint );
 }
 
-b3Position b3Body_GetWorldPoint( b3BodyId bodyId, b3Vec3 localPoint )
+b3Pos b3Body_GetWorldPoint( b3BodyId bodyId, b3Vec3 localPoint )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1003,7 +1003,7 @@ b3Vec3 b3Body_GetWorldVector( b3BodyId bodyId, b3Vec3 localVector )
 	return b3RotateVector( transform.q, localVector );
 }
 
-void b3Body_SetTransform( b3BodyId bodyId, b3Position position, b3Quat rotation )
+void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation )
 {
 	B3_ASSERT( b3IsValidPosition( position ) );
 	B3_ASSERT( b3IsValidQuat( rotation ) );
@@ -1145,9 +1145,9 @@ void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 	state->angularVelocity = w;
 }
 
-void b3Body_SetTargetTransform( b3BodyId bodyId, b3Transform target, float timeStep, bool wake )
+void b3Body_SetTargetTransform( b3BodyId bodyId, b3WorldTransform target, float timeStep, bool wake )
 {
-	B3_ASSERT( b3IsValidTransform( target ) );
+	B3_ASSERT( b3IsValidWorldTransform( target ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1169,11 +1169,11 @@ void b3Body_SetTargetTransform( b3BodyId bodyId, b3Transform target, float timeS
 
 	b3BodySim* sim = b3GetBodySim( world, body );
 
-	// Compute linear velocity
-	b3Position center1 = sim->center;
-	b3Position center2 = b3TransformWorldPoint( b3MakeWorldTransform( target ), sim->localCenter );
+	// Compute linear velocity. The center difference is taken in world precision then demoted.
+	b3Pos center1 = sim->center;
+	b3Pos center2 = b3TransformWorldPoint( target, sim->localCenter );
 	float invTimeStep = 1.0f / timeStep;
-	b3Vec3 linearVelocity = b3MulSV( invTimeStep, b3PositionDelta( center2, center1 ) );
+	b3Vec3 linearVelocity = b3MulSV( invTimeStep, b3SubPos( center2, center1 ) );
 
 	// Compute angular velocity:
 	// q' = 0.5 * w * q
@@ -1232,7 +1232,7 @@ b3Vec3 b3Body_GetLocalPointVelocity( b3BodyId bodyId, b3Vec3 localPoint )
 	return v;
 }
 
-b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Position worldPoint )
+b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Pos worldPoint )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1245,7 +1245,7 @@ b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Position worldPoint )
 	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, body->localIndex );
 
-	b3Vec3 r = b3PositionDelta( worldPoint, bodySim->center );
+	b3Vec3 r = b3SubPos( worldPoint, bodySim->center );
 	b3Vec3 v = b3Add( state->linearVelocity, b3Cross( state->angularVelocity, r ) );
 	return v;
 }
@@ -1266,7 +1266,7 @@ void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Vec3 point, bool wake )
 	{
 		b3BodySim* bodySim = b3GetBodySim( world, body );
 		bodySim->force = b3Add( bodySim->force, force );
-		bodySim->torque = b3Add( bodySim->torque, b3Cross( b3PositionDelta( b3MakePosition( point ), bodySim->center ), force ) );
+		bodySim->torque = b3Add( bodySim->torque, b3Cross( b3SubPos( b3ToPos( point ), bodySim->center ), force ) );
 	}
 }
 
@@ -1336,7 +1336,7 @@ void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Vec3 point, b
 			state->linearVelocity = b3MulSV( maxLinearSpeed, b3Normalize( state->linearVelocity ) );
 		}
 
-		b3Vec3 delta = b3MulMV( bodySim->invInertiaWorld, b3Cross( b3PositionDelta( b3MakePosition( point ), bodySim->center ), impulse ) );
+		b3Vec3 delta = b3MulMV( bodySim->invInertiaWorld, b3Cross( b3SubPos( b3ToPos( point ), bodySim->center ), impulse ) );
 		state->angularVelocity = b3Add( state->angularVelocity, delta );
 	}
 }
@@ -1729,7 +1729,7 @@ b3Vec3 b3Body_GetLocalCenterOfMass( b3BodyId bodyId )
 	return bodySim->localCenter;
 }
 
-b3Position b3Body_GetWorldCenterOfMass( b3BodyId bodyId )
+b3Pos b3Body_GetWorldCenterOfMass( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1756,7 +1756,7 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 	body->inertia = massData.inertia;
 	bodySim->localCenter = massData.center;
 
-	b3Position center = b3TransformWorldPoint( bodySim->transform, massData.center );
+	b3Pos center = b3TransformWorldPoint( bodySim->transform, massData.center );
 	bodySim->center = center;
 	bodySim->center0 = center;
 

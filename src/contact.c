@@ -567,7 +567,7 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 
 		// Contact points are computed in frame A
 		target->anchorA = b3MulMV( matrixA, source->point );
-		target->anchorB = b3Add( target->anchorA, b3PositionDelta( xfA.p, xfB.p ) );
+		target->anchorB = b3Add( target->anchorA, b3SubPos( xfA.p, xfB.p ) );
 		target->separation = source->separation;
 		target->featureId = b3MakeFeatureId( source->pair );
 		target->triangleIndex = B3_NULL_INDEX;
@@ -693,7 +693,7 @@ static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* c
 		b3ShapeId shapeIdB = { shapeB->id + 1, world->worldId, shapeB->generation };
 
 		// this call assumes thread safety
-		b3Position point = b3OffsetPosition( xfA.p, contact->manifolds[0].points[0].anchorA );
+		b3Pos point = b3OffsetPos( xfA.p, contact->manifolds[0].points[0].anchorA );
 		b3Vec3 normal = contact->manifolds[0].normal;
 		touching = world->preSolveFcn( shapeIdA, shapeIdB, point, normal, world->preSolveContext );
 		if ( touching == false )

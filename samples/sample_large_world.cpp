@@ -15,16 +15,15 @@
 class LargeWorld : public Sample
 {
 public:
-	static constexpr float m_maxOffset = 1.0e7f;
+	static constexpr float m_maxOffset = 10000.0f;
 
 	explicit LargeWorld( SampleContext* context )
 		: Sample( context )
 	{
 		// Double precision opens at the dramatic offset, float opens at the origin so it is usable
 		// out of the box. Either way the slider sweeps the full range.
-		m_offset = b3IsDoublePrecision() ? m_maxOffset : 0.0f;
+		m_offsetKilometers = b3IsDoublePrecision() ? m_maxOffset : 0.0f;
 		m_columnCount = 6;
-		m_rebuild = false;
 
 		if ( context->restart == false )
 		{
@@ -38,12 +37,12 @@ public:
 	// float renderer works in a small relative frame.
 	void BuildScene()
 	{
-		b3Position base = b3MakePosition( { m_offset, 0.0f, 0.0f } );
+		b3Pos base = b3ToPos( { 1000.0f * m_offsetKilometers, 0.0f, 0.0f } );
 		m_drawOrigin = base;
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.name = "ground";
-		bodyDef.position = b3OffsetPosition( base, { 0.0f, -1.0f, 0.0f } );
+		bodyDef.position = b3OffsetPos( base, { 0.0f, -1.0f, 0.0f } );
 		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -61,7 +60,7 @@ public:
 		{
 			// A small alternating skew so a float build visibly drifts rather than balancing by luck.
 			float skew = 0.02f * ( i & 1 ? 1.0f : -1.0f );
-			boxDef.position = b3OffsetPosition( base, { skew, 0.5f + 1.0f * i, 0.0f } );
+			boxDef.position = b3OffsetPos( base, { skew, 0.5f + 1.0f * i, 0.0f } );
 			b3BodyId body = b3CreateBody( m_worldId, &boxDef );
 			b3CreateHullShape( body, &boxShape, &box.base );
 			m_topBodyId = body;
@@ -77,23 +76,14 @@ public:
 
 	bool DrawControls() override
 	{
-		if ( ImGui::SliderFloat( "offset (m)", &m_offset, 0.0f, m_maxOffset, "%.0f", ImGuiSliderFlags_Logarithmic ) )
+		const float presets[] = { 0.0f, 10.0f, 100.0f, 1000.0f, m_maxOffset };
+		const char* labels[] = { "origin", "10km", "100km", "1000km", "10000km" };
+		for ( int i = 0; i < 5; ++i )
 		{
-			m_rebuild = true;
-		}
-
-		const float presets[] = { 0.0f, 1.0e4f, 1.0e6f, m_maxOffset };
-		const char* labels[] = { "origin", "1e4", "1e6", "1e7" };
-		for ( int i = 0; i < 4; ++i )
-		{
-			if ( i > 0 )
-			{
-				ImGui::SameLine();
-			}
 			if ( ImGui::Button( labels[i] ) )
 			{
-				m_offset = presets[i];
-				m_rebuild = true;
+				m_offsetKilometers = presets[i];
+				Rebuild();
 			}
 		}
 
@@ -102,20 +92,14 @@ public:
 
 	void Step() override
 	{
-		if ( m_rebuild )
-		{
-			Rebuild();
-			m_rebuild = false;
-		}
-
 		Sample::Step();
 
 		// Height of the top box above the ground, measured in the offset's own frame. This holds
 		// steady at any offset under double precision and drifts once float runs out of resolution.
-		b3Vec3 top = b3PositionDelta( b3Body_GetWorldCenterOfMass( m_topBodyId ), m_drawOrigin );
+		b3Vec3 top = b3SubPos( b3Body_GetWorldCenterOfMass( m_topBodyId ), m_drawOrigin );
 
 		DrawTextLine( "double precision: %s", b3IsDoublePrecision() ? "ON" : "OFF" );
-		DrawTextLine( "world offset: %.0f m", m_offset );
+		DrawTextLine( "world offset: %.1f km", m_offsetKilometers );
 		DrawTextLine( "top box height above ground: %.4f m", top.y );
 	}
 
@@ -124,10 +108,9 @@ public:
 		return new LargeWorld( context );
 	}
 
-	float m_offset;
+	float m_offsetKilometers;
 	int m_columnCount;
 	b3BodyId m_topBodyId;
-	bool m_rebuild;
 };
 
 static int sampleLargeWorld = RegisterSample( "World", "Large World", LargeWorld::Create );

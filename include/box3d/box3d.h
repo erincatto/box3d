@@ -89,12 +89,12 @@ B3_API b3TreeStats b3World_OverlapShape( b3WorldId worldId, const b3ShapeProxy* 
 /// @param fcn A user implemented callback function
 /// @param context A user context that is passed along to the callback function
 ///	@return traversal performance counters
-B3_API b3TreeStats b3World_CastRay( b3WorldId worldId, b3Position origin, b3Vec3 translation, b3QueryFilter filter,
+B3_API b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter,
 									b3CastResultFcn* fcn, void* context );
 
 /// Cast a ray into the world to collect the closest hit. This is a convenience function. Ignores initial overlap.
 /// This is less general than b3World_CastRay() and does not allow for custom filtering.
-B3_API b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Position origin, b3Vec3 translation, b3QueryFilter filter );
+B3_API b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter );
 
 /// Cast a shape through the world. Similar to a cast ray except that a shape is cast instead of a point.
 ///	@see b3World_CastRay
@@ -293,7 +293,7 @@ B3_API void b3Body_SetUserData( b3BodyId bodyId, void* userData );
 B3_API void* b3Body_GetUserData( b3BodyId bodyId );
 
 /// Get the world position of a body. This is the location of the body origin.
-B3_API b3Position b3Body_GetPosition( b3BodyId bodyId );
+B3_API b3Pos b3Body_GetPosition( b3BodyId bodyId );
 
 /// Get the world rotation of a body as a quaternion
 B3_API b3Quat b3Body_GetRotation( b3BodyId bodyId );
@@ -304,13 +304,13 @@ B3_API b3WorldTransform b3Body_GetTransform( b3BodyId bodyId );
 /// Set the world transform of a body. This acts as a teleport and is fairly expensive.
 /// @note Generally you should create a body with the intended transform.
 /// @see b3BodyDef::position and b3BodyDef::rotation
-B3_API void b3Body_SetTransform( b3BodyId bodyId, b3Position position, b3Quat rotation );
+B3_API void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation );
 
 /// Get a local point on a body given a world point
-B3_API b3Vec3 b3Body_GetLocalPoint( b3BodyId bodyId, b3Position worldPoint );
+B3_API b3Vec3 b3Body_GetLocalPoint( b3BodyId bodyId, b3Pos worldPoint );
 
 /// Get a world point on a body given a local point
-B3_API b3Position b3Body_GetWorldPoint( b3BodyId bodyId, b3Vec3 localPoint );
+B3_API b3Pos b3Body_GetWorldPoint( b3BodyId bodyId, b3Vec3 localPoint );
 
 /// Get a local vector on a body given a world vector
 B3_API b3Vec3 b3Body_GetLocalVector( b3BodyId bodyId, b3Vec3 worldVector );
@@ -334,13 +334,13 @@ B3_API void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 /// The result will be close but maybe not exact. This is meant for kinematic bodies.
 /// The target is not applied if the velocity would be below the sleep threshold.
 /// This will optionally wake the body if asleep, but only if the movement is significant.
-B3_API void b3Body_SetTargetTransform( b3BodyId bodyId, b3Transform target, float timeStep, bool wake );
+B3_API void b3Body_SetTargetTransform( b3BodyId bodyId, b3WorldTransform target, float timeStep, bool wake );
 
 /// Get the linear velocity of a local point attached to a body. Usually in meters per second.
 B3_API b3Vec3 b3Body_GetLocalPointVelocity( b3BodyId bodyId, b3Vec3 localPoint );
 
 /// Get the linear velocity of a world point attached to a body. Usually in meters per second.
-B3_API b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Position worldPoint );
+B3_API b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Pos worldPoint );
 
 /// Apply a force at a world point. If the force is not applied at the center of mass,
 /// it will generate a torque and affect the angular velocity. This optionally wakes up the body.
@@ -411,7 +411,7 @@ B3_API b3Matrix3 b3Body_GetWorldInverseRotationalInertia( b3BodyId bodyId );
 B3_API b3Vec3 b3Body_GetLocalCenterOfMass( b3BodyId bodyId );
 
 /// Get the center of mass position of the body in world space
-B3_API b3Position b3Body_GetWorldCenterOfMass( b3BodyId bodyId );
+B3_API b3Pos b3Body_GetWorldCenterOfMass( b3BodyId bodyId );
 
 /// Override the body's mass properties. Normally this is computed automatically using the
 /// shape geometry and density. This information is lost if a shape is added or removed or if the

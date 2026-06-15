@@ -553,9 +553,9 @@ b3Vec3 angularVelocity = b3Body_GetAngularVelocity(myBodyId);
 You can drive a body to a specific transform. This is useful for kinematic bodies.
 
 ```c
-b3Vec3 targetPosition = {42.0f, 0.0f, -100.0f};
+b3Pos targetPosition = {42.0f, 0.0f, -100.0f};
 b3Quat targetRotation = b3MakeQuatFromAxisAngle(b3Vec3_axisY, B3_PI);
-b3Transform target = {targetPosition, targetRotation};
+b3WorldTransform target = {targetPosition, targetRotation};
 float timeStep = 1.0f / 60.0f;
 b3Body_SetTargetTransform(myBodyId, target, timeStep, true);
 ```

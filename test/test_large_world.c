@@ -22,7 +22,7 @@ typedef struct StackResult
 // position relative to the base and the step on which the stack settles.
 static StackResult RunStack( float baseX )
 {
-	b3Position base = b3MakePosition( (b3Vec3){ baseX, 0.0f, 0.0f } );
+	b3Pos base = b3ToPos( (b3Vec3){ baseX, 0.0f, 0.0f } );
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	b3WorldId worldId = b3CreateWorld( &worldDef );
@@ -39,7 +39,7 @@ static StackResult RunStack( float baseX )
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = b3OffsetPosition( base, (b3Vec3){ 0.0f, 2.0f + 1.05f * i, 0.0f } );
+		bodyDef.position = b3OffsetPos( base, (b3Vec3){ 0.0f, 2.0f + 1.05f * i, 0.0f } );
 		bodies[i] = b3CreateBody( worldId, &bodyDef );
 
 		b3BoxHull box = b3MakeCubeHull( 0.5f );
@@ -62,8 +62,8 @@ static StackResult RunStack( float baseX )
 
 	for ( int i = 0; i < STACK_COUNT; ++i )
 	{
-		b3Position p = b3Body_GetPosition( bodies[i] );
-		result.relativePositions[i] = b3PositionDelta( p, base );
+		b3Pos p = b3Body_GetPosition( bodies[i] );
+		result.relativePositions[i] = b3SubPos( p, base );
 	}
 
 	b3DestroyWorld( worldId );
@@ -98,7 +98,7 @@ static int LargeWorldStackTest( void )
 // continuous collision works the bullet stops at the wall instead of tunneling past it.
 static float RunBullet( float baseX )
 {
-	b3Position base = b3MakePosition( (b3Vec3){ baseX, 0.0f, 0.0f } );
+	b3Pos base = b3ToPos( (b3Vec3){ baseX, 0.0f, 0.0f } );
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	b3WorldId worldId = b3CreateWorld( &worldDef );
@@ -106,7 +106,7 @@ static float RunBullet( float baseX )
 	// Thin static wall at x = base + 5, spanning y and z
 	b3BodyDef wallDef = b3DefaultBodyDef();
 	wallDef.type = b3_staticBody;
-	wallDef.position = b3OffsetPosition( base, (b3Vec3){ 5.0f, 0.0f, 0.0f } );
+	wallDef.position = b3OffsetPos( base, (b3Vec3){ 5.0f, 0.0f, 0.0f } );
 	b3BodyId wallId = b3CreateBody( worldId, &wallDef );
 	b3BoxHull wallBox = b3MakeBoxHull( 0.05f, 5.0f, 5.0f );
 	b3ShapeDef wallShapeDef = b3DefaultShapeDef();
@@ -130,7 +130,7 @@ static float RunBullet( float baseX )
 		b3World_Step( worldId, 1.0f / 60.0f, 4 );
 	}
 
-	b3Vec3 relative = b3PositionDelta( b3Body_GetPosition( bulletId ), base );
+	b3Vec3 relative = b3SubPos( b3Body_GetPosition( bulletId ), base );
 	b3DestroyWorld( worldId );
 	return relative.x;
 }

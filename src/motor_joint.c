@@ -200,7 +200,7 @@ void b3PrepareMotorJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
 	// Compute the initial center delta. Incremental position updates are relative to this.
-	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3SubPos( bodySimB->center, bodySimA->center );
 
 	joint->linearSpring = b3MakeSoft( joint->linearHertz, joint->linearDampingRatio, context->h );
 	joint->angularSpring = b3MakeSoft( joint->angularHertz, joint->angularDampingRatio, context->h );

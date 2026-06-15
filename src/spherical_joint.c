@@ -300,7 +300,7 @@ void b3PrepareSphericalJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.q = b3MulQuat( bodySimB->transform.q, base->localFrameB.q );
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
-	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3SubPos( bodySimB->center, bodySimA->center );
 
 	// Cone axis is the z-axis of body A.
 	b3Vec3 coneAxis = b3RotateVector( joint->frameA.q, b3Vec3_axisZ );

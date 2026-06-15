@@ -275,19 +275,19 @@ int MathTest( void )
 
 	{
 		// World position boundary helpers. The query agrees with the built type sizes.
-		ENSURE( b3IsDoublePrecision() == ( sizeof( b3Position ) > sizeof( b3Vec3 ) ) );
+		ENSURE( b3IsDoublePrecision() == ( sizeof( b3Pos ) > sizeof( b3Vec3 ) ) );
 
 		// Deltas and offsets round trip exactly for representable inputs in both modes.
 		b3Vec3 a = { 3.0f, -5.0f, 2.0f };
 		b3Vec3 b = { 1.0f, 4.0f, -6.0f };
-		b3Position pa = b3MakePosition( a );
-		b3Position pb = b3MakePosition( b );
+		b3Pos pa = b3ToPos( a );
+		b3Pos pb = b3ToPos( b );
 
-		b3Vec3 d = b3PositionDelta( pa, pb );
+		b3Vec3 d = b3SubPos( pa, pb );
 		b3Vec3 sub = b3Sub( a, b );
 		ENSURE( d.x == sub.x && d.y == sub.y && d.z == sub.z );
 
-		b3Vec3 back = b3PositionDelta( b3OffsetPosition( pb, sub ), pa );
+		b3Vec3 back = b3SubPos( b3OffsetPos( pb, sub ), pa );
 		ENSURE( back.x == 0.0f && back.y == 0.0f && back.z == 0.0f );
 
 		b3Vec3 r = b3ToVec3( pa );
@@ -329,9 +329,9 @@ int MathTest( void )
 	{
 		// Far from the origin the double layer keeps the relative result accurate where pure
 		// float would quantize. Two poses one meter apart at x = 1e8.
-		b3Position base = { 1.0e8, 0.0, 0.0 };
+		b3Pos base = { 1.0e8, 0.0, 0.0 };
 		b3WorldTransform wA = { base, b3Quat_identity };
-		b3WorldTransform wB = { b3OffsetPosition( base, (b3Vec3){ 1.0f, 0.0f, 0.0f } ), b3Quat_identity };
+		b3WorldTransform wB = { b3OffsetPos( base, (b3Vec3){ 1.0f, 0.0f, 0.0f } ), b3Quat_identity };
 		b3Transform rel = b3InvMulWorldTransforms( wA, wB );
 		ENSURE( rel.p.x == 1.0f && rel.p.y == 0.0f && rel.p.z == 0.0f );
 	}

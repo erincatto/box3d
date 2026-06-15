@@ -274,7 +274,7 @@ void b3PrepareRevoluteJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.q = b3MulQuat( bodySimB->transform.q, base->localFrameB.q );
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
-	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3SubPos( bodySimB->center, bodySimA->center );
 
 	{
 		// Rotation axis is the z-axis of body A.

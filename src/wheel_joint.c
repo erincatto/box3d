@@ -416,7 +416,7 @@ void b3PrepareWheelJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
 	// Compute the initial center delta. Incremental position updates are relative to this.
-	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3SubPos( bodySimB->center, bodySimA->center );
 
 	b3Vec3 rA = joint->frameA.p;
 	b3Vec3 rB = joint->frameB.p;

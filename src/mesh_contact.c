@@ -108,7 +108,7 @@ static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3WorldTr
 
 	// Bounds are in world space. Convert to the local mesh frame. The broadphase bounds are float,
 	// so the demoted mesh transform is the matching float world frame (exact in float mode).
-	b3Transform meshTransform = b3ToRelativeTransform( xfA, b3Position_zero );
+	b3Transform meshTransform = b3ToRelativeTransform( xfA, b3Pos_zero );
 	b3AABB localBounds = b3AABB_Transform( b3InvertTransform( meshTransform ), meshContact->queryBounds );
 	int triangleCount;
 	if ( shapeA->type == b3_meshShape )
@@ -1008,7 +1008,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	}
 
 	b3Matrix3 matrixB = b3MakeMatrixFromQuat( xfB.q );
-	b3Vec3 offsetA = b3PositionDelta( xfB.p, xfA.p );
+	b3Vec3 offsetA = b3SubPos( xfB.p, xfA.p );
 
 	const float normalMatchTolerance = 0.995f;
 	for ( int i = 0; i < clusterCount; ++i )

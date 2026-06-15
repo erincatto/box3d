@@ -102,7 +102,7 @@ float b3PrismaticJoint_GetTranslation( b3JointId jointId )
 
 	b3Vec3 anchorA = b3RotateVector( transformA.q, base->localFrameA.p );
 	b3Vec3 anchorB = b3RotateVector( transformB.q, base->localFrameB.p );
-	b3Vec3 d = b3Add( b3PositionDelta( transformB.p, transformA.p ), b3Sub( anchorB, anchorA ) );
+	b3Vec3 d = b3Add( b3SubPos( transformB.p, transformA.p ), b3Sub( anchorB, anchorA ) );
 	float translation = b3Dot( d, jointAxis );
 	return translation;
 }
@@ -275,7 +275,7 @@ void b3PreparePrismaticJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.q = b3MulQuat( bodySimB->transform.q, base->localFrameB.q );
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
-	joint->deltaCenter = b3PositionDelta( bodySimB->center, bodySimA->center );
+	joint->deltaCenter = b3SubPos( bodySimB->center, bodySimA->center );
 	joint->rotationMass = b3InvertMatrix( invInertiaSum );
 
 	// Initial joint axes in world space

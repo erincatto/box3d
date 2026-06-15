@@ -1188,9 +1188,9 @@ float b3Joint_GetLinearSeparation( b3JointId jointId )
 	b3WorldTransform xfA = b3GetBodyTransform( world, joint->edges[0].bodyId );
 	b3WorldTransform xfB = b3GetBodyTransform( world, joint->edges[1].bodyId );
 
-	b3Position pA = b3TransformWorldPoint( xfA, base->localFrameA.p );
-	b3Position pB = b3TransformWorldPoint( xfB, base->localFrameB.p );
-	b3Vec3 dp = b3PositionDelta( pB, pA );
+	b3Pos pA = b3TransformWorldPoint( xfA, base->localFrameA.p );
+	b3Pos pB = b3TransformWorldPoint( xfB, base->localFrameB.p );
+	b3Vec3 dp = b3SubPos( pB, pA );
 
 	switch ( joint->type )
 	{
@@ -1640,8 +1640,8 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 
 	b3WorldTransform transformA = b3GetBodyTransformQuick( world, bodyA );
 	b3WorldTransform transformB = b3GetBodyTransformQuick( world, bodyB );
-	b3Position pA = b3TransformWorldPoint( transformA, jointSim->localFrameA.p );
-	b3Position pB = b3TransformWorldPoint( transformB, jointSim->localFrameB.p );
+	b3Pos pA = b3TransformWorldPoint( transformA, jointSim->localFrameA.p );
+	b3Pos pB = b3TransformWorldPoint( transformB, jointSim->localFrameB.p );
 
 	b3HexColor color = b3_colorDarkSeaGreen;
 
@@ -1651,8 +1651,8 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 	// until the sample host applies a draw origin.
 	b3Transform drawTransformA = b3ToRelativeTransform( transformA, draw->drawOrigin );
 	b3Transform drawTransformB = b3ToRelativeTransform( transformB, draw->drawOrigin );
-	b3Vec3 drawPA = b3PositionDelta( pA, draw->drawOrigin );
-	b3Vec3 drawPB = b3PositionDelta( pB, draw->drawOrigin );
+	b3Vec3 drawPA = b3SubPos( pA, draw->drawOrigin );
+	b3Vec3 drawPB = b3SubPos( pB, draw->drawOrigin );
 
 	switch ( joint->type )
 	{

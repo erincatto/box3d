@@ -611,7 +611,7 @@ public:
 
 			b3Quat orientation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, -B3_DEG_TO_RAD * alpha );
 
-			bodyDef.position = b3MakePosition( position );
+			bodyDef.position = b3ToPos( position );
 			bodyDef.rotation = orientation;
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( body, &shapeDef, &box.base );

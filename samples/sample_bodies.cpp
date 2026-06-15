@@ -74,8 +74,8 @@ public:
 			b3Vec3 pivot = { -2.0f, 5.0f, 0.0f };
 			revoluteDef.base.bodyIdA = m_attachmentId;
 			revoluteDef.base.bodyIdB = m_platformId;
-			revoluteDef.base.localFrameA.p = b3Body_GetLocalPoint( m_attachmentId, b3MakePosition( pivot ) );
-			revoluteDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, b3MakePosition( pivot ) );
+			revoluteDef.base.localFrameA.p = b3Body_GetLocalPoint( m_attachmentId, b3ToPos( pivot ) );
+			revoluteDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, b3ToPos( pivot ) );
 			revoluteDef.maxMotorTorque = 50.0f;
 			revoluteDef.enableMotor = true;
 			b3CreateRevoluteJoint( m_worldId, &revoluteDef );
@@ -83,8 +83,8 @@ public:
 			pivot = { 3.0f, 5.0f };
 			revoluteDef.base.bodyIdA = m_secondAttachmentId;
 			revoluteDef.base.bodyIdB = m_platformId;
-			revoluteDef.base.localFrameA.p = b3Body_GetLocalPoint( m_secondAttachmentId, b3MakePosition( pivot ) );
-			revoluteDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, b3MakePosition( pivot ) );
+			revoluteDef.base.localFrameA.p = b3Body_GetLocalPoint( m_secondAttachmentId, b3ToPos( pivot ) );
+			revoluteDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, b3ToPos( pivot ) );
 			revoluteDef.maxMotorTorque = 50.0f;
 			revoluteDef.enableMotor = true;
 			b3CreateRevoluteJoint( m_worldId, &revoluteDef );
@@ -93,8 +93,8 @@ public:
 			b3Vec3 anchor = { 0.0f, 5.0f, 0.0f };
 			prismaticDef.base.bodyIdA = groundId;
 			prismaticDef.base.bodyIdB = m_platformId;
-			prismaticDef.base.localFrameA.p = b3Body_GetLocalPoint( groundId, b3MakePosition( anchor ) );
-			prismaticDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, b3MakePosition( anchor ) );
+			prismaticDef.base.localFrameA.p = b3Body_GetLocalPoint( groundId, b3ToPos( anchor ) );
+			prismaticDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, b3ToPos( anchor ) );
 			prismaticDef.maxMotorForce = 1000.0f;
 			prismaticDef.motorSpeed = 0.0f;
 			prismaticDef.enableMotor = true;
@@ -411,7 +411,7 @@ public:
 		if ( ImGui::Button( "Explode" ) )
 		{
 			b3ExplosionDef def = b3DefaultExplosionDef();
-			def.position = b3MakePosition( m_explosionPosition );
+			def.position = b3ToPos( m_explosionPosition );
 			def.radius = m_explosionRadius;
 			def.falloff = 0.1f;
 			def.impulsePerArea = m_explosionMagnitude;
@@ -434,14 +434,14 @@ public:
 
 		// This shows how to get the velocity of a point on a body
 		b3Vec3 localPoint = { 0.0f, 2.0f, 0.0f };
-		b3Vec3 worldPoint = b3ToVec3( b3Body_GetWorldPoint( m_weebleId, localPoint ) );
+		b3Pos worldPoint = b3Body_GetWorldPoint( m_weebleId, localPoint );
 
 		b3Vec3 v1 = b3Body_GetLocalPointVelocity( m_weebleId, localPoint );
-		b3Vec3 v2 = b3Body_GetWorldPointVelocity( m_weebleId, b3MakePosition( worldPoint ) );
+		b3Vec3 v2 = b3Body_GetWorldPointVelocity( m_weebleId, worldPoint );
 
 		b3Vec3 offset = { 0.05f, 0.0f };
-		DrawLine( worldPoint, worldPoint + v1, MakeColor( b3_colorRed ) );
-		DrawLine( worldPoint + offset, worldPoint + v2 + offset, MakeColor( b3_colorGreen ) );
+		DrawWorldLine( worldPoint, worldPoint + v1, MakeColor( b3_colorRed ) );
+		DrawWorldLine( worldPoint + offset, worldPoint + v2 + offset, MakeColor( b3_colorGreen ) );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -786,15 +786,15 @@ public:
 		{
 			float t = m_time - delay;
 
-			b3Vec3 point;
+			b3Pos point;
 			point.x = 2.0f * m_amplitude * cosf( t );
 			point.y = m_amplitude * ( sinf( 2.0f * t ) + 1.0f ) + 1.0f;
 			point.z = 0.0f;
 			b3Quat rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 2.0f * t );
 
 			b3Vec3 axis = b3RotateVector( rotation, { 0.0f, 1.0f, 0.0f } );
-			DrawLine( point - 0.5f * axis, point + 0.5f * axis, MakeColor( b3_colorPlum ) );
-			DrawPoint( point, 10.0f, MakeColor( b3_colorPlum ) );
+			DrawWorldLine( point - 0.5f * axis, point + 0.5f * axis, MakeColor( b3_colorPlum ) );
+			DrawWorldPoint( point, 10.0f, MakeColor( b3_colorPlum ) );
 
 			b3Body_SetTargetTransform( m_bodyId, { point, rotation }, timeStep, true );
 		}

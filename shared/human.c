@@ -52,7 +52,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bodyDef.name = "pelvis";
 		bone->referenceFrame = ( b3Transform ){ { 0.0f, 0.932087f, -0.051708f }, { { 0.739169f, 0.0f, 0.0f }, 0.673520f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.07f, 0.0f, -0.08f }, { -0.07f, 0.0f, -0.08f }, 0.13f };
@@ -69,7 +69,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bodyDef.name = "spine_01";
 		bone->referenceFrame = ( b3Transform ){ { 0.0f, 1.113505f, -0.03481f }, { { 0.739973f, 0.0f, 0.0f }, 0.672637f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		//bodyDef.type = b3_staticBody;
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 		bodyDef.type = b3_dynamicBody;
@@ -95,7 +95,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		// bodyDef.name = "spine_02";
 		bone->referenceFrame = ( b3Transform ){ { 0.0f, 1.194336f, -0.027087f }, { { 0.703611f, 0.0f, 0.0f }, 0.710586f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.08f, -0.015133f, -0.091801f }, { -0.08f, -0.015133f, -0.091801f }, 0.10f };
@@ -120,7 +120,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bone->referenceFrame =
 			( b3Transform ){ { -0.0f, 1.31043f, -0.028232f }, { { 0.669856f, 0.000001f, -0.000001f }, 0.742491f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.11f, -0.039753f, -0.13f }, { -0.11f, -0.039753f, -0.13f }, 0.145f };
@@ -143,7 +143,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bodyDef.name = "neck";
 		bone->referenceFrame = ( b3Transform ){ { 0.0f, 1.575582f, -0.055837f }, { { 0.879922f, 0.0f, 0.0f }, 0.475118f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { -0.000001f, -0.0f, -0.02f }, { 0.0f, -0.005f, -0.08f }, 0.07f };
@@ -167,7 +167,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bodyDef.name = "head";
 		bone->referenceFrame = ( b3Transform ){ { 0.0f, 1.653348f, -0.003241f }, { { 0.750288f, 0.0f, 0.0f }, 0.661111f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { -0.000001f, 0.016892f, -0.05869f }, { 0.0f, -0.003629f, -0.115072f }, 0.0975f };
@@ -192,7 +192,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bone->referenceFrame =
 			( b3Transform ){ { 0.090416f, 0.986104f, -0.035090f }, { { -0.703287f, -0.070715f, 0.053866f }, 0.705327f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.023719f, 0.006008f, -0.039068f }, { -0.064492f, -0.004664f, -0.424718f }, 0.09f };
@@ -216,7 +216,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bone->referenceFrame =
 			( b3Transform ){ { 0.101198f, 0.527027f, -0.037374f }, { { -0.653328f, -0.066860f, 0.058582f }, 0.751838f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.001778f, 0.0f, 0.009841f }, { -0.078577f, 0.014707f, -0.41816f }, 0.075f };
@@ -239,7 +239,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bone->referenceFrame =
 			( b3Transform ){ { -0.090416f, 0.986104f, -0.03509f }, { { -0.703287f, 0.070715f, -0.053865f }, 0.705326f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { -0.023719f, 0.006008f, -0.039068f }, { 0.064492f, -0.004664f, -0.424718f }, 0.09f };
@@ -262,7 +262,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bone->referenceFrame =
 			( b3Transform ){ { -0.101198f, 0.527027f, -0.037373f }, { { -0.653327f, 0.06686f, -0.058582f }, 0.751839f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { -0.001820f, 0.0f, 0.010071f }, { 0.077883f, 0.014825f, -0.418047f }, 0.075f };
@@ -285,7 +285,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bone->referenceFrame =
 			( b3Transform ){ { 0.20378f, 1.484275f, -0.115897f }, { { 0.143082f, 0.695980f, -0.690130f }, 0.13733f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { -0.091118f, 0.037775f, 0.229719f }, 0.075f };
@@ -309,7 +309,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bone->referenceFrame =
 			( b3Transform ){ { 0.305614f, 1.242908f, -0.117599f }, { { 0.165048f, 0.563437f, -0.802002f }, 0.109959f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { -0.142406f, 0.039392f, 0.261092f }, 0.05f };
@@ -331,7 +331,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bone->referenceFrame =
 			( b3Transform ){ { -0.20378f, 1.484276f, -0.115899f }, { { 0.143083f, -0.695978f, 0.690132f }, 0.137329f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { 0.091118f, 0.037775f, 0.229718f }, 0.075f };
@@ -355,7 +355,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float fricti
 		bone->referenceFrame =
 			( b3Transform ){ { -0.305614f, 1.242907f, -0.117599f }, { { 0.165048f, -0.563437f, 0.802002f }, 0.109959f } };
 		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3MakePosition( b3Add( bone->referenceFrame.p, position ) );
+		bodyDef.position = b3ToPos( b3Add( bone->referenceFrame.p, position ) );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
 		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { 0.142406f, 0.039392f, 0.261092f }, 0.05f };

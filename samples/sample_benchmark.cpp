@@ -503,7 +503,7 @@ public:
 		bool hit;
 	};
 
-	static float CastCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+	static float CastCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
 							   int triangleIndex, int childIndex, void* context )
 	{
 		(void)shapeId;
@@ -585,7 +585,7 @@ public:
 				b3RayResult result = {};
 				if ( m_radius == 0.0f )
 				{
-					result = b3World_CastRayClosest( m_worldId, b3MakePosition( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
+					result = b3World_CastRayClosest( m_worldId, b3ToPos( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
 				}
 				else
 				{
@@ -595,7 +595,7 @@ public:
 
 					if ( context.hit )
 					{
-						result.point = b3MakePosition( context.point );
+						result.point = b3ToPos( context.point );
 						result.normal = context.normal;
 						result.fraction = context.fraction;
 						result.hit = true;
@@ -609,9 +609,9 @@ public:
 					hitCount += 1;
 					if ( m_isDebug )
 					{
-						b3Vec3 point = b3ToVec3( result.point );
-						DrawLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGreen ) );
-						DrawPoint( point, 10.0f, MakeColor( b3_colorGreen ) );
+						b3Pos point = result.point;
+						DrawWorldLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGreen ) );
+						DrawWorldPoint( point, 10.0f, MakeColor( b3_colorGreen ) );
 
 						if ( m_radius > 0.0f )
 						{

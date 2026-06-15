@@ -81,11 +81,11 @@ public:
 				DrawPoint( point, 10.0f, MakeColor( b3_colorYellow ) );
 			}
 
-			DrawWorldString( point, MakeColor( b3_colorWhite ), "   %.3f", manifoldPoint.separation );
+			DrawString3D( point, MakeColor( b3_colorWhite ), "   %.3f", manifoldPoint.separation );
 
 			b3Vec3 perp = b3Perp( normal );
 			b3FeaturePair pair = manifoldPoint.pair;
-			DrawWorldString( point + 0.025f * normal + 0.05f * perp, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
+			DrawString3D( point + 0.025f * normal + 0.05f * perp, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
 		}
 
 		Sample::Render();
@@ -244,10 +244,10 @@ public:
 					DrawPoint( point, 10.0f, MakeColor( b3_colorYellow ) );
 				}
 
-				DrawWorldString( point, MakeColor( b3_colorWhite ), "   %.2f", 100.0f * manifoldPoint.separation );
+				DrawString3D( point, MakeColor( b3_colorWhite ), "   %.2f", 100.0f * manifoldPoint.separation );
 
 				b3FeaturePair pair = manifoldPoint.pair;
-				DrawWorldString( point + 0.025f * m_manifold.normal, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
+				DrawString3D( point + 0.025f * m_manifold.normal, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
 			}
 		}
 
@@ -256,9 +256,9 @@ public:
 		b3Vec3 p3 = b3TransformPoint( m_transformA, m_triangle[2] );
 		DrawTriangle( p1, p2, p3, MakeColor( b3_colorCyan ) );
 
-		DrawWorldString( p1, MakeColor( b3_colorWhite ), "0" );
-		DrawWorldString( p2, MakeColor( b3_colorWhite ), "1" );
-		DrawWorldString( p3, MakeColor( b3_colorWhite ), "2" );
+		DrawString3D( p1, MakeColor( b3_colorWhite ), "0" );
+		DrawString3D( p2, MakeColor( b3_colorWhite ), "1" );
+		DrawString3D( p3, MakeColor( b3_colorWhite ), "2" );
 
 		b3Vec3 center = 1.0f / 3.0f * ( p1 + p2 + p3 );
 		b3Vec3 normal = b3Normalize( b3Cross( p2 - p1, p3 - p1 ) );

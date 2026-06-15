@@ -142,9 +142,9 @@ public:
 
 	// World position the scene is drawn and picked relative to. Zero for ordinary samples;
 	// a large-world sample sets it near the content so float rendering stays crisp far from origin.
-	b3Position m_drawOrigin;
+	b3Pos m_drawOrigin;
 
-	b3Position m_mousePoint;
+	b3Pos m_mousePoint;
 	b3BodyId m_mouseBodyId;
 	b3JointId m_mouseJointId;
 	float m_mouseFraction;
@@ -204,7 +204,7 @@ struct CastClosestContext
 	bool hit;
 };
 
-float CastClosestCallback( b3ShapeId shapeId, b3Position point, b3Vec3 normal, float fraction, uint64_t materialId, int triangleIndex,
+float CastClosestCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t materialId, int triangleIndex,
 						   int childIndex, void* context );
 
 struct MoverShapeUserData

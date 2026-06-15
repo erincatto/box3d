@@ -10,6 +10,11 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+// World position the DrawWorld* helpers demote against. Host sets it to the camera focus each
+// frame so far from the origin the shift happens in double before reaching the float draws.
+// Zero by default, which makes the helpers identity and matches absolute coordinates.
+static b3Pos s_drawOrigin;
+
 void DrawCubeEx( b3Transform transform, b3Vec3 scale, Vec4 baseColor, float metallic, float roughness,
 				 TransparentShadowCast shadowCast )
 {
@@ -359,7 +364,7 @@ void DrawWireCapsule( b3Transform transform, const b3Capsule* capsule, int segme
 	DrawDisc( center2, normal, radius, segments, color );
 }
 
-void DrawWorldString( b3Vec3 point, Vec4 color, const char* format, ... )
+void DrawString3D( b3Vec3 point, Vec4 color, const char* format, ... )
 {
 	va_list args;
 	va_start( args, format );
@@ -367,4 +372,69 @@ void DrawWorldString( b3Vec3 point, Vec4 color, const char* format, ... )
 	vsnprintf( buffer, sizeof( buffer ), format, args );
 	va_end( args );
 	DrawString( point, color, buffer );
+}
+
+// World space draws. The host points s_drawOrigin at the camera focus, so the subtraction here
+// happens in double and the float draws below only ever see coordinates near the origin. Identity
+// in float mode where b3Pos aliases b3Vec3 and the origin is zero.
+void SetDrawOrigin( b3Pos origin )
+{
+	s_drawOrigin = origin;
+}
+
+void DrawWorldCube( b3WorldTransform transform, b3Vec3 scale, Vec4 color )
+{
+	DrawCube( b3ToRelativeTransform( transform, s_drawOrigin ), scale, color );
+}
+
+void DrawWorldSphere( b3WorldTransform transform, float radius, Vec4 color )
+{
+	DrawSphere( b3ToRelativeTransform( transform, s_drawOrigin ), radius, color );
+}
+
+void DrawWorldCapsule( b3WorldTransform transform, float halfLength, float radius, Vec4 color )
+{
+	DrawCapsule( b3ToRelativeTransform( transform, s_drawOrigin ), halfLength, radius, color );
+}
+
+void DrawWorldHull( b3WorldTransform transform, const b3HullData* hull, Vec4 color )
+{
+	DrawHull( b3ToRelativeTransform( transform, s_drawOrigin ), hull, color );
+}
+
+void DrawWorldLine( b3Pos a, b3Pos b, Vec4 color )
+{
+	DrawLine( b3SubPos( a, s_drawOrigin ), b3SubPos( b, s_drawOrigin ), color );
+}
+
+void DrawWorldPoint( b3Pos p, float size, Vec4 color )
+{
+	DrawPoint( b3SubPos( p, s_drawOrigin ), size, color );
+}
+
+void DrawWorldArrow( b3Pos a, b3Pos b, Vec4 color )
+{
+	DrawArrow( b3SubPos( a, s_drawOrigin ), b3SubPos( b, s_drawOrigin ), color );
+}
+
+void DrawWorldAxes( b3WorldTransform transform, float size )
+{
+	DrawAxes( b3ToRelativeTransform( transform, s_drawOrigin ), size );
+}
+
+void DrawWorldAabb( b3AABB bounds, Vec4 color )
+{
+	b3Vec3 lower = b3SubPos( b3ToPos( bounds.lowerBound ), s_drawOrigin );
+	b3Vec3 upper = b3SubPos( b3ToPos( bounds.upperBound ), s_drawOrigin );
+	DrawAabb( lower, upper, color );
+}
+
+void DrawWorldString( b3Pos point, Vec4 color, const char* format, ... )
+{
+	va_list args;
+	va_start( args, format );
+	char buffer[256];
+	vsnprintf( buffer, sizeof( buffer ), format, args );
+	va_end( args );
+	DrawString( b3SubPos( point, s_drawOrigin ), color, buffer );
 }

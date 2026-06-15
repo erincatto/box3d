@@ -35,9 +35,9 @@ consumers there is a link-time guard: a float application linked against a doubl
 
 Double precision adds two types and leaves the existing math types alone:
 
-- `b3Position` — a world position. Three doubles in large world mode, an alias for `b3Vec3`
+- `b3Pos` — a world position. Three doubles in large world mode, an alias for `b3Vec3`
   otherwise.
-- `b3WorldTransform` — a world transform: a `b3Position` translation and a float `b3Quat` rotation.
+- `b3WorldTransform` — a world transform: a `b3Pos` translation and a float `b3Quat` rotation.
   An alias for `b3Transform` otherwise.
 
 `b3Vec3`, `b3Quat`, `b3Transform`, and `b3AABB` stay float in both modes. `b3Transform` remains the
@@ -50,23 +50,23 @@ The public API uses these types wherever it accepts or returns a world position:
 and ray-cast result points, and the body move event. With double precision off these are all the
 float types they have always been, so existing code compiles unchanged.
 
-With double precision **on**, `b3Position` and `b3Vec3` are distinct structs by design. Code that
+With double precision **on**, `b3Pos` and `b3Vec3` are distinct structs by design. Code that
 passed a `b3Vec3` where a world position is now required no longer compiles, which is the intended
 cost: enabling large world mode is a deliberate source migration, and the compiler points at every
 site that needs a conversion. Helpers cover the boundary:
 
 ```c
-b3Position p = b3MakePosition( v );      // float vector -> world position
-b3Vec3     v = b3ToVec3( p );            // world position -> float vector (lossy far from origin)
-b3Vec3     d = b3PositionDelta( a, b );  // a - b, demoted to float (the precision boundary)
-b3Position q = b3OffsetPosition( p, d ); // p + d
+b3Pos  p = b3ToPos( v );        // float vector -> world position
+b3Vec3 v = b3ToVec3( p );       // world position -> float vector (lossy far from origin)
+b3Vec3 d = b3SubPos( a, b );    // a - b, demoted to float (the precision boundary)
+b3Pos  q = b3OffsetPos( p, d ); // p + d
 float      x = b3RoundDownFloat( p.x );  // conservative narrowing, pair with b3RoundUpFloat to
                                          // build a float box that always contains double bounds
 ```
 
 ## Operating range
 
-Full simulation correctness holds everywhere `b3Position` can represent. Body integration, the
+Full simulation correctness holds everywhere `b3Pos` can represent. Body integration, the
 contact solver, joints, and continuous collision all run in float relative to each body's own
 moving frame, so a stack settles and a bullet is caught the same way at 1e7 as at the origin.
 
@@ -82,10 +82,10 @@ The simulation is precise far from the origin; the spatial query helpers are not
 documented float carve-out in this first release: each one takes its world input, demotes it to
 float, and runs in float world space, so it loses sub-meter resolution beyond about 1e7 meters.
 
-- `b3World_CastRay` / `b3World_CastRayClosest` take a `b3Position` origin (so callers pass world
+- `b3World_CastRay` / `b3World_CastRayClosest` take a `b3Pos` origin (so callers pass world
   positions naturally) but traverse the tree and intersect shapes in float. A cast that grazes a
   shape by less than a coordinate ULP far from the origin can miss it. Hit points come back as
-  `b3Position`.
+  `b3Pos`.
 - `b3World_OverlapShape`, `b3World_CastShape`, `b3World_CastMover`, `b3World_CollideMover`, and
   `b3Shape_RayCast` operate in float world space.
 - `b3World_Explode` resolves the per-shape impulse in float around the explosion position.

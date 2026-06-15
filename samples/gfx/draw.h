@@ -109,8 +109,26 @@ void DrawTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, Vec4 color );
 void DrawWireSphere( b3Transform transform, const b3Sphere* sphere, int segments, Vec4 color );
 void DrawWireCapsule( b3Transform transform, const b3Capsule* capsule, int segments, Vec4 color );
 
-// printf-style world-space text label. The renderer projects with its latched camera.
-void DrawWorldString( b3Vec3 point, Vec4 color, const char* format, ... );
+// printf-style positioned text label in the draw-origin-relative frame. The renderer projects
+// with its latched camera.
+void DrawString3D( b3Vec3 point, Vec4 color, const char* format, ... );
+
+// World space draws. Set the draw origin to the camera focus each frame (SetDrawOrigin); these
+// take absolute world positions and subtract the origin in double before handing float
+// coordinates to the relative-frame draws above. Identity in float mode (b3Pos aliases b3Vec3,
+// origin zero), so samples can call them unconditionally.
+void SetDrawOrigin( b3Pos origin );
+
+void DrawWorldCube( b3WorldTransform transform, b3Vec3 scale, Vec4 color );
+void DrawWorldSphere( b3WorldTransform transform, float radius, Vec4 color );
+void DrawWorldCapsule( b3WorldTransform transform, float halfLength, float radius, Vec4 color );
+void DrawWorldHull( b3WorldTransform transform, const b3HullData* hull, Vec4 color );
+void DrawWorldLine( b3Pos a, b3Pos b, Vec4 color );
+void DrawWorldPoint( b3Pos p, float size, Vec4 color );
+void DrawWorldArrow( b3Pos a, b3Pos b, Vec4 color );
+void DrawWorldAxes( b3WorldTransform transform, float size );
+void DrawWorldAabb( b3AABB bounds, Vec4 color );
+void DrawWorldString( b3Pos point, Vec4 color, const char* format, ... );
 
 #ifdef __cplusplus
 } // extern "C"

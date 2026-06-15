@@ -184,11 +184,11 @@ typedef struct b3BodySim
 	b3WorldTransform transform;
 
 	// center of mass position in world space
-	b3Position center;
+	b3Pos center;
 
 	// previous rotation and COM for TOI
 	b3Quat rotation0;
-	b3Position center0;
+	b3Pos center0;
 
 	// location of center of mass relative to the body origin
 	b3Vec3 localCenter;
@@ -241,11 +241,11 @@ void b3DumpBody( b3World* world, b3Body* body );
 
 // Make a sweep relative to a base position to keep TOI in float precision far from the origin.
 // In float mode the base is zero so the sweep is identical to the absolute world sweep.
-static inline b3Sweep b3MakeRelativeSweep( const b3BodySim* bodySim, b3Position base )
+static inline b3Sweep b3MakeRelativeSweep( const b3BodySim* bodySim, b3Pos base )
 {
 	b3Sweep s;
-	s.c1 = b3PositionDelta( bodySim->center0, base );
-	s.c2 = b3PositionDelta( bodySim->center, base );
+	s.c1 = b3SubPos( bodySim->center0, base );
+	s.c2 = b3SubPos( bodySim->center, base );
 	s.q1 = bodySim->rotation0;
 	s.q2 = bodySim->transform.q;
 	s.localCenter = bodySim->localCenter;

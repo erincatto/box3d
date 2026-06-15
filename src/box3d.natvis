@@ -15,7 +15,7 @@
 	</Type>
 
 	<!-- Distinct types only in BOX3D_DOUBLE_PRECISION builds; otherwise they alias b3Vec3 / b3Transform -->
-	<Type Name="b3Position">
+	<Type Name="b3Pos">
 		<DisplayString>[ {x}, {y}, {z} ]</DisplayString>
 	</Type>
 

@@ -131,7 +131,7 @@ bool b3IsValidPlane( b3Plane a )
 	return b3IsValidFloat( a.offset );
 }
 
-bool b3IsValidPosition( b3Position p )
+bool b3IsValidPosition( b3Pos p )
 {
 	if ( isnan( p.x ) || isnan( p.y ) || isnan( p.z ) )
 	{
