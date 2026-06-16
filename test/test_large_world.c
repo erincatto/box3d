@@ -152,9 +152,151 @@ static int LargeWorldBulletTest( void )
 	return 0;
 }
 
+typedef struct QueryResult
+{
+	bool castHit;
+	float castRelX; // shape cast hit point x relative to the base
+	bool overlapHit;
+	float moverFraction;
+	int planeCount;
+	bool rayHit;
+	float rayRelX; // world ray cast hit point x relative to the base
+	bool shapeRayHit;
+	float shapeRayRelX; // direct shape ray cast hit point x relative to the base
+} QueryResult;
+
+typedef struct CastContext
+{
+	b3Pos base;
+	bool hit;
+	float relX;
+} CastContext;
+
+static float QueryCastCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t materialId,
+								int triangleIndex, int childIndex, void* context )
+{
+	(void)shapeId, (void)normal, (void)materialId, (void)triangleIndex, (void)childIndex;
+	CastContext* ctx = context;
+	ctx->hit = true;
+	ctx->relX = b3SubPos( point, ctx->base ).x;
+	return fraction;
+}
+
+static bool QueryOverlapCallback( b3ShapeId shapeId, void* context )
+{
+	(void)shapeId;
+	*(bool*)context = true;
+	return true;
+}
+
+static bool QueryPlaneCallback( b3ShapeId shapeId, const b3PlaneResult* planes, int count, void* context )
+{
+	(void)shapeId, (void)planes;
+	*(int*)context += count;
+	return true;
+}
+
+// Run the four origin relative spatial queries against a static box centered at the base. The query
+// inputs are all relative to the base, so passing base as the origin keeps them precise far out.
+static QueryResult RunQueries( float baseX )
+{
+	b3Pos base = (b3Pos){ baseX, 0.0f, 0.0f };
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_staticBody;
+	bodyDef.position = base;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+	b3BoxHull box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3ShapeId shapeId = b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+	b3World_Step( worldId, 1.0f / 60.0f, 1 );
+
+	QueryResult result = { 0 };
+
+	// Sphere proxy swept from the left into the box, hitting the left face at relative x = -1
+	b3Vec3 castPoint = { -5.0f, 0.0f, 0.0f };
+	b3ShapeProxy castProxy = { &castPoint, 1, 0.25f };
+	CastContext castCtx = { base, false, 0.0f };
+	b3World_CastShape( worldId, base, &castProxy, (b3Vec3){ 10.0f, 0.0f, 0.0f }, b3DefaultQueryFilter(), QueryCastCallback,
+					   &castCtx );
+	result.castHit = castCtx.hit;
+	result.castRelX = castCtx.relX;
+
+	// Sphere proxy sitting at the box center
+	b3Vec3 overlapPoint = { 0.0f, 0.0f, 0.0f };
+	b3ShapeProxy overlapProxy = { &overlapPoint, 1, 0.5f };
+	bool overlapHit = false;
+	b3World_OverlapShape( worldId, base, &overlapProxy, b3DefaultQueryFilter(), QueryOverlapCallback, &overlapHit );
+	result.overlapHit = overlapHit;
+
+	// Capsule swept from the left into the box
+	b3Capsule moverCast = { { -5.0f, -0.3f, 0.0f }, { -5.0f, 0.3f, 0.0f }, 0.25f };
+	result.moverFraction =
+		b3World_CastMover( worldId, base, &moverCast, (b3Vec3){ 10.0f, 0.0f, 0.0f }, b3DefaultQueryFilter(), NULL, NULL );
+
+	// Capsule overlapping the left face, should report a contact plane
+	b3Capsule moverCollide = { { -1.1f, -0.3f, 0.0f }, { -1.1f, 0.3f, 0.0f }, 0.3f };
+	int planeCount = 0;
+	b3World_CollideMover( worldId, base, &moverCollide, b3DefaultQueryFilter(), QueryPlaneCallback, &planeCount );
+	result.planeCount = planeCount;
+
+	// World ray cast from the left into the box, hitting the left face at relative x = -1
+	b3Pos rayOrigin = b3OffsetPos( base, (b3Vec3){ -5.0f, 0.0f, 0.0f } );
+	b3RayResult ray = b3World_CastRayClosest( worldId, rayOrigin, (b3Vec3){ 10.0f, 0.0f, 0.0f }, b3DefaultQueryFilter() );
+	result.rayHit = ray.hit;
+	result.rayRelX = ray.hit ? b3SubPos( ray.point, base ).x : 0.0f;
+
+	// Direct shape ray cast against the same box
+	b3WorldCastOutput shapeRay = b3Shape_RayCast( shapeId, rayOrigin, (b3Vec3){ 10.0f, 0.0f, 0.0f } );
+	result.shapeRayHit = shapeRay.hit;
+	result.shapeRayRelX = shapeRay.hit ? b3SubPos( shapeRay.point, base ).x : 0.0f;
+
+	b3DestroyWorld( worldId );
+	return result;
+}
+
+// The origin relative queries hit at the origin and stay precise far from it: same hit geometry and
+// sweep fraction whether the box is at the origin or at 1e7.
+static int LargeWorldQueryTest( void )
+{
+	QueryResult origin = RunQueries( 0.0f );
+	ENSURE( origin.castHit );
+	ENSURE( origin.overlapHit );
+	ENSURE( origin.moverFraction < 1.0f );
+	ENSURE( origin.planeCount > 0 );
+	ENSURE_SMALL( origin.castRelX + 1.0f, 0.05f );
+	ENSURE( origin.rayHit );
+	ENSURE_SMALL( origin.rayRelX + 1.0f, 0.05f );
+	ENSURE( origin.shapeRayHit );
+	ENSURE_SMALL( origin.shapeRayRelX + 1.0f, 0.05f );
+
+#if defined( BOX3D_DOUBLE_PRECISION )
+	QueryResult far = RunQueries( 1.0e7f );
+	ENSURE( far.castHit );
+	ENSURE( far.overlapHit );
+	ENSURE( far.moverFraction < 1.0f );
+	ENSURE( far.planeCount > 0 );
+	ENSURE( far.rayHit );
+	ENSURE( far.shapeRayHit );
+
+	ENSURE_SMALL( far.castRelX - origin.castRelX, 1.0e-3f );
+	ENSURE_SMALL( far.moverFraction - origin.moverFraction, 1.0e-3f );
+	ENSURE( far.planeCount == origin.planeCount );
+	ENSURE_SMALL( far.rayRelX - origin.rayRelX, 1.0e-3f );
+	ENSURE_SMALL( far.shapeRayRelX - origin.shapeRayRelX, 1.0e-3f );
+#endif
+
+	return 0;
+}
+
 int LargeWorldTest( void )
 {
 	RUN_SUBTEST( LargeWorldStackTest );
 	RUN_SUBTEST( LargeWorldBulletTest );
+	RUN_SUBTEST( LargeWorldQueryTest );
 	return 0;
 }

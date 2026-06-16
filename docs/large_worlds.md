@@ -78,22 +78,27 @@ loses some margin hysteresis, which costs performance. Stay within about ±1e7 t
 
 ## Queries far from the origin
 
-The simulation is precise far from the origin; the spatial query helpers are not yet. They are a
-documented float carve-out in this first release: each one takes its world input, demotes it to
-float, and runs in float world space, so it loses sub-meter resolution beyond about 1e7 meters.
+Every spatial query takes a caller supplied `b3Pos` origin and re-differences each shape against a
+nearby base at full precision, so hit points and fractions stay accurate far from the world origin.
+The one shared limit is the broad phase: the tree is traversed in conservative outward rounded float,
+so it never misses a pair, but a cast that grazes a shape by less than a coordinate float ULP far
+from the origin can still miss at the tree level. Only the explosion is a pure float carve-out.
 
-- `b3World_CastRay` / `b3World_CastRayClosest` take a `b3Pos` origin (so callers pass world
-  positions naturally) but traverse the tree and intersect shapes in float. A cast that grazes a
-  shape by less than a coordinate ULP far from the origin can miss it. Hit points come back as
+- `b3World_OverlapShape`, `b3World_CastShape`, `b3World_CastMover`, and `b3World_CollideMover` take a
+  `b3Pos` origin. Their proxy, mover, and returned planes are relative to that origin and each shape
+  is re-differenced against it in float, so a query around a mover at 1e7 is as precise as one at the
+  origin. Shape cast hit points come back as `b3Pos`.
+- `b3World_CastRay` / `b3World_CastRayClosest` take a `b3Pos` origin and re-difference each shape
+  against its body in full precision, so hit points and fractions stay accurate far from the origin.
+  The tree traversal itself is float (see the broad phase limit above). Hit points come back as
   `b3Pos`.
-- `b3World_OverlapShape`, `b3World_CastShape`, `b3World_CastMover`, `b3World_CollideMover`, and
-  `b3Shape_RayCast` operate in float world space.
+- `b3Shape_RayCast` takes a `b3Pos` origin and a translation and returns a `b3WorldCastOutput` whose
+  hit point is a world `b3Pos`, re-centered on the origin for full precision.
 - `b3World_Explode` resolves the per-shape impulse in float around the explosion position.
 
-This is fine near the origin and degrades gracefully far from it. The character controller
-(`b3World_CastMover` / `b3World_CollideMover`) is the case to watch: a mover driven at 1e7 gets
-float world coordinates and silently loses subpixel motion, so a future origin-relative query API is
-the real fix for distant characters.
+The character controller (`b3World_CastMover` / `b3World_CollideMover`) drives this: pass the
+character's world position as the origin and the mover stays precise even at 1e7. The only remaining
+float carve-out is the broad phase tree traversal, which Box2D shares.
 
 ## Debug drawing
 

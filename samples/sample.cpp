@@ -2051,7 +2051,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		mover.center2 = b3TransformPoint( m_transform, m_capsule.center2 );
 		mover.radius = m_capsule.radius;
 
-		b3World_CollideMover( worldId, &mover, moverFilter, PlaneResultFcn, this );
+		b3World_CollideMover( worldId, b3Pos_zero, &mover, moverFilter, PlaneResultFcn, this );
 
 		b3Vec3 targetDelta = target - m_transform.p;
 		b3PlaneSolverResult result = b3SolvePlanes( targetDelta, m_planes, m_planeCount );
@@ -2060,7 +2060,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 
 		b3Vec3 delta = result.delta;
 
-		float fraction = b3World_CastMover( worldId, &mover, delta, castFilter, MoverFilterCallback, this );
+		float fraction = b3World_CastMover( worldId, b3Pos_zero, &mover, delta, castFilter, MoverFilterCallback, this );
 
 		delta *= fraction;
 		m_transform.p += delta;

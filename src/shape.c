@@ -1100,58 +1100,31 @@ const char* b3Shape_GetName( b3ShapeId shapeId )
 }
 
 // todo no tests
-b3CastOutput b3Shape_RayCast( b3ShapeId shapeId, const b3RayCastInput* input )
+b3WorldCastOutput b3Shape_RayCast( b3ShapeId shapeId, b3Pos origin, b3Vec3 translation )
 {
+	B3_ASSERT( b3IsValidPosition( origin ) );
+	B3_ASSERT( b3IsValidVec3( translation ) );
+
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
 
-	// Low level shape ray cast is a documented float carve-out far from the origin
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransform( world, shape->bodyId ), b3Pos_zero );
+	// Re-center on the origin so the cast runs in float precision far from the world origin
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransform( world, shape->bodyId ), origin );
 
-	// input in local coordinates
-	b3RayCastInput localInput;
-	localInput.origin = b3InvTransformPoint( transform, input->origin );
-	localInput.translation = b3InvRotateVector( transform.q, input->translation );
-	localInput.maxFraction = input->maxFraction;
+	// The ray starts at the origin, so its origin in the re-centered frame is zero
+	b3RayCastInput input = { b3Vec3_zero, translation, 1.0f };
 
-	b3CastOutput output = { 0 };
-	switch ( shape->type )
-	{
-		case b3_capsuleShape:
-			output = b3RayCastCapsule( &shape->capsule, &localInput );
-			break;
-
-		case b3_compoundShape:
-			output = b3RayCastCompound( shape->compound, &localInput );
-			break;
-
-		case b3_sphereShape:
-			output = b3RayCastSphere( &shape->sphere, &localInput );
-			break;
-
-		case b3_meshShape:
-			output = b3RayCastMesh( &shape->mesh, &localInput );
-			break;
-
-		case b3_hullShape:
-			output = b3RayCastHull( shape->hull, &localInput );
-			break;
-
-		case b3_heightShape:
-			output = b3RayCastHeightField( shape->heightField, &localInput );
-			break;
-
-		default:
-			B3_ASSERT( false );
-			return output;
-	}
-
-	if ( output.hit )
-	{
-		// convert to world coordinates
-		output.normal = b3RotateVector( transform.q, output.normal );
-		output.point = b3TransformPoint( transform, output.point );
-	}
+	// Lift the re-centered float result back to a world position
+	b3CastOutput local = b3RayCastShape( shape, transform, &input );
+	b3WorldCastOutput output;
+	output.normal = local.normal;
+	output.point = b3OffsetPos( origin, local.point );
+	output.fraction = local.fraction;
+	output.iterations = local.iterations;
+	output.triangleIndex = local.triangleIndex;
+	output.childIndex = local.childIndex;
+	output.materialIndex = local.materialIndex;
+	output.hit = local.hit;
 
 	return output;
 }

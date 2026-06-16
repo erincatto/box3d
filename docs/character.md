@@ -45,6 +45,7 @@ Each frame:
 ```c
 float b3World_CastMover(
     b3WorldId           worldId,
+    b3Pos               origin,   // world position the mover is relative to
     const b3Capsule*    mover,
     b3Vec3              translation,
     b3QueryFilter       filter,
@@ -79,6 +80,7 @@ information. Use `b3World_CollideMover` for that.
 ```c
 void b3World_CollideMover(
     b3WorldId           worldId,
+    b3Pos               origin,   // mover and returned planes are relative to this
     const b3Capsule*    mover,
     b3QueryFilter       filter,
     b3PlaneResultFcn*   fcn,
@@ -173,11 +175,15 @@ mover is pressed against a surface.
 ## Putting It Together
 
 ```c
+// The mover capsule and the planes are relative to origin. Keep origin near the
+// character (its world position) so the query stays precise far from the world origin.
+b3Pos origin = b3Pos_zero;
+
 // 1. Desired translation from input + gravity integration
 b3Vec3 translation = b3MulSV(timeStep, velocity);
 
 // 2. Swept cast
-float fraction = b3World_CastMover(worldId, &mover, translation, filter, NULL, NULL);
+float fraction = b3World_CastMover(worldId, origin, &mover, translation, filter, NULL, NULL);
 b3Vec3 safeDelta = b3MulSV(fraction, translation);
 
 // 3. Move the capsule
@@ -190,7 +196,7 @@ b3CollisionPlane collisionPlanes[MAX_PLANES];
 int planeCount = 0;
 
 // (user callback stores planes into collisionPlanes / planeCount)
-b3World_CollideMover(worldId, &mover, filter, MyPlaneCallback, &planeCtx);
+b3World_CollideMover(worldId, origin, &mover, filter, MyPlaneCallback, &planeCtx);
 
 // 5. Solve planes
 b3PlaneSolverResult result = b3SolvePlanes(b3Vec3_zero, collisionPlanes, planeCount);

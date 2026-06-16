@@ -730,7 +730,7 @@ public:
 			CastClosestContext context = {};
 			b3Vec3 origin = b3Sub( m_rayOrigin, { 1.0f, 0.0f, 1.0f } );
 			b3ShapeProxy proxy = { &origin, 1, 0.25f };
-			b3World_CastShape( m_worldId, &proxy, translation, filter, CastClosestCallback, &context );
+			b3World_CastShape( m_worldId, b3Pos_zero, &proxy, translation, filter, CastClosestCallback, &context );
 
 			DrawLine( origin, origin + translation, MakeColor( b3_colorAliceBlue ) );
 			if ( context.hit )
@@ -755,7 +755,7 @@ public:
 			bool overlap = false;
 			b3Vec3 origin = { m_rayOrigin.x - 1.0f, 2.0f, m_rayOrigin.z - 1.0f };
 			b3ShapeProxy proxy = { &origin, 1, 0.3f };
-			b3World_OverlapShape( m_worldId, &proxy, filter, OverlapResultFcn, &overlap );
+			b3World_OverlapShape( m_worldId, b3Pos_zero, &proxy, filter, OverlapResultFcn, &overlap );
 
 			b3HexColor color = overlap ? b3_colorDarkMagenta : b3_colorDarkSeaGreen;
 			b3Sphere sphere = { origin, 0.3f };

@@ -2547,6 +2547,7 @@ typedef struct WorldOverlapContext
 	b3OverlapResultFcn* fcn;
 	b3QueryFilter filter;
 	b3ShapeProxy proxy;
+	b3Pos origin;
 	void* userContext;
 } WorldOverlapContext;
 
@@ -2568,9 +2569,9 @@ static bool b3TreeOverlapCallback( int proxyId, uint64_t userData, void* context
 		return true;
 	}
 
+	// Re-center on the query origin so the overlap test stays in float precision far from the origin
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	// Overlap query is a documented float carve-out far from the origin
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Pos_zero );
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), worldContext->origin );
 
 	bool overlapping = b3OverlapShape( shape, transform, &worldContext->proxy );
 	if ( overlapping == false )
@@ -2583,8 +2584,8 @@ static bool b3TreeOverlapCallback( int proxyId, uint64_t userData, void* context
 	return result;
 }
 
-b3TreeStats b3World_OverlapShape( b3WorldId worldId, const b3ShapeProxy* proxy, b3QueryFilter filter, b3OverlapResultFcn* fcn,
-								  void* context )
+b3TreeStats b3World_OverlapShape( b3WorldId worldId, b3Pos origin, const b3ShapeProxy* proxy, b3QueryFilter filter,
+								  b3OverlapResultFcn* fcn, void* context )
 {
 	b3TreeStats treeStats = { 0 };
 
@@ -2594,9 +2595,12 @@ b3TreeStats b3World_OverlapShape( b3WorldId worldId, const b3ShapeProxy* proxy, 
 		return treeStats;
 	}
 
-	b3AABB aabb = b3MakeAABB( proxy->points, proxy->count, proxy->radius );
+	B3_ASSERT( b3IsValidPosition( origin ) );
+
+	// Bound the proxy in origin relative space then lift to a conservative world float box
+	b3AABB aabb = b3OffsetAABB( b3MakeAABB( proxy->points, proxy->count, proxy->radius ), origin );
 	WorldOverlapContext worldContext = {
-		world, fcn, filter, *proxy, context,
+		world, fcn, filter, *proxy, origin, context,
 	};
 
 	for ( int i = 0; i < b3_bodyTypeCount; ++i )
@@ -2617,6 +2621,7 @@ typedef struct WorldMoverContext
 	b3PlaneResultFcn* fcn;
 	b3QueryFilter filter;
 	b3Capsule mover;
+	b3Pos origin;
 	void* userContext;
 } WorldMoverContext;
 
@@ -2638,9 +2643,9 @@ static bool TreeCollideCallback( int proxyId, uint64_t userData, void* context )
 		return true;
 	}
 
+	// Re-center on the query origin, the mover and the resulting planes are origin relative
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	// Mover query is a documented float carve-out far from the origin
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Pos_zero );
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), worldContext->origin );
 
 	b3PlaneResult buffer[64];
 	int count = b3CollideMover( buffer, 64, shape, transform, &worldContext->mover );
@@ -2656,7 +2661,8 @@ static bool TreeCollideCallback( int proxyId, uint64_t userData, void* context )
 
 // It is tempting to use a shape proxy for the mover, but this makes handling deep overlap difficult and the generality may
 // not be worth it.
-void b3World_CollideMover( b3WorldId worldId, const b3Capsule* mover, b3QueryFilter filter, b3PlaneResultFcn* fcn, void* context )
+void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover, b3QueryFilter filter, b3PlaneResultFcn* fcn,
+						   void* context )
 {
 	b3World* world = b3GetUnlockedWorldFromId( worldId );
 	if ( world == NULL )
@@ -2664,14 +2670,18 @@ void b3World_CollideMover( b3WorldId worldId, const b3Capsule* mover, b3QueryFil
 		return;
 	}
 
+	B3_ASSERT( b3IsValidPosition( origin ) );
+
 	b3Vec3 r = { mover->radius, mover->radius, mover->radius };
 
-	b3AABB aabb;
-	aabb.lowerBound = b3Sub( b3Min( mover->center1, mover->center2 ), r );
-	aabb.upperBound = b3Add( b3Max( mover->center1, mover->center2 ), r );
+	// Relative box lifted to world float with outward rounding, conservative for the tree
+	b3AABB relBox;
+	relBox.lowerBound = b3Sub( b3Min( mover->center1, mover->center2 ), r );
+	relBox.upperBound = b3Add( b3Max( mover->center1, mover->center2 ), r );
+	b3AABB aabb = b3OffsetAABB( relBox, origin );
 
 	WorldMoverContext worldContext = {
-		world, fcn, filter, *mover, context,
+		world, fcn, filter, *mover, origin, context,
 	};
 
 	for ( int i = 0; i < b3_bodyTypeCount; ++i )
@@ -2686,6 +2696,7 @@ typedef struct WorldRayCastContext
 	b3CastResultFcn* fcn;
 	b3QueryFilter filter;
 	float fraction;
+	b3Pos origin;
 	void* userContext;
 } WorldRayCastContext;
 
@@ -2706,10 +2717,16 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 		return input->maxFraction;
 	}
 
+	// Re-center on the body so the per-shape cast stays in float precision far from the origin. The
+	// tree traversal already used the demoted origin in input. Here we re-difference in full precision
+	// against the body position.
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	// World ray cast operates in float world space (documented carve-out far from the origin)
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Pos_zero );
-	b3CastOutput output = b3RayCastShape( shape, transform, input );
+	b3WorldTransform xf = b3GetBodyTransformQuick( world, body );
+	b3Pos base = xf.p;
+	b3Transform transform = b3ToRelativeTransform( xf, base );
+	b3RayCastInput localInput = *input;
+	localInput.origin = b3SubPos( worldContext->origin, base );
+	b3CastOutput output = b3RayCastShape( shape, transform, &localInput );
 
 	if ( output.hit )
 	{
@@ -2722,7 +2739,7 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 
 		int triangleIndex = output.triangleIndex;
 		int childIndex = output.childIndex;
-		float fraction = worldContext->fcn( id, b3ToPos( output.point ), output.normal, output.fraction, userMaterialId,
+		float fraction = worldContext->fcn( id, b3OffsetPos( base, output.point ), output.normal, output.fraction, userMaterialId,
 											triangleIndex, childIndex, worldContext->userContext );
 
 		// The user may return -1 to skip this shape
@@ -2751,10 +2768,11 @@ b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation
 	B3_ASSERT( b3IsValidPosition( origin ) );
 	B3_ASSERT( b3IsValidVec3( translation ) );
 
-	// World ray cast operates in float world space (documented carve-out far from the origin)
+	// The tree traverses in float relative to the world origin. Each shape is then re-differenced at
+	// full precision against its body, so a hit stays accurate far from the origin.
 	b3RayCastInput input = { b3ToVec3( origin ), translation, 1.0f };
 
-	WorldRayCastContext worldContext = { world, fcn, filter, 1.0f, context };
+	WorldRayCastContext worldContext = { world, fcn, filter, 1.0f, origin, context };
 
 	for ( int i = 0; i < b3_bodyTypeCount; ++i )
 	{
@@ -2809,13 +2827,15 @@ b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Pos origin, b3Vec3 tran
 	B3_ASSERT( b3IsValidPosition( origin ) );
 	B3_ASSERT( b3IsValidVec3( translation ) );
 
-	// World ray cast operates in float world space (documented carve-out far from the origin)
+	// The tree traverses in float relative to the world origin. Each shape is then re-differenced at
+	// full precision against its body, so a hit stays accurate far from the origin.
 	b3RayCastInput input = { b3ToVec3( origin ), translation, 1.0f };
 	WorldRayCastContext worldContext = {
 		.world = world,
 		.fcn = b3RayCastClosestFcn,
 		.filter = filter,
 		.fraction = 1.0f,
+		.origin = origin,
 		.userContext = &result,
 	};
 
@@ -2837,12 +2857,24 @@ b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Pos origin, b3Vec3 tran
 	return result;
 }
 
-static float b3ShapeCastCallback( const b3ShapeCastInput* input, int proxyId, uint64_t userData, void* context )
+typedef struct WorldShapeCastContext
+{
+	b3World* world;
+	b3CastResultFcn* fcn;
+	b3QueryFilter filter;
+	float fraction;
+	b3Pos origin;
+	// origin relative input
+	b3ShapeCastInput input;
+	void* userContext;
+} WorldShapeCastContext;
+
+static float b3ShapeCastCallback( const b3BoxCastInput* input, int proxyId, uint64_t userData, void* context )
 {
 	B3_UNUSED( proxyId );
 
 	int shapeId = (int)userData;
-	WorldRayCastContext* worldContext = (WorldRayCastContext*)context;
+	WorldShapeCastContext* worldContext = (WorldShapeCastContext*)context;
 	b3World* world = worldContext->world;
 
 	b3Shape* shape = b3Array_Get( world->shapes, shapeId );
@@ -2854,11 +2886,16 @@ static float b3ShapeCastCallback( const b3ShapeCastInput* input, int proxyId, ui
 		return input->maxFraction;
 	}
 
-	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	// World shape cast operates in float world space (documented carve-out far from the origin)
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Pos_zero );
+	// Rebuild from the origin relative input, taking only the advancing fraction from the tree.
+	// The tree box is world float and would lose the cast far from the origin.
+	b3ShapeCastInput localInput = worldContext->input;
+	localInput.maxFraction = input->maxFraction;
 
-	b3CastOutput output = b3ShapeCastShape( shape, transform, input );
+	// Re-center on the query origin so the per-shape cast stays in float precision far from the origin
+	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), worldContext->origin );
+
+	b3CastOutput output = b3ShapeCastShape( shape, transform, &localInput );
 
 	if ( output.hit )
 	{
@@ -2868,8 +2905,8 @@ static float b3ShapeCastCallback( const b3ShapeCastInput* input, int proxyId, ui
 
 		int triangleIndex = output.triangleIndex;
 		int childIndex = output.childIndex;
-		float fraction = worldContext->fcn( id, b3ToPos( output.point ), output.normal, output.fraction, userMaterialId,
-											triangleIndex, childIndex, worldContext->userContext );
+		float fraction = worldContext->fcn( id, b3OffsetPos( worldContext->origin, output.point ), output.normal, output.fraction,
+											userMaterialId, triangleIndex, childIndex, worldContext->userContext );
 
 		// The user may return -1 to skip this shape
 		if ( 0.0f <= fraction && fraction <= 1.0f )
@@ -2883,8 +2920,8 @@ static float b3ShapeCastCallback( const b3ShapeCastInput* input, int proxyId, ui
 	return input->maxFraction;
 }
 
-b3TreeStats b3World_CastShape( b3WorldId worldId, const b3ShapeProxy* proxy, b3Vec3 translation, b3QueryFilter filter,
-							   b3CastResultFcn* fcn, void* context )
+b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3ShapeProxy* proxy, b3Vec3 translation,
+							   b3QueryFilter filter, b3CastResultFcn* fcn, void* context )
 {
 	b3TreeStats treeStats = { 0 };
 
@@ -2894,20 +2931,31 @@ b3TreeStats b3World_CastShape( b3WorldId worldId, const b3ShapeProxy* proxy, b3V
 		return treeStats;
 	}
 
+	B3_ASSERT( b3IsValidPosition( origin ) );
 	B3_ASSERT( b3IsValidVec3( translation ) );
 
-	b3ShapeCastInput input;
-	input.proxy = *proxy;
-	input.translation = translation;
-	input.maxFraction = 1.0f;
-	input.canEncroach = false;
+	WorldShapeCastContext worldContext = { 0 };
+	worldContext.world = world;
+	worldContext.fcn = fcn;
+	worldContext.filter = filter;
+	worldContext.fraction = 1.0f;
+	worldContext.origin = origin;
+	worldContext.input.proxy = *proxy;
+	worldContext.input.translation = translation;
+	worldContext.input.maxFraction = 1.0f;
+	worldContext.input.canEncroach = false;
+	worldContext.userContext = context;
 
-	WorldRayCastContext worldContext = { world, fcn, filter, 1.0f, context };
+	// Bound the proxy in origin relative space then lift to a conservative world float box. The tree
+	// node boxes use the same directed rounding, so the swept box never clips a shape far from the
+	// origin. Per shape casts re-difference at full precision against the carried origin.
+	b3AABB localBox = b3MakeAABB( proxy->points, proxy->count, proxy->radius );
+	b3BoxCastInput treeInput = { b3OffsetAABB( localBox, origin ), translation, 1.0f };
 
 	for ( int i = 0; i < b3_bodyTypeCount; ++i )
 	{
-		b3TreeStats treeResult = b3DynamicTree_ShapeCast( world->broadPhase.trees + i, &input, filter.maskBits, false,
-														  b3ShapeCastCallback, &worldContext );
+		b3TreeStats treeResult = b3DynamicTree_BoxCast( world->broadPhase.trees + i, &treeInput, filter.maskBits, false,
+														b3ShapeCastCallback, &worldContext );
 		treeStats.nodeVisits += treeResult.nodeVisits;
 		treeStats.leafVisits += treeResult.leafVisits;
 
@@ -2916,7 +2964,7 @@ b3TreeStats b3World_CastShape( b3WorldId worldId, const b3ShapeProxy* proxy, b3V
 			return treeStats;
 		}
 
-		input.maxFraction = worldContext.fraction;
+		treeInput.maxFraction = worldContext.fraction;
 	}
 
 	return treeStats;
@@ -2928,10 +2976,13 @@ typedef struct WorldMoverCastContext
 	b3MoverFilterFcn* fcn;
 	b3QueryFilter filter;
 	float fraction;
+	b3Pos origin;
+	// origin relative input
+	b3ShapeCastInput input;
 	void* userContext;
 } WorldMoverCastContext;
 
-static float MoverCastCallback( const b3ShapeCastInput* input, int proxyId, uint64_t userData, void* context )
+static float MoverCastCallback( const b3BoxCastInput* input, int proxyId, uint64_t userData, void* context )
 {
 	B3_UNUSED( proxyId );
 
@@ -2958,11 +3009,15 @@ static float MoverCastCallback( const b3ShapeCastInput* input, int proxyId, uint
 		}
 	}
 
-	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	// World shape cast operates in float world space (documented carve-out far from the origin)
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Pos_zero );
+	// Rebuild from the origin relative input, taking only the advancing fraction from the tree
+	b3ShapeCastInput localInput = worldContext->input;
+	localInput.maxFraction = input->maxFraction;
 
-	b3CastOutput output = b3ShapeCastShape( shape, transform, input );
+	// Re-center on the query origin so the per-shape cast stays in float precision far from the origin
+	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), worldContext->origin );
+
+	b3CastOutput output = b3ShapeCastShape( shape, transform, &localInput );
 	if ( output.fraction == 0.0f )
 	{
 		// Ignore overlapping shapes
@@ -2973,9 +3028,10 @@ static float MoverCastCallback( const b3ShapeCastInput* input, int proxyId, uint
 	return output.fraction;
 }
 
-float b3World_CastMover( b3WorldId worldId, const b3Capsule* mover, b3Vec3 translation, b3QueryFilter filter,
+float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover, b3Vec3 translation, b3QueryFilter filter,
 						 b3MoverFilterFcn* fcn, void* context )
 {
+	B3_ASSERT( b3IsValidPosition( origin ) );
 	B3_ASSERT( b3IsValidVec3( translation ) );
 
 	b3World* world = b3GetUnlockedWorldFromId( worldId );
@@ -2984,30 +3040,33 @@ float b3World_CastMover( b3WorldId worldId, const b3Capsule* mover, b3Vec3 trans
 		return 1.0f;
 	}
 
-	b3ShapeCastInput input;
-	input.proxy = (b3ShapeProxy){ &mover->center1, 2, mover->radius };
-	input.translation = translation;
-	input.maxFraction = 1.0f;
-	input.canEncroach = mover->radius > 0.0f;
-
 	WorldMoverCastContext worldContext = {
 		.world = world,
 		.fcn = fcn,
 		.filter = filter,
 		.fraction = 1.0f,
+		.origin = origin,
 		.userContext = context,
 	};
+	worldContext.input.proxy = (b3ShapeProxy){ &mover->center1, 2, mover->radius };
+	worldContext.input.translation = translation;
+	worldContext.input.maxFraction = 1.0f;
+	worldContext.input.canEncroach = mover->radius > 0.0f;
+
+	// Bound the capsule in origin relative space then lift to a conservative world float box
+	b3Vec3 centers[2] = { mover->center1, mover->center2 };
+	b3BoxCastInput treeInput = { b3OffsetAABB( b3MakeAABB( centers, 2, mover->radius ), origin ), translation, 1.0f };
 
 	for ( int i = 0; i < b3_bodyTypeCount; ++i )
 	{
-		b3DynamicTree_ShapeCast( world->broadPhase.trees + i, &input, filter.maskBits, false, MoverCastCallback, &worldContext );
+		b3DynamicTree_BoxCast( world->broadPhase.trees + i, &treeInput, filter.maskBits, false, MoverCastCallback, &worldContext );
 
 		if ( worldContext.fraction == 0.0f )
 		{
 			return 0.0f;
 		}
 
-		input.maxFraction = worldContext.fraction;
+		treeInput.maxFraction = worldContext.fraction;
 	}
 
 	return worldContext.fraction;

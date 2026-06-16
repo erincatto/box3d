@@ -1499,6 +1499,117 @@ b3TreeStats b3DynamicTree_ShapeCast( const b3DynamicTree* tree, const b3ShapeCas
 	return stats;
 }
 
+b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
+								   b3TreeBoxCastCallbackFcn* callback, void* context )
+{
+	b3TreeStats stats = { 0 };
+
+	if ( tree->nodeCount == 0 )
+	{
+		return stats;
+	}
+
+	// The caller folds the shape radius and the world origin into the box
+	b3AABB originAABB = input->box;
+
+	b3Vec3 p1 = b3AABB_Center( originAABB );
+	b3Vec3 extension = b3AABB_Extents( originAABB );
+
+	b3Vec3 d = input->translation;
+
+	b3V32 pv1 = b3LoadV( &p1.x );
+	b3V32 dv = b3LoadV( &d.x );
+	b3V32 ev = b3LoadV( &extension.x );
+
+	float maxFraction = input->maxFraction;
+
+	// Build total box for the cast
+	b3Vec3 t = b3MulSV( maxFraction, input->translation );
+	b3AABB totalAABB = {
+		b3Min( originAABB.lowerBound, b3Add( originAABB.lowerBound, t ) ),
+		b3Max( originAABB.upperBound, b3Add( originAABB.upperBound, t ) ),
+	};
+
+	b3BoxCastInput subInput = *input;
+	const b3TreeNode* nodes = tree->nodes;
+
+	int stack[B3_TREE_STACK_SIZE];
+	int stackCount = 0;
+	stack[stackCount++] = tree->root;
+
+	while ( stackCount > 0 )
+	{
+		int nodeId = stack[--stackCount];
+		if ( nodeId == B3_NULL_INDEX )
+		{
+			B3_ASSERT( false );
+			continue;
+		}
+
+		const b3TreeNode* node = nodes + nodeId;
+		stats.nodeVisits += 1;
+
+		uint64_t bitMatch = requireAllBits ? ( node->categoryBits & maskBits ) == maskBits : ( node->categoryBits & maskBits );
+
+		if ( bitMatch == 0 || b3AABB_Overlaps( node->aabb, totalAABB ) == false )
+		{
+			continue;
+		}
+
+		// radius extension is added to the node in this case
+		b3V32 lower = b3SubV( b3LoadV( &node->aabb.lowerBound.x ), ev );
+		b3V32 upper = b3AddV( b3LoadV( &node->aabb.upperBound.x ), ev );
+		bool edgeOverlap = b3TestBoundsRayOverlap( lower, upper, pv1, dv );
+		if ( edgeOverlap == false )
+		{
+			continue;
+		}
+
+		if ( b3IsLeaf( node ) )
+		{
+			subInput.maxFraction = maxFraction;
+
+			float value = callback( &subInput, nodeId, node->userData, context );
+			stats.leafVisits += 1;
+
+			if ( value == 0.0f )
+			{
+				// The client has terminated the cast.
+				return stats;
+			}
+
+			if ( 0.0f < value && value < maxFraction )
+			{
+				maxFraction = value;
+				t = b3MulSV( maxFraction, input->translation );
+				totalAABB.lowerBound = b3Min( originAABB.lowerBound, b3Add( originAABB.lowerBound, t ) );
+				totalAABB.upperBound = b3Max( originAABB.upperBound, b3Add( originAABB.upperBound, t ) );
+			}
+		}
+		else
+		{
+			B3_ASSERT( stackCount < B3_TREE_STACK_SIZE - 1 );
+			if ( stackCount < B3_TREE_STACK_SIZE - 1 )
+			{
+				b3Vec3 c1 = b3AABB_Center( nodes[node->children.child1].aabb );
+				b3Vec3 c2 = b3AABB_Center( nodes[node->children.child2].aabb );
+				if ( b3DistanceSquared( c1, p1 ) < b3DistanceSquared( c2, p1 ) )
+				{
+					stack[stackCount++] = node->children.child2;
+					stack[stackCount++] = node->children.child1;
+				}
+				else
+				{
+					stack[stackCount++] = node->children.child1;
+					stack[stackCount++] = node->children.child2;
+				}
+			}
+		}
+	}
+
+	return stats;
+}
+
 // Median split == 0, Surface area heuristic == 1
 #define B3_TREE_HEURISTIC 0
 

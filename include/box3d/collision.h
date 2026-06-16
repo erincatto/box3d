@@ -90,6 +90,12 @@ B3_API b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3Ray
 B3_API b3TreeStats b3DynamicTree_ShapeCast( const b3DynamicTree* tree, const b3ShapeCastInput* input, uint64_t maskBits,
 											bool requireAllBits, b3TreeShapeCastCallbackFcn* callback, void* context );
 
+/// Sweep an AABB through the tree. The box is in the tree's world float frame and the callback
+/// re-differences each shape at full precision against the query origin. Used by the large world
+/// spatial queries so the tree traversal stays float while the narrow phase stays precise.
+B3_API b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits,
+										  bool requireAllBits, b3TreeBoxCastCallbackFcn* callback, void* context );
+
 /// Validate this tree. For testing.
 B3_API void b3DynamicTree_Validate( const b3DynamicTree* tree );
 

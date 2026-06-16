@@ -118,7 +118,7 @@ public:
 		b3QueryFilter filter = b3DefaultQueryFilter();
 
 		b3Capsule capsule = { m_capsule.center1 + m_transform.p, m_capsule.center2 + m_transform.p, m_capsule.radius };
-		b3World_CollideMover( m_worldId, &capsule, filter, PlaneResultFcn, this );
+		b3World_CollideMover( m_worldId, b3Pos_zero, &capsule, filter, PlaneResultFcn, this );
 
 		for ( int i = 0; i < m_planeCount; ++i )
 		{
@@ -258,7 +258,7 @@ public:
 		m_planeCount = 0;
 		m_zeroNormalCount = 0;
 		b3QueryFilter filter = b3DefaultQueryFilter();
-		b3World_CollideMover( m_worldId, &worldMover, filter, PlaneResultFcn, this );
+		b3World_CollideMover( m_worldId, b3Pos_zero, &worldMover, filter, PlaneResultFcn, this );
 
 		// Mover at the queried position.
 		DrawSolidCapsule( m_transform, m_capsule, MakeColor( b3_colorYellow ) );
@@ -839,7 +839,7 @@ struct RigidbodyCharacter
 		ctx.closestShape = b3_nullShapeId;
 
 		b3QueryFilter filter = b3DefaultQueryFilter();
-		b3World_CastShape( m_sample->m_worldId, &proxy, translation, filter, ClosestShapeCastCallback, &ctx );
+		b3World_CastShape( m_sample->m_worldId, b3Pos_zero, &proxy, translation, filter, ClosestShapeCastCallback, &ctx );
 
 		result.startedSolid = ctx.startedSolid;
 		if ( ctx.hit )

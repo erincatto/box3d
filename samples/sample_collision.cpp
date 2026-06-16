@@ -694,7 +694,7 @@ public:
 		}
 		else
 		{
-			b3World_CastShape( m_worldId, &proxy, m_translation, b3DefaultQueryFilter(), modeFcn, &m_castContext );
+			b3World_CastShape( m_worldId, b3Pos_zero, &proxy, m_translation, b3DefaultQueryFilter(), modeFcn, &m_castContext );
 		}
 
 		if ( m_castContext.count > 0 )
@@ -855,7 +855,7 @@ public:
 
 			CastContext context = {};
 			b3ShapeProxy proxy = { &sphere.center, 1, sphere.radius };
-			b3World_CastShape( m_worldId, &proxy, rayTranslation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
+			b3World_CastShape( m_worldId, b3Pos_zero, &proxy, rayTranslation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
 
 			if ( context.count > 0 )
 			{
@@ -962,7 +962,7 @@ public:
 			CastContext context = {};
 			context.initialOverlap = m_initialOverlap;
 
-			b3World_CastShape( m_worldId, &proxy, translation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
+			b3World_CastShape( m_worldId, b3Pos_zero, &proxy, translation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
 
 			DrawSolidSphere( b3Transform_identity, sphere, MakeColor( b3_colorGreen ) );
 
@@ -999,7 +999,7 @@ public:
 			CastContext context = {};
 			context.initialOverlap = m_initialOverlap;
 
-			b3World_CastShape( m_worldId, &proxy, translation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
+			b3World_CastShape( m_worldId, b3Pos_zero, &proxy, translation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
 
 			DrawSolidCapsule( b3Transform_identity, capsule, MakeColor( b3_colorGreen ) );
 
@@ -1042,7 +1042,7 @@ public:
 			CastContext context = {};
 			context.initialOverlap = m_initialOverlap;
 
-			b3World_CastShape( m_worldId, &proxy, translation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
+			b3World_CastShape( m_worldId, b3Pos_zero, &proxy, translation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
 
 			DrawHull( b3Transform_identity, &box.base, MakeColor( b3_colorGreen ) );
 
@@ -1246,7 +1246,7 @@ public:
 			b3Sphere sphere = { { -6.0f + 3.0f * i, 3.0f, -5.0f + m_castOffset }, 0.3f };
 			b3ShapeProxy proxy = { &sphere.center, 1, sphere.radius };
 			b3HexColor color = b3_colorGreen;
-			b3World_OverlapShape( m_worldId, &proxy, b3DefaultQueryFilter(), OverlapResultFcn, &color );
+			b3World_OverlapShape( m_worldId, b3Pos_zero, &proxy, b3DefaultQueryFilter(), OverlapResultFcn, &color );
 			DrawSolidSphere( b3Transform_identity, sphere, MakeColor( color ) );
 		}
 	}
@@ -1262,7 +1262,7 @@ public:
 			capsule.center2 += offset;
 			b3ShapeProxy proxy = { &capsule.center1, 2, capsule.radius };
 			b3HexColor color = b3_colorGreen;
-			b3World_OverlapShape( m_worldId, &proxy, b3DefaultQueryFilter(), OverlapResultFcn, &color );
+			b3World_OverlapShape( m_worldId, b3Pos_zero, &proxy, b3DefaultQueryFilter(), OverlapResultFcn, &color );
 			DrawSolidCapsule( b3Transform_identity, capsule, MakeColor( color ) );
 		}
 	}
@@ -1275,7 +1275,7 @@ public:
 			b3BoxHull box = b3MakeTransformedBoxHull( 0.3f, 0.3f, 0.3f, transform );
 			b3ShapeProxy proxy = { box.boxPoints, box.base.vertexCount, 0.0f };
 			b3HexColor color = b3_colorGreen;
-			b3World_OverlapShape( m_worldId, &proxy, b3DefaultQueryFilter(), OverlapResultFcn, &color );
+			b3World_OverlapShape( m_worldId, b3Pos_zero, &proxy, b3DefaultQueryFilter(), OverlapResultFcn, &color );
 			DrawHull( b3Transform_identity, &box.base, MakeColor( color ) );
 		}
 	}
@@ -1418,7 +1418,7 @@ public:
 
 		DrawSolidCapsule( b3Transform_identity, capsule, MakeColor( b3_colorGreen ) );
 
-		b3World_CastShape( m_worldId, &proxy, translation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
+		b3World_CastShape( m_worldId, b3Pos_zero, &proxy, translation, b3DefaultQueryFilter(), RayCastClosestCallback, &context );
 
 		float fraction = context.count > 0 ? context.fractions[0] : 1.0f;
 		b3Transform shapeEnd = { fraction * translation, b3Quat_identity };

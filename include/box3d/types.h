@@ -1373,6 +1373,21 @@ typedef struct b3ShapeCastInput
 	bool canEncroach;
 } b3ShapeCastInput;
 
+/// Input for sweeping an AABB through a dynamic tree. The box is in the tree's world float frame.
+/// The caller folds the cast shape radius and any world origin into the box, so the tree traversal
+/// stays a conservative box sweep and the precise narrow phase happens per shape in the callback.
+typedef struct b3BoxCastInput
+{
+	/// The AABB to cast, in the tree's frame.
+	b3AABB box;
+
+	/// The sweep translation.
+	b3Vec3 translation;
+
+	/// The maximum fraction of the translation to consider, typically 1.
+	float maxFraction;
+} b3BoxCastInput;
+
 /// Low level ray cast or shape-cast output data.
 typedef struct b3CastOutput
 {
@@ -1400,6 +1415,43 @@ typedef struct b3CastOutput
 	/// Did the cast hit?
 	bool hit;
 } b3CastOutput;
+
+#if defined( BOX3D_DOUBLE_PRECISION )
+
+/// Ray cast or shape-cast output in world space. The hit point is a world position so the result
+/// stays precise far from the world origin. Mirrors b3CastOutput with a double precision point.
+typedef struct b3WorldCastOutput
+{
+	/// The surface normal at the hit point.
+	b3Vec3 normal;
+
+	/// The surface hit point in world space.
+	b3Pos point;
+
+	/// The fraction of the input translation at collision.
+	float fraction;
+
+	/// The number of iterations used.
+	int iterations;
+
+	/// The index of the mesh or height field triangle hit.
+	int triangleIndex;
+
+	/// The index of the compound child shape.
+	int childIndex;
+
+	/// The material index. May be -1 for null.
+	int materialIndex;
+
+	/// Did the cast hit?
+	bool hit;
+} b3WorldCastOutput;
+
+#else
+
+typedef b3CastOutput b3WorldCastOutput;
+
+#endif
 
 /// Body ray cast for ray casting a specific body with a specified transform.
 typedef struct b3BodyRayCastInput
@@ -1756,6 +1808,10 @@ typedef float b3TreeQueryClosestCallbackFcn( float distanceSqrMin, int proxyId, 
 /// - return a value less than input->maxFraction to clip the ray
 /// - return a value of input->maxFraction to continue the ray cast without clipping
 typedef float b3TreeShapeCastCallbackFcn( const b3ShapeCastInput* input, int proxyId, uint64_t userData, void* context );
+
+/// This function receives clipped AABB cast input for a proxy. The function
+/// returns the new cast fraction, same contract as the shape cast callback.
+typedef float b3TreeBoxCastCallbackFcn( const b3BoxCastInput* input, int proxyId, uint64_t userData, void* context );
 
 /// This function receives clipped ray cast input for a proxy. The function
 /// returns the new ray fraction.

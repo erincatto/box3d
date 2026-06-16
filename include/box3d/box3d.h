@@ -75,8 +75,9 @@ B3_API b3JointEvents b3World_GetJointEvents( b3WorldId worldId );
 B3_API b3TreeStats b3World_OverlapAABB( b3WorldId worldId, b3AABB aabb, b3QueryFilter filter, b3OverlapResultFcn* fcn,
 										void* context );
 
-/// Overlap test for all shapes that overlap the provided shape proxy.
-B3_API b3TreeStats b3World_OverlapShape( b3WorldId worldId, const b3ShapeProxy* proxy, b3QueryFilter filter,
+/// Overlap test for all shapes that overlap the provided shape proxy. The proxy points are relative
+/// to the world origin, which lets the query stay precise far from the world origin.
+B3_API b3TreeStats b3World_OverlapShape( b3WorldId worldId, b3Pos origin, const b3ShapeProxy* proxy, b3QueryFilter filter,
 										 b3OverlapResultFcn* fcn, void* context );
 
 /// Cast a ray into the world to collect shapes in the path of the ray.
@@ -97,27 +98,30 @@ B3_API b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 tran
 B3_API b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter );
 
 /// Cast a shape through the world. Similar to a cast ray except that a shape is cast instead of a point.
+/// The proxy points are relative to the origin and the hit points come back as world positions, so the
+/// cast stays precise far from the world origin.
 ///	@see b3World_CastRay
-B3_API b3TreeStats b3World_CastShape( b3WorldId worldId, const b3ShapeProxy* proxy, b3Vec3 translation, b3QueryFilter filter,
-									  b3CastResultFcn* fcn, void* context );
+B3_API b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3ShapeProxy* proxy, b3Vec3 translation,
+									  b3QueryFilter filter, b3CastResultFcn* fcn, void* context );
 
 /// Cast a capsule mover through the world. This is a special shape cast that handles sliding along other shapes while reducing
 /// clipping. This is not a good source of information about what the mover is touching. Instead use the planes returned by
 /// b3World_CollideMover.
 /// @param worldId World to cast the mover against
-/// @param mover Capsule mover in world space
+/// @param origin World position the mover capsule is relative to
+/// @param mover Capsule mover, relative to the origin
 /// @param translation Desired mover translation
 /// @param filter Contains bit flags to filter unwanted shapes from the results
 /// @param fcn Optional callback for custom shape filtering
 /// @param context A user context that is passed along to the callback function
 /// @return the translation fraction
-B3_API float b3World_CastMover( b3WorldId worldId, const b3Capsule* mover, b3Vec3 translation, b3QueryFilter filter,
-								b3MoverFilterFcn* fcn, void* context );
+B3_API float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover, b3Vec3 translation,
+								b3QueryFilter filter, b3MoverFilterFcn* fcn, void* context );
 
 /// Collide a capsule mover with the world, gathering collision planes that can be fed to b3SolvePlanes. Useful for
-/// kinematic character movement.
-B3_API void b3World_CollideMover( b3WorldId worldId, const b3Capsule* mover, b3QueryFilter filter, b3PlaneResultFcn* fcn,
-								  void* context );
+/// kinematic character movement. The mover and the returned planes are relative to the origin.
+B3_API void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover, b3QueryFilter filter,
+								  b3PlaneResultFcn* fcn, void* context );
 
 /// Enable/disable sleep. If your application does not need sleeping, you can gain some performance
 /// by disabling sleep completely at the world level.
@@ -701,8 +705,9 @@ B3_API void b3Shape_EnableHitEvents( b3ShapeId shapeId, bool flag );
 /// Returns true if hit events are enabled
 B3_API bool b3Shape_AreHitEventsEnabled( b3ShapeId shapeId );
 
-/// Ray cast a shape directly
-B3_API b3CastOutput b3Shape_RayCast( b3ShapeId shapeId, const b3RayCastInput* input );
+/// Ray cast a shape directly. The ray runs from origin to origin + translation and the hit point
+/// comes back as a world position, so the cast stays precise far from the world origin.
+B3_API b3WorldCastOutput b3Shape_RayCast( b3ShapeId shapeId, b3Pos origin, b3Vec3 translation );
 
 /// Get a copy of the shape's sphere. Asserts the type is correct.
 B3_API b3Sphere b3Shape_GetSphere( b3ShapeId shapeId );

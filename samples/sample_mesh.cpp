@@ -957,7 +957,7 @@ public:
 			CastContext result = {};
 			result.fraction = 1.0f;
 
-			b3World_CastShape( m_worldId, &proxy, m_rayTranslation, b3DefaultQueryFilter(), CastCallback, &result );
+			b3World_CastShape( m_worldId, b3Pos_zero, &proxy, m_rayTranslation, b3DefaultQueryFilter(), CastCallback, &result );
 
 			DrawPoint( m_rayOrigin, 2.0f, MakeColor( b3_colorGreen ) );
 			DrawPoint( m_rayOrigin + m_rayTranslation, 2.0f, MakeColor( b3_colorRed ) );

@@ -591,7 +591,7 @@ public:
 				{
 					Context context = {};
 					b3ShapeProxy proxy = { &rayOrigin, 1, m_radius };
-					b3World_CastShape( m_worldId, &proxy, rayTranslation, b3DefaultQueryFilter(), CastCallback, &context );
+					b3World_CastShape( m_worldId, b3Pos_zero, &proxy, rayTranslation, b3DefaultQueryFilter(), CastCallback, &context );
 
 					if ( context.hit )
 					{
