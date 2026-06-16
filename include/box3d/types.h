@@ -1802,15 +1802,11 @@ typedef bool b3TreeQueryCallbackFcn( int proxyId, uint64_t userData, void* conte
 /// @return minimum distance squared to user objects in the proxy
 typedef float b3TreeQueryClosestCallbackFcn( float distanceSqrMin, int proxyId, uint64_t userData, void* context );
 
-/// This function receives clipped ray cast input for a proxy. The function
-/// returns the new ray fraction.
-/// - return a value of 0 to terminate the ray cast
-/// - return a value less than input->maxFraction to clip the ray
-/// - return a value of input->maxFraction to continue the ray cast without clipping
-typedef float b3TreeShapeCastCallbackFcn( const b3ShapeCastInput* input, int proxyId, uint64_t userData, void* context );
-
-/// This function receives clipped AABB cast input for a proxy. The function
-/// returns the new cast fraction, same contract as the shape cast callback.
+/// This function receives clipped AABB cast input for a proxy. The function returns the new cast
+/// fraction.
+/// - return a value of 0 to terminate the cast
+/// - return a value less than input->maxFraction to clip the cast
+/// - return a value of input->maxFraction to continue the cast without clipping
 typedef float b3TreeBoxCastCallbackFcn( const b3BoxCastInput* input, int proxyId, uint64_t userData, void* context );
 
 /// This function receives clipped ray cast input for a proxy. The function

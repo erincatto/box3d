@@ -759,6 +759,8 @@ struct b3CompoundCastContext
 {
 	const b3Compound* compound;
 	b3CastOutput* output;
+	// origin of the shape cast, the box cast callback only carries the advancing fraction
+	const b3ShapeCastInput* shapeInput;
 };
 
 static float b3CompoundRayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t userData, void* context )
@@ -833,32 +835,35 @@ b3CastOutput b3RayCastCompound( const b3Compound* shape, const b3RayCastInput* i
 	return result;
 }
 
-static float b3CompoundShapeCastCallback( const b3ShapeCastInput* input, int proxyId, uint64_t userData, void* context )
+static float b3CompoundShapeCastCallback( const b3BoxCastInput* input, int proxyId, uint64_t userData, void* context )
 {
 	B3_UNUSED( proxyId );
 
 	struct b3CompoundCastContext* castContext = context;
 	const b3Compound* compound = castContext->compound;
+	const b3ShapeCastInput* shapeInput = castContext->shapeInput;
 
 	int childIndex = (int)userData;
 
 	b3ChildShape child = b3GetCompoundChild( compound, childIndex );
 
-	b3ShapeCastInput localInput = *input;
+	// Rebuild from the carried shape cast input, taking only the advancing fraction from the tree
+	b3ShapeCastInput localInput = *shapeInput;
+	localInput.maxFraction = input->maxFraction;
 	b3Vec3 localPoints[B3_MAX_SHAPE_CAST_POINTS];
 
-	localInput.proxy.count = b3MinInt( input->proxy.count, B3_MAX_SHAPE_CAST_POINTS );
+	localInput.proxy.count = b3MinInt( shapeInput->proxy.count, B3_MAX_SHAPE_CAST_POINTS );
 
 	b3Transform invTransform = b3InvertTransform( child.transform );
 	b3Matrix3 R = b3MakeMatrixFromQuat( invTransform.q );
 
 	for ( int i = 0; i < localInput.proxy.count; ++i )
 	{
-		localPoints[i] = b3Add( b3MulMV( R, input->proxy.points[i] ), invTransform.p );
+		localPoints[i] = b3Add( b3MulMV( R, shapeInput->proxy.points[i] ), invTransform.p );
 	}
 
 	localInput.proxy.points = localPoints;
-	localInput.translation = b3MulMV( R, input->translation );
+	localInput.translation = b3MulMV( R, shapeInput->translation );
 
 	b3CastOutput output = { 0 };
 
@@ -909,11 +914,21 @@ b3CastOutput b3ShapeCastCompound( const b3Compound* shape, const b3ShapeCastInpu
 {
 	b3CastOutput result = { 0 };
 
+	if ( input->proxy.count == 0 )
+	{
+		return result;
+	}
+
 	struct b3CompoundCastContext context = {
 		.compound = shape,
 		.output = &result,
+		.shapeInput = input,
 	};
-	(void)b3DynamicTree_ShapeCast( &shape->tree, input, ~0ull, false, b3CompoundShapeCastCallback, &context );
+
+	// The compound tree is in the compound local frame, so the proxy box needs no origin offset
+	b3AABB box = b3MakeAABB( input->proxy.points, input->proxy.count, input->proxy.radius );
+	b3BoxCastInput treeInput = { box, input->translation, input->maxFraction };
+	(void)b3DynamicTree_BoxCast( &shape->tree, &treeInput, ~0ull, false, b3CompoundShapeCastCallback, &context );
 	return result;
 }
 

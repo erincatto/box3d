@@ -487,13 +487,17 @@ The callback returns a new `maxFraction`. Return 0 to stop, a fraction less
 than `input->maxFraction` to clip the ray (e.g. for closest-hit semantics),
 or `input->maxFraction` to continue unclipped.
 
-### Shape Cast
+### Box Cast
 
 ```c
-b3TreeStats stats = b3DynamicTree_ShapeCast(
-    &tree, &shapeCastInput, maskBits, requireAllBits,
-    myShapeCastCallback, context);
+b3TreeStats stats = b3DynamicTree_BoxCast(
+    &tree, &boxCastInput, maskBits, requireAllBits,
+    myBoxCastCallback, context);
 ```
+
+The tree sweeps the AABB in `boxCastInput`; the caller folds the cast shape's radius (and any
+world origin) into that box. The callback then does the precise narrow-phase cast against each
+leaf, taking only the advancing fraction from the tree.
 
 ![Ray cast](images/raycast.svg)
 
