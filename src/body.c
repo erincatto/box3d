@@ -542,8 +542,9 @@ float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target )
 
 	b3DistanceInput input = { 0 };
 	input.proxyA = (b3ShapeProxy){ &target, 1, 0.0f };
-	input.transformA.q = b3Quat_identity;
-	input.transformB = transform;
+
+	// Target rides in frame A at the origin, so the relative pose of the shape in A is the body transform
+	input.transform = transform;
 	input.useRadii = false;
 
 	int shapeId = body->headShapeId;

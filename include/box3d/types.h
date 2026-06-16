@@ -1547,13 +1547,12 @@ static const b3SimplexCache b3_emptyDistanceCache = B3_ZERO_INIT;
 /// Input parameters for b3ShapeCast
 typedef struct b3ShapeCastPairInput
 {
-	b3ShapeProxy proxyA;	///< The proxy for shape A
-	b3ShapeProxy proxyB;	///< The proxy for shape B
-	b3Transform transformA; ///< The world transform for shape A
-	b3Transform transformB; ///< The world transform for shape B
-	b3Vec3 translationB;	///< The translation of shape B
-	float maxFraction;		///< The fraction of the translation to consider, typically 1
-	bool canEncroach;		///< Allows shapes with a radius to move slightly closer if already touching
+	b3ShapeProxy proxyA;   ///< The proxy for shape A
+	b3ShapeProxy proxyB;   ///< The proxy for shape B
+	b3Transform transform; ///< Transform of shape B in shape A's frame, the relative pose B in A
+	b3Vec3 translationB;   ///< The translation of shape B, in A's frame
+	float maxFraction;	   ///< The fraction of the translation to consider, typically 1
+	bool canEncroach;	   ///< Allows shapes with a radius to move slightly closer if already touching
 } b3ShapeCastPairInput;
 
 /// Input for b3ShapeDistance
@@ -1565,11 +1564,9 @@ typedef struct b3DistanceInput
 	/// The proxy for shape B
 	b3ShapeProxy proxyB;
 
-	/// The world transform for shape A
-	b3Transform transformA;
-
-	/// The world transform for shape B
-	b3Transform transformB;
+	/// Transform of shape B in shape A's frame, the relative pose B in A
+	/// (b3InvMulWorldTransforms( worldA, worldB )). The query is origin independent and runs in frame A.
+	b3Transform transform;
 
 	/// Should the proxy radius be considered?
 	bool useRadii;
@@ -1578,9 +1575,9 @@ typedef struct b3DistanceInput
 /// Output for b3ShapeDistance
 typedef struct b3DistanceOutput
 {
-	b3Vec3 pointA;	  ///< Closest point on shapeA
-	b3Vec3 pointB;	  ///< Closest point on shapeB
-	b3Vec3 normal;	  ///< Normal vector pointing from A to B
+	b3Vec3 pointA;	  ///< Closest point on shapeA, in shape A's frame
+	b3Vec3 pointB;	  ///< Closest point on shapeB, in shape A's frame
+	b3Vec3 normal;	  ///< A to B normal in shape A's frame. Invalid if distance is zero.
 	float distance;	  ///< The final distance, zero if overlapped
 	int iterations;	  ///< Number of GJK iterations used
 	int simplexCount; ///< The number of simplexes stored in the simplex array

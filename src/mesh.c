@@ -1791,8 +1791,7 @@ bool b3OverlapMesh( const b3Mesh* shape, b3Transform shapeTransform, const b3Sha
 
 	b3DistanceInput input;
 	input.proxyB = localProxy;
-	input.transformA = b3Transform_identity;
-	input.transformB = b3Transform_identity;
+	input.transform = b3Transform_identity;
 	input.useRadii = true;
 
 	int count = 0;
@@ -2098,8 +2097,7 @@ b3CastOutput b3ShapeCastMesh( const b3Mesh* mesh, const b3ShapeCastInput* input 
 						b3ShapeCastPairInput pairInput;
 						pairInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
 						pairInput.proxyB = input->proxy;
-						pairInput.transformA = b3Transform_identity;
-						pairInput.transformB = shiftedOrigin;
+						pairInput.transform = shiftedOrigin;
 						pairInput.maxFraction = bestOutput.fraction;
 						pairInput.translationB = input->translation;
 						pairInput.canEncroach = input->canEncroach;
@@ -2212,8 +2210,7 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 
 	b3DistanceInput distanceInput = { 0 };
 	distanceInput.proxyB = (b3ShapeProxy){ &mover->center1, 2, 0.0f };
-	distanceInput.transformA = b3Transform_identity;
-	distanceInput.transformB = b3Transform_identity;
+	distanceInput.transform = b3Transform_identity;
 	distanceInput.useRadii = false;
 
 	b3SimplexCache cache = { 0 };

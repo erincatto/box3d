@@ -3138,8 +3138,7 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 	b3DistanceInput input;
 	input.proxyA = b3MakeShapeProxy( shape );
 	input.proxyB = (b3ShapeProxy){ &explosionContext->position, 1, 0.0f };
-	input.transformA = transform;
-	input.transformB = b3Transform_identity;
+	input.transform = b3InvMulTransforms( transform, b3Transform_identity );
 	input.useRadii = true;
 
 	b3SimplexCache cache = { 0 };
@@ -3159,7 +3158,8 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 		return true;
 	}
 
-	b3Vec3 closestPoint = output.pointA;
+	// Witness point comes back in frame A, lift it back to the query frame
+	b3Vec3 closestPoint = b3TransformPoint( transform, output.pointA );
 	if ( output.distance == 0.0f )
 	{
 		b3Vec3 localCentroid = b3GetShapeCentroid( shape );

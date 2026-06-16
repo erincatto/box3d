@@ -330,8 +330,7 @@ static b3CastOutput BruteForceShapeCast( const b3HeightField* hf, const b3ShapeC
 		b3ShapeCastPairInput pair = { 0 };
 		pair.proxyA = (b3ShapeProxy){ tri.vertices, 3, 0.0f };
 		pair.proxyB = input->proxy;
-		pair.transformA = b3Transform_identity;
-		pair.transformB = b3Transform_identity;
+		pair.transform = b3Transform_identity;
 		pair.translationB = input->translation;
 		pair.maxFraction = bestFraction;
 		pair.canEncroach = input->canEncroach;

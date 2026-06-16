@@ -42,8 +42,7 @@ static int ShapeDistanceTest( void )
 	b3DistanceInput input;
 	input.proxyA = (b3ShapeProxy){ vas, ARRAY_COUNT( vas ), 0.0f };
 	input.proxyB = (b3ShapeProxy){ vbs, ARRAY_COUNT( vbs ), 0.0f };
-	input.transformA = b3Transform_identity;
-	input.transformB = b3Transform_identity;
+	input.transform = b3Transform_identity;
 	input.useRadii = false;
 
 	b3SimplexCache cache = { 0 };
@@ -67,8 +66,7 @@ static int ShapeCastTest( void )
 	b3ShapeCastPairInput input;
 	input.proxyA = (b3ShapeProxy){ vas, ARRAY_COUNT( vas ), 0.0f };
 	input.proxyB = (b3ShapeProxy){ vbs, ARRAY_COUNT( vbs ), 0.0f };
-	input.transformA = b3Transform_identity;
-	input.transformB = b3Transform_identity;
+	input.transform = b3Transform_identity;
 	input.translationB = (b3Vec3){ -2.0f, 0.0f };
 	input.maxFraction = 1.0f;
 	input.canEncroach = false;

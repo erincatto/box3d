@@ -755,9 +755,8 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 	B3_UNUSED( cellCount );
 
 	b3ShapeCastPairInput pairInput = { 0 };
-	pairInput.transformA = b3Transform_identity;
 	pairInput.proxyB = input->proxy;
-	pairInput.transformB = b3Transform_identity;
+	pairInput.transform = b3Transform_identity;
 	pairInput.translationB = input->translation;
 	pairInput.canEncroach = input->canEncroach;
 
@@ -919,7 +918,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 						b3Vec3 triangleVertices[] = { b3Vec3_zero, b3Sub( point21, origin ), b3Sub( point12, origin ) };
 						pairInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
 						pairInput.maxFraction = bestFraction;
-						pairInput.transformB.p = b3Neg( origin );
+						pairInput.transform.p = b3Neg( origin );
 
 						b3CastOutput pairOutput = b3ShapeCast( &pairInput );
 
@@ -939,7 +938,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 						b3Vec3 triangleVertices[] = { b3Vec3_zero, b3Sub( point22, origin ), b3Sub( point12, origin ) };
 						pairInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
 						pairInput.maxFraction = bestFraction;
-						pairInput.transformB.p = b3Neg( origin );
+						pairInput.transform.p = b3Neg( origin );
 
 						b3CastOutput pairOutput = b3ShapeCast( &pairInput );
 
@@ -1047,8 +1046,7 @@ bool b3OverlapHeightField( const b3HeightField* shape, b3Transform shapeTransfor
 
 	b3DistanceInput input;
 	input.proxyB = localProxy;
-	input.transformA = b3Transform_identity;
-	input.transformB = b3Transform_identity;
+	input.transform = b3Transform_identity;
 	input.useRadii = true;
 
 	b3SimplexCache cache = { 0 };
@@ -1202,8 +1200,7 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 {
 	b3DistanceInput distanceInput = { 0 };
 	distanceInput.proxyB = (b3ShapeProxy){ &mover->center1, 2, 0.0f };
-	distanceInput.transformA = b3Transform_identity;
-	distanceInput.transformB = b3Transform_identity;
+	distanceInput.transform = b3Transform_identity;
 	distanceInput.useRadii = false;
 
 	b3SimplexCache cache = { 0 };

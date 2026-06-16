@@ -586,8 +586,7 @@ void b3CollideHullAndSphere( b3LocalManifold* manifold, int capacity, const b3Hu
 	b3DistanceInput distanceInput;
 	distanceInput.proxyA = (b3ShapeProxy){ b3GetHullPoints( hullA ), hullA->vertexCount, 0.0f };
 	distanceInput.proxyB = (b3ShapeProxy){ &center, 1, 0.0f };
-	distanceInput.transformA = b3Transform_identity;
-	distanceInput.transformB = b3Transform_identity;
+	distanceInput.transform = b3Transform_identity;
 	distanceInput.useRadii = false;
 
 	float radiusA = 0.0f;
@@ -948,8 +947,7 @@ void b3CollideHullAndCapsule( b3LocalManifold* manifold, int capacity, const b3H
 	b3DistanceInput distanceInput;
 	distanceInput.proxyA = (b3ShapeProxy){ b3GetHullPoints( hullA ), hullA->vertexCount, 0.0f };
 	distanceInput.proxyB = (b3ShapeProxy){ &capsuleB->center1, 2, 0.0f };
-	distanceInput.transformA = b3Transform_identity;
-	distanceInput.transformB = transformBtoA;
+	distanceInput.transform = transformBtoA;
 	distanceInput.useRadii = false;
 
 	b3DistanceOutput distanceOutput = b3ShapeDistance( &distanceInput, cache, NULL, 0 );

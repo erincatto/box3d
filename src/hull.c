@@ -2408,8 +2408,7 @@ bool b3OverlapHull( const b3HullData* shape, b3Transform shapeTransform, const b
 	b3DistanceInput input;
 	input.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
 	input.proxyB = *proxy;
-	input.transformA = shapeTransform;
-	input.transformB = b3Transform_identity;
+	input.transform = b3InvMulTransforms( shapeTransform, b3Transform_identity );
 	input.useRadii = true;
 
 	b3SimplexCache cache = { 0 };
@@ -2492,8 +2491,7 @@ b3CastOutput b3ShapeCastHull( const b3HullData* shape, const b3ShapeCastInput* i
 	b3ShapeCastPairInput pairInput;
 	pairInput.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
 	pairInput.proxyB = input->proxy;
-	pairInput.transformA = b3Transform_identity;
-	pairInput.transformB = b3Transform_identity;
+	pairInput.transform = b3Transform_identity;
 	pairInput.translationB = input->translation;
 	pairInput.maxFraction = input->maxFraction;
 	pairInput.canEncroach = input->canEncroach;
@@ -2508,8 +2506,7 @@ int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, const
 	b3DistanceInput distanceInput;
 	distanceInput.proxyA = (b3ShapeProxy){ points, shape->vertexCount, 0.0f };
 	distanceInput.proxyB = (b3ShapeProxy){ &mover->center1, 2, mover->radius };
-	distanceInput.transformA = b3Transform_identity;
-	distanceInput.transformB = b3Transform_identity;
+	distanceInput.transform = b3Transform_identity;
 	distanceInput.useRadii = false;
 
 	float totalRadius = mover->radius;

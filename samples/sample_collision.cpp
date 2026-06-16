@@ -1516,8 +1516,7 @@ public:
 		input.proxyA = { m_triangle, 3, 0.0f };
 		// input.proxyB = { m_points, 8, 0.0f };
 		input.proxyB = { &m_capsule.center1, 2, m_capsule.radius };
-		input.transformA = b3Transform_identity;
-		input.transformB = m_transform;
+		input.transform = m_transform;
 		input.translationB = m_translation;
 		input.maxFraction = 0.970617533;
 		input.canEncroach = false;
@@ -1702,8 +1701,7 @@ public:
 		b3DistanceInput input;
 		input.proxyA = { m_boxA.boxPoints, 8, 0.0f };
 		input.proxyB = { m_boxB.boxPoints, 8, 0.0f };
-		input.transformA = b3Transform_identity;
-		input.transformB = m_transformB;
+		input.transform = m_transformB;
 		input.useRadii = false;
 
 		b3SimplexCache cache = {};
@@ -2129,8 +2127,7 @@ public:
 		b3DistanceInput input;
 		input.proxyA = m_proxyA;
 		input.proxyB = m_proxyB;
-		input.transformA = b3Transform_identity;
-		input.transformB = m_transform;
+		input.transform = m_transform;
 		input.useRadii = m_radiusA > 0.0f || m_radiusB > 0.0f;
 
 		if ( m_useCache == false )

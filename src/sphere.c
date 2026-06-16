@@ -47,8 +47,7 @@ bool b3OverlapSphere( const b3Sphere* shape, b3Transform shapeTransform, const b
 	b3DistanceInput input;
 	input.proxyA = ( b3ShapeProxy ){ &shape->center, 1, shape->radius };
 	input.proxyB = *proxy;
-	input.transformA = shapeTransform;
-	input.transformB = b3Transform_identity;
+	input.transform = b3InvMulTransforms( shapeTransform, b3Transform_identity );
 	input.useRadii = true;
 
 	b3SimplexCache cache = { 0 };
@@ -206,8 +205,7 @@ b3CastOutput b3ShapeCastSphere( const b3Sphere* sphere, const b3ShapeCastInput* 
 	b3ShapeCastPairInput pairInput;
 	pairInput.proxyA = ( b3ShapeProxy ){ &sphere->center, 1, sphere->radius };
 	pairInput.proxyB = input->proxy;
-	pairInput.transformA = b3Transform_identity;
-	pairInput.transformB = b3Transform_identity;
+	pairInput.transform = b3Transform_identity;
 	pairInput.translationB = input->translation;
 	pairInput.maxFraction = input->maxFraction;
 	pairInput.canEncroach = input->canEncroach;

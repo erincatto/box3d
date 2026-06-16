@@ -346,8 +346,7 @@ void b3CollideCapsuleAndTriangle( b3LocalManifold* manifold, int capacity, const
 	b3DistanceInput distanceInput;
 	distanceInput.proxyA = (b3ShapeProxy){ triangleB, 3, 0.0f };
 	distanceInput.proxyB = (b3ShapeProxy){ &capsuleA->center1, 2, 0.0f };
-	distanceInput.transformA = b3Transform_identity;
-	distanceInput.transformB = b3Transform_identity;
+	distanceInput.transform = b3Transform_identity;
 	distanceInput.useRadii = false;
 
 	b3DistanceOutput distanceOutput = b3ShapeDistance( &distanceInput, cache, NULL, 0 );
@@ -1230,8 +1229,7 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 			.radius = 0.0f,
 		};
 		input.proxyB = (b3ShapeProxy){ .points = hullPoints, .count = hullA->vertexCount, .radius = 0.0f };
-		input.transformA = b3Transform_identity;
-		input.transformB = b3Transform_identity;
+		input.transform = b3Transform_identity;
 		input.useRadii = false;
 
 		b3SimplexCache simplexCache = { 0 };

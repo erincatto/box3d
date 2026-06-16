@@ -314,16 +314,19 @@ shapes, each expressed as a `b3ShapeProxy`. It uses the GJK algorithm.
 
 ```c
 b3DistanceInput input = {0};
-input.proxyA     = proxyA;       // b3ShapeProxy for shape A
-input.proxyB     = proxyB;       // b3ShapeProxy for shape B
-input.transformA = transformA;
-input.transformB = transformB;
-input.useRadii   = true;
+input.proxyA    = proxyA;       // b3ShapeProxy for shape A
+input.proxyB    = proxyB;       // b3ShapeProxy for shape B
+input.transform = b3InvMulWorldTransforms(worldA, worldB); // relative pose of B in A
+input.useRadii  = true;
 
 b3SimplexCache cache = b3_emptyDistanceCache;
 b3DistanceOutput output = b3ShapeDistance(&input, &cache, NULL, 0);
-// output.distance, output.pointA, output.pointB, output.normal
+// output.distance, output.pointA, output.pointB, output.normal are in shape A's frame
 ```
+
+The query is origin independent and runs in frame A, so the witness points and
+normal come back in shape A's frame. Lift them into world space with shape A's
+transform if needed.
 
 The simplex cache warm-starts the algorithm when shapes move by small amounts
 between calls. On the first call zero-initialize the cache (or use

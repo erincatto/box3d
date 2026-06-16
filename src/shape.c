@@ -1738,14 +1738,14 @@ b3Vec3 b3Shape_GetClosestPoint( b3ShapeId shapeId, b3Vec3 target )
 	b3DistanceInput input;
 	input.proxyA = b3MakeShapeProxy( shape );
 	input.proxyB = (b3ShapeProxy){ &target, 1, 0.0f };
-	input.transformA = transform;
-	input.transformB = b3Transform_identity;
+	input.transform = b3InvMulTransforms( transform, b3Transform_identity );
 	input.useRadii = true;
 
 	b3SimplexCache cache = { 0 };
 	b3DistanceOutput output = b3ShapeDistance( &input, &cache, NULL, 0 );
 
-	return output.pointA;
+	// Witness point comes back in frame A, lift it back to the query frame
+	return b3TransformPoint( transform, output.pointA );
 }
 
 #define B3_DEBUG_WIND 0

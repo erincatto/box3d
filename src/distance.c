@@ -712,17 +712,12 @@ static void b3ComputeWitnessPoints( const b3Simplex* simplex, b3Vec3* vertexA, b
 
 b3DistanceOutput b3ShapeDistance( const b3DistanceInput* input, b3SimplexCache* cache, b3Simplex* simplexes, int simplexCapacity )
 {
-	// Build initial simplex
-	b3Transform transformA = input->transformA;
-	b3Transform transformB = input->transformB;
-
-	// Work in relative space
-	b3Transform xf = b3InvMulTransforms( transformA, transformB );
+	// The query runs in frame A using the relative pose of B in A.
+	b3Transform xf = input->transform;
 
 	// Use matrices for faster math
 	b3Matrix3 m = b3MakeMatrixFromQuat( xf.q );
 	b3Matrix3 mt = b3Transpose( m );
-	b3Matrix3 mA = b3MakeMatrixFromQuat( transformA.q );
 
 	const b3ShapeProxy* proxyA = &input->proxyA;
 	const b3ShapeProxy* proxyB = &input->proxyB;
@@ -850,8 +845,8 @@ b3DistanceOutput b3ShapeDistance( const b3DistanceInput* input, b3SimplexCache* 
 			// Overlap
 			b3Vec3 localPointA, localPointB;
 			b3ComputeWitnessPoints( &simplex, &localPointA, &localPointB );
-			distanceOutput.pointA = b3Add( b3MulMV( mA, localPointA ), transformA.p );
-			distanceOutput.pointB = b3Add( b3MulMV( mA, localPointB ), transformA.p );
+			distanceOutput.pointA = localPointA;
+			distanceOutput.pointB = localPointB;
 			return distanceOutput;
 		}
 
@@ -946,8 +941,8 @@ b3DistanceOutput b3ShapeDistance( const b3DistanceInput* input, b3SimplexCache* 
 			// Thus the shapes are overlapped.
 			b3Vec3 localPointA, localPointB;
 			b3ComputeWitnessPoints( &simplex, &localPointA, &localPointB );
-			distanceOutput.pointA = b3Add( b3MulMV( mA, localPointA ), transformA.p );
-			distanceOutput.pointB = b3Add( b3MulMV( mA, localPointB ), transformA.p );
+			distanceOutput.pointA = localPointA;
+			distanceOutput.pointB = localPointB;
 			B3_VALIDATE( b3Distance( localPointA, localPointB ) < FLT_EPSILON );
 			return distanceOutput;
 		}
@@ -1001,10 +996,9 @@ b3DistanceOutput b3ShapeDistance( const b3DistanceInput* input, b3SimplexCache* 
 	b3ComputeWitnessPoints( &simplex, &localPointA, &localPointB );
 	b3WriteCache( cache, &simplex );
 
-	// Convert results from frame A into world space
-	normal = b3MulMV( mA, normal );
-	distanceOutput.pointA = b3Add( b3MulMV( mA, localPointA ), transformA.p );
-	distanceOutput.pointB = b3Add( b3MulMV( mA, localPointB ), transformA.p );
+	// Results stay in frame A
+	distanceOutput.pointA = localPointA;
+	distanceOutput.pointB = localPointB;
 	distanceOutput.distance = b3Distance( localPointA, localPointB );
 	distanceOutput.normal = normal;
 	distanceOutput.iterations = iteration;
@@ -1053,9 +1047,11 @@ b3CastOutput b3ShapeCast( const b3ShapeCastPairInput* input )
 	b3DistanceInput distanceInput = { 0 };
 	distanceInput.proxyA = input->proxyA;
 	distanceInput.proxyB = input->proxyB;
-	distanceInput.transformA = input->transformA;
-	distanceInput.transformB = input->transformB;
 	distanceInput.useRadii = false;
+
+	// The whole cast runs in frame A. Advance the relative pose of B in float each iteration,
+	// which keeps the math near the local origin and avoids re-relativizing world poses.
+	distanceInput.transform = input->transform;
 
 	b3Vec3 delta2 = input->translationB;
 	b3DistanceOutput distanceOutput = { 0 };
@@ -1111,14 +1107,9 @@ b3CastOutput b3ShapeCast( const b3ShapeCastPairInput* input )
 					b3Log( "radiusB = %.9f", input->proxyB.radius );
 
 					{
-						b3Transform xfA = input->transformA;
-						b3Log( "xfA = {{%.9f, %.9f, %.9f}, {{%.9f, %.9f, %.9f}, %.9f}", xfA.p.x, xfA.p.y, xfA.p.z, xfA.q.v.x,
-							   xfA.q.v.y, xfA.q.v.z, xfA.q.s );
-					}
-					{
-						b3Transform xfB = input->transformB;
-						b3Log( "xfB = {{%.9f, %.9f, %.9f}, {{%.9f, %.9f, %.9f}, %.9f}", xfB.p.x, xfB.p.y, xfB.p.z, xfB.q.v.x,
-							   xfB.q.v.y, xfB.q.v.z, xfB.q.s );
+						b3Transform xf = input->transform;
+						b3Log( "transform = {{%.9f, %.9f, %.9f}, {{%.9f, %.9f, %.9f}, %.9f}", xf.p.x, xf.p.y, xf.p.z, xf.q.v.x,
+							   xf.q.v.y, xf.q.v.z, xf.q.s );
 					}
 
 					{
@@ -1162,7 +1153,7 @@ b3CastOutput b3ShapeCast( const b3ShapeCastPairInput* input )
 			return output;
 		}
 
-		distanceInput.transformB.p = b3MulAdd( input->transformB.p, alpha, delta2 );
+		distanceInput.transform.p = b3MulAdd( input->transform.p, alpha, delta2 );
 	}
 
 	// Failure!
@@ -1257,10 +1248,10 @@ typedef struct b3SeparationFunction
 
 static b3SeparationFunction b3MakeSeparationFunction( const b3SimplexCache cache, const b3ShapeProxy* proxyA,
 													  const b3Sweep* sweepA, const b3ShapeProxy* proxyB, const b3Sweep* sweepB,
-													  const b3DistanceOutput* query, float t1 )
+													  b3Vec3 worldNormal, float t1 )
 {
 	B3_ASSERT( 1 <= cache.count && cache.count <= 3 );
-	B3_VALIDATE( b3IsNormalized( query->normal ) );
+	B3_VALIDATE( b3IsNormalized( worldNormal ) );
 
 	b3SeparationFunction fcn = { 0 };
 	fcn.proxyA = proxyA;
@@ -1290,7 +1281,7 @@ static b3SeparationFunction b3MakeSeparationFunction( const b3SimplexCache cache
 		{
 			// Witness is the world space direction
 			fcn.type = b3_separationVertices;
-			fcn.witness1 = query->normal;
+			fcn.witness1 = worldNormal;
 		}
 		break;
 
@@ -1318,7 +1309,7 @@ static b3SeparationFunction b3MakeSeparationFunction( const b3SimplexCache cache
 				{
 					// The axis is not safe to normalize so we use a world axis instead!
 					fcn.type = b3_separationVertices;
-					fcn.witness1 = query->normal;
+					fcn.witness1 = worldNormal;
 				}
 				else
 				{
@@ -1351,11 +1342,11 @@ static b3SeparationFunction b3MakeSeparationFunction( const b3SimplexCache cache
 			}
 			else
 			{
-				B3_VALIDATE( b3IsNormalized( query->normal ) );
+				B3_VALIDATE( b3IsNormalized( worldNormal ) );
 
 				// Vertex versus edge, use world axis witness
 				fcn.type = b3_separationVertices;
-				fcn.witness1 = query->normal;
+				fcn.witness1 = worldNormal;
 			}
 		}
 		break;
@@ -1447,7 +1438,7 @@ static b3SeparationFunction b3MakeSeparationFunction( const b3SimplexCache cache
 				{
 					// The axis is not safe to normalize so we use a world axis instead!
 					fcn.type = b3_separationVertices;
-					fcn.witness1 = query->normal;
+					fcn.witness1 = worldNormal;
 				}
 				else
 				{
@@ -1693,10 +1684,16 @@ b3TOIOutput b3TimeOfImpact( const b3TOIInput* input )
 	for ( ;; )
 	{
 		// Get the distance between shapes. We can also use the results to get a separating axis.
-		distanceInput.transformA = b3GetSweepTransform( &sweepA, t1 );
-		distanceInput.transformB = b3GetSweepTransform( &sweepB, t1 );
+		b3Transform xfA = b3GetSweepTransform( &sweepA, t1 );
+		b3Transform xfB = b3GetSweepTransform( &sweepB, t1 );
+		distanceInput.transform = b3InvMulTransforms( xfA, xfB );
 		b3DistanceOutput distanceOutput = b3ShapeDistance( &distanceInput, &cache, NULL, 0 );
 		output.distance = distanceOutput.distance;
+
+		// The distance query runs in frame A, project the witness data back to the shifted world
+		b3Vec3 worldNormal = b3RotateVector( xfA.q, distanceOutput.normal );
+		b3Vec3 worldPointA = b3TransformPoint( xfA, distanceOutput.pointA );
+		b3Vec3 worldPointB = b3TransformPoint( xfA, distanceOutput.pointB );
 
 		output.distanceIterations += 1;
 		distanceIterations += 1;
@@ -1715,11 +1712,11 @@ b3TOIOutput b3TimeOfImpact( const b3TOIInput* input )
 			output.state = b3_toiStateHit;
 
 			// Averaged hit point
-			b3Vec3 pA = b3MulAdd( distanceOutput.pointA, proxyA.radius, distanceOutput.normal );
-			b3Vec3 pB = b3MulAdd( distanceOutput.pointB, -proxyB.radius, distanceOutput.normal );
+			b3Vec3 pA = b3MulAdd( worldPointA, proxyA.radius, worldNormal );
+			b3Vec3 pB = b3MulAdd( worldPointB, -proxyB.radius, worldNormal );
 			output.point = b3Lerp( pA, pB, 0.5f );
 			output.point = b3Add( output.point, origin );
-			output.normal = distanceOutput.normal;
+			output.normal = worldNormal;
 			output.fraction = t1;
 			break;
 		}
@@ -1732,17 +1729,17 @@ b3TOIOutput b3TimeOfImpact( const b3TOIInput* input )
 			output.fraction = t1;
 
 			// Averaged hit point
-			b3Vec3 pA = b3MulAdd( distanceOutput.pointA, input->proxyA.radius, distanceOutput.normal );
-			b3Vec3 pB = b3MulAdd( distanceOutput.pointB, -input->proxyB.radius, distanceOutput.normal );
+			b3Vec3 pA = b3MulAdd( worldPointA, input->proxyA.radius, worldNormal );
+			b3Vec3 pB = b3MulAdd( worldPointB, -input->proxyB.radius, worldNormal );
 			output.point = b3Lerp( pA, pB, 0.5f );
 			output.point = b3Add( output.point, origin );
-			output.normal = distanceOutput.normal;
+			output.normal = worldNormal;
 			break;
 		}
 
 		// Initialize the separating axis.
 		b3SeparationFunction function =
-			b3MakeSeparationFunction( cache, &proxyA, &sweepA, &proxyB, &sweepB, &distanceOutput, t1 );
+			b3MakeSeparationFunction( cache, &proxyA, &sweepA, &proxyB, &sweepB, worldNormal, t1 );
 
 #if B3_ENABLE_VALIDATION && 0
 		// todo this can give a negative value for diagonal edge contact on faces, typical GJK problem
@@ -1890,11 +1887,11 @@ b3TOIOutput b3TimeOfImpact( const b3TOIInput* input )
 		if ( done )
 		{
 			// Averaged hit point
-			b3Vec3 pA = b3MulAdd( distanceOutput.pointA, input->proxyA.radius, distanceOutput.normal );
-			b3Vec3 pB = b3MulAdd( distanceOutput.pointB, -input->proxyB.radius, distanceOutput.normal );
+			b3Vec3 pA = b3MulAdd( worldPointA, input->proxyA.radius, worldNormal );
+			b3Vec3 pB = b3MulAdd( worldPointB, -input->proxyB.radius, worldNormal );
 			output.point = b3Lerp( pA, pB, 0.5f );
 			output.point = b3Add( output.point, origin );
-			output.normal = distanceOutput.normal;
+			output.normal = worldNormal;
 			break;
 		}
 	}

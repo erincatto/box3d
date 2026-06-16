@@ -523,11 +523,13 @@ B3_API void b3QueryHeightField( const b3HeightField* heightField, b3AABB bounds,
 
 /// Compute the closest points between two shapes represented as point clouds.
 /// b3SimplexCache cache is input/output. On the first call set b3SimplexCache.count to zero.
+/// The query runs in frame A, so the witness points and normal are returned in frame A.
 /// The underlying GJK algorithm may be debugged by passing in debug simplexes and capacity. You may pass in NULL and 0 for these.
 B3_API b3DistanceOutput b3ShapeDistance( const b3DistanceInput* input, b3SimplexCache* cache, b3Simplex* simplexes,
 										 int simplexCapacity );
 
 /// Perform a linear shape cast of shape B moving and shape A fixed. Determines the hit point, normal, and translation fraction.
+/// The query runs in frame A, so the hit point and normal are returned in frame A. Initially touching shapes are a miss.
 B3_API b3CastOutput b3ShapeCast( const b3ShapeCastPairInput* input );
 
 /// Evaluate the transform sweep at a specific time.
