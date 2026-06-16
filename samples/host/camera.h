@@ -57,14 +57,17 @@ public:
 	{
 		return m_view;
 	}
+
 	Mat4 ViewInverse() const
 	{
 		return m_viewInv;
 	}
+
 	Mat4 Proj() const
 	{
 		return m_proj;
 	}
+
 	Mat4 ProjInverse() const
 	{
 		return m_projInv;
@@ -72,20 +75,22 @@ public:
 
 	b3Vec3 Position() const;
 
-	// Cached basis accessors (Box3D parity). Forward is +view-Z (pivot -> eye),
-	// so the look direction is -GetForward().
+	// Forward is +view-Z (pivot -> eye), so the look direction is -GetForward().
 	b3Vec3 GetPosition() const
 	{
 		return m_position;
 	}
+
 	b3Vec3 GetForward() const
 	{
 		return m_forward;
 	}
+
 	b3Vec3 GetRight() const
 	{
 		return m_right;
 	}
+
 	b3Vec3 GetUp() const
 	{
 		return m_up;
@@ -138,6 +143,8 @@ public:
 	// ready yet, so callers never read uninitialized values.
 	PickRay BuildPickRay( float x, float y ) const;
 
+	// b3AABB GetViewBounds() consts;
+
 	b3Vec3 m_pivot;
 	float m_yaw;	// radians, around Y
 	float m_pitch;	// radians, around camera-frame X
@@ -155,11 +162,11 @@ public:
 	int m_width;
 	int m_height;
 
-	// Locks input to wheel-zoom; the sample drives m_pivot to a followed body
+	// Locks input to wheel-zoom. The sample drives m_pivot to a followed body
 	// and calls UpdateTransform. Eye placement stays the orbit formula.
 	bool m_thirdPerson;
 
-	// Cached basis (Box3D-style: forward is +view-Z, i.e. pivot->eye), refreshed
+	// Cached basis: forward is +view-Z, i.e. pivot->eye) refreshed
 	// alongside m_view / m_viewInv whenever yaw/pitch/pivot/radius change.
 	// These let consumers (picking, shadow frustum) skip re-inverting m_view.
 	b3Vec3 m_position;

@@ -1,9 +1,9 @@
 #include "camera.h"
 
 #include "gfx/picking.h"
+#include "sokol_app.h"
 
 #include "box3d/math_functions.h"
-#include "sokol_app.h"
 
 #include <math.h>
 
@@ -53,7 +53,7 @@ static void RebuildBasisAndView( Camera& c )
 	const b3Vec3 up = b3Normalize( upUnnorm );
 	const b3Vec3 right = b3Normalize( b3Cross( up, forward ) );
 	const b3Vec3 position = { c.m_pivot.x + forward.x * c.m_radius, c.m_pivot.y + forward.y * c.m_radius,
-							 c.m_pivot.z + forward.z * c.m_radius };
+							  c.m_pivot.z + forward.z * c.m_radius };
 
 	c.m_position = position;
 	c.m_right = right;
@@ -170,6 +170,29 @@ PickRay Camera::BuildPickRay( float x, float y ) const
 	}
 	return ray;
 }
+
+#if 0
+b3AABB Camera::GetViewBounds()
+{
+	if ( m_height == 0 || m_width == 0 )
+	{
+		b3AABB bounds = {
+			.lowerBound = b3Vec3_zero,
+			.upperBound = b3Vec3_zero,
+		};
+		return bounds;
+	}
+
+	b2Pos lower = ConvertScreenToWorld( camera, (b2Vec2){ 0.0f, camera->height } );
+	b2Pos upper = ConvertScreenToWorld( camera, (b2Vec2){ camera->width, 0.0f } );
+
+	// Engine cull box stays float. Round outward so nothing visible is clipped far from the origin.
+	b2AABB bounds;
+	bounds.lowerBound = (b2Vec2){ b2RoundDownFloat( lower.x ), b2RoundDownFloat( lower.y ) };
+	bounds.upperBound = (b2Vec2){ b2RoundUpFloat( upper.x ), b2RoundUpFloat( upper.y ) };
+	return bounds;
+}
+#endif
 
 void Camera::OnEvent( const sapp_event* e )
 {

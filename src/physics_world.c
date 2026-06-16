@@ -647,12 +647,12 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 		if ( ( isFast == false || isMeshContact == false ) && recycleDistance > 0.0f &&
 			 ( contact->flags & b3_relativeTransformValid ) && ( contact->flags & b3_contactRecycleFlag ) )
 		{
-			float angleA = b3DotQuat( transformA.q, contact->cachedTransformA.q );
-			float angleB = b3DotQuat( transformB.q, contact->cachedTransformB.q );
+			float angleA = b3DotQuat( transformA.q, contact->cachedRotationA );
+			float angleB = b3DotQuat( transformB.q, contact->cachedRotationB );
 			float angularDistance = b3MinFloat( angleA * angleA, angleB * angleB );
 
 			b3Transform xf = b3InvMulWorldTransforms( transformA, transformB );
-			b3Transform xfc = b3InvMulWorldTransforms( contact->cachedTransformA, contact->cachedTransformB );
+			b3Transform xfc = contact->cachedRelativePose;
 			b3Vec3 maxExtentA = isStaticA ? b3Vec3_zero : bodySimA->maxExtent;
 			b3Vec3 maxExtentB = isStaticB ? b3Vec3_zero : bodySimB->maxExtent;
 			b3Vec3 maxExtent = b3Max( maxExtentA, maxExtentB );
@@ -680,8 +680,8 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 				float arcSq = 4.0f * b3LengthSquared( arc );
 				if ( arcSq < slack * slack )
 				{
-					b3Quat dqA = b3MulQuat( transformA.q, b3Conjugate( contact->cachedTransformA.q ) );
-					b3Quat dqB = b3MulQuat( transformB.q, b3Conjugate( contact->cachedTransformB.q ) );
+					b3Quat dqA = b3MulQuat( transformA.q, b3Conjugate( contact->cachedRotationA ) );
+					b3Quat dqB = b3MulQuat( transformB.q, b3Conjugate( contact->cachedRotationB ) );
 					b3Matrix3 matrixA = b3MakeMatrixFromQuat( dqA );
 					b3Matrix3 matrixB = b3MakeMatrixFromQuat( dqB );
 
@@ -723,8 +723,9 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 		}
 
 		// Caching for contact recycling.
-		contact->cachedTransformA = transformA;
-		contact->cachedTransformB = transformB;
+		contact->cachedRotationA = transformA.q;
+		contact->cachedRotationB = transformB.q;
+		contact->cachedRelativePose = b3InvMulWorldTransforms( transformA, transformB );
 		contact->flags |= b3_relativeTransformValid;
 
 		// This updates solid contacts
@@ -1309,7 +1310,8 @@ static bool DrawQueryCallback( int proxyId, uint64_t userData, void* context )
 
 		if ( shape->userShape != NULL )
 		{
-			draw->DrawShapeFcn( shape->userShape, b3ToRelativeTransform( bodySim->transform, draw->drawOrigin ), color, draw->context );
+			draw->DrawShapeFcn( shape->userShape, b3ToRelativeTransform( bodySim->transform, draw->drawOrigin ), color,
+								draw->context );
 		}
 	}
 
@@ -2288,8 +2290,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	int hullBucketCount = (int)b3HullMap_bucket_count( hullDatabase );
 	uint64_t hullMapBytes = b3HullMapByteCount( hullDatabase );
 	uint64_t hullDataBytes = 0;
-	for ( b3HullMap_itr itr = b3HullMap_first( hullDatabase ); b3HullMap_is_end( itr ) == false;
-		  itr = b3HullMap_next( itr ) )
+	for ( b3HullMap_itr itr = b3HullMap_first( hullDatabase ); b3HullMap_is_end( itr ) == false; itr = b3HullMap_next( itr ) )
 	{
 		hullDataBytes += itr.data->key->byteCount;
 	}
@@ -3059,7 +3060,8 @@ float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover
 
 	for ( int i = 0; i < b3_bodyTypeCount; ++i )
 	{
-		b3DynamicTree_BoxCast( world->broadPhase.trees + i, &treeInput, filter.maskBits, false, MoverCastCallback, &worldContext );
+		b3DynamicTree_BoxCast( world->broadPhase.trees + i, &treeInput, filter.maskBits, false, MoverCastCallback,
+							   &worldContext );
 
 		if ( worldContext.fraction == 0.0f )
 		{
@@ -3109,7 +3111,7 @@ b3Vec3 b3World_GetGravity( b3WorldId worldId )
 typedef struct ExplosionContext
 {
 	b3World* world;
-	b3Vec3 position;
+	b3Pos position;
 	float radius;
 	float falloff;
 	float impulsePerArea;
@@ -3132,13 +3134,16 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
 	B3_ASSERT( body->type == b3_dynamicBody );
 
-	// Explosion is a documented float carve-out far from the origin
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), b3Pos_zero );
+	b3WorldTransform xf = b3GetBodyTransformQuick( world, body );
+
+	// Re-center the explosion into the shape local frame so distance and direction stay precise
+	// far from the origin. Everything below runs in that near-origin frame.
+	b3Vec3 localPosition = b3InvTransformWorldPoint( xf, explosionContext->position );
 
 	b3DistanceInput input;
 	input.proxyA = b3MakeShapeProxy( shape );
-	input.proxyB = (b3ShapeProxy){ &explosionContext->position, 1, 0.0f };
-	input.transform = b3InvMulTransforms( transform, b3Transform_identity );
+	input.proxyB = (b3ShapeProxy){ &localPosition, 1, 0.0f };
+	input.transform = b3Transform_identity;
 	input.useRadii = true;
 
 	b3SimplexCache cache = { 0 };
@@ -3158,15 +3163,14 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 		return true;
 	}
 
-	// Witness point comes back in frame A, lift it back to the query frame
-	b3Vec3 closestPoint = b3TransformPoint( transform, output.pointA );
+	// Witness point is already in the body local query frame
+	b3Vec3 closestPoint = output.pointA;
 	if ( output.distance == 0.0f )
 	{
-		b3Vec3 localCentroid = b3GetShapeCentroid( shape );
-		closestPoint = b3TransformPoint( transform, localCentroid );
+		closestPoint = b3GetShapeCentroid( shape );
 	}
 
-	b3Vec3 direction = b3Sub( closestPoint, explosionContext->position );
+	b3Vec3 direction = b3Sub( closestPoint, localPosition );
 	if ( b3LengthSquared( direction ) > 100.0f * FLT_EPSILON * FLT_EPSILON )
 	{
 		direction = b3Normalize( direction );
@@ -3184,16 +3188,17 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 	}
 
 	float magnitude = explosionContext->impulsePerArea * area * scale * shape->explosionScale;
-	b3Vec3 impulse = b3MulSV( magnitude, direction );
+	b3Vec3 impulse = b3MulSV( magnitude, b3RotateVector( xf.q, direction ) );
 
 	int localIndex = body->localIndex;
 	b3SolverSet* set = b3Array_Get( world->solverSets, b3_awakeSet );
 	b3BodyState* state = b3Array_Get( set->bodyStates, localIndex );
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, localIndex );
 	state->linearVelocity = b3MulAdd( state->linearVelocity, bodySim->invMass, impulse );
-	state->angularVelocity = b3Add(
-		state->angularVelocity,
-		b3MulMV( bodySim->invInertiaWorld, b3Cross( b3SubPos( b3ToPos( closestPoint ), bodySim->center ), impulse ) ) );
+
+	// Lever arm from the center of mass to the closest point, rotated to world
+	b3Vec3 r = b3RotateVector( xf.q, b3Sub( closestPoint, bodySim->localCenter ) );
+	state->angularVelocity = b3Add( state->angularVelocity, b3MulMV( bodySim->invInertiaWorld, b3Cross( r, impulse ) ) );
 
 	return true;
 }
@@ -3201,12 +3206,12 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 void b3World_Explode( b3WorldId worldId, const b3ExplosionDef* explosionDef )
 {
 	uint64_t maskBits = explosionDef->maskBits;
-	b3Vec3 position = b3ToVec3( explosionDef->position );
+	b3Pos position = explosionDef->position;
 	float radius = explosionDef->radius;
 	float falloff = explosionDef->falloff;
 	float impulsePerArea = explosionDef->impulsePerArea;
 
-	B3_ASSERT( b3IsValidVec3( position ) );
+	B3_ASSERT( b3IsValidPosition( position ) );
 	B3_ASSERT( b3IsValidFloat( radius ) && radius >= 0.0f );
 	B3_ASSERT( b3IsValidFloat( falloff ) && falloff >= 0.0f );
 	B3_ASSERT( b3IsValidFloat( impulsePerArea ) );
@@ -3222,9 +3227,10 @@ void b3World_Explode( b3WorldId worldId, const b3ExplosionDef* explosionDef )
 
 	struct ExplosionContext explosionContext = { world, position, radius, falloff, impulsePerArea };
 
-	float totalRadius = radius + falloff;
-	b3Vec3 r = { totalRadius, totalRadius, totalRadius };
-	b3AABB aabb = { b3Sub( position, r ), b3Add( position, r ) };
+	// The broad-phase tree is float, so translate a local query box out to world with outward rounding
+	float extent = radius + falloff;
+	b3AABB localBox = { { -extent, -extent, -extent }, { extent, extent, extent } };
+	b3AABB aabb = b3OffsetAABB( localBox, position );
 
 	b3DynamicTree_Query( world->broadPhase.trees + b3_dynamicBody, aabb, maskBits, false, ExplosionCallback, &explosionContext );
 

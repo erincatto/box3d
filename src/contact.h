@@ -133,8 +133,10 @@ typedef struct b3Contact
 	b3Manifold* manifolds;
 	int manifoldCount;
 
-	b3WorldTransform cachedTransformA;
-	b3WorldTransform cachedTransformB;
+	// Cache for contact recycling.
+	b3Quat cachedRotationA;
+	b3Quat cachedRotationB;
+	b3Transform cachedRelativePose;
 
 	// Mixed friction and restitution
 	float friction;

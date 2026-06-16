@@ -935,6 +935,66 @@ static int TestHullDatabase( void )
 	return 0;
 }
 
+typedef struct ExplosionResult
+{
+	b3Vec3 linearVelocity;
+	b3Vec3 angularVelocity;
+} ExplosionResult;
+
+// Explode just off the +x side of a centered sphere and capture the impulse it receives.
+// The shape, the blast point, and the witness math all run in the body local frame, so the
+// result must not depend on how far the body sits from the world origin.
+static ExplosionResult RunExplosion( b3Pos base )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = base;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3Sphere sphere = { b3Vec3_zero, 1.0f };
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3CreateSphereShape( bodyId, &shapeDef, &sphere );
+
+	// Blast sits 3 units along +x, so the body is pushed back along -x
+	b3ExplosionDef explosionDef = b3DefaultExplosionDef();
+	explosionDef.position = b3OffsetPos( base, (b3Vec3){ 3.0f, 0.0f, 0.0f } );
+	explosionDef.radius = 5.0f;
+	explosionDef.falloff = 0.0f;
+	explosionDef.impulsePerArea = 10.0f;
+	b3World_Explode( worldId, &explosionDef );
+
+	ExplosionResult result;
+	result.linearVelocity = b3Body_GetLinearVelocity( bodyId );
+	result.angularVelocity = b3Body_GetAngularVelocity( bodyId );
+
+	b3DestroyWorld( worldId );
+	return result;
+}
+
+static int TestExplosion( void )
+{
+	ExplosionResult origin = RunExplosion( b3Pos_zero );
+
+	// Pushed away from the blast along -x. A centered sphere has no transverse or angular component.
+	ENSURE( origin.linearVelocity.x < -1.0e-4f );
+	ENSURE_SMALL( origin.linearVelocity.y, 1.0e-6f );
+	ENSURE_SMALL( origin.linearVelocity.z, 1.0e-6f );
+	ENSURE_SMALL( b3Length( origin.angularVelocity ), 1.0e-6f );
+
+	// The same blast far from the origin must produce the same impulse. The world position only
+	// reaches float in the relative difference, so the result holds where a naive cast would not.
+	ExplosionResult far = RunExplosion( (b3Pos){ 1.0e7f, 1.0e7f, 1.0e7f } );
+	ENSURE_SMALL( far.linearVelocity.x - origin.linearVelocity.x, 1.0e-5f );
+	ENSURE_SMALL( far.linearVelocity.y - origin.linearVelocity.y, 1.0e-5f );
+	ENSURE_SMALL( far.linearVelocity.z - origin.linearVelocity.z, 1.0e-5f );
+
+	return 0;
+}
+
 int WorldTest( void )
 {
 	RUN_SUBTEST( HelloWorld );
@@ -943,6 +1003,7 @@ int WorldTest( void )
 	RUN_SUBTEST( TestIsValid );
 	RUN_SUBTEST( TestWorldRecycle );
 	RUN_SUBTEST( TestWorldCoverage );
+	RUN_SUBTEST( TestExplosion );
 	RUN_SUBTEST( TestSensor );
 	RUN_SUBTEST( TestContactEvents );
 	RUN_SUBTEST( TestHitEvents );

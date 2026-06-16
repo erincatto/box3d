@@ -596,7 +596,7 @@ struct ClosestShapeCastContext
 	int ignoreCount;
 	float closestFraction;
 	b3Vec3 closestNormal;
-	b3Vec3 closestPoint;
+	b3Pos closestPoint;
 	b3ShapeId closestShape;
 	bool hit;
 	bool startedSolid;
@@ -625,7 +625,7 @@ static float ClosestShapeCastCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 no
 	{
 		ctx->closestFraction = fraction;
 		ctx->closestNormal = normal;
-		ctx->closestPoint = b3ToVec3( point );
+		ctx->closestPoint = point;
 		ctx->closestShape = shapeId;
 		ctx->hit = true;
 	}
@@ -637,9 +637,9 @@ static float ClosestShapeCastCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 no
 
 struct TraceResult
 {
-	b3Vec3 endPosition;
+	b3Pos endPosition;
 	b3Vec3 normal;
-	b3Vec3 hitPoint;
+	b3Pos hitPoint;
 	float fraction;
 	bool hit;
 	bool startedSolid;
@@ -692,7 +692,7 @@ struct RigidbodyCharacter
 
 	// Step-up state: position to restore after physics step
 	bool m_didStep;
-	b3Vec3 m_stepPosition;
+	b3Pos m_stepPosition;
 
 	// Debug readouts
 	b3Vec3 m_lastWishVelocity;
@@ -711,7 +711,7 @@ struct RigidbodyCharacter
 		m_lastWishVelocity = b3Vec3_zero;
 		m_massCenterWorld = position;
 		m_didStep = false;
-		m_stepPosition = b3Vec3_zero;
+		m_stepPosition = b3Pos_zero;
 
 		// Create dynamic body with all rotation locked
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -784,7 +784,7 @@ struct RigidbodyCharacter
 
 	// --- TraceBody: box shape cast matching s&box's TraceBody ---
 	// Casts a box from `from` to `to` with given radius and height scale.
-	TraceResult TraceBody( b3Vec3 from, b3Vec3 to, float radiusScale = 1.0f, float heightScale = 1.0f ) const
+	TraceResult TraceBody( b3Pos from, b3Pos to, float radiusScale = 1.0f, float heightScale = 1.0f ) const
 	{
 		TraceResult result = {};
 		result.endPosition = to;
@@ -819,7 +819,7 @@ struct RigidbodyCharacter
 			float sx = ( i & 1 ) ? halfW : -halfW;
 			float sy = ( i & 2 ) ? halfH : -halfH;
 			float sz = ( i & 4 ) ? halfD : -halfD;
-			points[i] = { from.x + sx, from.y + boxCenterY + sy, from.z + sz };
+			points[i] = { sx, boxCenterY + sy, sz };
 		}
 
 		b3ShapeProxy proxy;
@@ -839,7 +839,7 @@ struct RigidbodyCharacter
 		ctx.closestShape = b3_nullShapeId;
 
 		b3QueryFilter filter = b3DefaultQueryFilter();
-		b3World_CastShape( m_sample->m_worldId, b3Pos_zero, &proxy, translation, filter, ClosestShapeCastCallback, &ctx );
+		b3World_CastShape( m_sample->m_worldId, from, &proxy, translation, filter, ClosestShapeCastCallback, &ctx );
 
 		result.startedSolid = ctx.startedSolid;
 		if ( ctx.hit )
@@ -861,26 +861,20 @@ struct RigidbodyCharacter
 	}
 
 	// Get feet position from body center position
-	b3Vec3 GetFeetPosition() const
+	b3Pos GetFeetPosition() const
 	{
-		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_bodyId ) );
+		b3Pos pos = b3Body_GetPosition( m_bodyId );
 		return { pos.x, pos.y - m_totalHeight * 0.5f, pos.z };
-	}
-
-	// Convert feet position back to body center for SetTransform
-	b3Vec3 FeetToCenter( b3Vec3 feetPos ) const
-	{
-		return { feetPos.x, feetPos.y + m_totalHeight * 0.5f, feetPos.z };
 	}
 
 	// --- CategorizeGround: s&box-style box cast with radius shrinking ---
 	void CategorizeGround()
 	{
-		b3Vec3 feet = GetFeetPosition();
+		b3Pos feet = GetFeetPosition();
 
 		// s&box: from = WorldPosition + Up*4, to = WorldPosition + Down*2 (Source units)
-		b3Vec3 from = { feet.x, feet.y + 4.0f * SRC, feet.z };
-		b3Vec3 to = { feet.x, feet.y - 2.0f * SRC, feet.z };
+		b3Pos from = { feet.x, feet.y + 4.0f * SRC, feet.z };
+		b3Pos to = { feet.x, feet.y - 2.0f * SRC, feet.z };
 
 		float radiusScale = 1.0f;
 		TraceResult tr = TraceBody( from, to, radiusScale, 0.5f );
@@ -892,7 +886,7 @@ struct RigidbodyCharacter
 			if ( radiusScale < 0.7f )
 			{
 				UpdateGround( false, b3Vec3_axisY );
-				DrawLine( from, to, MakeColor( b3_colorRed ) );
+				DrawWorldLine( from, to, MakeColor( b3_colorRed ) );
 				return;
 			}
 			tr = TraceBody( from, to, radiusScale, 0.5f );
@@ -901,13 +895,13 @@ struct RigidbodyCharacter
 		if ( !tr.startedSolid && tr.hit && IsStandableSurface( tr.normal ) && m_jumpCooldown <= 0.0f )
 		{
 			UpdateGround( true, tr.normal );
-			DrawLine( from, tr.hitPoint, MakeColor( b3_colorGreen ) );
-			DrawPoint( tr.hitPoint, 5.0f, MakeColor( b3_colorGreen ) );
+			DrawWorldLine( from, tr.hitPoint, MakeColor( b3_colorGreen ) );
+			DrawWorldPoint( tr.hitPoint, 5.0f, MakeColor( b3_colorGreen ) );
 		}
 		else
 		{
 			UpdateGround( false, b3Vec3_axisY );
-			DrawLine( from, to, MakeColor( b3_colorGray ) );
+			DrawWorldLine( from, to, MakeColor( b3_colorGray ) );
 		}
 	}
 
@@ -929,10 +923,10 @@ struct RigidbodyCharacter
 			return;
 		}
 
-		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_bodyId ) );
+		b3Pos pos = b3Body_GetPosition( m_bodyId );
 
-		b3Vec3 from = { pos.x, pos.y + 0.05f, pos.z };
-		b3Vec3 to = { pos.x, pos.y - stepSize, pos.z };
+		b3Pos from = { pos.x, pos.y + 0.05f, pos.z };
+		b3Pos to = { pos.x, pos.y - stepSize, pos.z };
 
 		float radiusScale = 1.0f;
 		TraceResult tr = TraceBody( from, to, radiusScale, 0.5f );
@@ -949,11 +943,11 @@ struct RigidbodyCharacter
 
 		if ( tr.hit )
 		{
-			b3Vec3 targetPos = { tr.endPosition.x, tr.endPosition.y + 0.01f, tr.endPosition.z };
+			b3Pos targetPos = { tr.endPosition.x, tr.endPosition.y + 0.01f, tr.endPosition.z };
 			float deltaY = targetPos.y - pos.y;
 
 			b3Quat rot = b3Body_GetRotation( m_bodyId );
-			b3Body_SetTransform( m_bodyId, b3ToPos( targetPos ), rot );
+			b3Body_SetTransform( m_bodyId, targetPos, rot );
 
 			// If we moved upward, kill vertical velocity to prevent bouncing
 			if ( deltaY > 0.01f )
@@ -963,7 +957,7 @@ struct RigidbodyCharacter
 				b3Body_SetLinearVelocity( m_bodyId, vel );
 			}
 
-			DrawLine( from, tr.endPosition, MakeColor( b3_colorCyan ) );
+			DrawWorldLine( from, tr.endPosition, MakeColor( b3_colorCyan ) );
 		}
 	}
 
@@ -971,7 +965,7 @@ struct RigidbodyCharacter
 	// Returns true if a step was taken and m_stepPosition was set.
 	bool TryStep( float maxStepHeight )
 	{
-		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_bodyId ) );
+		b3Pos pos = b3Body_GetPosition( m_bodyId );
 		b3Vec3 vel = b3Body_GetLinearVelocity( m_bodyId );
 
 		// Only step when on ground and moving
@@ -992,8 +986,8 @@ struct RigidbodyCharacter
 		// Phase 1 — FORWARD: trace body forward in velocity direction
 		// Start slightly behind (offset by skin)
 		float forwardDist = hSpeed * ( 1.0f / 60.0f ) + m_bodyRadius; // one frame of movement + radius
-		b3Vec3 forwardFrom = pos - m_skin * moveDir;
-		b3Vec3 forwardTo = pos + forwardDist * moveDir;
+		b3Pos forwardFrom = pos - m_skin * moveDir;
+		b3Pos forwardTo = pos + forwardDist * moveDir;
 
 		float radiusScale = 1.0f;
 		TraceResult trForward = TraceBody( forwardFrom, forwardTo, radiusScale );
@@ -1003,7 +997,7 @@ struct RigidbodyCharacter
 			radiusScale -= 0.1f;
 			if ( radiusScale < 0.6f )
 			{
-				DrawLine( forwardFrom, forwardTo, MakeColor( b3_colorRed ) );
+				DrawWorldLine( forwardFrom, forwardTo, MakeColor( b3_colorRed ) );
 				return false;
 			}
 			trForward = TraceBody( forwardFrom, forwardTo, radiusScale );
@@ -1015,62 +1009,62 @@ struct RigidbodyCharacter
 			return false;
 		}
 
-		DrawLine( forwardFrom, trForward.endPosition, MakeColor( b3_colorYellow ) );
+		DrawWorldLine( forwardFrom, trForward.endPosition, MakeColor( b3_colorYellow ) );
 
 		// Remaining velocity direction after hit
-		b3Vec3 hitPos = trForward.endPosition;
+		b3Pos hitPos = trForward.endPosition;
 
 		// Phase 2 — UP: trace straight up from hit position
-		b3Vec3 upFrom = hitPos;
-		b3Vec3 upTo = { hitPos.x, hitPos.y + maxStepHeight, hitPos.z };
+		b3Pos upFrom = hitPos;
+		b3Pos upTo = { hitPos.x, hitPos.y + maxStepHeight, hitPos.z };
 		TraceResult trUp = TraceBody( upFrom, upTo, radiusScale );
 
 		if ( trUp.startedSolid )
 		{
-			DrawLine( upFrom, upTo, MakeColor( b3_colorRed ) );
+			DrawWorldLine( upFrom, upTo, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
-		b3Vec3 topPos = trUp.hit ? trUp.endPosition : upTo;
+		b3Pos topPos = trUp.hit ? trUp.endPosition : upTo;
 		float upDistance = topPos.y - upFrom.y;
 		if ( upDistance < 0.005f )
 		{
 			// Too tight to step up
-			DrawLine( upFrom, topPos, MakeColor( b3_colorRed ) );
+			DrawWorldLine( upFrom, topPos, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
-		DrawLine( upFrom, topPos, MakeColor( b3_colorYellow ) );
+		DrawWorldLine( upFrom, topPos, MakeColor( b3_colorYellow ) );
 
 		// Phase 3 — ACROSS: from top position, trace in move direction
 		float acrossDist = forwardDist * ( 1.0f - trForward.fraction ) + m_bodyRadius * 0.5f;
-		b3Vec3 acrossFrom = topPos;
-		b3Vec3 acrossTo = topPos + acrossDist * moveDir;
+		b3Pos acrossFrom = topPos;
+		b3Pos acrossTo = topPos + acrossDist * moveDir;
 		TraceResult trAcross = TraceBody( acrossFrom, acrossTo, radiusScale );
 
 		if ( trAcross.startedSolid )
 		{
-			DrawLine( acrossFrom, acrossTo, MakeColor( b3_colorRed ) );
+			DrawWorldLine( acrossFrom, acrossTo, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
-		b3Vec3 acrossPos = trAcross.hit ? trAcross.endPosition : acrossTo;
-		DrawLine( acrossFrom, acrossPos, MakeColor( b3_colorYellow ) );
+		b3Pos acrossPos = trAcross.hit ? trAcross.endPosition : acrossTo;
+		DrawWorldLine( acrossFrom, acrossPos, MakeColor( b3_colorYellow ) );
 
 		// Phase 4 — DOWN: from across position, trace straight down
-		b3Vec3 downFrom = acrossPos;
-		b3Vec3 downTo = { acrossPos.x, acrossPos.y - maxStepHeight, acrossPos.z };
+		b3Pos downFrom = acrossPos;
+		b3Pos downTo = { acrossPos.x, acrossPos.y - maxStepHeight, acrossPos.z };
 		TraceResult trDown = TraceBody( downFrom, downTo, radiusScale );
 
 		if ( !trDown.hit )
 		{
-			DrawLine( downFrom, downTo, MakeColor( b3_colorRed ) );
+			DrawWorldLine( downFrom, downTo, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
 		if ( !IsStandableSurface( trDown.normal ) )
 		{
-			DrawLine( downFrom, trDown.endPosition, MakeColor( b3_colorRed ) );
+			DrawWorldLine( downFrom, trDown.endPosition, MakeColor( b3_colorRed ) );
 			return false;
 		}
 
@@ -1081,13 +1075,13 @@ struct RigidbodyCharacter
 			return false;
 		}
 
-		DrawLine( downFrom, trDown.endPosition, MakeColor( b3_colorYellow ) );
-		DrawPoint( trDown.endPosition, 8.0f, MakeColor( b3_colorYellow ) );
+		DrawWorldLine( downFrom, trDown.endPosition, MakeColor( b3_colorYellow ) );
+		DrawWorldPoint( trDown.endPosition, 8.0f, MakeColor( b3_colorYellow ) );
 
 		// Teleport body to step position
-		b3Vec3 stepPos = { trDown.endPosition.x, trDown.endPosition.y + 0.01f, trDown.endPosition.z };
+		b3Pos stepPos = { trDown.endPosition.x, trDown.endPosition.y + 0.01f, trDown.endPosition.z };
 		b3Quat rot = b3Body_GetRotation( m_bodyId );
-		b3Body_SetTransform( m_bodyId, b3ToPos( stepPos ), rot );
+		b3Body_SetTransform( m_bodyId, stepPos, rot );
 
 		// Kill vertical velocity, scale horizontal by 0.9
 		b3Vec3 newVel = b3Body_GetLinearVelocity( m_bodyId );
@@ -1109,7 +1103,7 @@ struct RigidbodyCharacter
 
 		// After physics, restore to step position to prevent double-velocity
 		b3Quat rot = b3Body_GetRotation( m_bodyId );
-		b3Body_SetTransform( m_bodyId, b3ToPos( m_stepPosition ), rot );
+		b3Body_SetTransform( m_bodyId, m_stepPosition, rot );
 		m_didStep = false;
 	}
 
