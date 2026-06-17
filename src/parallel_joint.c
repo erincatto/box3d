@@ -232,13 +232,13 @@ void b3SolveParallelJoint( b3JointSim* base, b3StepContext* context )
 	}
 }
 
-void b3DrawParallelJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transformA, b3Transform transformB, float scale )
+void b3DrawParallelJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform transformA, b3WorldTransform transformB, float scale )
 {
 	float length = 0.1f * scale;
 
-	b3Transform frameA = b3MulTransforms( transformA, base->localFrameA );
-	draw->DrawSegmentFcn( frameA.p, b3MulAdd( frameA.p, length, b3RotateVector( frameA.q, b3Vec3_axisZ ) ), b3_colorGreen, draw->context );
+	b3WorldTransform frameA = b3MulWorldTransforms( transformA, base->localFrameA );
+	draw->DrawSegmentFcn( frameA.p, b3OffsetPos( frameA.p, b3MulSV( length, b3RotateVector( frameA.q, b3Vec3_axisZ ) ) ), b3_colorGreen, draw->context );
 
-	b3Transform frameB = b3MulTransforms( transformB, base->localFrameB );
-	draw->DrawSegmentFcn( frameB.p, b3MulAdd( frameB.p, length, b3RotateVector( frameB.q, b3Vec3_axisZ ) ), b3_colorBlue, draw->context );
+	b3WorldTransform frameB = b3MulWorldTransforms( transformB, base->localFrameB );
+	draw->DrawSegmentFcn( frameB.p, b3OffsetPos( frameB.p, b3MulSV( length, b3RotateVector( frameB.q, b3Vec3_axisZ ) ) ), b3_colorBlue, draw->context );
 }

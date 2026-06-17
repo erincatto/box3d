@@ -21,7 +21,7 @@ static void CreateGroup( FallingRagdollData* data, b3WorldId worldId, int rowInd
 	float span = RAGDOLL_GRID_COUNT * GRID_SIZE;
 	float groupDistance = 1.0f * span / RAGDOLL_GRID_COUNT;
 
-	b3Vec3 position;
+	b3Pos position;
 	position.x = -0.5f * span + groupDistance * ( columnIndex + 0.5f );
 	position.y = 15.0f;
 	position.z = -0.5f * span + groupDistance * ( rowIndex + 0.5f );

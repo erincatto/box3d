@@ -514,21 +514,21 @@ void b3SolveDistanceJoint( b3JointSim* base, b3StepContext* context, bool useBia
 	}
 }
 
-void b3DrawDistanceJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transformA, b3Transform transformB )
+void b3DrawDistanceJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform transformA, b3WorldTransform transformB )
 {
 	B3_ASSERT( base->type == b3_distanceJoint );
 
 	b3DistanceJoint* joint = &base->distanceJoint;
 
-	b3Vec3 pA = b3TransformPoint( transformA, base->localFrameA.p );
-	b3Vec3 pB = b3TransformPoint( transformB, base->localFrameB.p );
+	b3Pos pA = b3TransformWorldPoint( transformA, base->localFrameA.p );
+	b3Pos pB = b3TransformWorldPoint( transformB, base->localFrameB.p );
 
-	b3Vec3 axis = b3Normalize( b3Sub( pB, pA ) );
+	b3Vec3 axis = b3Normalize( b3SubPos( pB, pA ) );
 
 	if ( joint->minLength < joint->maxLength && joint->enableLimit )
 	{
-		b3Vec3 pMin = b3MulAdd( pA, joint->minLength, axis );
-		b3Vec3 pMax = b3MulAdd( pA, joint->maxLength, axis );
+		b3Pos pMin = b3OffsetPos( pA, b3MulSV( joint->minLength, axis ) );
+		b3Pos pMax = b3OffsetPos( pA, b3MulSV( joint->maxLength, axis ) );
 
 		if ( joint->minLength > B3_LINEAR_SLOP )
 		{
@@ -552,7 +552,7 @@ void b3DrawDistanceJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform trans
 
 	if ( joint->hertz > 0.0f && joint->enableSpring )
 	{
-		b3Vec3 pRest = b3MulAdd( pA, joint->length, axis );
+		b3Pos pRest = b3OffsetPos( pA, b3MulSV( joint->length, axis ) );
 		draw->DrawPointFcn( pRest, 4.0f, b3_colorBlue, draw->context );
 	}
 }

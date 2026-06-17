@@ -2959,36 +2959,33 @@ typedef struct b3DebugShape
 } b3DebugShape;
 
 /// This struct is passed to b3World_Draw to draw a debug view of the simulation world.
+/// Callbacks receive world coordinates. In large world mode the translation is double precision so
+/// it stays accurate far from the origin. Shift into your own camera frame inside the callbacks.
 typedef struct b3DebugDraw
 {
 	/// Draws a shape and returns true if drawing should continue
-	bool ( *DrawShapeFcn )( void* userShape, b3Transform transform, b3HexColor color, void* context );
+	bool ( *DrawShapeFcn )( void* userShape, b3WorldTransform transform, b3HexColor color, void* context );
 
 	/// Draw a line segment.
-	void ( *DrawSegmentFcn )( b3Vec3 p1, b3Vec3 p2, b3HexColor color, void* context );
+	void ( *DrawSegmentFcn )( b3Pos p1, b3Pos p2, b3HexColor color, void* context );
 
 	/// Draw a transform. Choose your own length scale.
-	void ( *DrawTransformFcn )( b3Transform transform, void* context );
+	void ( *DrawTransformFcn )( b3WorldTransform transform, void* context );
 
 	/// Draw a point.
-	void ( *DrawPointFcn )( b3Vec3 p, float size, b3HexColor color, void* context );
+	void ( *DrawPointFcn )( b3Pos p, float size, b3HexColor color, void* context );
 
 	/// Draw a bounding box.
 	void ( *DrawBoundsFcn )( b3AABB aabb, b3HexColor color, void* context );
 
-	/// Draw a bounding box.
-	void ( *DrawBoxFcn )( b3Vec3 extents, b3Transform transform, b3HexColor color, void* context );
+	/// Draw an oriented box.
+	void ( *DrawBoxFcn )( b3Vec3 extents, b3WorldTransform transform, b3HexColor color, void* context );
 
 	/// Draw a string in world space
-	void ( *DrawStringFcn )( b3Vec3 p, const char* s, b3HexColor color, void* context );
+	void ( *DrawStringFcn )( b3Pos p, const char* s, b3HexColor color, void* context );
 
 	/// World bounds to use for debug draw
 	b3AABB drawingBounds;
-
-	/// World position the debug geometry is drawn relative to. The draw callbacks receive
-	/// coordinates demoted to float against this origin, so a host that keeps it near the camera
-	/// renders crisply far from the world origin. Zero by default, which matches absolute coordinates.
-	b3Pos drawOrigin;
 
 	/// Scale to use when drawing forces
 	float forceScale;

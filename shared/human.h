@@ -57,7 +57,7 @@ extern "C"
 {
 #endif
 
-void CreateHuman( Human* human, b3WorldId worldId, b3Vec3 position, float frictionTorque, float hertz, float dampingRatio,
+void CreateHuman( Human* human, b3WorldId worldId, b3Pos position, float frictionTorque, float hertz, float dampingRatio,
 				  int groupIndex, void* userData, bool colorize );
 
 // There are no allocations so this does not need to be called when the world is destroyed.

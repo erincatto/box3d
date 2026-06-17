@@ -303,6 +303,11 @@ static void OnFrame( void )
 	Camera& camera = s_context.camera;
 	camera.Update( dt, W, H );
 
+	// Sync the draw origin to the camera eye once per frame, before any drawing. This must hold even
+	// for samples that drive their own Step without calling Sample::Step. Render re-syncs after Step
+	// because a third person follow moves the eye while stepping.
+	s_context.sample->SyncDrawOrigin();
+
 	ResetFrameArena();
 
 	// Apply the per-frame draw state the UI owns, then advance the sample. Step

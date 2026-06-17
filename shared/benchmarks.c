@@ -351,7 +351,7 @@ void CreateGroup( b3WorldId worldId, int rowIndex, int columnIndex )
 	float span = RAIN_GRID_COUNT * RAIN_GRID_SIZE;
 	float groupDistance = 1.0f * span / RAIN_GRID_COUNT;
 
-	b3Vec3 position;
+	b3Pos position;
 	position.x = -0.5f * span + groupDistance * ( columnIndex + 0.5f );
 	position.y = 20.0f;
 	position.z = -0.5f * span + groupDistance * ( rowIndex + 0.5f );

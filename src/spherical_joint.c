@@ -630,22 +630,22 @@ void b3SolveSphericalJoint( b3JointSim* base, b3StepContext* context, bool useBi
 	}
 }
 
-void b3DrawSphericalJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transformA, b3Transform transformB, float scale )
+void b3DrawSphericalJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform transformA, b3WorldTransform transformB, float scale )
 {
-	b3Transform frameA = b3MulTransforms( transformA, base->localFrameA );
+	b3WorldTransform frameA = b3MulWorldTransforms( transformA, base->localFrameA );
 
 	float length1 = 0.1f * scale;
-	draw->DrawSegmentFcn( frameA.p, b3MulAdd( frameA.p, length1, b3RotateVector( frameA.q, b3Vec3_axisX ) ), b3_colorRed,
+	draw->DrawSegmentFcn( frameA.p, b3OffsetPos( frameA.p, b3MulSV( length1, b3RotateVector( frameA.q, b3Vec3_axisX ) ) ), b3_colorRed,
 						  draw->context );
-	draw->DrawSegmentFcn( frameA.p, b3MulAdd( frameA.p, length1, b3RotateVector( frameA.q, b3Vec3_axisY ) ), b3_colorGreen,
+	draw->DrawSegmentFcn( frameA.p, b3OffsetPos( frameA.p, b3MulSV( length1, b3RotateVector( frameA.q, b3Vec3_axisY ) ) ), b3_colorGreen,
 						  draw->context );
-	draw->DrawSegmentFcn( frameA.p, b3MulAdd( frameA.p, length1, b3RotateVector( frameA.q, b3Vec3_axisZ ) ), b3_colorBlue,
+	draw->DrawSegmentFcn( frameA.p, b3OffsetPos( frameA.p, b3MulSV( length1, b3RotateVector( frameA.q, b3Vec3_axisZ ) ) ), b3_colorBlue,
 						  draw->context );
 
-	b3Transform frameB = b3MulTransforms( transformB, base->localFrameB );
+	b3WorldTransform frameB = b3MulWorldTransforms( transformB, base->localFrameB );
 
 	float length2 = 0.2f * scale;
-	draw->DrawSegmentFcn( frameB.p, b3MulAdd( frameB.p, length2, b3RotateVector( frameB.q, b3Vec3_axisZ ) ), b3_colorOrange,
+	draw->DrawSegmentFcn( frameB.p, b3OffsetPos( frameB.p, b3MulSV( length2, b3RotateVector( frameB.q, b3Vec3_axisZ ) ) ), b3_colorOrange,
 						  draw->context );
 
 	b3SphericalJoint* joint = &base->sphericalJoint;
@@ -678,20 +678,20 @@ void b3DrawSphericalJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform tran
 
 			if ( index == 0 )
 			{
-				draw->DrawSegmentFcn( frameA.p, b3TransformPoint( frameA, vertex1 ), b3_colorCyan, draw->context );
+				draw->DrawSegmentFcn( frameA.p, b3TransformWorldPoint( frameA, vertex1 ), b3_colorCyan, draw->context );
 			}
 
 			if ( index == kSliceCount - 1 )
 			{
-				draw->DrawSegmentFcn( b3TransformPoint( frameA, vertex2 ), frameA.p, b3_colorCyan, draw->context );
+				draw->DrawSegmentFcn( b3TransformWorldPoint( frameA, vertex2 ), frameA.p, b3_colorCyan, draw->context );
 			}
-			draw->DrawSegmentFcn( b3TransformPoint( frameA, vertex1 ), b3TransformPoint( frameA, vertex2 ), b3_colorCyan,
+			draw->DrawSegmentFcn( b3TransformWorldPoint( frameA, vertex1 ), b3TransformWorldPoint( frameA, vertex2 ), b3_colorCyan,
 								  draw->context );
 		}
 
 		float twistAngle = b3GetTwistAngle( relQ );
 		b3Vec3 p2 = { wedgeRadius * b3Cos( twistAngle ), wedgeRadius * b3Sin( twistAngle ), 0.0f };
-		draw->DrawSegmentFcn( frameA.p, b3TransformPoint( frameA, p2 ), b3_colorYellow, draw->context );
+		draw->DrawSegmentFcn( frameA.p, b3TransformWorldPoint( frameA, p2 ), b3_colorYellow, draw->context );
 	}
 
 	// Swing limit
@@ -709,8 +709,8 @@ void b3DrawSphericalJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform tran
 			b3Vec3 vertex1 = { coneRadius * b3Cos( phi1 ), coneRadius * b3Sin( phi1 ), coneHeight };
 			b3Vec3 vertex2 = { coneRadius * b3Cos( phi2 ), coneRadius * b3Sin( phi2 ), coneHeight };
 
-			draw->DrawSegmentFcn( frameA.p, b3TransformPoint( frameA, vertex1 ), b3_colorCyan, draw->context );
-			draw->DrawSegmentFcn( b3TransformPoint( frameA, vertex1 ), b3TransformPoint( frameA, vertex2 ), b3_colorCyan,
+			draw->DrawSegmentFcn( frameA.p, b3TransformWorldPoint( frameA, vertex1 ), b3_colorCyan, draw->context );
+			draw->DrawSegmentFcn( b3TransformWorldPoint( frameA, vertex1 ), b3TransformWorldPoint( frameA, vertex2 ), b3_colorCyan,
 								  draw->context );
 		}
 	}

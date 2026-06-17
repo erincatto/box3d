@@ -643,7 +643,7 @@ public:
 			m_humans[humanIndex] = {};
 
 			int groupIndex = humanIndex;
-			b3Vec3 position = { -14.0f + 1.5f * humanIndex, 8.0f, 0.0f };
+			b3Pos position = { -14.0f + 1.5f * humanIndex, 8.0f, 0.0f };
 			CreateHuman( &m_humans[humanIndex], m_worldId, position, frictionTorque, hertz, dampingRatio, groupIndex, nullptr,
 						 colorize );
 		}

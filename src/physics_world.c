@@ -1310,19 +1310,13 @@ static bool DrawQueryCallback( int proxyId, uint64_t userData, void* context )
 
 		if ( shape->userShape != NULL )
 		{
-			draw->DrawShapeFcn( shape->userShape, b3ToRelativeTransform( bodySim->transform, draw->drawOrigin ), color,
-								draw->context );
+			draw->DrawShapeFcn( shape->userShape, bodySim->transform, color, draw->context );
 		}
 	}
 
 	if ( draw->drawBounds )
 	{
-		b3AABB aabb = shape->fatAABB;
-
-		// Shift the float broad-phase box into the view frame.
-		aabb.lowerBound = b3SubPos( b3ToPos( aabb.lowerBound ), draw->drawOrigin );
-		aabb.upperBound = b3SubPos( b3ToPos( aabb.upperBound ), draw->drawOrigin );
-		draw->DrawBoundsFcn( aabb, b3_colorGold, draw->context );
+		draw->DrawBoundsFcn( shape->fatAABB, b3_colorGold, draw->context );
 	}
 
 	return true;
@@ -1389,8 +1383,8 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 			if ( draw->drawBodyNames && body->name[0] != 0 )
 			{
 				b3Vec3 offset = { 0.05f, 0.05f, 0.05f };
-				b3Transform transform = { b3SubPos( bodySim->center, draw->drawOrigin ), bodySim->transform.q };
-				b3Vec3 p = b3TransformPoint( transform, offset );
+				b3WorldTransform transform = { bodySim->center, bodySim->transform.q };
+				b3Pos p = b3TransformWorldPoint( transform, offset );
 				draw->DrawStringFcn( p, body->name, b3_colorOrange, draw->context );
 			}
 
@@ -1398,9 +1392,9 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 			{
 				b3Vec3 offset = { 0.1f, 0.1f, 0.1f };
 
-				b3Transform transform = { b3SubPos( bodySim->center, draw->drawOrigin ), bodySim->transform.q };
+				b3WorldTransform transform = { bodySim->center, bodySim->transform.q };
 				draw->DrawTransformFcn( transform, draw->context );
-				b3Vec3 p = b3TransformPoint( transform, offset );
+				b3Pos p = b3TransformWorldPoint( transform, offset );
 
 				char buffer[32];
 				snprintf( buffer, 32, "  %.2f", body->mass );
@@ -1457,7 +1451,10 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 							B3_ASSERT( manifold->pointCount > 0 );
 
 							b3Vec3 normal = manifold->normal;
-							b3Vec3 frictionCenter = b3Vec3_zero;
+
+							// Average the anchors not the world points so the friction center stays exact far from the origin
+							b3Pos contactCenter = draw->drawAnchorA == 1 ? bodySimA->center : bodySimB->center;
+							b3Vec3 anchorSum = b3Vec3_zero;
 
 							const b3ManifoldPoint* points = manifold->points;
 							for ( int pointIndex = 0; pointIndex < manifold->pointCount; ++pointIndex )
@@ -1466,22 +1463,15 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 
 								char buffer[32];
 
-								b3Vec3 p;
-								if ( draw->drawAnchorA == 1 )
-								{
-									p = b3SubPos( b3OffsetPos( bodySimA->center, mp->anchorA ), draw->drawOrigin );
-								}
-								else
-								{
-									p = b3SubPos( b3OffsetPos( bodySimB->center, mp->anchorB ), draw->drawOrigin );
-								}
+								b3Vec3 anchor = draw->drawAnchorA == 1 ? mp->anchorA : mp->anchorB;
+								b3Pos p = b3OffsetPos( contactCenter, anchor );
 
-								frictionCenter = b3Add( frictionCenter, p );
+								anchorSum = b3Add( anchorSum, anchor );
 
 								if ( draw->drawContactNormals )
 								{
-									b3Vec3 p1 = p;
-									b3Vec3 p2 = b3MulAdd( p1, axisScale, normal );
+									b3Pos p1 = p;
+									b3Pos p2 = b3OffsetPos( p1, b3MulSV( axisScale, normal ) );
 									draw->DrawSegmentFcn( p1, p2, b3_colorLightGray, draw->context );
 
 									snprintf( buffer, B3_ARRAY_COUNT( buffer ), "   %.2f", 100.0f * mp->separation );
@@ -1494,8 +1484,8 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 									// todo validate
 									// multiply by one-half due to relax iteration
 									float force = 0.5f * mp->totalNormalImpulse * inv_dt;
-									b3Vec3 p1 = p;
-									b3Vec3 p2 = b3MulAdd( p1, draw->forceScale * force, normal );
+									b3Pos p1 = p;
+									b3Pos p2 = b3OffsetPos( p1, b3MulSV( draw->forceScale * force, normal ) );
 									draw->DrawSegmentFcn( p1, p2, impulseColor, draw->context );
 									snprintf( buffer, B3_ARRAY_COUNT( buffer ), "   %.1f", force );
 									draw->DrawStringFcn( p1, buffer, b3_colorWhite, draw->context );
@@ -1540,9 +1530,10 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 								// Hack inv_dt for single step debugging
 								float inv_dt = world->inv_dt > 0.0f ? world->inv_dt : 60.0f;
 
-								b3Vec3 p1 = b3MulSV( 1.0f / manifold->pointCount, frictionCenter );
+								b3Vec3 avgAnchor = b3MulSV( 1.0f / manifold->pointCount, anchorSum );
+								b3Pos p1 = b3OffsetPos( contactCenter, avgAnchor );
 								b3Vec3 frictionForce = b3MulSV( 0.5f * inv_dt, manifold->frictionImpulse );
-								b3Vec3 p2 = b3MulAdd( p1, draw->forceScale, frictionForce );
+								b3Pos p2 = b3OffsetPos( p1, b3MulSV( draw->forceScale, frictionForce ) );
 								draw->DrawSegmentFcn( p1, p2, frictionColor, draw->context );
 								draw->DrawPointFcn( p1, 5.0f, frictionColor, draw->context );
 
@@ -1592,9 +1583,6 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 
 					if ( shapeCount > 0 )
 					{
-						// Shift the float broad-phase box into the view frame.
-						aabb.lowerBound = b3SubPos( b3ToPos( aabb.lowerBound ), draw->drawOrigin );
-						aabb.upperBound = b3SubPos( b3ToPos( aabb.upperBound ), draw->drawOrigin );
 						draw->DrawBoundsFcn( aabb, b3_colorOrangeRed, draw->context );
 					}
 
@@ -1617,10 +1605,10 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 		for ( int j = 0; j < pointCount; ++j )
 		{
 			b3DebugPoint* point = points + j;
-			b3Vec3 p = b3SubPos( b3ToPos( point->p ), draw->drawOrigin );
+			b3Pos p = b3ToPos( point->p );
 			draw->DrawPointFcn( p, 5.0f, point->color, draw->context );
 			snprintf( buffer, 32, "   %d, %.2f", point->label, point->value );
-			b3Vec3 ps = b3Add( p, offset );
+			b3Pos ps = b3OffsetPos( p, offset );
 			draw->DrawStringFcn( ps, buffer, point->color, draw->context );
 		}
 
@@ -1629,12 +1617,12 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 		for ( int j = 0; j < lineCount; ++j )
 		{
 			b3DebugLine* line = lines + j;
-			b3Vec3 p1 = b3SubPos( b3ToPos( line->p1 ), draw->drawOrigin );
-			b3Vec3 p2 = b3SubPos( b3ToPos( line->p2 ), draw->drawOrigin );
+			b3Pos p1 = b3ToPos( line->p1 );
+			b3Pos p2 = b3ToPos( line->p2 );
 			draw->DrawSegmentFcn( p1, p2, line->color, draw->context );
 			draw->DrawPointFcn( p1, 10.0f, line->color, draw->context );
 			snprintf( buffer, 32, "%d", line->label );
-			b3Vec3 ps = b3Add( p1, offset );
+			b3Pos ps = b3OffsetPos( p1, offset );
 			draw->DrawStringFcn( ps, buffer, line->color, draw->context );
 		}
 	}

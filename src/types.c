@@ -79,23 +79,23 @@ b3ShapeDef b3DefaultShapeDef( void )
 	return def;
 }
 
-static bool b3EmptyDrawShape( void* userShape, b3Transform transform, b3HexColor color, void* context )
+static bool b3EmptyDrawShape( void* userShape, b3WorldTransform transform, b3HexColor color, void* context )
 {
 	B3_UNUSED( userShape, transform, color, context );
 	return false;
 }
 
-static void b3EmptyDrawSegment( b3Vec3 p1, b3Vec3 p2, b3HexColor color, void* context )
+static void b3EmptyDrawSegment( b3Pos p1, b3Pos p2, b3HexColor color, void* context )
 {
 	B3_UNUSED( p1, p2, color, context );
 }
 
-static void b3EmptyDrawTransform( b3Transform transform, void* context )
+static void b3EmptyDrawTransform( b3WorldTransform transform, void* context )
 {
 	B3_UNUSED( transform, context );
 }
 
-static void b3EmptyDrawPoint( b3Vec3 p, float size, b3HexColor color, void* context )
+static void b3EmptyDrawPoint( b3Pos p, float size, b3HexColor color, void* context )
 {
 	B3_UNUSED( p, size, color, context );
 }
@@ -105,12 +105,12 @@ static void b3EmptyDrawBounds( b3AABB aabb, b3HexColor color, void* context )
 	B3_UNUSED( aabb, color, context );
 }
 
-static void b3EmptyDrawBox( b3Vec3 extents, b3Transform transform, b3HexColor color, void* context )
+static void b3EmptyDrawBox( b3Vec3 extents, b3WorldTransform transform, b3HexColor color, void* context )
 {
 	B3_UNUSED( extents, transform, color, context );
 }
 
-static void b3EmptyDrawString( b3Vec3 p, const char* s, b3HexColor color, void* context )
+static void b3EmptyDrawString( b3Pos p, const char* s, b3HexColor color, void* context )
 {
 	B3_UNUSED( p, s, color, context );
 }

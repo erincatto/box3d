@@ -696,13 +696,16 @@ static void AppendResolvedShape( const DebugShape* us, b3Transform baseTransform
 	}
 }
 
-static bool DrawShape( void* userShape, b3Transform shapeTransform, b3HexColor color, void* context )
+static bool DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexColor color, void* context )
 {
 	(void)context;
 	if ( userShape == NULL )
 	{
 		return true; // unsupported shape type, skip and continue
 	}
+
+	// Shift the world transform into the camera relative frame the primitives render in
+	b3Transform shapeRelative = b3ToRelativeTransform( shapeTransform, GetDrawOrigin() );
 
 	DebugShape* us = (DebugShape*)userShape;
 
@@ -752,13 +755,13 @@ static bool DrawShape( void* userShape, b3Transform shapeTransform, b3HexColor c
 	{
 		for ( int ci = us->compound.firstChild; ci != -1; ci = s_adapter.pool[ci].nextChild )
 		{
-			b3Transform base = b3MulTransforms( shapeTransform, s_adapter.pool[ci].childTransform );
+			b3Transform base = b3MulTransforms( shapeRelative, s_adapter.pool[ci].childTransform );
 			AppendResolvedShape( &s_adapter.pool[ci], base, c, metallic, roughness, shadowCast, hk );
 		}
 	}
 	else
 	{
-		AppendResolvedShape( us, shapeTransform, c, metallic, roughness, shadowCast, hk );
+		AppendResolvedShape( us, shapeRelative, c, metallic, roughness, shadowCast, hk );
 	}
 
 	return true;
@@ -767,18 +770,20 @@ static bool DrawShape( void* userShape, b3Transform shapeTransform, b3HexColor c
 #define BOX3D_LINE_THICKNESS_PX 2.5f
 #define BOX3D_TRANSFORM_LENGTH (0.25f * b3GetLengthUnitsPerMeter())
 
-static void DrawSegmentFcn( b3Vec3 p1, b3Vec3 p2, b3HexColor color, void* context )
+static void DrawSegmentFcn( b3Pos p1, b3Pos p2, b3HexColor color, void* context )
 {
 	(void)context;
-	OverlayAppendLine( p1, p2, HexColorToVec4( color ), BOX3D_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS,
-					   OVERLAY_OCCLUSION_HIDE );
+	b3Pos o = GetDrawOrigin();
+	OverlayAppendLine( b3SubPos( p1, o ), b3SubPos( p2, o ), HexColorToVec4( color ), BOX3D_LINE_THICKNESS_PX,
+					   OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 }
 
-static void DrawTransformFcn( b3Transform transform, void* context )
+static void DrawTransformFcn( b3WorldTransform transform, void* context )
 {
 	(void)context;
-	b3Vec3 origin = transform.p;
-	b3Matrix3 basis = b3MakeMatrixFromQuat( transform.q );
+	b3Transform local = b3ToRelativeTransform( transform, GetDrawOrigin() );
+	b3Vec3 origin = local.p;
+	b3Matrix3 basis = b3MakeMatrixFromQuat( local.q );
 	float L = BOX3D_TRANSFORM_LENGTH;
 	Vec4 red = MakeVec4( 1.0f, 0.0f, 0.0f, 1.0f );
 	Vec4 green = MakeVec4( 0.0f, 1.0f, 0.0f, 1.0f );
@@ -791,18 +796,21 @@ static void DrawTransformFcn( b3Transform transform, void* context )
 					   OVERLAY_OCCLUSION_HIDE );
 }
 
-static void DrawPointFcn( b3Vec3 p, float size, b3HexColor color, void* context )
+static void DrawPointFcn( b3Pos p, float size, b3HexColor color, void* context )
 {
 	(void)context;
-	OverlayAppendPoint( p, HexColorToVec4( color ), size, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	OverlayAppendPoint( b3SubPos( p, GetDrawOrigin() ), HexColorToVec4( color ), size, OVERLAY_THICKNESS_PIXELS,
+						OVERLAY_OCCLUSION_HIDE );
 }
 
 static void DrawBoundsFcn( b3AABB aabb, b3HexColor color, void* context )
 {
 	(void)context;
 
-	b3Vec3 lower = aabb.lowerBound;
-	b3Vec3 upper = aabb.upperBound;
+	// The fat AABB is float world space, difference against the origin in double before the corners demote
+	b3Pos origin = GetDrawOrigin();
+	b3Vec3 lower = b3SubPos( b3ToPos( aabb.lowerBound ), origin );
+	b3Vec3 upper = b3SubPos( b3ToPos( aabb.upperBound ), origin );
 	Vec4 c = HexColorToVec4( color );
 
 	b3Vec3 c000 = { lower.x, lower.y, lower.z };
@@ -839,10 +847,13 @@ static void DrawBoundsFcn( b3AABB aabb, b3HexColor color, void* context )
 
 // Oriented box: 8 corners are transform * (+/-ex, +/-ey, +/-ez). 12 edges
 // connect adjacent corners along each axis.
-static void DrawBoxFcn( b3Vec3 extents, b3Transform transform, b3HexColor color, void* context )
+static void DrawBoxFcn( b3Vec3 extents, b3WorldTransform transform, b3HexColor color, void* context )
 {
 	(void)context;
 	Vec4 c = HexColorToVec4( color );
+
+	// Shift into the camera relative frame, then transform the local corners
+	b3Transform local = b3ToRelativeTransform( transform, GetDrawOrigin() );
 
 	// Local-space corners (8 = 2^3 sign combinations along each axis).
 	float signs[2] = { -1.0f, 1.0f };
@@ -856,7 +867,7 @@ static void DrawBoxFcn( b3Vec3 extents, b3Transform transform, b3HexColor color,
 				float lx = signs[xi] * extents.x;
 				float ly = signs[yi] * extents.y;
 				float lz = signs[zi] * extents.z;
-				corners[( xi << 2 ) | ( yi << 1 ) | zi] = b3TransformPoint( transform, (b3Vec3){ lx, ly, lz } );
+				corners[( xi << 2 ) | ( yi << 1 ) | zi] = b3TransformPoint( local, (b3Vec3){ lx, ly, lz } );
 			}
 		}
 	}
@@ -879,14 +890,14 @@ static void DrawBoxFcn( b3Vec3 extents, b3Transform transform, b3HexColor color,
 	}
 }
 
-static void DrawStringFcn( b3Vec3 p, const char* s, b3HexColor color, void* context )
+static void DrawStringFcn( b3Pos p, const char* s, b3HexColor color, void* context )
 {
 	(void)context;
 	if ( s == NULL )
 	{
 		return;
 	}
-	DrawString( p, HexColorToVec4( color ), s );
+	DrawString( b3SubPos( p, GetDrawOrigin() ), HexColorToVec4( color ), s );
 }
 
 void AttachToWorldDef( b3WorldDef* def )

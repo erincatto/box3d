@@ -102,12 +102,13 @@ float carve-out is the broad phase tree traversal, which Box2D shares.
 
 ## Debug drawing
 
-`b3DebugDraw` carries a `drawOrigin` world position. `b3World_Draw` demotes every shape transform and
-contact point to float relative to it, so a host that keeps `drawOrigin` near the camera draws a
-distant scene crisply instead of snapping it to the coarse float grid around the absolute origin. It
-defaults to zero, which reproduces absolute coordinates and leaves a near-origin scene unchanged. The
-sample app sets it from the active scene, and the Large World sample uses it to render a stack at 1e7
-with no jitter.
+`b3World_Draw` hands every callback world coordinates in the double-capable `b3Pos` and
+`b3WorldTransform` types, so the engine stays camera agnostic. The host shifts into its own camera
+frame inside the callbacks: keep a draw origin near the camera and difference against it in double
+before the coordinates demote to float, and a distant scene draws crisply instead of snapping to the
+coarse float grid around the absolute origin. A zero origin reproduces absolute coordinates and leaves
+a near-origin scene unchanged. The sample app sets the draw origin from the camera eye each frame, and
+the Large World sample uses it to render a stack at 1e7 with no jitter.
 
 ## Determinism
 

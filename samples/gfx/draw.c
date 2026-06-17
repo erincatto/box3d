@@ -387,11 +387,17 @@ void DrawString3D( b3Vec3 point, Vec4 color, const char* format, ... )
 }
 
 // The host draws above already demote against s_drawOrigin, so these world-coordinate wrappers
-// only narrow b3Pos inputs to float and hand them on. The engine debug draw path remains the
-// double precision boundary for large worlds. Identity in float mode where b3Pos aliases b3Vec3.
+// only narrow b3Pos inputs to float and hand them on. The engine debug draw callbacks receive
+// world coordinates too and demote through GetDrawOrigin in the adapter. Identity in float mode
+// where b3Pos aliases b3Vec3.
 void SetDrawOrigin( b3Pos origin )
 {
 	s_drawOrigin = origin;
+}
+
+b3Pos GetDrawOrigin( void )
+{
+	return s_drawOrigin;
 }
 
 void DrawWorldCube( b3WorldTransform transform, b3Vec3 scale, Vec4 color )

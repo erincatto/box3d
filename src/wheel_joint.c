@@ -988,14 +988,14 @@ void b3WheelJoint_Dump()
 }
 #endif
 
-void b3DrawWheelJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transformA, b3Transform transformB, float scale )
+void b3DrawWheelJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform transformA, b3WorldTransform transformB, float scale )
 {
 	B3_ASSERT( base->type == b3_wheelJoint );
 
 	b3WheelJoint* joint = &base->wheelJoint;
 
-	b3Transform frameA = b3MulTransforms( transformA, base->localFrameA );
-	b3Transform frameB = b3MulTransforms( transformB, base->localFrameB );
+	b3WorldTransform frameA = b3MulWorldTransforms( transformA, base->localFrameA );
+	b3WorldTransform frameB = b3MulWorldTransforms( transformB, base->localFrameB );
 
 	b3Matrix3 matrixA = b3MakeMatrixFromQuat( frameA.q );
 	b3Matrix3 matrixB = b3MakeMatrixFromQuat( frameB.q );
@@ -1004,19 +1004,19 @@ void b3DrawWheelJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transfor
 
 	if ( joint->enableSuspensionLimit )
 	{
-		b3Vec3 lower = b3MulAdd( frameA.p, joint->lowerSuspensionLimit, matrixA.cx );
-		b3Vec3 upper = b3MulAdd( frameA.p, joint->upperSuspensionLimit, matrixA.cx );
+		b3Pos lower = b3OffsetPos( frameA.p, b3MulSV( joint->lowerSuspensionLimit, matrixA.cx ) );
+		b3Pos upper = b3OffsetPos( frameA.p, b3MulSV( joint->upperSuspensionLimit, matrixA.cx ) );
 		b3Vec3 perp = matrixA.cy;
 		draw->DrawSegmentFcn( lower, upper, b3_colorGray, draw->context );
-		draw->DrawSegmentFcn( b3MulSub( lower, 0.1f * scale, perp ), b3MulAdd( lower, 0.1f * scale, perp ), b3_colorGreen,
-							  draw->context );
-		draw->DrawSegmentFcn( b3MulSub( upper, 0.1f * scale, perp ), b3MulAdd( upper, 0.1f * scale, perp ), b3_colorRed,
-							  draw->context );
+		draw->DrawSegmentFcn( b3OffsetPos( lower, b3MulSV( -0.1f * scale, perp ) ), b3OffsetPos( lower, b3MulSV( 0.1f * scale, perp ) ),
+							  b3_colorGreen, draw->context );
+		draw->DrawSegmentFcn( b3OffsetPos( upper, b3MulSV( -0.1f * scale, perp ) ), b3OffsetPos( upper, b3MulSV( 0.1f * scale, perp ) ),
+							  b3_colorRed, draw->context );
 	}
 	else
 	{
-		draw->DrawSegmentFcn( b3MulSub( frameA.p, 1.0f * scale, matrixA.cx ), b3MulAdd( frameA.p, 1.0f * scale, matrixA.cx ),
-							  b3_colorGray, draw->context );
+		draw->DrawSegmentFcn( b3OffsetPos( frameA.p, b3MulSV( -1.0f * scale, matrixA.cx ) ),
+							  b3OffsetPos( frameA.p, b3MulSV( 1.0f * scale, matrixA.cx ) ), b3_colorGray, draw->context );
 	}
 
 	if ( joint->enableSteering && joint->enableSteeringLimit )
@@ -1032,7 +1032,7 @@ void b3DrawWheelJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transfor
 
 		// b3Quat relQ = b3InvMulQuat( quatA, quatB );
 
-		b3Transform frame = {
+		b3WorldTransform frame = {
 			.p = frameB.p,
 			.q = frameA.q,
 		};
@@ -1043,7 +1043,7 @@ void b3DrawWheelJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transfor
 		float upper = joint->upperSteeringLimit;
 
 		b3CosSin cs = b3ComputeCosSin( lower );
-		b3Vec3 vertex1 = b3TransformPoint( frame, (b3Vec3){ 0.0f, -radius * cs.sine, radius * cs.cosine } );
+		b3Pos vertex1 = b3TransformWorldPoint( frame, (b3Vec3){ 0.0f, -radius * cs.sine, radius * cs.cosine } );
 
 		for ( int index = 0; index < sliceCount; ++index )
 		{
@@ -1051,7 +1051,7 @@ void b3DrawWheelJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transfor
 			float phi = b3LerpFloat( lower, upper, t2 );
 
 			cs = b3ComputeCosSin( phi );
-			b3Vec3 vertex2 = b3TransformPoint( frame, (b3Vec3){ 0.0f, -radius * cs.sine, radius * cs.cosine } );
+			b3Pos vertex2 = b3TransformWorldPoint( frame, (b3Vec3){ 0.0f, -radius * cs.sine, radius * cs.cosine } );
 
 			if ( index == 0 )
 			{
@@ -1068,8 +1068,8 @@ void b3DrawWheelJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transfor
 		}
 	}
 
-	draw->DrawSegmentFcn( b3MulSub( frameB.p, 0.5f * scale, matrixB.cz ), b3MulAdd( frameB.p, 0.5f * scale, matrixB.cz ),
-						  b3_colorMagenta, draw->context );
+	draw->DrawSegmentFcn( b3OffsetPos( frameB.p, b3MulSV( -0.5f * scale, matrixB.cz ) ),
+						  b3OffsetPos( frameB.p, b3MulSV( 0.5f * scale, matrixB.cz ) ), b3_colorMagenta, draw->context );
 
 	draw->DrawPointFcn( frameA.p, 5.0f, b3_colorGray, draw->context );
 	draw->DrawPointFcn( frameB.p, 5.0f, b3_colorDimGray, draw->context );

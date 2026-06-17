@@ -1647,56 +1647,49 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 
 	float scale = b3MaxFloat( 0.0001f, draw->jointScale * joint->drawScale );
 
-	// Debug draw demotes world coordinates to float. Far from the origin these lose precision
-	// until the sample host applies a draw origin.
-	b3Transform drawTransformA = b3ToRelativeTransform( transformA, draw->drawOrigin );
-	b3Transform drawTransformB = b3ToRelativeTransform( transformB, draw->drawOrigin );
-	b3Vec3 drawPA = b3SubPos( pA, draw->drawOrigin );
-	b3Vec3 drawPB = b3SubPos( pB, draw->drawOrigin );
-
 	switch ( joint->type )
 	{
 		case b3_parallelJoint:
-			b3DrawParallelJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
+			b3DrawParallelJoint( draw, jointSim, transformA, transformB, scale );
 			break;
 
 		case b3_distanceJoint:
-			b3DrawDistanceJoint( draw, jointSim, drawTransformA, drawTransformB );
+			b3DrawDistanceJoint( draw, jointSim, transformA, transformB );
 			break;
 
 		case b3_filterJoint:
-			draw->DrawSegmentFcn( drawPA, drawPB, b3_colorGold, draw->context );
+			draw->DrawSegmentFcn( pA, pB, b3_colorGold, draw->context );
 			break;
 
 		case b3_motorJoint:
-			draw->DrawPointFcn( drawPA, 8.0f, b3_colorYellowGreen, draw->context );
-			draw->DrawPointFcn( drawPB, 8.0f, b3_colorPlum, draw->context );
+			draw->DrawPointFcn( pA, 8.0f, b3_colorYellowGreen, draw->context );
+			draw->DrawPointFcn( pB, 8.0f, b3_colorPlum, draw->context );
 			break;
 
 		case b3_prismaticJoint:
-			b3DrawPrismaticJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
+			b3DrawPrismaticJoint( draw, jointSim, transformA, transformB, scale );
 			break;
 
 		case b3_revoluteJoint:
-			b3DrawRevoluteJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
+			b3DrawRevoluteJoint( draw, jointSim, transformA, transformB, scale );
 			break;
 
 		case b3_sphericalJoint:
-			b3DrawSphericalJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
+			b3DrawSphericalJoint( draw, jointSim, transformA, transformB, scale );
 			break;
 
 		case b3_weldJoint:
-			b3DrawWeldJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
+			b3DrawWeldJoint( draw, jointSim, transformA, transformB, scale );
 			break;
 
 		case b3_wheelJoint:
-			b3DrawWheelJoint( draw, jointSim, drawTransformA, drawTransformB, scale );
+			b3DrawWheelJoint( draw, jointSim, transformA, transformB, scale );
 			break;
 
 		default:
-			draw->DrawSegmentFcn( drawTransformA.p, drawPA, color, draw->context );
-			draw->DrawSegmentFcn( drawPA, drawPB, color, draw->context );
-			draw->DrawSegmentFcn( drawTransformB.p, drawPB, color, draw->context );
+			draw->DrawSegmentFcn( transformA.p, pA, color, draw->context );
+			draw->DrawSegmentFcn( pA, pB, color, draw->context );
+			draw->DrawSegmentFcn( transformB.p, pB, color, draw->context );
 			break;
 	}
 
@@ -1712,7 +1705,7 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 		int colorIndex = joint->colorIndex;
 		if ( colorIndex != B3_NULL_INDEX )
 		{
-			b3Vec3 p = b3Lerp( drawPA, drawPB, 0.5f );
+			b3Pos p = b3LerpPosition( pA, pB, 0.5f );
 			draw->DrawPointFcn( p, 5.0f, graphColors[colorIndex], draw->context );
 		}
 	}
@@ -1721,9 +1714,9 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 	{
 		b3Vec3 force = b3GetJointConstraintForce( world, joint );
 		b3Vec3 torque = b3GetJointConstraintTorque( world, joint );
-		b3Vec3 p = b3Lerp( drawPA, drawPB, 0.5f );
+		b3Pos p = b3LerpPosition( pA, pB, 0.5f );
 
-		draw->DrawSegmentFcn( p, b3MulAdd( p, 0.001f, force ), b3_colorAzure, draw->context );
+		draw->DrawSegmentFcn( p, b3OffsetPos( p, b3MulSV( 0.001f, force ) ), b3_colorAzure, draw->context );
 
 		char buffer[64];
 		snprintf( buffer, 64, "f = %g, t = %g", b3Length( force ), b3Length( torque ) );

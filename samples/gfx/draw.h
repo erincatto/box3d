@@ -119,6 +119,10 @@ void DrawString3D( b3Vec3 point, Vec4 color, const char* format, ... );
 // origin zero), so samples can call them unconditionally.
 void SetDrawOrigin( b3Pos origin );
 
+// The draw origin the engine debug callbacks demote against (the camera focus). Used by the
+// b3DebugDraw adapter to shift world coordinates into the relative-frame draws above.
+b3Pos GetDrawOrigin( void );
+
 void DrawWorldCube( b3WorldTransform transform, b3Vec3 scale, Vec4 color );
 void DrawWorldSphere( b3WorldTransform transform, float radius, Vec4 color );
 void DrawWorldCapsule( b3WorldTransform transform, float halfLength, float radius, Vec4 color );

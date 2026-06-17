@@ -254,7 +254,7 @@ static bool CustomFilter( b3ShapeId shapeIdA, b3ShapeId shapeIdB, void* context 
 	return true;
 }
 
-static bool PreSolveStatic( b3ShapeId shapeIdA, b3ShapeId shapeIdB, b3Vec3 point, b3Vec3 normal, void* context )
+static bool PreSolveStatic( b3ShapeId shapeIdA, b3ShapeId shapeIdB, b3Pos point, b3Vec3 normal, void* context )
 {
 	(void)shapeIdA;
 	(void)shapeIdB;

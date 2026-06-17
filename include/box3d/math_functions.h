@@ -86,7 +86,10 @@ typedef struct b3WorldTransform
 
 #else
 
+/// In single precision mode these types are the same.
 typedef b3Vec3 b3Pos;
+
+/// In single precision mode these types are the same.
 typedef b3Transform b3WorldTransform;
 
 #endif

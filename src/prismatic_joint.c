@@ -631,10 +631,10 @@ void b3SolvePrismaticJoint( b3JointSim* base, b3StepContext* context, bool useBi
 	}
 }
 
-void b3DrawPrismaticJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform transformA, b3Transform transformB, float scale )
+void b3DrawPrismaticJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform transformA, b3WorldTransform transformB, float scale )
 {
-	b3Transform frameA = b3MulTransforms( transformA, base->localFrameA );
-	b3Transform frameB = b3MulTransforms( transformB, base->localFrameB );
+	b3WorldTransform frameA = b3MulWorldTransforms( transformA, base->localFrameA );
+	b3WorldTransform frameB = b3MulWorldTransforms( transformB, base->localFrameB );
 
 	b3Matrix3 R = b3MakeMatrixFromQuat( frameA.q );
 	b3Vec3 axis = R.cx;
@@ -642,22 +642,22 @@ void b3DrawPrismaticJoint( b3DebugDraw* draw, b3JointSim* base, b3Transform tran
 	b3Vec3 perpZ = R.cz;
 
 	float s = 0.2f * scale;
-	draw->DrawSegmentFcn( frameA.p, b3MulAdd( frameA.p, s, perpY ), b3_colorGreen, draw->context );
-	draw->DrawSegmentFcn( frameA.p, b3MulAdd( frameA.p, s, perpZ ), b3_colorBlue, draw->context );
+	draw->DrawSegmentFcn( frameA.p, b3OffsetPos( frameA.p, b3MulSV( s, perpY ) ), b3_colorGreen, draw->context );
+	draw->DrawSegmentFcn( frameA.p, b3OffsetPos( frameA.p, b3MulSV( s, perpZ ) ), b3_colorBlue, draw->context );
 
 	b3PrismaticJoint* joint = &base->prismaticJoint;
 	if ( joint->enableLimit )
 	{
-		b3Vec3 p1 = b3MulAdd( frameA.p, joint->lowerTranslation, axis );
-		b3Vec3 p2 = b3MulAdd( frameA.p, joint->upperTranslation, axis );
+		b3Pos p1 = b3OffsetPos( frameA.p, b3MulSV( joint->lowerTranslation, axis ) );
+		b3Pos p2 = b3OffsetPos( frameA.p, b3MulSV( joint->upperTranslation, axis ) );
 		draw->DrawSegmentFcn( p1, p2, b3_colorOrange, draw->context );
 		draw->DrawPointFcn( p1, 10.0f, b3_colorGreen, draw->context );
 		draw->DrawPointFcn( p2, 10.0f, b3_colorRed, draw->context );
 	}
 	else
 	{
-		b3Vec3 p1 = b3MulSub( frameA.p, 0.5f * scale, axis );
-		b3Vec3 p2 = b3MulAdd( frameA.p, 0.5f * scale, axis );
+		b3Pos p1 = b3OffsetPos( frameA.p, b3MulSV( -0.5f * scale, axis ) );
+		b3Pos p2 = b3OffsetPos( frameA.p, b3MulSV( 0.5f * scale, axis ) );
 		draw->DrawSegmentFcn( p1, p2, b3_colorOrange, draw->context );
 	}
 

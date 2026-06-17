@@ -234,7 +234,7 @@ public:
 
 		for ( int i = 0; i < e_count; ++i )
 		{
-			b3Vec3 position = { 0.1f * i, 2.0f + 0.5f * i, -0.1f * i };
+			b3Pos position = { 0.1f * i, 2.0f + 0.5f * i, -0.1f * i };
 			float torque = 10.0f;
 			float hertz = 0.5f;
 			float damping = 0.7f;
@@ -292,7 +292,7 @@ public:
 		}
 
 		m_human = {};
-		b3Vec3 position = { -12.0f, 6.0f, 0.0f };
+		b3Pos position = { -12.0f, 6.0f, 0.0f };
 		float torque = 10.0f;
 		float hertz = 2.0f;
 		float damping = 0.7f;

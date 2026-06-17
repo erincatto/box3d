@@ -355,10 +355,6 @@ void Sample::Step()
 {
 	m_didStep = false;
 
-	// Track the camera eye so picking and host overlays demote against the same point the engine
-	// uses for debug shapes, keeping the float render frame near the origin wherever the camera goes.
-	SyncDrawOrigin();
-
 	float timeStep = 0.0f;
 	if ( m_context->pause == false || m_context->singleStep > 0 )
 	{
@@ -442,15 +438,13 @@ void Sample::Step()
 
 void Sample::Render()
 {
-	// A third person follow may have moved the eye after Step latched the origin, so refresh it
-	// here. Shapes come back demoted to float against this origin, the same relative frame the
-	// translation free view renders, so everything stays precise far from the world origin.
+	// The frame latched the origin before Step, but a third person follow moves the eye while
+	// stepping, so refresh it here. Shapes come back demoted to float against this origin, the same
+	// relative frame the translation free view renders, so everything stays precise far from the origin.
 	SyncDrawOrigin();
 
 	b3DebugDraw debugDraw;
 	MakeDebugDraw( &debugDraw );
-
-	debugDraw.drawOrigin = m_drawOrigin;
 
 	// Generous visible volume around the eye. Box3D uses this to decide which shapes enter the
 	// draw set and lazily fire createDebugShape. The cull bounds live in absolute world space to
@@ -1146,7 +1140,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 		}
 		else if ( modifiers & MOD_ALT )
 		{
-			b3Vec3 position = pickRay.origin + 2.0f * direction;
+			b3Pos position = b3OffsetPos( m_drawOrigin, pickRay.origin + 2.0f * direction );
 			Human human = {};
 			CreateHuman( &human, m_worldId, position, 1.0f, 1.0f, 1.0f, 0, nullptr, true );
 			Human_SetBullet( &human, true );

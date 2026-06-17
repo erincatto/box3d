@@ -605,20 +605,20 @@ public:
 		// for (float Alpha = 0; Alpha <= 4.0f; Alpha += 4.0f)
 		{
 			b3CosSin cs = b3ComputeCosSin( B3_DEG_TO_RAD * alpha );
-			b3Vec3 position = { radius * cs.cosine, 0.8f, radius * cs.sine };
+			b3Pos position = { radius * cs.cosine, 0.8f, radius * cs.sine };
 			b3Vec3 normal = { cs.cosine, 0.0f, cs.sine };
-			position -= alpha / 630.0f * normal;
+			position = position - alpha / 630.0f * normal;
 
 			b3Quat orientation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, -B3_DEG_TO_RAD * alpha );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = position;
 			bodyDef.rotation = orientation;
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( body, &shapeDef, &box.base );
 
 			if ( alpha == 0.0f )
 			{
-				b3Body_ApplyLinearImpulse( body, { 0.0f, 0.0f, 25.0f }, b3ToPos( position + b3Vec3{ 0.0f, 0.8f, 0.0f } ), true );
+				b3Body_ApplyLinearImpulse( body, { 0.0f, 0.0f, 25.0f }, position + b3Vec3{ 0.0f, 0.8f, 0.0f }, true );
 			}
 		}
 	}
