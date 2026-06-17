@@ -651,15 +651,15 @@ public:
 			b3Vec3 p = 1.0f / 3.0f * ( v1 + v2 + v3 );
 			p = b3TransformPoint( m_meshTransform, p );
 
-			DrawString3D( p, MakeColor( b3_colorAqua ), "%d", i );
+			DrawString3D( b3ToPos( p ), MakeColor( b3_colorAqua ), "%d", i );
 
 			int materialIndex = materialIndices[i];
 
 			b3Vec3 v = b3RotateVector( m_meshTransform.q, m_velocities[materialIndex] );
-			DrawLine( p, p + v, MakeColor( b3_colorBlueViolet ) );
+			DrawLine( b3ToPos( p ), b3ToPos( p + v ), MakeColor( b3_colorBlueViolet ) );
 		}
 
-		DrawAxes( b3Transform_identity, 0.5f );
+		DrawAxes( b3WorldTransform_identity, 0.5f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -819,7 +819,7 @@ public:
 
 			b3Vec3 p1 = { 0.0f, 0.5f, 0.0f };
 			b3Vec3 p2 = b3MulAdd( p1, 0.2f, wind );
-			DrawArrow( p1, p2, MakeColor( b3_colorFuchsia ) );
+			DrawArrow( b3ToPos( p1 ), b3ToPos( p2 ), MakeColor( b3_colorFuchsia ) );
 		}
 	}
 

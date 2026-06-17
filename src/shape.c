@@ -1930,8 +1930,8 @@ void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift, 
 						if ( lineIndex < B3_DEBUG_LINE_CAPACITY )
 						{
 							b3DebugLine* line = world->taskContexts.data[0].lines + lineIndex;
-							line->p1 = b3Add( b3MulMV( matrix, localCenter ), transform.p );
-							line->p2 = b3Add( line->p1, deltaForce );
+							line->p1 = b3OffsetPos( sim->transform.p, b3MulMV( matrix, localCenter ) );
+							line->p2 = b3OffsetPos( line->p1, deltaForce );
 							line->label = i;
 							line->color = b3_colorBlanchedAlmond;
 							world->taskContexts.data[0].lineCount += 1;

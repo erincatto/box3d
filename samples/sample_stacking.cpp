@@ -298,7 +298,7 @@ public:
 	{
 		Sample::Step();
 
-		b3Vec3 position = b3ToVec3( b3Body_GetPosition( m_bodyId ) );
+		b3Pos position = b3Body_GetPosition( m_bodyId );
 		DrawTextLine( "(x, y, z) = (%.2g, %.2g, %.2g)", position.x, position.y, position.z );
 	}
 

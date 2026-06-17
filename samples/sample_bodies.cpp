@@ -238,7 +238,7 @@ public:
 		// Drive the kinematic body.
 		if ( m_type == b3_kinematicBody )
 		{
-			b3Vec3 p = b3ToVec3( b3Body_GetPosition( m_platformId ) );
+			b3Pos p = b3Body_GetPosition( m_platformId );
 			b3Vec3 v = b3Body_GetLinearVelocity( m_platformId );
 
 			if ( ( p.x < -14.0f && v.x < 0.0f ) || ( p.x > 6.0f && v.x > 0.0f ) )
@@ -411,7 +411,7 @@ public:
 		if ( ImGui::Button( "Explode" ) )
 		{
 			b3ExplosionDef def = b3DefaultExplosionDef();
-			def.position = b3ToPos( m_explosionPosition );
+			def.position = m_explosionPosition;
 			def.radius = m_explosionRadius;
 			def.falloff = 0.1f;
 			def.impulsePerArea = m_explosionMagnitude;
@@ -429,8 +429,8 @@ public:
 	{
 		Sample::Step();
 
-		b3Sphere sphere = { m_explosionPosition, m_explosionRadius };
-		DrawWireSphere(b3Transform_identity, &sphere, 64, MakeColor(b3_colorAzure) );
+		b3Sphere sphere = { b3ToVec3( m_explosionPosition ), m_explosionRadius };
+		DrawWireSphere(b3WorldTransform_identity, &sphere, 64, MakeColor(b3_colorAzure) );
 
 		// This shows how to get the velocity of a point on a body
 		b3Vec3 localPoint = { 0.0f, 2.0f, 0.0f };
@@ -440,8 +440,8 @@ public:
 		b3Vec3 v2 = b3Body_GetWorldPointVelocity( m_weebleId, worldPoint );
 
 		b3Vec3 offset = { 0.05f, 0.0f };
-		DrawWorldLine( worldPoint, worldPoint + v1, MakeColor( b3_colorRed ) );
-		DrawWorldLine( worldPoint + offset, worldPoint + v2 + offset, MakeColor( b3_colorGreen ) );
+		DrawLine( worldPoint, worldPoint + v1, MakeColor( b3_colorRed ) );
+		DrawLine( worldPoint + offset, worldPoint + v2 + offset, MakeColor( b3_colorGreen ) );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -450,7 +450,7 @@ public:
 	}
 
 	b3BodyId m_weebleId;
-	b3Vec3 m_explosionPosition;
+	b3Pos m_explosionPosition;
 	float m_explosionRadius;
 	float m_explosionMagnitude;
 };
@@ -633,10 +633,10 @@ public:
 		Sample::Render();
 
 		DrawGroundGrid( 10 );
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
+		b3Transform t = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
+		DrawAxes( b3MakeWorldTransform( t ), 4.0f );
 
-		DrawHull( m_transform, m_cylinder, MakeColor( b3_colorBlue ) );
+		DrawHull( b3MakeWorldTransform( m_transform ), m_cylinder, MakeColor( b3_colorBlue ) );
 	}
 
 	void Step() override
@@ -650,16 +650,16 @@ public:
 			input.maxFraction = 1.0f;
 			b3BodyCastResult result = b3Body_CastRay( m_bodyId, &input, m_transform );
 
-			DrawLine( input.origin, input.origin + input.maxFraction * input.translation, MakeColor( b3_colorCyan ) );
+			DrawLine( b3ToPos( input.origin ), b3ToPos( input.origin + input.maxFraction * input.translation ), MakeColor( b3_colorCyan ) );
 
 			if ( result.hit )
 			{
-				DrawLine( result.point, result.point + 0.2f * result.normal, MakeColor( b3_colorYellow ) );
-				DrawPoint( result.point, 10.0f, MakeColor( b3_colorYellow ) );
+				DrawLine( b3ToPos( result.point ), b3ToPos( result.point + 0.2f * result.normal ), MakeColor( b3_colorYellow ) );
+				DrawPoint( b3ToPos( result.point ), 10.0f, MakeColor( b3_colorYellow ) );
 			}
 
-			DrawPoint( input.origin, 10.0f, MakeColor( b3_colorGreen ) );
-			DrawPoint( input.origin + input.translation, 10.0f, MakeColor( b3_colorRed ) );
+			DrawPoint( b3ToPos( input.origin ), 10.0f, MakeColor( b3_colorGreen ) );
+			DrawPoint( b3ToPos( input.origin + input.translation ), 10.0f, MakeColor( b3_colorRed ) );
 		}
 
 		// Cast sphere
@@ -676,19 +676,19 @@ public:
 
 			if ( result.hit )
 			{
-				b3Transform transform = { result.fraction * input.translation, b3Quat_identity };
-				DrawSolidSphere( transform, sphere, MakeColor( b3_colorGreen ) );
-				DrawLine( result.point, result.point + 0.2f * result.normal, MakeColor( b3_colorYellow ) );
+				b3Transform t = { result.fraction * input.translation, b3Quat_identity };
+				DrawSolidSphere( b3MakeWorldTransform( t ), sphere, MakeColor( b3_colorGreen ) );
+				DrawLine( b3ToPos( result.point ), b3ToPos( result.point + 0.2f * result.normal ), MakeColor( b3_colorYellow ) );
 			}
 			else
 			{
-				b3Transform transform = { input.maxFraction * input.translation, b3Quat_identity };
-				DrawSolidSphere( transform, sphere, MakeColor( b3_colorWhite ) );
+				b3Transform t = { input.maxFraction * input.translation, b3Quat_identity };
+				DrawSolidSphere( b3MakeWorldTransform( t ), sphere, MakeColor( b3_colorWhite ) );
 			}
 
-			DrawLine( sphere.center, sphere.center + input.maxFraction * input.translation, MakeColor( b3_colorWhite ) );
-			DrawPoint( sphere.center, 10.0f, MakeColor( b3_colorGreen ) );
-			DrawPoint( sphere.center + input.maxFraction * input.translation, 10.0f, MakeColor( b3_colorRed ) );
+			DrawLine( b3ToPos( sphere.center ), b3ToPos( sphere.center + input.maxFraction * input.translation ), MakeColor( b3_colorWhite ) );
+			DrawPoint( b3ToPos( sphere.center ), 10.0f, MakeColor( b3_colorGreen ) );
+			DrawPoint( b3ToPos( sphere.center + input.maxFraction * input.translation ), 10.0f, MakeColor( b3_colorRed ) );
 		}
 
 		// Overlap capsule
@@ -699,11 +699,11 @@ public:
 
 			if ( overlaps )
 			{
-				DrawSolidCapsule( b3Transform_identity, capsule, MakeColor( b3_colorGreen ) );
+				DrawSolidCapsule( b3WorldTransform_identity, capsule, MakeColor( b3_colorGreen ) );
 			}
 			else
 			{
-				DrawSolidCapsule( b3Transform_identity, capsule, MakeColor( b3_colorGray ) );
+				DrawSolidCapsule( b3WorldTransform_identity, capsule, MakeColor( b3_colorGray ) );
 			}
 		}
 
@@ -712,12 +712,12 @@ public:
 			b3Capsule capsule = { { -10.25f, 2.0f, -0.75f }, { -10.25f, 3.0f, -0.75f }, 0.3f };
 			b3BodyPlaneResult bodyPlanes[4];
 			int count = b3Body_CollideMover( m_bodyId, bodyPlanes, 4, &capsule, b3DefaultQueryFilter(), m_transform );
-			DrawSolidCapsule( b3Transform_identity, capsule, MakeColor( b3_colorPurple ) );
+			DrawSolidCapsule( b3WorldTransform_identity, capsule, MakeColor( b3_colorPurple ) );
 
 			for ( int i = 0; i < count; ++i )
 			{
 				b3PlaneResult result = bodyPlanes[i].result;
-				DrawPlane( result.plane.normal, result.point, MakeColor( b3_colorOrange ) );
+				DrawPlane( result.plane.normal, b3ToPos( result.point ), MakeColor( b3_colorOrange ) );
 			}
 		}
 	}
@@ -793,8 +793,8 @@ public:
 			b3Quat rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 2.0f * t );
 
 			b3Vec3 axis = b3RotateVector( rotation, { 0.0f, 1.0f, 0.0f } );
-			DrawWorldLine( point - 0.5f * axis, point + 0.5f * axis, MakeColor( b3_colorPlum ) );
-			DrawWorldPoint( point, 10.0f, MakeColor( b3_colorPlum ) );
+			DrawLine( point - 0.5f * axis, point + 0.5f * axis, MakeColor( b3_colorPlum ) );
+			DrawPoint( point, 10.0f, MakeColor( b3_colorPlum ) );
 
 			b3Body_SetTargetTransform( m_bodyId, { point, rotation }, timeStep, true );
 		}

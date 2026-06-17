@@ -89,7 +89,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 1.0f );
+		DrawAxes( b3MakeWorldTransform( transform ), 1.0f );
 
 		int height = b3DynamicTree_GetHeight( &m_compound->tree );
 		DrawTextLine( "compound tree height = %d", height );
@@ -149,7 +149,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 1.0f );
+		DrawAxes( b3MakeWorldTransform( transform ), 1.0f );
 
 		int height = b3DynamicTree_GetHeight( &m_compound->tree );
 		DrawTextLine( "compound tree height = %d", height );
@@ -223,7 +223,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 1.0f );
+		DrawAxes( b3MakeWorldTransform( transform ), 1.0f );
 
 		int height = b3DynamicTree_GetHeight( &m_compound->tree );
 		DrawTextLine( "compound tree height = %d", height );
@@ -338,7 +338,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 1.0f );
+		DrawAxes( b3MakeWorldTransform( transform ), 1.0f );
 
 		DrawTextLine( "compound hull count = %d, mesh count = %d", m_compound->hullCount, m_compound->meshCount );
 		DrawTextLine( "compound byte count = %d", m_compound->byteCount );
@@ -455,7 +455,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 1.0f );
+		DrawAxes( b3MakeWorldTransform( transform ), 1.0f );
 
 		DrawTextLine( "compound instance count = %d, byte count = %d", m_compound->meshCount, m_compound->byteCount );
 
@@ -686,7 +686,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
+		DrawAxes( b3MakeWorldTransform( transform ), 4.0f );
 
 		DrawTextLine( "surface type = %d", m_userMaterialId );
 		DrawTextLine( "compound capsules/hulls/meshes/sphere = %d / %d / %d / %d", m_compound->capsuleCount,
@@ -708,15 +708,15 @@ public:
 
 		{
 			CastClosestContext context = {};
-			(void)b3World_CastRay( m_worldId, b3ToPos( m_rayOrigin ), translation, filter, CastClosestCallback, &context );
+			(void)b3World_CastRay( m_worldId, m_rayOrigin, translation, filter, CastClosestCallback, &context );
 
-			DrawLine( m_rayOrigin, m_rayOrigin + translation, MakeColor( b3_colorAliceBlue ) );
+			DrawLine( m_rayOrigin, b3OffsetPos( m_rayOrigin, translation ), MakeColor( b3_colorAliceBlue ) );
 			if ( context.hit )
 			{
 				b3Vec3 p1 = context.point;
 				b3Vec3 p2 = b3MulAdd( p1, 0.5f, context.normal );
-				DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
-				DrawPoint( p1, 8.0f, MakeColor( b3_colorLightCoral ) );
+				DrawLine( b3ToPos( p1 ), b3ToPos( p2 ), MakeColor( b3_colorYellow ) );
+				DrawPoint( b3ToPos( p1 ), 8.0f, MakeColor( b3_colorLightCoral ) );
 				DrawTextLine( "ray hit triangle/child/material = %d / %d / %d", context.triangleIndex, context.childIndex,
 							  context.materialId );
 			}
@@ -728,20 +728,20 @@ public:
 
 		{
 			CastClosestContext context = {};
-			b3Vec3 origin = b3Sub( m_rayOrigin, { 1.0f, 0.0f, 1.0f } );
+			b3Vec3 origin = b3SubPos( m_rayOrigin, b3ToPos( { 1.0f, 0.0f, 1.0f } ) );
 			b3ShapeProxy proxy = { &origin, 1, 0.25f };
 			b3World_CastShape( m_worldId, b3Pos_zero, &proxy, translation, filter, CastClosestCallback, &context );
 
-			DrawLine( origin, origin + translation, MakeColor( b3_colorAliceBlue ) );
+			DrawLine( b3ToPos( origin ), b3ToPos( origin + translation ), MakeColor( b3_colorAliceBlue ) );
 			if ( context.hit )
 			{
 				b3Vec3 position = b3MulAdd( origin, context.fraction, translation );
 				b3Vec3 p1 = context.point;
 				b3Vec3 p2 = b3MulAdd( p1, 0.5f, context.normal );
-				DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
-				DrawPoint( p1, 8.0f, MakeColor( b3_colorLightCoral ) );
+				DrawLine( b3ToPos( p1 ), b3ToPos( p2 ), MakeColor( b3_colorYellow ) );
+				DrawPoint( b3ToPos( p1 ), 8.0f, MakeColor( b3_colorLightCoral ) );
 				b3Sphere sphere = { position, 0.25f };
-				DrawSolidSphere( b3Transform_identity, sphere, MakeColor( b3_colorOrchid ) );
+				DrawSolidSphere( b3WorldTransform_identity, sphere, MakeColor( b3_colorOrchid ) );
 				DrawTextLine( "shape hit triangle/child/material = %d / %d / %d", context.triangleIndex, context.childIndex,
 							  context.materialId );
 			}
@@ -759,7 +759,7 @@ public:
 
 			b3HexColor color = overlap ? b3_colorDarkMagenta : b3_colorDarkSeaGreen;
 			b3Sphere sphere = { origin, 0.3f };
-			DrawSolidSphere( b3Transform_identity, sphere, MakeColor( color ) );
+			DrawSolidSphere( b3WorldTransform_identity, sphere, MakeColor( color ) );
 		}
 
 		if ( m_rayOrigin.x > 0.45f * m_worldWidth )
@@ -792,7 +792,7 @@ public:
 	b3Compound* m_compound;
 	CharacterMover m_mover;
 	float m_worldWidth;
-	b3Vec3 m_rayOrigin;
+	b3Pos m_rayOrigin;
 };
 
 static int sampleVillage = RegisterSample( "Compound", "Village", Village::Create );

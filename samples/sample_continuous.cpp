@@ -669,7 +669,7 @@ public:
 				continue;
 			}
 
-			b3Vec3 massCenter = b3ToVec3( b3Body_GetWorldCenterOfMass( bodyId ) );
+			b3Pos massCenter = b3Body_GetWorldCenterOfMass( bodyId );
 			if ( massCenter.y < -2.0f )
 			{
 				IndexPair pair = ConvertToPair( b3Body_GetUserData( bodyId ) );

@@ -1605,7 +1605,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 		for ( int j = 0; j < pointCount; ++j )
 		{
 			b3DebugPoint* point = points + j;
-			b3Pos p = b3ToPos( point->p );
+			b3Pos p = point->p;
 			draw->DrawPointFcn( p, 5.0f, point->color, draw->context );
 			snprintf( buffer, 32, "   %d, %.2f", point->label, point->value );
 			b3Pos ps = b3OffsetPos( p, offset );
@@ -1617,8 +1617,8 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 		for ( int j = 0; j < lineCount; ++j )
 		{
 			b3DebugLine* line = lines + j;
-			b3Pos p1 = b3ToPos( line->p1 );
-			b3Pos p2 = b3ToPos( line->p2 );
+			b3Pos p1 = line->p1;
+			b3Pos p2 = line->p2;
 			draw->DrawSegmentFcn( p1, p2, line->color, draw->context );
 			draw->DrawPointFcn( p1, 10.0f, line->color, draw->context );
 			snprintf( buffer, 32, "%d", line->label );

@@ -141,8 +141,8 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 2.0f );
+		b3Transform t = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
+		DrawAxes( b3MakeWorldTransform( t ), 2.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -220,8 +220,8 @@ public:
 	void Render() override
 	{
 		Sample::Render();
-		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
+		b3Transform t = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
+		DrawAxes( b3MakeWorldTransform( t ), 4.0f );
 
 		// transform.p.y = 0.0f;
 		// transform.p.z = -5.0f;
@@ -497,7 +497,7 @@ class BenchmarkHeightField : public Sample
 public:
 	struct Context
 	{
-		b3Vec3 point;
+		b3Pos point;
 		b3Vec3 normal;
 		float fraction;
 		bool hit;
@@ -512,7 +512,7 @@ public:
 		(void)childIndex;
 
 		Context* rayContext = (Context*)context;
-		rayContext->point = b3ToVec3( point );
+		rayContext->point = point;
 		rayContext->normal = normal;
 		rayContext->fraction = fraction;
 		rayContext->hit = true;
@@ -555,9 +555,9 @@ public:
 	{
 		Sample::Render();
 
-		DrawLine( b3Vec3_zero, 0.4f * b3Vec3_axisX, MakeColor( b3_colorRed ) );
-		DrawLine( b3Vec3_zero, 0.4f * b3Vec3_axisY, MakeColor( b3_colorGreen ) );
-		DrawLine( b3Vec3_zero, 0.4f * b3Vec3_axisZ, MakeColor( b3_colorBlue ) );
+		DrawLine( b3Pos_zero, b3OffsetPos( b3Pos_zero, 0.4f * b3Vec3_axisX ), MakeColor( b3_colorRed ) );
+		DrawLine( b3Pos_zero, b3OffsetPos( b3Pos_zero, 0.4f * b3Vec3_axisY ), MakeColor( b3_colorGreen ) );
+		DrawLine( b3Pos_zero, b3OffsetPos( b3Pos_zero, 0.4f * b3Vec3_axisZ ), MakeColor( b3_colorBlue ) );
 
 		int hitCount = 0;
 		int iterationCount = 0;
@@ -595,7 +595,7 @@ public:
 
 					if ( context.hit )
 					{
-						result.point = b3ToPos( context.point );
+						result.point = context.point;
 						result.normal = context.normal;
 						result.fraction = context.fraction;
 						result.hit = true;
@@ -610,29 +610,29 @@ public:
 					if ( m_isDebug )
 					{
 						b3Pos point = result.point;
-						DrawWorldLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGreen ) );
-						DrawWorldPoint( point, 10.0f, MakeColor( b3_colorGreen ) );
+						DrawLine( point, point + 0.5f * result.normal, MakeColor( b3_colorGreen ) );
+						DrawPoint( point, 10.0f, MakeColor( b3_colorGreen ) );
 
 						if ( m_radius > 0.0f )
 						{
-							b3Transform transform = b3Transform_identity;
-							transform.p = rayOrigin + result.fraction * rayTranslation;
-							DrawSphereEx( transform, m_radius, MakeColorAlpha( b3_colorPurple, 0.5f ), 0.0f, 0.5f,
+							b3Transform t = b3Transform_identity;
+							t.p = rayOrigin + result.fraction * rayTranslation;
+							DrawSphereEx( b3MakeWorldTransform( t ), m_radius, MakeColorAlpha( b3_colorPurple, 0.5f ), 0.0f, 0.5f,
 										  TRANSPARENT_SHADOW_NONE );
 						}
 
 						b3Vec3 rayEnd = rayOrigin + result.fraction * rayTranslation;
-						DrawLine( rayOrigin, rayEnd, MakeColor( b3_colorYellow ) );
-						DrawPoint( rayOrigin, 2.0f, MakeColor( b3_colorRed ) );
-						DrawPoint( rayEnd, 2.0f, MakeColor( b3_colorRed ) );
+						DrawLine( b3ToPos( rayOrigin ), b3ToPos( rayEnd ), MakeColor( b3_colorYellow ) );
+						DrawPoint( b3ToPos( rayOrigin ), 2.0f, MakeColor( b3_colorRed ) );
+						DrawPoint( b3ToPos( rayEnd ), 2.0f, MakeColor( b3_colorRed ) );
 					}
 				}
 				else if ( m_isDebug )
 				{
 					b3Vec3 rayEnd = rayOrigin + rayTranslation;
-					DrawLine( rayOrigin, rayEnd, MakeColor( b3_colorYellow ) );
-					DrawPoint( rayOrigin, 2.0f, MakeColor( b3_colorRed ) );
-					DrawPoint( rayEnd, 2.0f, MakeColor( b3_colorRed ) );
+					DrawLine( b3ToPos( rayOrigin ), b3ToPos( rayEnd ), MakeColor( b3_colorYellow ) );
+					DrawPoint( b3ToPos( rayOrigin ), 2.0f, MakeColor( b3_colorRed ) );
+					DrawPoint( b3ToPos( rayEnd ), 2.0f, MakeColor( b3_colorRed ) );
 				}
 			}
 		}
@@ -1059,11 +1059,11 @@ public:
 
 	void Render() override
 	{
-		b3Transform transform1 = { { -2.0f, 0.0f, 0.0f }, b3Quat_identity };
-		b3Transform transform2 = { { 2.0f, 0.0f, 0.0f }, b3Quat_identity };
+		b3Transform t1 = { { -2.0f, 0.0f, 0.0f }, b3Quat_identity };
+		b3Transform t2 = { { 2.0f, 0.0f, 0.0f }, b3Quat_identity };
 
-		DrawHull( transform1, m_hull, MakeColor( b3_colorGreen ) );
-		DrawHull( transform2, m_transformedHull, MakeColor( b3_colorYellow ) );
+		DrawHull( b3MakeWorldTransform( t1 ), m_hull, MakeColor( b3_colorGreen ) );
+		DrawHull( b3MakeWorldTransform( t2 ), m_transformedHull, MakeColor( b3_colorYellow ) );
 
 		Sample::Render();
 	}
@@ -1384,11 +1384,11 @@ public:
 
 		float r = m_explosionDef.radius;
 		b3Sphere sphere1 = { b3ToVec3( m_explosionDef.position ), r };
-		DrawWireSphere( b3Transform_identity, &sphere1, 24, MakeColor( b3_colorAqua ) );
+		DrawWireSphere( b3WorldTransform_identity, &sphere1, 24, MakeColor( b3_colorAqua ) );
 
 		float rf = r + m_explosionDef.falloff;
 		b3Sphere sphere2 = { b3ToVec3( m_explosionDef.position ), rf };
-		DrawWireSphere( b3Transform_identity, &sphere2, 24, MakeColor( b3_colorCornsilk ) );
+		DrawWireSphere( b3WorldTransform_identity, &sphere2, 24, MakeColor( b3_colorCornsilk ) );
 	}
 
 	void Step() override

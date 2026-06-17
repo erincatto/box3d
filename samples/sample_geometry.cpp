@@ -112,10 +112,10 @@ public:
 
 	void Render() override
 	{
-		DrawHull( b3Transform_identity, m_hull, MakeColor( b3_colorYellow ) );
-		DrawHull( b3Transform_identity, &m_box.base, MakeColor( b3_colorCyan ) );
+		DrawHull( b3WorldTransform_identity, m_hull, MakeColor( b3_colorYellow ) );
+		DrawHull( b3WorldTransform_identity, &m_box.base, MakeColor( b3_colorCyan ) );
 
-		DrawAxes( b3Transform_identity, 1.0f );
+		DrawAxes( b3WorldTransform_identity, 1.0f );
 
 		Sample::Render();
 	}
@@ -209,10 +209,10 @@ public:
 	{
 		if ( m_hull != nullptr )
 		{
-			DrawHull( b3Transform_identity, m_hull, MakeColor( b3_colorYellow ) );
+			DrawHull( b3WorldTransform_identity, m_hull, MakeColor( b3_colorYellow ) );
 		}
 
-		DrawAxes( b3Transform_identity, 1.0f );
+		DrawAxes( b3WorldTransform_identity, 1.0f );
 
 		Sample::Render();
 	}
@@ -335,12 +335,12 @@ public:
 	{
 		if ( m_hull != nullptr )
 		{
-			DrawHull( b3Transform_identity, m_hull, MakeColor( b3_colorYellow ) );
+			DrawHull( b3WorldTransform_identity, m_hull, MakeColor( b3_colorYellow ) );
 
 			DrawTextLine( "v/f/e = %d/%d/%d", m_hull->vertexCount, m_hull->faceCount, m_hull->edgeCount / 2 );
 		}
 
-		DrawAxes( b3Transform_identity, 1.0f );
+		DrawAxes( b3WorldTransform_identity, 1.0f );
 
 		Sample::Render();
 	}
@@ -406,9 +406,9 @@ public:
 		b3Transform transform1 = { { -2.0f, 0.0f, 0.0f }, b3Quat_identity };
 		b3Transform transform2 = { { 2.0f, 0.0f, 0.0f }, b3Quat_identity };
 
-		DrawHull( transform1, m_original, MakeColor( b3_colorGreen ) );
-		DrawHull( transform2, m_hull, MakeColor( b3_colorYellow ) );
-		DrawAxes( b3Transform_identity, 1.0f );
+		DrawHull( b3MakeWorldTransform( transform1 ), m_original, MakeColor( b3_colorGreen ) );
+		DrawHull( b3MakeWorldTransform( transform2 ), m_hull, MakeColor( b3_colorYellow ) );
+		DrawAxes( b3WorldTransform_identity, 1.0f );
 
 		DrawTextLine( "hull 1: area = %g, volume = %g, radius = %g", m_original->surfaceArea, m_original->volume,
 					  m_original->innerRadius );
@@ -579,15 +579,15 @@ public:
 
 	void Render() override
 	{
-		DrawSolidCapsule( b3Transform_identity, m_capsule, MakeColorAlpha( b3_colorAqua, 0.8f ) );
-		DrawHull( b3Transform_identity, &m_box.base, MakeColor( b3_colorBlueViolet ) );
+		DrawSolidCapsule( b3WorldTransform_identity, m_capsule, MakeColorAlpha( b3_colorAqua, 0.8f ) );
+		DrawHull( b3WorldTransform_identity, &m_box.base, MakeColor( b3_colorBlueViolet ) );
 
 		if ( m_hull != nullptr )
 		{
-			DrawHull( b3Transform_identity, m_hull, MakeColor( b3_colorYellow ) );
+			DrawHull( b3WorldTransform_identity, m_hull, MakeColor( b3_colorYellow ) );
 		}
 
-		DrawAxes( b3Transform_identity, 1.0f );
+		DrawAxes( b3WorldTransform_identity, 1.0f );
 
 		if ( m_hull != nullptr )
 		{

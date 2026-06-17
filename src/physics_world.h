@@ -53,7 +53,7 @@ enum b3SetType
 
 typedef struct b3DebugPoint
 {
-	b3Vec3 p;
+	b3Pos p;
 	int label;
 	float value;
 	b3HexColor color;
@@ -61,7 +61,7 @@ typedef struct b3DebugPoint
 
 typedef struct b3DebugLine
 {
-	b3Vec3 p1, p2;
+	b3Pos p1, p2;
 	int label;
 	b3HexColor color;
 } b3DebugLine;

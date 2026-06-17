@@ -143,7 +143,7 @@ public:
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = b3ToPos( origin );
+		bodyDef.position = b3OffsetPos( b3Pos_zero, origin );
 
 		b3BodyId prevBodyId = {};
 		b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
@@ -160,9 +160,9 @@ public:
 			{
 				b3Body_ApplyMassFromShapes( bodyId );
 
-				b3Vec3 center = b3ToVec3( b3Body_GetWorldCenterOfMass( bodyId ) );
+				b3Pos center = b3Body_GetWorldCenterOfMass( bodyId );
 				b3Vec3 omega = { 0.0f, 0.0f, -1.0f * velocityScale };
-				b3Vec3 v = b3Cross( omega, center - origin );
+				b3Vec3 v = b3Cross( omega, b3SubPos( center, b3OffsetPos( b3Pos_zero, origin ) ) );
 				b3Body_SetAngularVelocity( bodyId, omega );
 				b3Body_SetLinearVelocity( bodyId, v );
 
@@ -206,7 +206,7 @@ public:
 	{
 		Sample::Render();
 		b3Transform transform = { { 0.0f, 0.1f, 0.0f }, b3Quat_identity };
-		DrawAxes( transform, 4.0f );
+		DrawAxes( b3MakeWorldTransform( transform ), 4.0f );
 
 		for ( int i = 0; i < m_eventCount; ++i )
 		{
@@ -216,9 +216,9 @@ public:
 			b3Pos p1 = m_events[i].point;
 			b3Pos p2 = b3OffsetPos( p1, -m_events[i].approachSpeed * m_events[i].normal );
 
-			DrawWorldPoint( p1, 10.0f, MakeColor( b3_colorYellow ) );
-			DrawWorldLine( p1, p2, MakeColor( b3_colorYellow ) );
-			DrawWorldString( p1, MakeColor( b3_colorWhite ), "%.1f, %d", m_events[i].approachSpeed, m_events[i].userMaterialIdA );
+			DrawPoint( p1, 10.0f, MakeColor( b3_colorYellow ) );
+			DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
+			DrawString3D( p1, MakeColor( b3_colorWhite ), "%.1f, %d", m_events[i].approachSpeed, m_events[i].userMaterialIdA );
 		}
 
 		DrawTextLine( "event count = %d", m_eventCount );
@@ -261,7 +261,7 @@ public:
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		b3Vec3 pivot = { 0.0f, 1.0f, 0.0f };
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = b3ToPos( pivot );
+		bodyDef.position = b3OffsetPos( b3Pos_zero, pivot );
 		bodyDef.name = "big box";
 		m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
@@ -272,9 +272,9 @@ public:
 		b3BoxHull dynamicBox = b3MakeTransformedBoxHull( 0.5f, 10.0f, 0.5f, { { 0.0f, 10.0f, 0.0f }, b3Quat_identity } );
 		b3CreateHullShape( m_bodyId, &shapeDef, &dynamicBox.base );
 
-		b3Vec3 center = b3ToVec3( b3Body_GetWorldCenterOfMass( m_bodyId ) );
+		b3Pos center = b3Body_GetWorldCenterOfMass( m_bodyId );
 
-		b3Vec3 r = pivot - center;
+		b3Vec3 r = b3SubPos( b3OffsetPos( b3Pos_zero, pivot ), center );
 		float rr = b3LengthSquared( r );
 		if ( rr > 0.0f )
 		{
@@ -377,7 +377,7 @@ public:
 		{
 			assert( index < e_count );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = b3OffsetPos( b3Pos_zero, position );
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
@@ -432,7 +432,7 @@ public:
 		{
 			assert( index < e_count );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = b3OffsetPos( b3Pos_zero, position );
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
@@ -456,7 +456,7 @@ public:
 		{
 			assert( index < e_count );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = b3OffsetPos( b3Pos_zero, position );
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
@@ -480,7 +480,7 @@ public:
 		{
 			assert( index < e_count );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = b3OffsetPos( b3Pos_zero, position );
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
@@ -646,9 +646,9 @@ public:
 					const b3ManifoldPoint* manifoldPoint = manifold->points + i;
 					b3Pos p1 = b3OffsetPos( centerOfMass, manifoldPoint->anchorA );
 					b3Pos p2 = b3OffsetPos( p1, manifoldPoint->totalNormalImpulse * normal );
-					DrawWorldLine( p1, p2, MakeColor( b3_colorCrimson ) );
-					DrawWorldPoint( p1, 6.0f, MakeColor( b3_colorCrimson ) );
-					DrawWorldString( p1, MakeColor( b3_colorGray ), "%.2f", manifoldPoint->totalNormalImpulse );
+					DrawLine( p1, p2, MakeColor( b3_colorCrimson ) );
+					DrawPoint( p1, 6.0f, MakeColor( b3_colorCrimson ) );
+					DrawString3D( p1, MakeColor( b3_colorGray ), "%.2f", manifoldPoint->totalNormalImpulse );
 				}
 			}
 		}
@@ -830,7 +830,7 @@ public:
 
 	void Step() override
 	{
-		b3Vec3 p = b3ToVec3( b3Body_GetPosition( m_kinematicBodyId ) );
+		b3Pos p = b3Body_GetPosition( m_kinematicBodyId );
 		if ( p.x > 1.0f )
 		{
 			b3Body_SetLinearVelocity( m_kinematicBodyId, { -0.5f, 0.0f } );
@@ -854,7 +854,7 @@ public:
 
 		for ( int i = 0; i < m_transformCount; ++i )
 		{
-			DrawWorldAxes( m_transforms[i], 0.1f );
+			DrawAxes( m_transforms[i], 0.1f );
 		}
 
 		b3SensorEvents sensorEvents = b3World_GetSensorEvents( m_worldId );

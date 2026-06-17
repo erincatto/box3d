@@ -54,7 +54,7 @@ public:
 		DrawTextLine( "origin: %g %g %g", m_origin.x, m_origin.y, m_origin.z );
 		DrawTextLine( "count = %d", m_manifold.pointCount );
 
-		DrawAxes( b3Transform_identity, 1.0f );
+		DrawAxes( b3WorldTransform_identity, 1.0f );
 
 		if ( m_manifold.pointCount == 0 )
 		{
@@ -70,22 +70,22 @@ public:
 
 			b3Vec3 point = b3TransformPoint( m_transformA, manifoldPoint.point );
 
-			DrawLine( point, point + length * normal, MakeColor( b3_colorWhite ) );
+			DrawLine( b3ToPos( point ), b3ToPos( point + length * normal ), MakeColor( b3_colorWhite ) );
 
 			if ( manifoldPoint.separation > 0.0f )
 			{
-				DrawPoint( point, 10.0f, MakeColor( b3_colorWhite ) );
+				DrawPoint( b3ToPos( point ), 10.0f, MakeColor( b3_colorWhite ) );
 			}
 			else
 			{
-				DrawPoint( point, 10.0f, MakeColor( b3_colorYellow ) );
+				DrawPoint( b3ToPos( point ), 10.0f, MakeColor( b3_colorYellow ) );
 			}
 
-			DrawString3D( point, MakeColor( b3_colorWhite ), "   %.3f", manifoldPoint.separation );
+			DrawString3D( b3ToPos( point ), MakeColor( b3_colorWhite ), "   %.3f", manifoldPoint.separation );
 
 			b3Vec3 perp = b3Perp( normal );
 			b3FeaturePair pair = manifoldPoint.pair;
-			DrawString3D( point + 0.025f * normal + 0.05f * perp, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
+			DrawString3D( b3ToPos( point + 0.025f * normal + 0.05f * perp ), MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
 		}
 
 		Sample::Render();
@@ -221,7 +221,7 @@ public:
 		DrawTextLine( "feature = %d", m_manifold.feature );
 		DrawTextLine( "cache hit = %d", m_satCache.hit );
 
-		DrawAxes( b3Transform_identity, 1.0f );
+		DrawAxes( b3WorldTransform_identity, 1.0f );
 
 		if ( m_manifold.pointCount > 0 )
 		{
@@ -233,36 +233,36 @@ public:
 
 				b3Vec3 point = manifoldPoint.point;
 
-				DrawLine( point, point + length * m_manifold.normal, MakeColor( b3_colorWhite ) );
+				DrawLine( b3ToPos( point ), b3ToPos( point + length * m_manifold.normal ), MakeColor( b3_colorWhite ) );
 
 				if ( manifoldPoint.separation > 0.0f )
 				{
-					DrawPoint( point, 10.0f, MakeColor( b3_colorWhite ) );
+					DrawPoint( b3ToPos( point ), 10.0f, MakeColor( b3_colorWhite ) );
 				}
 				else
 				{
-					DrawPoint( point, 10.0f, MakeColor( b3_colorYellow ) );
+					DrawPoint( b3ToPos( point ), 10.0f, MakeColor( b3_colorYellow ) );
 				}
 
-				DrawString3D( point, MakeColor( b3_colorWhite ), "   %.2f", 100.0f * manifoldPoint.separation );
+				DrawString3D( b3ToPos( point ), MakeColor( b3_colorWhite ), "   %.2f", 100.0f * manifoldPoint.separation );
 
 				b3FeaturePair pair = manifoldPoint.pair;
-				DrawString3D( point + 0.025f * m_manifold.normal, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
+				DrawString3D( b3ToPos( point + 0.025f * m_manifold.normal ), MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
 			}
 		}
 
 		b3Vec3 p1 = b3TransformPoint( m_transformA, m_triangle[0] );
 		b3Vec3 p2 = b3TransformPoint( m_transformA, m_triangle[1] );
 		b3Vec3 p3 = b3TransformPoint( m_transformA, m_triangle[2] );
-		DrawTriangle( p1, p2, p3, MakeColor( b3_colorCyan ) );
+		DrawTriangle( b3ToPos( p1 ), b3ToPos( p2 ), b3ToPos( p3 ), MakeColor( b3_colorCyan ) );
 
-		DrawString3D( p1, MakeColor( b3_colorWhite ), "0" );
-		DrawString3D( p2, MakeColor( b3_colorWhite ), "1" );
-		DrawString3D( p3, MakeColor( b3_colorWhite ), "2" );
+		DrawString3D( b3ToPos( p1 ), MakeColor( b3_colorWhite ), "0" );
+		DrawString3D( b3ToPos( p2 ), MakeColor( b3_colorWhite ), "1" );
+		DrawString3D( b3ToPos( p3 ), MakeColor( b3_colorWhite ), "2" );
 
 		b3Vec3 center = 1.0f / 3.0f * ( p1 + p2 + p3 );
 		b3Vec3 normal = b3Normalize( b3Cross( p2 - p1, p3 - p1 ) );
-		DrawArrow( center, center + 0.5f * normal, MakeColor( b3_colorMediumPurple ) );
+		DrawArrow( b3ToPos( center ), b3ToPos( center + 0.5f * normal ), MakeColor( b3_colorMediumPurple ) );
 
 		Sample::Render();
 	}
@@ -363,8 +363,8 @@ public:
 
 	void Render() override
 	{
-		DrawSolidSphere( m_transformA, m_sphere, MakeColor( b3_colorGreen ) );
-		DrawSolidSphere( m_transformB, m_sphere, MakeColor( b3_colorCyan ) );
+		DrawSolidSphere( b3MakeWorldTransform( m_transformA ), m_sphere, MakeColor( b3_colorGreen ) );
+		DrawSolidSphere( b3MakeWorldTransform( m_transformB ), m_sphere, MakeColor( b3_colorCyan ) );
 
 		Manifold::Render();
 	}
@@ -405,8 +405,8 @@ public:
 
 	void Render() override
 	{
-		DrawSolidCapsule( m_transformA, m_capsule, MakeColor( b3_colorCyan ) );
-		DrawSolidSphere( m_transformB, m_sphere, MakeColor( b3_colorGreen ) );
+		DrawSolidCapsule( b3MakeWorldTransform( m_transformA ), m_capsule, MakeColor( b3_colorCyan ) );
+		DrawSolidSphere( b3MakeWorldTransform( m_transformB ), m_sphere, MakeColor( b3_colorGreen ) );
 
 		Manifold::Render();
 	}
@@ -438,8 +438,8 @@ public:
 
 	void Render() override
 	{
-		DrawHull( m_transformA, &m_hull.base, MakeColor( b3_colorCyan ) );
-		DrawSolidSphere( m_transformB, m_sphere, MakeColor( b3_colorGreen ) );
+		DrawHull( b3MakeWorldTransform( m_transformA ), &m_hull.base, MakeColor( b3_colorCyan ) );
+		DrawSolidSphere( b3MakeWorldTransform( m_transformB ), m_sphere, MakeColor( b3_colorGreen ) );
 
 		Manifold::Render();
 	}
@@ -496,7 +496,7 @@ public:
 
 	void Render() override
 	{
-		DrawSolidSphere( m_transformB, m_sphere, MakeColor( b3_colorGreen ) );
+		DrawSolidSphere( b3MakeWorldTransform( m_transformB ), m_sphere, MakeColor( b3_colorGreen ) );
 
 		TriangleManifold::Render();
 	}
@@ -540,8 +540,8 @@ public:
 
 	void Render() override
 	{
-		DrawSolidCapsule( m_transformA, m_capsule, MakeColor( b3_colorGreen ) );
-		DrawSolidCapsule( m_transformB, m_capsule, MakeColor( b3_colorCyan ) );
+		DrawSolidCapsule( b3MakeWorldTransform( m_transformA ), m_capsule, MakeColor( b3_colorGreen ) );
+		DrawSolidCapsule( b3MakeWorldTransform( m_transformB ), m_capsule, MakeColor( b3_colorCyan ) );
 
 		Manifold::Render();
 	}
@@ -593,8 +593,8 @@ public:
 
 	void Render() override
 	{
-		DrawHull( m_transformA, &m_hull.base, MakeColor( b3_colorCyan ) );
-		DrawSolidCapsule( m_transformB, m_capsule, MakeColor( b3_colorGreen ) );
+		DrawHull( b3MakeWorldTransform( m_transformA ), &m_hull.base, MakeColor( b3_colorCyan ) );
+		DrawSolidCapsule( b3MakeWorldTransform( m_transformB ), m_capsule, MakeColor( b3_colorGreen ) );
 
 		Manifold::Render();
 	}
@@ -652,8 +652,8 @@ public:
 
 	void Render() override
 	{
-		DrawSolidCapsule( m_transformB, m_capsule, MakeColor( b3_colorGreen ) );
-		DrawAxes( m_transformB, 0.1f );
+		DrawSolidCapsule( b3MakeWorldTransform( m_transformB ), m_capsule, MakeColor( b3_colorGreen ) );
+		DrawAxes( b3MakeWorldTransform( m_transformB ), 0.1f );
 
 		TriangleManifold::Render();
 	}
@@ -774,8 +774,8 @@ public:
 
 	void Render() override
 	{
-		DrawHull( m_transformA, m_hullA, MakeColor( b3_colorGreen ) );
-		DrawHull( m_transformB, m_hullB, MakeColor( b3_colorCyan ) );
+		DrawHull( b3MakeWorldTransform( m_transformA ), m_hullA, MakeColor( b3_colorGreen ) );
+		DrawHull( b3MakeWorldTransform( m_transformB ), m_hullB, MakeColor( b3_colorCyan ) );
 
 		Manifold::Render();
 	}
@@ -879,12 +879,12 @@ public:
 
 	void Render() override
 	{
-		DrawHull( m_transformB, m_hull, MakeColor( b3_colorGreen ) );
+		DrawHull( b3MakeWorldTransform( m_transformB ), m_hull, MakeColor( b3_colorGreen ) );
 
 		b3Transform xf;
 		xf.p = b3TransformPoint( m_transformB, m_hull->center );
 		xf.q = m_transformB.q;
-		DrawAxes( xf, 0.1f );
+		DrawAxes( b3MakeWorldTransform( xf ), 0.1f );
 
 		TriangleManifold::Render();
 	}

@@ -412,7 +412,7 @@ public:
 			b3Body_SetTargetTransform( m_targetId, m_transform, timeStep, true );
 		}
 
-		DrawWorldAxes( m_transform, 1.0f );
+		DrawAxes( m_transform, 1.0f );
 
 		Sample::Step();
 
@@ -530,7 +530,7 @@ public:
 			def.impulsePerArea = 10000.0f;
 			b3World_Explode( m_worldId, &def );
 
-			DrawSolidSphere( b3Transform_identity, sphere, MakeColor( b3_colorWhite ) );
+			DrawSolidSphere( b3WorldTransform_identity, sphere, MakeColor( b3_colorWhite ) );
 		}
 
 		return true;
@@ -1156,7 +1156,7 @@ public:
 		b3Vec3 linearVelocity = b3Body_GetLinearVelocity( m_bodyId );
 		float kineticEnergy = 0.5f * b3Dot( angularVelocity, b3MulMV( massData.inertia, angularVelocity ) );
 		kineticEnergy += 0.5f * massData.mass * b3Dot( linearVelocity, linearVelocity );
-		b3Vec3 center = b3ToVec3( b3Body_GetWorldCenterOfMass( m_bodyId ) );
+		b3Pos center = b3Body_GetWorldCenterOfMass( m_bodyId );
 		b3Vec3 gravity = b3World_GetGravity( m_worldId );
 		float potentialEnergy = -massData.mass * center.y * gravity.y;
 		DrawTextLine( "kinetic energy = %g", kineticEnergy );
@@ -1791,7 +1791,7 @@ public:
 		Sample::Step();
 
 		b3Pos p = b3Body_GetWorldPoint( m_doorId, { 0.75f, 0.0f, 0.0f } );
-		DrawWorldPoint( p, 10.0f, MakeColor( b3_colorDarkKhaki ) );
+		DrawPoint( p, 10.0f, MakeColor( b3_colorDarkKhaki ) );
 
 		float translationError1 = b3Joint_GetLinearSeparation( m_jointId1 );
 		m_translationError1 = b3MaxFloat( m_translationError1, translationError1 );
@@ -1975,7 +1975,7 @@ public:
 			m_bodyIds[i] = b3_nullBodyId;
 		}
 
-		b3Vec3 position = { -12.5f, 10.0, 0.0f };
+		b3Pos position = { -12.5f, 10.0, 0.0f };
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.enableSleep = false;
@@ -1994,18 +1994,18 @@ public:
 		{
 			assert( m_count < m_capacity );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
 			float length = 2.0f;
-			b3Vec3 pivot1 = { position.x, position.y + 1.0f + length, 0.0f };
-			b3Vec3 pivot2 = { position.x, position.y + 1.0f, 0.0f };
+			b3Pos pivot1 = { position.x, position.y + 1.0f + length, 0.0f };
+			b3Pos pivot2 = { position.x, position.y + 1.0f, 0.0f };
 			b3DistanceJointDef jointDef = b3DefaultDistanceJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = m_bodyIds[m_count];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot1 ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot2 ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot1 );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot2 );
 			jointDef.length = length;
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
@@ -2022,7 +2022,7 @@ public:
 		{
 			assert( m_bodyCount < e_count );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = position;
 			m_bodyIds[m_bodyCount] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_bodyCount], &shapeDef, &box.base );
 
@@ -2047,16 +2047,16 @@ public:
 		{
 			assert( m_count < m_capacity );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
-			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
+			b3Pos pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3PrismaticJointDef jointDef = b3DefaultPrismaticJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = m_bodyIds[m_count];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
 			jointDef.base.collideConnected = true;
@@ -2071,16 +2071,16 @@ public:
 		{
 			assert( m_count < m_capacity );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
-			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
+			b3Pos pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = m_bodyIds[m_count];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
 			jointDef.base.collideConnected = true;
@@ -2095,16 +2095,16 @@ public:
 		{
 			assert( m_count < m_capacity );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
-			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
+			b3Pos pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3WeldJointDef jointDef = b3DefaultWeldJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = m_bodyIds[m_count];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 			jointDef.angularHertz = 2.0f;
 			jointDef.angularDampingRatio = 0.5f;
 			jointDef.base.forceThreshold = forceThreshold;
@@ -2122,7 +2122,7 @@ public:
 		{
 			assert( index < e_count );
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = position;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
@@ -2557,7 +2557,7 @@ public:
 		float rightSteerTorque = b3WheelJoint_GetSteeringTorque( m_frontRightId );
 		DrawTextLine( "steering torque = %.1f/%.1f", leftSteerTorque, rightSteerTorque );
 
-		b3Transform transform = b3Transform_identity;
+		b3WorldTransform transform = b3WorldTransform_identity;
 		transform.p.y += 0.05f;
 		DrawAxes( transform, 2.0f );
 	}

@@ -161,7 +161,7 @@ public:
 		m_config[2] = { 0.01f, false };
 		m_fileIndex = 0;
 
-		m_closestPoint = b3Vec3_zero;
+		m_closestPoint = b3Pos_zero;
 		m_timeStamp = 1;
 		m_doOverlap = false;
 		m_doClosest = false;
@@ -510,7 +510,7 @@ public:
 		float distanceSquared = b3DistanceSquared( queryPoint, closestPoint );
 		if ( distanceSquared < minDistanceSquared )
 		{
-			sample->m_closestPoint = closestPoint;
+			sample->m_closestPoint = b3ToPos( closestPoint );
 			sample->m_haveClosest = true;
 		}
 
@@ -606,7 +606,7 @@ public:
 			b3Vec3 point = m_closestPointQueries[i].center;
 			float radius = m_closestPointQueries[i].radius;
 			float distanceSquared = radius * radius;
-			m_closestPoint = point;
+			m_closestPoint = b3ToPos( point );
 			m_haveClosest = false;
 			b3DynamicTree_QueryClosest( &m_tree, point, B3_DEFAULT_MASK_BITS, false, ClosetPointCallback, this,
 										&distanceSquared );
@@ -677,9 +677,9 @@ public:
 	{
 		Sample::Render();
 
-		DrawAxes( b3Transform_identity, 2.0f );
+		DrawAxes( b3WorldTransform_identity, 2.0f );
 
-		b3Vec3 cp = b3ToVec3( m_camera->m_worldEye );
+		b3Pos cp = m_camera->m_worldEye;
 		b3TreeNode* nodes = m_tree.nodes;
 		float distSquared = m_drawDistance * m_drawDistance * 1000.0f * 1000.0f;
 
@@ -704,7 +704,7 @@ public:
 				}
 
 				b3Vec3 c = b3AABB_Center( node->aabb );
-				if ( m_drawLevel < 10 || b3DistanceSquared( c, cp ) < distSquared )
+				if ( m_drawLevel < 10 || b3LengthSquared( b3SubPos( cp, b3ToPos( c ) ) ) < distSquared )
 				{
 					DrawBounds( node->aabb, 0.0f, MakeColor( colors[m_drawLevel % colorCount] ) );
 				}
@@ -723,7 +723,7 @@ public:
 				}
 
 				b3Vec3 c = b3AABB_Center( node->aabb );
-				if ( b3DistanceSquared( c, cp ) > distSquared )
+				if ( b3LengthSquared( b3SubPos( cp, b3ToPos( c ) ) ) > distSquared )
 				{
 					continue;
 				}
@@ -745,7 +745,7 @@ public:
 		if ( m_doRay )
 		{
 			Ray ray = m_rays[m_testIndex];
-			DrawLine( ray.origin, ray.origin + ray.translation, MakeColor( b3_colorRed ) );
+			DrawLine( b3ToPos( ray.origin ), b3ToPos( ray.origin + ray.translation ), MakeColor( b3_colorRed ) );
 		}
 
 		if ( m_doOverlap )
@@ -755,7 +755,7 @@ public:
 
 		if ( m_doClosest )
 		{
-			DrawSolidSphere( b3Transform_identity, m_closestPointQueries[m_testIndex], MakeColor( b3_colorCyan ) );
+			DrawSolidSphere( b3WorldTransform_identity, m_closestPointQueries[m_testIndex], MakeColor( b3_colorCyan ) );
 			if ( m_haveClosest )
 			{
 				DrawPoint( m_closestPoint, 15.0f, MakeColor( b3_colorOrange ) );
@@ -786,7 +786,7 @@ public:
 			b3Vec3 point = m_closestPointQueries[m_testIndex].center;
 			float radius = m_closestPointQueries[m_testIndex].radius;
 			float distanceSquared = radius * radius;
-			m_closestPoint = point;
+			m_closestPoint = b3ToPos( point );
 			m_haveClosest = false;
 			b3DynamicTree_QueryClosest( &m_tree, point, B3_DEFAULT_MASK_BITS, false, ClosetPointCallback, this,
 										&distanceSquared );
@@ -825,7 +825,7 @@ public:
 	Ray m_rays[m_testCount];
 	b3AABB m_overlapQueries[m_testCount];
 	b3Sphere m_closestPointQueries[m_testCount];
-	b3Vec3 m_closestPoint;
+	b3Pos m_closestPoint;
 	float m_areaRatio;
 	float m_rayTime;
 	float m_overlapTime;

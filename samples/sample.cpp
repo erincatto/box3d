@@ -449,9 +449,9 @@ void Sample::Render()
 	// Generous visible volume around the eye. Box3D uses this to decide which shapes enter the
 	// draw set and lazily fire createDebugShape. The cull bounds live in absolute world space to
 	// match the broad-phase tree; the draw origin is the world eye.
-	b3Vec3 center = b3ToVec3( m_drawOrigin );
 	b3Vec3 r = { 1000.0f, 1000.0f, 1000.0f };
-	debugDraw.drawingBounds = { center - r, center + r };
+	b3Vec3 eye = b3ToVec3( m_drawOrigin );
+	debugDraw.drawingBounds = { b3Sub( eye, r ), b3Add( eye, r ) };
 
 	ApplyGuiFlags( &debugDraw );
 
@@ -1772,7 +1772,7 @@ static void DrawInfoPanel( SampleContext* context )
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", context->sample->m_stepCount );
 	ImGui::Separator();
 
-	b3Vec3 p = b3ToVec3( context->camera.m_pivot );
+	b3Pos p = context->camera.m_pivot;
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "pivot (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
 	float yawDeg = B3_RAD_TO_DEG * context->camera.m_yaw;
 	float pitchDeg = B3_RAD_TO_DEG * context->camera.m_pitch;
@@ -2005,17 +2005,17 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 
 	float pogoRestLength = 3.0f * m_capsule.radius;
 	float rayLength = pogoRestLength + m_capsule.radius;
-	b3Vec3 rayOrigin = b3TransformPoint( m_transform, m_capsule.center1 );
+	b3Pos rayOrigin = b3TransformWorldPoint( b3MakeWorldTransform( m_transform ), m_capsule.center1 );
 	b3Vec3 rayTranslation = -rayLength * b3Vec3_axisY;
 	b3QueryFilter skipTeamFilter = { 1, ~2u };
-	b3RayResult rayResult = b3World_CastRayClosest( worldId, b3ToPos( rayOrigin ), rayTranslation, skipTeamFilter );
+	b3RayResult rayResult = b3World_CastRayClosest( worldId, rayOrigin, rayTranslation, skipTeamFilter );
 
 	if ( rayResult.hit == false )
 	{
 		m_onGround = false;
 		m_pogoVelocity = 0.0f;
 
-		DrawLine( rayOrigin, rayOrigin + rayTranslation, MakeColor( b3_colorGray ) );
+		DrawLine( rayOrigin, b3OffsetPos( rayOrigin, rayTranslation ), MakeColor( b3_colorGray ) );
 	}
 	else
 	{
@@ -2029,7 +2029,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 
 		m_pogoVelocity = ( m_pogoVelocity - omega * omegaH * ( pogoCurrentLength - pogoRestLength ) ) /
 						 ( 1.0f + 2.0f * zeta * omegaH + omegaH * omegaH );
-		DrawLine( rayOrigin, b3ToVec3( rayResult.point ), MakeColor( b3_colorGreen ) );
+		DrawLine( rayOrigin, rayResult.point, MakeColor( b3_colorGreen ) );
 	}
 
 	b3Vec3 startPosition = m_transform.p;
@@ -2089,8 +2089,8 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		float invMassB = b3Body_GetInverseMass( bodyId );
 		b3Matrix3 invIB = b3Body_GetWorldInverseRotationalInertia( bodyId );
 
-		b3Vec3 pB = b3ToVec3( b3Body_GetWorldCenterOfMass( bodyId ) );
-		b3Vec3 rB = point - pB;
+		b3Pos pB = b3Body_GetWorldCenterOfMass( bodyId );
+		b3Vec3 rB = b3SubPos( b3ToPos( point ), pB );
 
 		b3Vec3 rnB = b3Cross( rB, normal );
 		float kNormal = invMassA + invMassB + b3Dot( rnB, b3MulMV( invIB, rnB ) );
@@ -2191,12 +2191,12 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 		b3Plane plane = m_planes[i].plane;
 		b3Vec3 p1 = m_transform.p + ( plane.offset - m_capsule.radius ) * plane.normal;
 		b3Vec3 p2 = p1 + 0.1f * plane.normal;
-		DrawPoint( p1, 5.0f, MakeColor( b3_colorYellow ) );
-		DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
+		DrawPoint( b3ToPos( p1 ), 5.0f, MakeColor( b3_colorYellow ) );
+		DrawLine( b3ToPos( p1 ), b3ToPos( p2 ), MakeColor( b3_colorYellow ) );
 	}
 
-	DrawSolidCapsule( m_transform, m_capsule, MakeColor( b3_colorBlue ) );
-	DrawLine( m_transform.p, m_transform.p + m_velocity, MakeColor( b3_colorPurple ) );
+	DrawSolidCapsule( b3MakeWorldTransform( m_transform ), m_capsule, MakeColor( b3_colorBlue ) );
+	DrawLine( b3ToPos( m_transform.p ), b3ToPos( m_transform.p + m_velocity ), MakeColor( b3_colorPurple ) );
 
 	m_ignoreShapeIds = nullptr;
 	m_ignoreCount = 0;

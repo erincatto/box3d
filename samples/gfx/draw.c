@@ -10,82 +10,96 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-// World position every host draw demotes against. The host points it at the camera eye each
+// World position every draw demotes against. The host points it at the camera eye each
 // frame, so the shift happens in double far from the origin and the overlay and impostor
 // primitives only ever see small coordinates. Zero by default, which makes the demotion an
 // identity and matches absolute coordinates.
 static b3Pos s_drawOrigin;
 
-// Shift a world point into the draw-origin-relative frame the primitives render in. The leaf
-// draws below funnel every host overlay and impostor through this, so samples pass plain world
-// coordinates and never touch the origin themselves.
-static inline b3Vec3 ToDrawRelative( b3Vec3 worldPoint )
+// Shift a world position into the draw-origin-relative frame the primitives render in.
+static inline b3Vec3 ToRelative( b3Pos worldPoint )
 {
-	return b3SubPos( b3ToPos( worldPoint ), s_drawOrigin );
+	return b3SubPos( worldPoint, s_drawOrigin );
 }
 
-void DrawCubeEx( b3Transform transform, b3Vec3 scale, Vec4 baseColor, float metallic, float roughness,
+// Shift a world transform into the relative frame. Rotation rides through unchanged.
+static inline b3Transform ToRelativeFrame( b3WorldTransform transform )
+{
+	return b3ToRelativeTransform( transform, s_drawOrigin );
+}
+
+void SetDrawOrigin( b3Pos origin )
+{
+	s_drawOrigin = origin;
+}
+
+b3Pos GetDrawOrigin( void )
+{
+	return s_drawOrigin;
+}
+
+void DrawCubeEx( b3WorldTransform transform, b3Vec3 scale, Vec4 baseColor, float metallic, float roughness,
 				 TransparentShadowCast shadowCast )
 {
-	transform.p = ToDrawRelative( transform.p );
-	AppendCube( transform, scale, baseColor, metallic, roughness, shadowCast );
+	AppendCube( ToRelativeFrame( transform ), scale, baseColor, metallic, roughness, shadowCast );
 }
 
-void DrawCube( b3Transform transform, b3Vec3 scale, Vec4 baseColor )
+void DrawCube( b3WorldTransform transform, b3Vec3 scale, Vec4 baseColor )
 {
 	DrawCubeEx( transform, scale, baseColor, DEFAULT_METALLIC, DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_FULL );
 }
 
-void DrawSphereEx( b3Transform transform, float radius, Vec4 baseColor, float metallic, float roughness,
+void DrawSphereEx( b3WorldTransform transform, float radius, Vec4 baseColor, float metallic, float roughness,
 				   TransparentShadowCast shadowCast )
 {
-	transform.p = ToDrawRelative( transform.p );
-	AppendSphere( transform, radius, baseColor, metallic, roughness, shadowCast );
+	AppendSphere( ToRelativeFrame( transform ), radius, baseColor, metallic, roughness, shadowCast );
 }
 
-void DrawSphere( b3Transform transform, float radius, Vec4 baseColor )
+void DrawSphere( b3WorldTransform transform, float radius, Vec4 baseColor )
 {
 	DrawSphereEx( transform, radius, baseColor, DEFAULT_METALLIC, DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_FULL );
 }
 
-void DrawCapsuleEx( b3Transform transform, float halfLength, float radius, Vec4 baseColor, float metallic, float roughness,
+void DrawCapsuleEx( b3WorldTransform transform, float halfLength, float radius, Vec4 baseColor, float metallic, float roughness,
 					TransparentShadowCast shadowCast )
 {
-	transform.p = ToDrawRelative( transform.p );
-	AppendCapsule( transform, halfLength, radius, baseColor, metallic, roughness, shadowCast );
+	AppendCapsule( ToRelativeFrame( transform ), halfLength, radius, baseColor, metallic, roughness, shadowCast );
 }
 
-void DrawCapsule( b3Transform transform, float halfLength, float radius, Vec4 baseColor )
+void DrawCapsule( b3WorldTransform transform, float halfLength, float radius, Vec4 baseColor )
 {
 	DrawCapsuleEx( transform, halfLength, radius, baseColor, DEFAULT_METALLIC, DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_FULL );
 }
 
-void DrawSolidSphere( b3Transform transform, b3Sphere sphere, Vec4 color )
+void DrawSolidSphere( b3WorldTransform transform, b3Sphere sphere, Vec4 color )
 {
-	b3Transform world = { b3TransformPoint( transform, sphere.center ), transform.q };
-	DrawSphere( world, sphere.radius, color );
+	b3Transform rel = ToRelativeFrame( transform );
+	b3Transform world = { b3TransformPoint( rel, sphere.center ), rel.q };
+	AppendSphere( world, sphere.radius, color, DEFAULT_METALLIC, DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_FULL );
 }
 
-void DrawSolidCapsule( b3Transform transform, b3Capsule capsule, Vec4 color )
+void DrawSolidCapsule( b3WorldTransform transform, b3Capsule capsule, Vec4 color )
 {
-	b3Vec3 c1 = b3TransformPoint( transform, capsule.center1 );
-	b3Vec3 c2 = b3TransformPoint( transform, capsule.center2 );
+	b3Transform rel = ToRelativeFrame( transform );
+	b3Vec3 c1 = b3TransformPoint( rel, capsule.center1 );
+	b3Vec3 c2 = b3TransformPoint( rel, capsule.center2 );
 	b3Vec3 axis = b3Sub( c2, c1 );
 	float length = b3Length( axis );
 
 	// Impostor cylinder runs along local +X, so align +X with the capsule axis.
-	b3Quat q = transform.q;
+	b3Quat q = rel.q;
 	if ( length > 1e-6f )
 	{
 		q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisX, b3MulSV( 1.0f / length, axis ) );
 	}
 
 	b3Transform world = { b3MulSV( 0.5f, b3Add( c1, c2 ) ), q };
-	DrawCapsule( world, 0.5f * length, capsule.radius, color );
+	AppendCapsule( world, 0.5f * length, capsule.radius, color, DEFAULT_METALLIC, DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_FULL );
 }
 
-void DrawHull( b3Transform transform, const b3HullData* hull, Vec4 color )
+void DrawHull( b3WorldTransform transform, const b3HullData* hull, Vec4 color )
 {
+	b3Transform rel = ToRelativeFrame( transform );
 	const b3Vec3* points = b3GetHullPoints( hull );
 	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
 
@@ -96,55 +110,59 @@ void DrawHull( b3Transform transform, const b3HullData* hull, Vec4 color )
 		{
 			continue;
 		}
-		b3Vec3 p1 = b3TransformPoint( transform, points[edges[i].origin] );
-		b3Vec3 p2 = b3TransformPoint( transform, points[edges[edges[i].twin].origin] );
-		DrawLine( p1, p2, color );
+		b3Vec3 p1 = b3TransformPoint( rel, points[edges[i].origin] );
+		b3Vec3 p2 = b3TransformPoint( rel, points[edges[edges[i].twin].origin] );
+		OverlayAppendLine( p1, p2, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 	}
 }
 
-void DrawPlane( b3Vec3 normal, b3Vec3 point, Vec4 color )
+void DrawPlane( b3Vec3 normal, b3Pos point, Vec4 color )
 {
+	b3Vec3 c = ToRelative( point );
 	b3Vec3 perp1 = b3Perp( normal );
 	b3Vec3 perp2 = b3Cross( perp1, normal );
-	b3Vec3 p1 = b3Add( point, b3Add( perp1, perp2 ) );
-	b3Vec3 p2 = b3Add( point, b3Sub( perp2, perp1 ) );
-	b3Vec3 p3 = b3Sub( point, b3Add( perp1, perp2 ) );
-	b3Vec3 p4 = b3Add( point, b3Sub( perp1, perp2 ) );
-	DrawLine( p1, p2, color );
-	DrawLine( p2, p3, color );
-	DrawLine( p3, p4, color );
-	DrawLine( p4, p1, color );
-	DrawLine( point, b3Add( point, b3MulSV( 0.5f, normal ) ), color );
-	DrawPoint( point, 10.0f, color );
+	b3Vec3 p1 = b3Add( c, b3Add( perp1, perp2 ) );
+	b3Vec3 p2 = b3Add( c, b3Sub( perp2, perp1 ) );
+	b3Vec3 p3 = b3Sub( c, b3Add( perp1, perp2 ) );
+	b3Vec3 p4 = b3Add( c, b3Sub( perp1, perp2 ) );
+	float th = DEFAULT_LINE_THICKNESS_PX;
+	OverlayAppendLine( p1, p2, color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	OverlayAppendLine( p2, p3, color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	OverlayAppendLine( p3, p4, color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	OverlayAppendLine( p4, p1, color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	OverlayAppendLine( c, b3Add( c, b3MulSV( 0.5f, normal ) ), color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	OverlayAppendPoint( c, color, 10.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DIM );
 }
 
-void DrawLineEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
+void DrawLineEx( b3Pos a, b3Pos b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
 				 OverlayOcclusionMode occlusionMode )
 {
-	OverlayAppendLine( ToDrawRelative( a ), ToDrawRelative( b ), color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( ToRelative( a ), ToRelative( b ), color, thickness, thicknessUnit, occlusionMode );
 }
 
-void DrawLine( b3Vec3 a, b3Vec3 b, Vec4 color )
+void DrawLine( b3Pos a, b3Pos b, Vec4 color )
 {
 	DrawLineEx( a, b, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 }
 
-void DrawPointEx( b3Vec3 p, Vec4 color, float size, OverlayThicknessUnit sizeUnit, OverlayOcclusionMode occlusionMode )
+void DrawPointEx( b3Pos p, Vec4 color, float size, OverlayThicknessUnit sizeUnit, OverlayOcclusionMode occlusionMode )
 {
-	OverlayAppendPoint( ToDrawRelative( p ), color, size, sizeUnit, occlusionMode );
+	OverlayAppendPoint( ToRelative( p ), color, size, sizeUnit, occlusionMode );
 }
 
-void DrawPoint( b3Vec3 p, float size, Vec4 color )
+void DrawPoint( b3Pos p, float size, Vec4 color )
 {
 	DrawPointEx( p, color, size, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DIM );
 }
 
-void DrawArrowEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
+void DrawArrowEx( b3Pos a, b3Pos b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
 				  OverlayOcclusionMode occlusionMode, float headLengthFrac )
 {
-	DrawLineEx( a, b, color, thickness, thicknessUnit, occlusionMode );
+	b3Vec3 tail = ToRelative( a );
+	b3Vec3 tip = ToRelative( b );
+	OverlayAppendLine( tail, tip, color, thickness, thicknessUnit, occlusionMode );
 
-	b3Vec3 shaft = b3Sub( b, a );
+	b3Vec3 shaft = b3Sub( tip, tail );
 	float shaftLen = b3Length( shaft );
 	if ( shaftLen < 1e-6f )
 	{
@@ -156,31 +174,32 @@ void DrawArrowEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThickn
 
 	b3Vec3 backFromTip = b3MulSV( -headLen, dir );
 	b3Vec3 sideStep = b3MulSV( headLen * 0.5f, perp );
-	b3Vec3 tip1 = b3Add( b, b3Add( backFromTip, sideStep ) );
-	b3Vec3 tip2 = b3Add( b, b3Sub( backFromTip, sideStep ) );
-	DrawLineEx( b, tip1, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( b, tip2, color, thickness, thicknessUnit, occlusionMode );
+	b3Vec3 tip1 = b3Add( tip, b3Add( backFromTip, sideStep ) );
+	b3Vec3 tip2 = b3Add( tip, b3Sub( backFromTip, sideStep ) );
+	OverlayAppendLine( tip, tip1, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( tip, tip2, color, thickness, thicknessUnit, occlusionMode );
 }
 
-void DrawArrow( b3Vec3 a, b3Vec3 b, Vec4 color )
+void DrawArrow( b3Pos a, b3Pos b, Vec4 color )
 {
 	DrawArrowEx( a, b, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE,
 				 DEFAULT_ARROW_HEAD_FRAC );
 }
 
-void DrawCrossEx( b3Vec3 center, float size, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
+void DrawCrossEx( b3Pos center, float size, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
 				  OverlayOcclusionMode occlusionMode )
 {
+	b3Vec3 c = ToRelative( center );
 	float h = size * 0.5f;
-	DrawLineEx( (b3Vec3){ center.x - h, center.y, center.z }, (b3Vec3){ center.x + h, center.y, center.z }, color, thickness,
-				thicknessUnit, occlusionMode );
-	DrawLineEx( (b3Vec3){ center.x, center.y - h, center.z }, (b3Vec3){ center.x, center.y + h, center.z }, color, thickness,
-				thicknessUnit, occlusionMode );
-	DrawLineEx( (b3Vec3){ center.x, center.y, center.z - h }, (b3Vec3){ center.x, center.y, center.z + h }, color, thickness,
-				thicknessUnit, occlusionMode );
+	OverlayAppendLine( (b3Vec3){ c.x - h, c.y, c.z }, (b3Vec3){ c.x + h, c.y, c.z }, color, thickness, thicknessUnit,
+					   occlusionMode );
+	OverlayAppendLine( (b3Vec3){ c.x, c.y - h, c.z }, (b3Vec3){ c.x, c.y + h, c.z }, color, thickness, thicknessUnit,
+					   occlusionMode );
+	OverlayAppendLine( (b3Vec3){ c.x, c.y, c.z - h }, (b3Vec3){ c.x, c.y, c.z + h }, color, thickness, thicknessUnit,
+					   occlusionMode );
 }
 
-void DrawCross( b3Vec3 center, float size, Vec4 color )
+void DrawCross( b3Pos center, float size, Vec4 color )
 {
 	DrawCrossEx( center, size, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 }
@@ -188,31 +207,32 @@ void DrawCross( b3Vec3 center, float size, Vec4 color )
 void DrawAabbEx( b3Vec3 mn, b3Vec3 mx, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
 				 OverlayOcclusionMode occlusionMode )
 {
-	// 8 corners of the box.
-	b3Vec3 c000 = { mn.x, mn.y, mn.z };
-	b3Vec3 c100 = { mx.x, mn.y, mn.z };
-	b3Vec3 c010 = { mn.x, mx.y, mn.z };
-	b3Vec3 c110 = { mx.x, mx.y, mn.z };
-	b3Vec3 c001 = { mn.x, mn.y, mx.z };
-	b3Vec3 c101 = { mx.x, mn.y, mx.z };
-	b3Vec3 c011 = { mn.x, mx.y, mx.z };
-	b3Vec3 c111 = { mx.x, mx.y, mx.z };
+	// The box is float world space, so promote each corner and difference against the origin in
+	// double before it demotes. Far from the origin a plain narrow could clip a corner.
+	b3Vec3 c000 = ToRelative( b3ToPos( (b3Vec3){ mn.x, mn.y, mn.z } ) );
+	b3Vec3 c100 = ToRelative( b3ToPos( (b3Vec3){ mx.x, mn.y, mn.z } ) );
+	b3Vec3 c010 = ToRelative( b3ToPos( (b3Vec3){ mn.x, mx.y, mn.z } ) );
+	b3Vec3 c110 = ToRelative( b3ToPos( (b3Vec3){ mx.x, mx.y, mn.z } ) );
+	b3Vec3 c001 = ToRelative( b3ToPos( (b3Vec3){ mn.x, mn.y, mx.z } ) );
+	b3Vec3 c101 = ToRelative( b3ToPos( (b3Vec3){ mx.x, mn.y, mx.z } ) );
+	b3Vec3 c011 = ToRelative( b3ToPos( (b3Vec3){ mn.x, mx.y, mx.z } ) );
+	b3Vec3 c111 = ToRelative( b3ToPos( (b3Vec3){ mx.x, mx.y, mx.z } ) );
 
 	// 4 bottom edges (y = mn.y).
-	DrawLineEx( c000, c100, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( c100, c101, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( c101, c001, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( c001, c000, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c000, c100, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c100, c101, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c101, c001, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c001, c000, color, thickness, thicknessUnit, occlusionMode );
 	// 4 top edges (y = mx.y).
-	DrawLineEx( c010, c110, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( c110, c111, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( c111, c011, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( c011, c010, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c010, c110, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c110, c111, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c111, c011, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c011, c010, color, thickness, thicknessUnit, occlusionMode );
 	// 4 vertical edges.
-	DrawLineEx( c000, c010, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( c100, c110, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( c101, c111, color, thickness, thicknessUnit, occlusionMode );
-	DrawLineEx( c001, c011, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c000, c010, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c100, c110, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c101, c111, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( c001, c011, color, thickness, thicknessUnit, occlusionMode );
 }
 
 void DrawAabb( b3Vec3 mn, b3Vec3 mx, Vec4 color )
@@ -226,30 +246,33 @@ void DrawBounds( b3AABB bounds, float extension, Vec4 color )
 	DrawAabb( b3Sub( bounds.lowerBound, e ), b3Add( bounds.upperBound, e ), color );
 }
 
-void DrawAxesEx( b3Transform transform, float size, float thickness, OverlayThicknessUnit thicknessUnit,
+void DrawAxesEx( b3WorldTransform transform, float size, float thickness, OverlayThicknessUnit thicknessUnit,
 				 OverlayOcclusionMode occlusionMode )
 {
-	b3Vec3 origin = transform.p;
-	b3Matrix3 basis = b3MakeMatrixFromQuat( transform.q );
-	DrawLineEx( origin, b3MulAdd( origin, size, basis.cx ), MakeVec4( 1.0f, 0.0f, 0.0f, 1.0f ), thickness, thicknessUnit,
-				occlusionMode );
-	DrawLineEx( origin, b3MulAdd( origin, size, basis.cy ), MakeVec4( 0.0f, 1.0f, 0.0f, 1.0f ), thickness, thicknessUnit,
-				occlusionMode );
-	DrawLineEx( origin, b3MulAdd( origin, size, basis.cz ), MakeVec4( 0.0f, 0.0f, 1.0f, 1.0f ), thickness, thicknessUnit,
-				occlusionMode );
+	b3Transform rel = ToRelativeFrame( transform );
+	b3Vec3 origin = rel.p;
+	b3Matrix3 basis = b3MakeMatrixFromQuat( rel.q );
+	OverlayAppendLine( origin, b3MulAdd( origin, size, basis.cx ), MakeVec4( 1.0f, 0.0f, 0.0f, 1.0f ), thickness, thicknessUnit,
+					   occlusionMode );
+	OverlayAppendLine( origin, b3MulAdd( origin, size, basis.cy ), MakeVec4( 0.0f, 1.0f, 0.0f, 1.0f ), thickness, thicknessUnit,
+					   occlusionMode );
+	OverlayAppendLine( origin, b3MulAdd( origin, size, basis.cz ), MakeVec4( 0.0f, 0.0f, 1.0f, 1.0f ), thickness, thicknessUnit,
+					   occlusionMode );
 }
 
-void DrawAxes( b3Transform transform, float size )
+void DrawAxes( b3WorldTransform transform, float size )
 {
 	DrawAxesEx( transform, size, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 }
 
-void DrawGrid( b3Vec3 center, b3Vec3 normal, float halfExtent, int divisions, Vec4 color )
+void DrawGrid( b3Pos center, b3Vec3 normal, float halfExtent, int divisions, Vec4 color )
 {
 	if ( divisions < 1 || halfExtent <= 0.0f )
 	{
 		return;
 	}
+	b3Vec3 c = ToRelative( center );
+
 	// Orthonormal in-plane axes from the normal.
 	b3Vec3 n = b3Normalize( normal );
 	b3Vec3 u = b3Normalize( b3Perp( n ) );
@@ -260,29 +283,34 @@ void DrawGrid( b3Vec3 center, b3Vec3 normal, float halfExtent, int divisions, Ve
 	{
 		const float o = -halfExtent + (float)i * step;
 		// Line spanning u at this offset along v.
-		b3Vec3 ua = b3Add( center, b3Add( b3MulSV( -halfExtent, u ), b3MulSV( o, v ) ) );
-		b3Vec3 ub = b3Add( center, b3Add( b3MulSV( halfExtent, u ), b3MulSV( o, v ) ) );
-		DrawLineEx( ua, ub, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+		b3Vec3 ua = b3Add( c, b3Add( b3MulSV( -halfExtent, u ), b3MulSV( o, v ) ) );
+		b3Vec3 ub = b3Add( c, b3Add( b3MulSV( halfExtent, u ), b3MulSV( o, v ) ) );
+		OverlayAppendLine( ua, ub, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 		// Line spanning v at this offset along u.
-		b3Vec3 va = b3Add( center, b3Add( b3MulSV( o, u ), b3MulSV( -halfExtent, v ) ) );
-		b3Vec3 vb = b3Add( center, b3Add( b3MulSV( o, u ), b3MulSV( halfExtent, v ) ) );
-		DrawLineEx( va, vb, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+		b3Vec3 va = b3Add( c, b3Add( b3MulSV( o, u ), b3MulSV( -halfExtent, v ) ) );
+		b3Vec3 vb = b3Add( c, b3Add( b3MulSV( o, u ), b3MulSV( halfExtent, v ) ) );
+		OverlayAppendLine( va, vb, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 	}
 }
 
 void DrawGroundGrid( int size )
 {
 	Vec4 color = MakeVec4( 0.3f, 0.3f, 0.3f, 1.0f );
-	DrawGrid( b3Vec3_zero, b3Vec3_axisY, (float)size, size, color );
+	DrawGrid( b3Pos_zero, b3Vec3_axisY, (float)size, size, color );
 }
 
-void DrawTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, Vec4 color )
+void DrawTriangle( b3Pos a, b3Pos b, b3Pos c, Vec4 color )
 {
-	DrawLineEx( a, b, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
-	DrawLineEx( b, c, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
-	DrawLineEx( c, a, color, DEFAULT_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	b3Vec3 ra = ToRelative( a );
+	b3Vec3 rb = ToRelative( b );
+	b3Vec3 rc = ToRelative( c );
+	float th = DEFAULT_LINE_THICKNESS_PX;
+	OverlayAppendLine( ra, rb, color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	OverlayAppendLine( rb, rc, color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
+	OverlayAppendLine( rc, ra, color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 }
 
+// Disc of `segments` lines in the plane through `center` (relative frame) with the given normal.
 static void DrawDisc( b3Vec3 center, b3Vec3 normal, float radius, int segments, Vec4 color )
 {
 	b3Vec3 tangent1 = b3Perp( normal );
@@ -301,7 +329,7 @@ static void DrawDisc( b3Vec3 center, b3Vec3 normal, float radius, int segments, 
 		float y2 = sine * x1 + cosine * y1;
 		b3Vec3 vertex2 = b3Add( center, b3Blend2( x2, tangent1, y2, tangent2 ) );
 
-		DrawLineEx( vertex1, vertex2, color, 2.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DIM );
+		OverlayAppendLine( vertex1, vertex2, color, 2.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DIM );
 
 		x1 = x2;
 		y1 = y2;
@@ -309,6 +337,7 @@ static void DrawDisc( b3Vec3 center, b3Vec3 normal, float radius, int segments, 
 	}
 }
 
+// Arc swept `maxDegrees` from `start` about `normal`, in the relative frame.
 static void DrawArc( b3Vec3 center, b3Vec3 normal, float radius, b3Vec3 start, float maxDegrees, int segments, Vec4 color )
 {
 	b3Vec3 tangent1 = b3Normalize( start );
@@ -326,7 +355,7 @@ static void DrawArc( b3Vec3 center, b3Vec3 normal, float radius, b3Vec3 start, f
 		float y2 = cs.sine * x1 + cs.cosine * y1;
 		b3Vec3 vertex2 = b3Add( center, b3Blend2( x2, tangent1, y2, tangent2 ) );
 
-		DrawLineEx( vertex1, vertex2, color, 2.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+		OverlayAppendLine( vertex1, vertex2, color, 2.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
 
 		x1 = x2;
 		y1 = y2;
@@ -334,38 +363,40 @@ static void DrawArc( b3Vec3 center, b3Vec3 normal, float radius, b3Vec3 start, f
 	}
 }
 
-void DrawWireSphere( b3Transform transform, const b3Sphere* sphere, int segments, Vec4 color )
+void DrawWireSphere( b3WorldTransform transform, const b3Sphere* sphere, int segments, Vec4 color )
 {
-	b3Vec3 center = b3TransformPoint( transform, sphere->center );
+	b3Transform rel = ToRelativeFrame( transform );
+	b3Vec3 center = b3TransformPoint( rel, sphere->center );
 	float radius = sphere->radius;
 
-	b3Vec3 axisX = b3RotateVector( transform.q, (b3Vec3){ 1.0f, 0.0f, 0.0f } );
-	b3Vec3 axisY = b3RotateVector( transform.q, (b3Vec3){ 0.0f, 1.0f, 0.0f } );
-	b3Vec3 axisZ = b3RotateVector( transform.q, (b3Vec3){ 0.0f, 0.0f, 1.0f } );
+	b3Vec3 axisX = b3RotateVector( rel.q, (b3Vec3){ 1.0f, 0.0f, 0.0f } );
+	b3Vec3 axisY = b3RotateVector( rel.q, (b3Vec3){ 0.0f, 1.0f, 0.0f } );
+	b3Vec3 axisZ = b3RotateVector( rel.q, (b3Vec3){ 0.0f, 0.0f, 1.0f } );
 
 	DrawDisc( center, axisX, radius, segments, color );
 	DrawDisc( center, axisY, radius, segments, color );
 	DrawDisc( center, axisZ, radius, segments, color );
 }
 
-void DrawWireCapsule( b3Transform transform, const b3Capsule* capsule, int segments, Vec4 color )
+void DrawWireCapsule( b3WorldTransform transform, const b3Capsule* capsule, int segments, Vec4 color )
 {
-	b3Vec3 center1 = b3TransformPoint( transform, capsule->center1 );
-	b3Vec3 center2 = b3TransformPoint( transform, capsule->center2 );
+	b3Transform rel = ToRelativeFrame( transform );
+	b3Vec3 center1 = b3TransformPoint( rel, capsule->center1 );
+	b3Vec3 center2 = b3TransformPoint( rel, capsule->center2 );
 	float radius = capsule->radius;
 
 	b3Vec3 normal = b3Normalize( b3Sub( center2, center1 ) );
 	b3Vec3 tangent1 = b3Perp( normal );
 	b3Vec3 tangent2 = b3Cross( normal, tangent1 );
 
-	DrawLineEx( b3MulAdd( center1, radius, tangent1 ), b3MulAdd( center2, radius, tangent1 ), color, 2.0f,
-				OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
-	DrawLineEx( b3MulAdd( center1, radius, tangent2 ), b3MulAdd( center2, radius, tangent2 ), color, 2.0f,
-				OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
-	DrawLineEx( b3MulSub( center1, radius, tangent1 ), b3MulSub( center2, radius, tangent1 ), color, 2.0f,
-				OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
-	DrawLineEx( b3MulSub( center1, radius, tangent2 ), b3MulSub( center2, radius, tangent2 ), color, 2.0f,
-				OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+	OverlayAppendLine( b3MulAdd( center1, radius, tangent1 ), b3MulAdd( center2, radius, tangent1 ), color, 2.0f,
+					   OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+	OverlayAppendLine( b3MulAdd( center1, radius, tangent2 ), b3MulAdd( center2, radius, tangent2 ), color, 2.0f,
+					   OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+	OverlayAppendLine( b3MulSub( center1, radius, tangent1 ), b3MulSub( center2, radius, tangent1 ), color, 2.0f,
+					   OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+	OverlayAppendLine( b3MulSub( center1, radius, tangent2 ), b3MulSub( center2, radius, tangent2 ), color, 2.0f,
+					   OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
 
 	DrawArc( center1, b3Neg( tangent1 ), radius, tangent2, 180.0f, segments / 2, color );
 	DrawArc( center1, tangent2, radius, tangent1, 180.0f, segments / 2, color );
@@ -376,81 +407,12 @@ void DrawWireCapsule( b3Transform transform, const b3Capsule* capsule, int segme
 	DrawDisc( center2, normal, radius, segments, color );
 }
 
-void DrawString3D( b3Vec3 point, Vec4 color, const char* format, ... )
+void DrawString3D( b3Pos point, Vec4 color, const char* format, ... )
 {
 	va_list args;
 	va_start( args, format );
 	char buffer[256];
 	vsnprintf( buffer, sizeof( buffer ), format, args );
 	va_end( args );
-	DrawString( ToDrawRelative( point ), color, buffer );
-}
-
-// The host draws above already demote against s_drawOrigin, so these world-coordinate wrappers
-// only narrow b3Pos inputs to float and hand them on. The engine debug draw callbacks receive
-// world coordinates too and demote through GetDrawOrigin in the adapter. Identity in float mode
-// where b3Pos aliases b3Vec3.
-void SetDrawOrigin( b3Pos origin )
-{
-	s_drawOrigin = origin;
-}
-
-b3Pos GetDrawOrigin( void )
-{
-	return s_drawOrigin;
-}
-
-void DrawWorldCube( b3WorldTransform transform, b3Vec3 scale, Vec4 color )
-{
-	DrawCube( b3ToRelativeTransform( transform, b3Pos_zero ), scale, color );
-}
-
-void DrawWorldSphere( b3WorldTransform transform, float radius, Vec4 color )
-{
-	DrawSphere( b3ToRelativeTransform( transform, b3Pos_zero ), radius, color );
-}
-
-void DrawWorldCapsule( b3WorldTransform transform, float halfLength, float radius, Vec4 color )
-{
-	DrawCapsule( b3ToRelativeTransform( transform, b3Pos_zero ), halfLength, radius, color );
-}
-
-void DrawWorldHull( b3WorldTransform transform, const b3HullData* hull, Vec4 color )
-{
-	DrawHull( b3ToRelativeTransform( transform, b3Pos_zero ), hull, color );
-}
-
-void DrawWorldLine( b3Pos a, b3Pos b, Vec4 color )
-{
-	DrawLine( b3ToVec3( a ), b3ToVec3( b ), color );
-}
-
-void DrawWorldPoint( b3Pos p, float size, Vec4 color )
-{
-	DrawPoint( b3ToVec3( p ), size, color );
-}
-
-void DrawWorldArrow( b3Pos a, b3Pos b, Vec4 color )
-{
-	DrawArrow( b3ToVec3( a ), b3ToVec3( b ), color );
-}
-
-void DrawWorldAxes( b3WorldTransform transform, float size )
-{
-	DrawAxes( b3ToRelativeTransform( transform, b3Pos_zero ), size );
-}
-
-void DrawWorldAabb( b3AABB bounds, Vec4 color )
-{
-	DrawAabb( bounds.lowerBound, bounds.upperBound, color );
-}
-
-void DrawWorldString( b3Pos point, Vec4 color, const char* format, ... )
-{
-	va_list args;
-	va_start( args, format );
-	char buffer[256];
-	vsnprintf( buffer, sizeof( buffer ), format, args );
-	va_end( args );
-	DrawString( b3SubPos( point, s_drawOrigin ), color, buffer );
+	DrawString( ToRelative( point ), color, buffer );
 }
