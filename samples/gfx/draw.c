@@ -10,14 +10,24 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-// World position the DrawWorld* helpers demote against. Host sets it to the camera focus each
-// frame so far from the origin the shift happens in double before reaching the float draws.
-// Zero by default, which makes the helpers identity and matches absolute coordinates.
+// World position every host draw demotes against. The host points it at the camera eye each
+// frame, so the shift happens in double far from the origin and the overlay and impostor
+// primitives only ever see small coordinates. Zero by default, which makes the demotion an
+// identity and matches absolute coordinates.
 static b3Pos s_drawOrigin;
+
+// Shift a world point into the draw-origin-relative frame the primitives render in. The leaf
+// draws below funnel every host overlay and impostor through this, so samples pass plain world
+// coordinates and never touch the origin themselves.
+static inline b3Vec3 ToDrawRelative( b3Vec3 worldPoint )
+{
+	return b3SubPos( b3ToPos( worldPoint ), s_drawOrigin );
+}
 
 void DrawCubeEx( b3Transform transform, b3Vec3 scale, Vec4 baseColor, float metallic, float roughness,
 				 TransparentShadowCast shadowCast )
 {
+	transform.p = ToDrawRelative( transform.p );
 	AppendCube( transform, scale, baseColor, metallic, roughness, shadowCast );
 }
 
@@ -29,6 +39,7 @@ void DrawCube( b3Transform transform, b3Vec3 scale, Vec4 baseColor )
 void DrawSphereEx( b3Transform transform, float radius, Vec4 baseColor, float metallic, float roughness,
 				   TransparentShadowCast shadowCast )
 {
+	transform.p = ToDrawRelative( transform.p );
 	AppendSphere( transform, radius, baseColor, metallic, roughness, shadowCast );
 }
 
@@ -40,6 +51,7 @@ void DrawSphere( b3Transform transform, float radius, Vec4 baseColor )
 void DrawCapsuleEx( b3Transform transform, float halfLength, float radius, Vec4 baseColor, float metallic, float roughness,
 					TransparentShadowCast shadowCast )
 {
+	transform.p = ToDrawRelative( transform.p );
 	AppendCapsule( transform, halfLength, radius, baseColor, metallic, roughness, shadowCast );
 }
 
@@ -109,7 +121,7 @@ void DrawPlane( b3Vec3 normal, b3Vec3 point, Vec4 color )
 void DrawLineEx( b3Vec3 a, b3Vec3 b, Vec4 color, float thickness, OverlayThicknessUnit thicknessUnit,
 				 OverlayOcclusionMode occlusionMode )
 {
-	OverlayAppendLine( a, b, color, thickness, thicknessUnit, occlusionMode );
+	OverlayAppendLine( ToDrawRelative( a ), ToDrawRelative( b ), color, thickness, thicknessUnit, occlusionMode );
 }
 
 void DrawLine( b3Vec3 a, b3Vec3 b, Vec4 color )
@@ -119,7 +131,7 @@ void DrawLine( b3Vec3 a, b3Vec3 b, Vec4 color )
 
 void DrawPointEx( b3Vec3 p, Vec4 color, float size, OverlayThicknessUnit sizeUnit, OverlayOcclusionMode occlusionMode )
 {
-	OverlayAppendPoint( p, color, size, sizeUnit, occlusionMode );
+	OverlayAppendPoint( ToDrawRelative( p ), color, size, sizeUnit, occlusionMode );
 }
 
 void DrawPoint( b3Vec3 p, float size, Vec4 color )
@@ -371,12 +383,12 @@ void DrawString3D( b3Vec3 point, Vec4 color, const char* format, ... )
 	char buffer[256];
 	vsnprintf( buffer, sizeof( buffer ), format, args );
 	va_end( args );
-	DrawString( point, color, buffer );
+	DrawString( ToDrawRelative( point ), color, buffer );
 }
 
-// World space draws. The host points s_drawOrigin at the camera focus, so the subtraction here
-// happens in double and the float draws below only ever see coordinates near the origin. Identity
-// in float mode where b3Pos aliases b3Vec3 and the origin is zero.
+// The host draws above already demote against s_drawOrigin, so these world-coordinate wrappers
+// only narrow b3Pos inputs to float and hand them on. The engine debug draw path remains the
+// double precision boundary for large worlds. Identity in float mode where b3Pos aliases b3Vec3.
 void SetDrawOrigin( b3Pos origin )
 {
 	s_drawOrigin = origin;
@@ -384,49 +396,47 @@ void SetDrawOrigin( b3Pos origin )
 
 void DrawWorldCube( b3WorldTransform transform, b3Vec3 scale, Vec4 color )
 {
-	DrawCube( b3ToRelativeTransform( transform, s_drawOrigin ), scale, color );
+	DrawCube( b3ToRelativeTransform( transform, b3Pos_zero ), scale, color );
 }
 
 void DrawWorldSphere( b3WorldTransform transform, float radius, Vec4 color )
 {
-	DrawSphere( b3ToRelativeTransform( transform, s_drawOrigin ), radius, color );
+	DrawSphere( b3ToRelativeTransform( transform, b3Pos_zero ), radius, color );
 }
 
 void DrawWorldCapsule( b3WorldTransform transform, float halfLength, float radius, Vec4 color )
 {
-	DrawCapsule( b3ToRelativeTransform( transform, s_drawOrigin ), halfLength, radius, color );
+	DrawCapsule( b3ToRelativeTransform( transform, b3Pos_zero ), halfLength, radius, color );
 }
 
 void DrawWorldHull( b3WorldTransform transform, const b3HullData* hull, Vec4 color )
 {
-	DrawHull( b3ToRelativeTransform( transform, s_drawOrigin ), hull, color );
+	DrawHull( b3ToRelativeTransform( transform, b3Pos_zero ), hull, color );
 }
 
 void DrawWorldLine( b3Pos a, b3Pos b, Vec4 color )
 {
-	DrawLine( b3SubPos( a, s_drawOrigin ), b3SubPos( b, s_drawOrigin ), color );
+	DrawLine( b3ToVec3( a ), b3ToVec3( b ), color );
 }
 
 void DrawWorldPoint( b3Pos p, float size, Vec4 color )
 {
-	DrawPoint( b3SubPos( p, s_drawOrigin ), size, color );
+	DrawPoint( b3ToVec3( p ), size, color );
 }
 
 void DrawWorldArrow( b3Pos a, b3Pos b, Vec4 color )
 {
-	DrawArrow( b3SubPos( a, s_drawOrigin ), b3SubPos( b, s_drawOrigin ), color );
+	DrawArrow( b3ToVec3( a ), b3ToVec3( b ), color );
 }
 
 void DrawWorldAxes( b3WorldTransform transform, float size )
 {
-	DrawAxes( b3ToRelativeTransform( transform, s_drawOrigin ), size );
+	DrawAxes( b3ToRelativeTransform( transform, b3Pos_zero ), size );
 }
 
 void DrawWorldAabb( b3AABB bounds, Vec4 color )
 {
-	b3Vec3 lower = b3SubPos( b3ToPos( bounds.lowerBound ), s_drawOrigin );
-	b3Vec3 upper = b3SubPos( b3ToPos( bounds.upperBound ), s_drawOrigin );
-	DrawAabb( lower, upper, color );
+	DrawAabb( bounds.lowerBound, bounds.upperBound, color );
 }
 
 void DrawWorldString( b3Pos point, Vec4 color, const char* format, ... )

@@ -33,12 +33,15 @@ public:
 		BuildScene();
 	}
 
-	// Place the ground and stack at the current offset and point the draw origin at them so the
-	// float renderer works in a small relative frame.
+	// Place the ground and stack at the current offset and aim the camera at them. The draw origin
+	// rides the camera eye, so the float renderer works in a small relative frame near the content
+	// no matter how large the offset.
 	void BuildScene()
 	{
 		b3Pos base = { 1000.0f * m_offsetKilometers, 0.0f, 0.0f };
-		m_drawOrigin = base;
+		m_base = base;
+		m_camera->m_pivot = b3OffsetPos( base, { 0.0f, 2.0f, 0.0f } );
+		m_camera->UpdateTransform();
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.name = "ground";
@@ -96,7 +99,7 @@ public:
 
 		// Height of the top box above the ground, measured in the offset's own frame. This holds
 		// steady at any offset under double precision and drifts once float runs out of resolution.
-		b3Vec3 top = b3SubPos( b3Body_GetWorldCenterOfMass( m_topBodyId ), m_drawOrigin );
+		b3Vec3 top = b3SubPos( b3Body_GetWorldCenterOfMass( m_topBodyId ), m_base );
 
 		DrawTextLine( "double precision: %s", b3IsDoublePrecision() ? "ON" : "OFF" );
 		DrawTextLine( "world offset: %.1f km", m_offsetKilometers );
@@ -111,6 +114,7 @@ public:
 	float m_offsetKilometers;
 	int m_columnCount;
 	b3BodyId m_topBodyId;
+	b3Pos m_base; // world position of the offset content, the frame the height readout uses
 };
 
 static int sampleLargeWorld = RegisterSample( "World", "Large World", LargeWorld::Create );

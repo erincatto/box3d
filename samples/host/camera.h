@@ -106,12 +106,12 @@ public:
 
 	void SetPivot( b3Vec3 pivot )
 	{
-		m_pivot = pivot;
+		m_pivot = b3ToPos( pivot );
 	}
 	// Forwarder for existing render3d call sites.
 	void SetTarget( b3Vec3 target )
 	{
-		m_pivot = target;
+		m_pivot = b3ToPos( target );
 	}
 
 	// Frame an AABB: keep current yaw/pitch, move pivot to the AABB center,
@@ -145,7 +145,7 @@ public:
 
 	// b3AABB GetViewBounds() consts;
 
-	b3Vec3 m_pivot;
+	b3Pos m_pivot; // look-at point, world space. Double precision so it stays exact far from origin.
 	float m_yaw;	// radians, around Y
 	float m_pitch;	// radians, around camera-frame X
 	float m_radius; // meters from pivot
@@ -169,7 +169,12 @@ public:
 	// Cached basis: forward is +view-Z, i.e. pivot->eye) refreshed
 	// alongside m_view / m_viewInv whenever yaw/pitch/pivot/radius change.
 	// These let consumers (picking, shadow frustum) skip re-inverting m_view.
+	//
+	// The view is built in the eye-relative frame, so m_position (the eye in that
+	// frame) is always zero and the view matrix is translation free. m_worldEye is
+	// the eye in world space, the draw origin the sample renders and picks against.
 	b3Vec3 m_position;
+	b3Pos m_worldEye;
 	b3Vec3 m_right;
 	b3Vec3 m_up;
 	b3Vec3 m_forward;

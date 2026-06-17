@@ -52,14 +52,15 @@ static void RebuildBasisAndView( Camera& c )
 	const b3Vec3 upUnnorm = b3Sub( worldUp, b3MulSV( b3Dot( worldUp, forward ), forward ) );
 	const b3Vec3 up = b3Normalize( upUnnorm );
 	const b3Vec3 right = b3Normalize( b3Cross( up, forward ) );
-	const b3Vec3 position = { c.m_pivot.x + forward.x * c.m_radius, c.m_pivot.y + forward.y * c.m_radius,
-							  c.m_pivot.z + forward.z * c.m_radius };
 
-	c.m_position = position;
+	// Eye in world space is the draw origin. Building the view in that relative frame puts the eye
+	// at the origin, so the view matrix carries no translation and stays exact far from the origin.
+	c.m_worldEye = b3OffsetPos( c.m_pivot, b3MulSV( c.m_radius, forward ) );
+	c.m_position = b3Vec3_zero;
 	c.m_right = right;
 	c.m_up = up;
 	c.m_forward = forward;
-	MakeViewAndInverse( &c.m_view, &c.m_viewInv, right, up, forward, position );
+	MakeViewAndInverse( &c.m_view, &c.m_viewInv, right, up, forward, c.m_position );
 }
 
 Camera::Camera()
@@ -75,6 +76,7 @@ Camera::Camera()
 	, m_height( 0 )
 	, m_thirdPerson( false )
 	, m_position{ 0.0f, 0.0f, 0.0f }
+	, m_worldEye{ 0.0f, 0.0f, 0.0f }
 	, m_right{ 1.0f, 0.0f, 0.0f }
 	, m_up{ 0.0f, 1.0f, 0.0f }
 	, m_forward{ 0.0f, 0.0f, 1.0f }
@@ -103,7 +105,7 @@ void Camera::Frame( b3AABB aabb, float aspect, float padding )
 	b3Vec3 center = b3AABB_Center( aabb );
 	b3Vec3 ext = b3AABB_Extents( aabb ); // half-extents
 	float r = sqrtf( ext.x * ext.x + ext.y * ext.y + ext.z * ext.z );
-	m_pivot = center;
+	m_pivot = b3ToPos( center );
 	if ( r < 1.0e-6f )
 	{
 		// Point-like; preserve current radius, just retarget. The cached
@@ -344,9 +346,9 @@ void Camera::Update( float dt, int width, int height )
 	{
 		// Snapshot eye BEFORE rotating so yaw/pitch pivot around the eye
 		// (FPS) instead of around m_pivot (orbit). After rotation we
-		// back-derive m_pivot from this preserved eye so Position()
-		// returns the same point regardless of look angle.
-		const b3Vec3 eyeBefore = Position();
+		// back-derive m_pivot from this preserved eye so the eye stays put
+		// regardless of look angle.
+		const b3Pos eyeBefore = b3OffsetPos( m_pivot, b3MulSV( m_radius, ForwardFromAngles( m_yaw, m_pitch ) ) );
 
 		// FPS look: drag right -> yaw decreases (turn head right, scene
 		// shifts left); drag down -> pitch increases (look down). Box3D's
@@ -374,7 +376,7 @@ void Camera::Update( float dt, int width, int height )
 		if ( m_aDown )
 			wasdR -= 1.0f;
 
-		b3Vec3 eye = eyeBefore;
+		b3Pos eye = eyeBefore;
 		if ( wasdF != 0.0f || wasdR != 0.0f )
 		{
 			// Right = normalize(worldUp x forward), matching Box3D's

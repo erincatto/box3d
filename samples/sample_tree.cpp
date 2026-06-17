@@ -679,7 +679,7 @@ public:
 
 		DrawAxes( b3Transform_identity, 2.0f );
 
-		b3Vec3 cp = m_camera->GetPosition();
+		b3Vec3 cp = b3ToVec3( m_camera->m_worldEye );
 		b3TreeNode* nodes = m_tree.nodes;
 		float distSquared = m_drawDistance * m_drawDistance * 1000.0f * 1000.0f;
 

@@ -2603,7 +2603,7 @@ public:
 		if ( m_camera->m_thirdPerson )
 		{
 			b3WorldTransform transform = b3Body_GetTransform( m_chassisId );
-			m_camera->m_pivot = b3ToVec3( transform.p );
+			m_camera->m_pivot = transform.p;
 			m_camera->UpdateTransform();
 		}
 

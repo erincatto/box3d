@@ -1569,44 +1569,43 @@ public:
 		// Post-step: re-categorize ground and apply corrections
 		m_character.LateStep( timeStep );
 
-		// Update camera pivot to follow character
-		b3Vec3 pos = b3ToVec3( b3Body_GetPosition( m_character.m_bodyId ) );
+		// Follow the character with the camera.
+		b3Pos charPos = b3Body_GetPosition( m_character.m_bodyId );
+		b3Vec3 pos = b3ToVec3( charPos );
 		if ( m_camera->m_thirdPerson )
 		{
-			m_camera->m_pivot = pos;
+			m_camera->m_pivot = charPos;
 			m_camera->UpdateTransform();
 
-			// Sphere collision: cast a sphere from pivot toward camera position
-			// to prevent clipping through geometry
+			// Keep the eye from clipping through geometry. Cast from the character toward the eye
+			// and, on a hit, shorten the boom for this frame only. Restoring the radius lets the
+			// next frame start from the user's chosen distance instead of ratcheting inward.
 			float cameraRadius = 0.15f;
-			b3Vec3 desiredPos = m_camera->m_position;
-			b3Vec3 translation = desiredPos - pos;
+			b3Vec3 translation = b3SubPos( m_camera->m_worldEye, charPos );
 			float desiredDist = b3Length( translation );
 
 			if ( desiredDist > 0.01f )
 			{
-				// Single-point sphere proxy (sphere = 1 point + radius)
-				b3Vec3 sphereCenter = pos;
-				b3ShapeProxy proxy;
-				proxy.points = &sphereCenter;
-				proxy.count = 1;
-				proxy.radius = cameraRadius;
-
 				b3QueryFilter filter = b3DefaultQueryFilter();
-				b3RayResult rayResult = b3World_CastRayClosest( m_worldId, b3ToPos( pos ), translation, filter );
+				b3RayResult rayResult = b3World_CastRayClosest( m_worldId, charPos, translation, filter );
 
 				if ( rayResult.hit )
 				{
-					// Pull camera in front of the hit point
 					float clampedDist = rayResult.fraction * desiredDist - cameraRadius;
 					if ( clampedDist < 0.1f )
 						clampedDist = 0.1f;
 
-					b3Vec3 dir = { translation.x / desiredDist, translation.y / desiredDist, translation.z / desiredDist };
-					m_camera->m_position = pos + clampedDist * dir;
+					float savedRadius = m_camera->m_radius;
+					m_camera->m_radius = b3MinFloat( savedRadius, clampedDist );
+					m_camera->UpdateTransform();
+					m_camera->m_radius = savedRadius;
 				}
 			}
 		}
+
+		// Latch the draw origin to the followed eye so the debug overlays demote against the same
+		// point the view renders from.
+		SyncDrawOrigin();
 
 		// Debug visualization
 		if ( m_showDebug )

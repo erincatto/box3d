@@ -345,13 +345,19 @@ void Sample::ResetText()
 	}
 }
 
+void Sample::SyncDrawOrigin()
+{
+	m_drawOrigin = m_camera->m_worldEye;
+	SetDrawOrigin( m_drawOrigin );
+}
+
 void Sample::Step()
 {
 	m_didStep = false;
 
-	// Host overlays demote against the same origin the engine uses for debug shapes, so the
-	// DrawWorld* helpers issued during the step stay precise far from the world origin.
-	SetDrawOrigin( m_drawOrigin );
+	// Track the camera eye so picking and host overlays demote against the same point the engine
+	// uses for debug shapes, keeping the float render frame near the origin wherever the camera goes.
+	SyncDrawOrigin();
 
 	float timeStep = 0.0f;
 	if ( m_context->pause == false || m_context->singleStep > 0 )
@@ -436,18 +442,20 @@ void Sample::Step()
 
 void Sample::Render()
 {
+	// A third person follow may have moved the eye after Step latched the origin, so refresh it
+	// here. Shapes come back demoted to float against this origin, the same relative frame the
+	// translation free view renders, so everything stays precise far from the world origin.
+	SyncDrawOrigin();
+
 	b3DebugDraw debugDraw;
 	MakeDebugDraw( &debugDraw );
 
-	// Shapes come back demoted to float against the draw origin, so the camera works in this
-	// same relative frame and stays precise far from the world origin.
 	debugDraw.drawOrigin = m_drawOrigin;
 
 	// Generous visible volume around the eye. Box3D uses this to decide which shapes enter the
 	// draw set and lazily fire createDebugShape. The cull bounds live in absolute world space to
-	// match the broad-phase tree, so add the draw origin back to the relative eye.
-	b3Vec3 eye = m_camera->GetPosition();
-	b3Vec3 center = b3ToVec3( b3OffsetPos( m_drawOrigin, eye ) );
+	// match the broad-phase tree; the draw origin is the world eye.
+	b3Vec3 center = b3ToVec3( m_drawOrigin );
 	b3Vec3 r = { 1000.0f, 1000.0f, 1000.0f };
 	debugDraw.drawingBounds = { center - r, center + r };
 
@@ -1770,7 +1778,7 @@ static void DrawInfoPanel( SampleContext* context )
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", context->sample->m_stepCount );
 	ImGui::Separator();
 
-	b3Vec3 p = context->camera.m_pivot;
+	b3Vec3 p = b3ToVec3( context->camera.m_pivot );
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "pivot (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
 	float yawDeg = B3_RAD_TO_DEG * context->camera.m_yaw;
 	float pitchDeg = B3_RAD_TO_DEG * context->camera.m_pitch;
@@ -2174,6 +2182,15 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 
 	SolveMove( timeStep, forward, right, throttle, clipVelocity );
 
+	// Follow the mover and latch the draw origin before drawing, so the overlays below demote
+	// against the same eye the view renders from.
+	if ( m_sample->m_camera->m_thirdPerson )
+	{
+		m_sample->m_camera->m_pivot = b3ToPos( m_transform.p );
+		m_sample->m_camera->UpdateTransform();
+	}
+	m_sample->SyncDrawOrigin();
+
 	int count = m_planeCount;
 	for ( int i = 0; i < count; ++i )
 	{
@@ -2186,19 +2203,6 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 
 	DrawSolidCapsule( m_transform, m_capsule, MakeColor( b3_colorBlue ) );
 	DrawLine( m_transform.p, m_transform.p + m_velocity, MakeColor( b3_colorPurple ) );
-
-	b3Vec3 p = m_transform.p;
-	// m_sample->DrawTextLine( "position %.2f %.2f %.2f", p.x, p.y, p.z );
-	// m_sample->DrawTextLine( "forward %.2f %.2f %.2f", forward.x, forward.y, forward.z );
-	// m_sample->DrawTextLine( "right %.2f %.2f %.2f", right.x, right.y, right.z );
-	// m_sample->DrawTextLine( "velocity %.2f %.2f %.2f", m_velocity.x, m_velocity.y, m_velocity.z );
-	// m_sample->DrawTextLine( "iterations %d", m_totalIterations );
-
-	if ( m_sample->m_camera->m_thirdPerson )
-	{
-		m_sample->m_camera->m_pivot = p;
-		m_sample->m_camera->UpdateTransform();
-	}
 
 	m_ignoreShapeIds = nullptr;
 	m_ignoreCount = 0;
