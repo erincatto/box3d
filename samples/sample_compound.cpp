@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "gfx/draw.h"
 #include "human.h"
 #include "mesh_loader.h"
 #include "sample.h"
-#include "gfx/draw.h"
 #include "utils.h"
 
 #include "box3d/box3d.h"
@@ -19,7 +19,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Pos_zero );
 		}
 
 		{
@@ -30,7 +30,7 @@ public:
 
 			b3Transform hullTransform;
 			hullTransform.p = { 1.0f, -0.125f * a, 0.0f };
-			hullTransform.q = b3MakeQuatFromAxisAngle( b3Normalize({ 1.0f, 0.0f, 1.0f }), 0.0f * B3_PI );
+			hullTransform.q = b3MakeQuatFromAxisAngle( b3Normalize( { 1.0f, 0.0f, 1.0f } ), 0.0f * B3_PI );
 
 			b3CompoundHullDef hullDef = {
 				.hull = &box.base,
@@ -113,7 +113,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Pos_zero );
 		}
 
 		float h = 10.0f;
@@ -174,7 +174,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Pos_zero );
 		}
 
 		float h = 10.0f;
@@ -248,7 +248,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Pos_zero );
 		}
 
 		{
@@ -302,7 +302,7 @@ public:
 			hulls = nullptr;
 		}
 
-		//b3World_SetContactRecycleDistance( m_worldId, 0.0f );
+		// b3World_SetContactRecycleDistance( m_worldId, 0.0f );
 
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -366,7 +366,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 45.0f, b3Pos_zero );
 		}
 
 		{
@@ -492,7 +492,7 @@ public:
 		constexpr float a = 4.0f;
 		m_worldWidth = 2.0f * gridCount * a;
 
-		b3Vec3 position = { 0.0f, 10.0f, 0.0f };
+		b3Pos position = { 0.0f, 10.0f, 0.0f };
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 45.0f, 10.0f, 5.0f, position );
@@ -645,7 +645,7 @@ public:
 
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { -1.0f, -0.5f, 2.0f };
-			bodyDef.rotation = b3MakeQuatFromAxisAngle( {0.0f, 1.0f, 0.0f}, -1.15f * B3_PI );
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( { 0.0f, 1.0f, 0.0f }, -1.15f * B3_PI );
 			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -713,10 +713,10 @@ public:
 			DrawLine( m_rayOrigin, b3OffsetPos( m_rayOrigin, translation ), MakeColor( b3_colorAliceBlue ) );
 			if ( context.hit )
 			{
-				b3Vec3 p1 = context.point;
-				b3Vec3 p2 = b3MulAdd( p1, 0.5f, context.normal );
-				DrawLine( b3ToPos( p1 ), b3ToPos( p2 ), MakeColor( b3_colorYellow ) );
-				DrawPoint( b3ToPos( p1 ), 8.0f, MakeColor( b3_colorLightCoral ) );
+				b3Pos p1 = context.point;
+				b3Pos p2 = p1 + 0.5f * context.normal;
+				DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
+				DrawPoint( p1, 8.0f, MakeColor( b3_colorLightCoral ) );
 				DrawTextLine( "ray hit triangle/child/material = %d / %d / %d", context.triangleIndex, context.childIndex,
 							  context.materialId );
 			}
@@ -728,20 +728,20 @@ public:
 
 		{
 			CastClosestContext context = {};
-			b3Vec3 origin = b3SubPos( m_rayOrigin, b3ToPos( { 1.0f, 0.0f, 1.0f } ) );
-			b3ShapeProxy proxy = { &origin, 1, 0.25f };
-			b3World_CastShape( m_worldId, b3Pos_zero, &proxy, translation, filter, CastClosestCallback, &context );
+			b3Pos origin = m_rayOrigin - b3Vec3{ 1.0f, 0.0f, 1.0f };
+			b3ShapeProxy proxy = { &b3Vec3_zero, 1, 0.25f };
+			b3World_CastShape( m_worldId, origin, &proxy, translation, filter, CastClosestCallback, &context );
 
-			DrawLine( b3ToPos( origin ), b3ToPos( origin + translation ), MakeColor( b3_colorAliceBlue ) );
+			DrawLine( origin, b3OffsetPos( origin, translation ), MakeColor( b3_colorAliceBlue ) );
 			if ( context.hit )
 			{
-				b3Vec3 position = b3MulAdd( origin, context.fraction, translation );
-				b3Vec3 p1 = context.point;
-				b3Vec3 p2 = b3MulAdd( p1, 0.5f, context.normal );
-				DrawLine( b3ToPos( p1 ), b3ToPos( p2 ), MakeColor( b3_colorYellow ) );
-				DrawPoint( b3ToPos( p1 ), 8.0f, MakeColor( b3_colorLightCoral ) );
-				b3Sphere sphere = { position, 0.25f };
-				DrawSolidSphere( b3WorldTransform_identity, sphere, MakeColor( b3_colorOrchid ) );
+				b3Pos position = b3OffsetPos( origin, context.fraction * translation );
+				b3Pos p1 = context.point;
+				b3Pos p2 = p1 + 0.5f * context.normal;
+				DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
+				DrawPoint( p1, 8.0f, MakeColor( b3_colorLightCoral ) );
+				b3Sphere sphere = { b3Vec3_zero, 0.25f };
+				DrawSolidSphere( { position, b3Quat_identity }, sphere, MakeColor( b3_colorOrchid ) );
 				DrawTextLine( "shape hit triangle/child/material = %d / %d / %d", context.triangleIndex, context.childIndex,
 							  context.materialId );
 			}
@@ -753,13 +753,13 @@ public:
 
 		{
 			bool overlap = false;
-			b3Vec3 origin = { m_rayOrigin.x - 1.0f, 2.0f, m_rayOrigin.z - 1.0f };
-			b3ShapeProxy proxy = { &origin, 1, 0.3f };
-			b3World_OverlapShape( m_worldId, b3Pos_zero, &proxy, filter, OverlapResultFcn, &overlap );
+			b3Pos origin = { m_rayOrigin.x - 1.0f, 2.0f, m_rayOrigin.z - 1.0f };
+			b3ShapeProxy proxy = { &b3Vec3_zero, 1, 0.3f };
+			b3World_OverlapShape( m_worldId, origin, &proxy, filter, OverlapResultFcn, &overlap );
 
 			b3HexColor color = overlap ? b3_colorDarkMagenta : b3_colorDarkSeaGreen;
-			b3Sphere sphere = { origin, 0.3f };
-			DrawSolidSphere( b3WorldTransform_identity, sphere, MakeColor( color ) );
+			b3Sphere sphere = { b3Vec3_zero, 0.3f };
+			DrawSolidSphere( { origin, b3Quat_identity }, sphere, MakeColor( color ) );
 		}
 
 		if ( m_rayOrigin.x > 0.45f * m_worldWidth )

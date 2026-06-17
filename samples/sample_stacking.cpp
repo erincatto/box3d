@@ -275,7 +275,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 25.0f, 10.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 25.0f, 10.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 20.0f );
@@ -320,7 +320,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 10.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 15.0f, 10.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 10.0f );
@@ -575,11 +575,11 @@ public:
 		{
 			if (m_isDebug)
 			{
-				m_camera->SetView( 0.0f, 15.0f, 25.0f, b3Vec3_zero );
+				m_camera->SetView( 0.0f, 15.0f, 25.0f, b3Pos_zero );
 			}
 			else
 			{
-				m_camera->SetView( 0.0f, 15.0f, 75.0f, b3Vec3_zero );
+				m_camera->SetView( 0.0f, 15.0f, 75.0f, b3Pos_zero );
 			}
 		}
 
@@ -645,7 +645,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 75.0f, 10.0f, 10.0f );
+			m_camera->SetView( 75.0f, 10.0f, 10.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 20.0f );

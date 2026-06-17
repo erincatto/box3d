@@ -30,7 +30,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Pos_zero );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -215,7 +215,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Pos_zero );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -389,7 +389,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Pos_zero );
 			
 		}
 
@@ -563,7 +563,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Pos_zero );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -760,7 +760,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Pos_zero );
 		}
 
 #if defined( NDEBUG )
@@ -1026,7 +1026,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 50.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 50.0f, b3Pos_zero );
 		}
 
 		m_meshIndex = 0;
@@ -1255,18 +1255,20 @@ public:
 			(void)area;
 
 			b3Vec3 p = ( 1.0f / 3.0f ) * ( v1 + v2 + v3 );
-			DrawPoint( b3ToPos( p ), 10.0f, MakeColor( b3_colorCyan ) );
-
-			DrawString3D( b3OffsetPos( b3ToPos( p ), offset ), MakeColor( b3_colorOrange ), "%d", triangleIndex );
+			b3Pos pPos = b3ToPos( p );
+			DrawPoint( pPos, 10.0f, MakeColor( b3_colorCyan ) );
+			DrawString3D( b3OffsetPos( pPos, offset ), MakeColor( b3_colorOrange ), "%d", triangleIndex );
 
 			{
-				DrawPoint( b3ToPos( v1 ), 10.0f, MakeColor( b3_colorRed ) );
-				DrawPoint( b3ToPos( v2 ), 10.0f, MakeColor( b3_colorGreen ) );
-				DrawPoint( b3ToPos( v3 ), 10.0f, MakeColor( b3_colorBlue ) );
-
-				DrawString3D( b3OffsetPos( b3ToPos( v1 ), offset ), MakeColor( b3_colorRed ), "%d", i1 );
-				DrawString3D( b3OffsetPos( b3ToPos( v2 ), offset ), MakeColor( b3_colorGreen ), "%d", i2 );
-				DrawString3D( b3OffsetPos( b3ToPos( v3 ), offset ), MakeColor( b3_colorBlue ), "%d", i3 );
+				b3Pos p1 = b3ToPos( v1 );
+				b3Pos p2 = b3ToPos( v2 );
+				b3Pos p3 = b3ToPos( v3 );
+				DrawPoint( p1, 10.0f, MakeColor( b3_colorRed ) );
+				DrawPoint( p2, 10.0f, MakeColor( b3_colorGreen ) );
+				DrawPoint( p3, 10.0f, MakeColor( b3_colorBlue ) );
+				DrawString3D( b3OffsetPos( p1, offset ), MakeColor( b3_colorRed ), "%d", i1 );
+				DrawString3D( b3OffsetPos( p2, offset ), MakeColor( b3_colorGreen ), "%d", i2 );
+				DrawString3D( b3OffsetPos( p3, offset ), MakeColor( b3_colorBlue ), "%d", i3 );
 			}
 		}
 	}
@@ -1307,7 +1309,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Pos_zero );
 		}
 
 		LoadTempMesh( "data/meshes/voxel_mesh_01.obj", m_tempMeshes + 0, 0.01f, true );
@@ -1386,7 +1388,7 @@ public:
 
 		if ( context->restart == false )
 		{
-			m_camera->SetView( -115.0f, 5.0f, 5.0f, b3ToVec3( b3OffsetPos( origin, b3Vec3{ 0.0f, 10.0f, 0.0f } ) ) );
+			m_camera->SetView( -115.0f, 5.0f, 5.0f, b3OffsetPos( origin, b3Vec3{ 0.0f, 10.0f, 0.0f } ) );
 		}
 
 		m_launchSpeedScale = 1.0f;
@@ -1501,7 +1503,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 30.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 30.0f, b3Pos_zero );
 		}
 
 		{

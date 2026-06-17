@@ -92,12 +92,12 @@ public:
 			m_bodyIds[i] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateSphereShape( m_bodyIds[i], &shapeDef, &sphere );
 
-			b3Vec3 pivotA = { m_length * i, yOffset, 0.0f };
-			b3Vec3 pivotB = { m_length * ( i + 1.0f ), yOffset, 0.0f };
+			b3Pos pivotA = { m_length * i, yOffset, 0.0f };
+			b3Pos pivotB = { m_length * ( i + 1.0f ), yOffset, 0.0f };
 			jointDef.base.bodyIdA = prevBodyId;
 			jointDef.base.bodyIdB = m_bodyIds[i];
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( prevBodyId, b3ToPos( pivotA ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( m_bodyIds[i], b3ToPos( pivotB ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( prevBodyId, pivotA );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( m_bodyIds[i], pivotB );
 			m_jointIds[i] = b3CreateDistanceJoint( m_worldId, &jointDef );
 
 			prevBodyId = m_bodyIds[i];
@@ -334,7 +334,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = { -2.0f, 2.0f, 0.0f };
+			bodyDef.position = { -2.0, 2.0, 0.0 };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
@@ -344,7 +344,7 @@ public:
 			b3MotorJointDef jointDef = b3DefaultMotorJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = bodyId;
-			jointDef.base.localFrameA.p = b3Add( b3ToVec3( bodyDef.position ), { 0.25f, 1.25f, 0.0f } );
+			jointDef.base.localFrameA.p = { -1.75f, 3.25f, 0.0f };
 			jointDef.base.localFrameB.p = { 0.25f, 0.25f };
 			jointDef.base.collideConnected = true;
 			jointDef.linearHertz = 7.5f;
@@ -524,7 +524,7 @@ public:
 		{
 			b3Sphere sphere = { { 0.0f, 10.0f, 0.0 }, 10.0f };
 			b3ExplosionDef def = b3DefaultExplosionDef();
-			def.position = b3ToPos( sphere.center );
+			def.position = { 0.0, 10.0, 0.0 };
 			def.radius = sphere.radius;
 			def.falloff = 5.0f;
 			def.impulsePerArea = 10000.0f;
@@ -1876,21 +1876,21 @@ public:
 				b3CreateHullShape( m_bodyIds[i], &shapeDef, &box.base );
 
 				{
-					b3Vec3 pivot = { xbase + 2.0f * a * i, 20.0f, -0.5f };
+					b3Pos pivot = { xbase + 2.0f * a * i, 20.0, -0.5 };
 					jointDef.base.bodyIdA = prevBodyId;
 					jointDef.base.bodyIdB = m_bodyIds[i];
-					jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-					jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+					jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+					jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 					b3CreateSphericalJoint( m_worldId, &jointDef );
 					// b3CreateRevoluteJoint( m_worldId, &jointDef );
 				}
 
 				{
-					b3Vec3 pivot = { xbase + 2.0f * a * i, 20.0f, 0.5f };
+					b3Pos pivot = { xbase + 2.0f * a * i, 20.0, 0.5 };
 					jointDef.base.bodyIdA = prevBodyId;
 					jointDef.base.bodyIdB = m_bodyIds[i];
-					jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-					jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+					jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+					jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 					b3CreateSphericalJoint( m_worldId, &jointDef );
 					// b3CreateRevoluteJoint( m_worldId, &jointDef );
 				}
@@ -1899,21 +1899,21 @@ public:
 			}
 
 			{
-				b3Vec3 pivot = { xbase + 2.0f * a * m_count, 20.0f, -0.5f };
+				b3Pos pivot = { xbase + 2.0f * a * m_count, 20.0, -0.5 };
 				jointDef.base.bodyIdA = prevBodyId;
 				jointDef.base.bodyIdB = groundId;
-				jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-				jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+				jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+				jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 				b3CreateSphericalJoint( m_worldId, &jointDef );
 				// b3CreateRevoluteJoint( m_worldId, &jointDef );
 			}
 
 			{
-				b3Vec3 pivot = { xbase + 2.0f * a * m_count, 20.0f, 0.5f };
+				b3Pos pivot = { xbase + 2.0f * a * m_count, 20.0, 0.5 };
 				jointDef.base.bodyIdA = prevBodyId;
 				jointDef.base.bodyIdB = groundId;
-				jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-				jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+				jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+				jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 				b3CreateSphericalJoint( m_worldId, &jointDef );
 				// b3CreateRevoluteJoint( m_worldId, &jointDef );
 			}

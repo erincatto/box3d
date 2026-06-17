@@ -1869,7 +1869,7 @@ float CastClosestCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float 
 {
 	CastClosestContext* rayContext = (CastClosestContext*)context;
 	rayContext->shapeId = shapeId;
-	rayContext->point = b3ToVec3( point );
+	rayContext->point = point;
 	rayContext->normal = normal;
 	rayContext->fraction = fraction;
 	rayContext->materialId = materialId;
@@ -1893,7 +1893,7 @@ static bool MoverFilterCallback( b3ShapeId shapeId, void* context )
 	return true;
 }
 
-void CharacterMover::Initialize( Sample* sample, b3Vec3 position )
+void CharacterMover::Initialize( Sample* sample, b3Pos position )
 {
 	m_sample = sample;
 	m_transform.p = position;
@@ -1939,7 +1939,7 @@ static bool PlaneResultFcn( b3ShapeId shapeId, const b3PlaneResult* planeResults
 			.clipVelocity = clipVelocity,
 		};
 		self->m_planeExtras[self->m_planeCount] = {
-			.point = planeResults[i].point,
+			.point = b3OffsetPos(self->m_transform.p, planeResults[i].point),
 			.shapeId = shapeId,
 		};
 		self->m_planeCount += 1;
@@ -2005,7 +2005,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 
 	float pogoRestLength = 3.0f * m_capsule.radius;
 	float rayLength = pogoRestLength + m_capsule.radius;
-	b3Pos rayOrigin = b3TransformWorldPoint( b3MakeWorldTransform( m_transform ), m_capsule.center1 );
+	b3Pos rayOrigin = b3TransformWorldPoint( m_transform, m_capsule.center1 );
 	b3Vec3 rayTranslation = -rayLength * b3Vec3_axisY;
 	b3QueryFilter skipTeamFilter = { 1, ~2u };
 	b3RayResult rayResult = b3World_CastRayClosest( worldId, rayOrigin, rayTranslation, skipTeamFilter );
@@ -2032,8 +2032,8 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		DrawLine( rayOrigin, rayResult.point, MakeColor( b3_colorGreen ) );
 	}
 
-	b3Vec3 startPosition = m_transform.p;
-	b3Vec3 target = m_transform.p + timeStep * m_velocity + timeStep * m_pogoVelocity * b3Vec3_axisY;
+	b3Pos startPosition = m_transform.p;
+	b3Pos target = m_transform.p + timeStep * m_velocity + timeStep * m_pogoVelocity * b3Vec3_axisY;
 
 	// Want the mover to collide with allies
 	b3QueryFilter moverFilter = { .categoryBits = 1, .maskBits = ~0u };
@@ -2049,11 +2049,11 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		m_planeCount = 0;
 
 		b3Capsule mover;
-		mover.center1 = b3TransformPoint( m_transform, m_capsule.center1 );
-		mover.center2 = b3TransformPoint( m_transform, m_capsule.center2 );
+		mover.center1 = m_capsule.center1;
+		mover.center2 = m_capsule.center2;
 		mover.radius = m_capsule.radius;
 
-		b3World_CollideMover( worldId, b3Pos_zero, &mover, moverFilter, PlaneResultFcn, this );
+		b3World_CollideMover( worldId, m_transform.p, &mover, moverFilter, PlaneResultFcn, this );
 
 		b3Vec3 targetDelta = target - m_transform.p;
 		b3PlaneSolverResult result = b3SolvePlanes( targetDelta, m_planes, m_planeCount );
@@ -2062,10 +2062,10 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 
 		b3Vec3 delta = result.delta;
 
-		float fraction = b3World_CastMover( worldId, b3Pos_zero, &mover, delta, castFilter, MoverFilterCallback, this );
+		float fraction = b3World_CastMover( worldId, m_transform.p, &mover, delta, castFilter, MoverFilterCallback, this );
 
 		delta *= fraction;
-		m_transform.p += delta;
+		m_transform.p = m_transform.p + delta;
 
 		if ( b3LengthSquared( delta ) < tolerance * tolerance )
 		{
@@ -2082,7 +2082,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 			continue;
 		}
 
-		b3Vec3 point = m_planeExtras[i].point;
+		b3Pos point = m_planeExtras[i].point;
 		b3Vec3 normal = b3Neg( m_planes[i].plane.normal );
 
 		float invMassA = 0.0f;
@@ -2090,7 +2090,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		b3Matrix3 invIB = b3Body_GetWorldInverseRotationalInertia( bodyId );
 
 		b3Pos pB = b3Body_GetWorldCenterOfMass( bodyId );
-		b3Vec3 rB = b3SubPos( b3ToPos( point ), pB );
+		b3Vec3 rB = b3SubPos( point, pB );
 
 		b3Vec3 rnB = b3Cross( rB, normal );
 		float kNormal = invMassA + invMassB + b3Dot( rnB, b3MulMV( invIB, rnB ) );
@@ -2105,7 +2105,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		b3Vec3 P = b3MulSV( impulse, normal );
 		m_velocity = b3MulSub( m_velocity, invMassA, P );
 
-		b3Body_ApplyLinearImpulse( bodyId, P, b3ToPos( point ), true );
+		b3Body_ApplyLinearImpulse( bodyId, P, point, true );
 	}
 
 	if ( clipVelocity )
@@ -2176,11 +2176,13 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 
 	SolveMove( timeStep, forward, right, throttle, clipVelocity );
 
+	b3Pos position = m_transform.p;
+
 	// Follow the mover and latch the draw origin before drawing, so the overlays below demote
 	// against the same eye the view renders from.
 	if ( m_sample->m_camera->m_thirdPerson )
 	{
-		m_sample->m_camera->m_pivot = b3ToPos( m_transform.p );
+		m_sample->m_camera->m_pivot = position;
 		m_sample->m_camera->UpdateTransform();
 	}
 	m_sample->SyncDrawOrigin();
@@ -2189,14 +2191,14 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 	for ( int i = 0; i < count; ++i )
 	{
 		b3Plane plane = m_planes[i].plane;
-		b3Vec3 p1 = m_transform.p + ( plane.offset - m_capsule.radius ) * plane.normal;
-		b3Vec3 p2 = p1 + 0.1f * plane.normal;
-		DrawPoint( b3ToPos( p1 ), 5.0f, MakeColor( b3_colorYellow ) );
-		DrawLine( b3ToPos( p1 ), b3ToPos( p2 ), MakeColor( b3_colorYellow ) );
+		b3Pos p1 = position + ( plane.offset - m_capsule.radius ) * plane.normal;
+		b3Pos p2 = p1 + 0.1f * plane.normal;
+		DrawPoint( p1, 5.0f, MakeColor( b3_colorYellow ) );
+		DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
 	}
 
-	DrawSolidCapsule( b3MakeWorldTransform( m_transform ), m_capsule, MakeColor( b3_colorBlue ) );
-	DrawLine( b3ToPos( m_transform.p ), b3ToPos( m_transform.p + m_velocity ), MakeColor( b3_colorPurple ) );
+	DrawSolidCapsule( m_transform, m_capsule, MakeColor( b3_colorBlue ) );
+	DrawLine( position, position + m_velocity, MakeColor( b3_colorPurple ) );
 
 	m_ignoreShapeIds = nullptr;
 	m_ignoreCount = 0;

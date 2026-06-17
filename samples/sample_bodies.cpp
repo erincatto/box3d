@@ -71,11 +71,11 @@ public:
 			b3CreateHullShape( m_platformId, &shapeDef, &box.base );
 
 			b3RevoluteJointDef revoluteDef = b3DefaultRevoluteJointDef();
-			b3Vec3 pivot = { -2.0f, 5.0f, 0.0f };
+			b3Pos pivot = { -2.0f, 5.0f, 0.0f };
 			revoluteDef.base.bodyIdA = m_attachmentId;
 			revoluteDef.base.bodyIdB = m_platformId;
-			revoluteDef.base.localFrameA.p = b3Body_GetLocalPoint( m_attachmentId, b3ToPos( pivot ) );
-			revoluteDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, b3ToPos( pivot ) );
+			revoluteDef.base.localFrameA.p = b3Body_GetLocalPoint( m_attachmentId, pivot );
+			revoluteDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, pivot );
 			revoluteDef.maxMotorTorque = 50.0f;
 			revoluteDef.enableMotor = true;
 			b3CreateRevoluteJoint( m_worldId, &revoluteDef );
@@ -83,18 +83,18 @@ public:
 			pivot = { 3.0f, 5.0f };
 			revoluteDef.base.bodyIdA = m_secondAttachmentId;
 			revoluteDef.base.bodyIdB = m_platformId;
-			revoluteDef.base.localFrameA.p = b3Body_GetLocalPoint( m_secondAttachmentId, b3ToPos( pivot ) );
-			revoluteDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, b3ToPos( pivot ) );
+			revoluteDef.base.localFrameA.p = b3Body_GetLocalPoint( m_secondAttachmentId, pivot );
+			revoluteDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, pivot );
 			revoluteDef.maxMotorTorque = 50.0f;
 			revoluteDef.enableMotor = true;
 			b3CreateRevoluteJoint( m_worldId, &revoluteDef );
 
 			b3PrismaticJointDef prismaticDef = b3DefaultPrismaticJointDef();
-			b3Vec3 anchor = { 0.0f, 5.0f, 0.0f };
+			b3Pos anchor = { 0.0f, 5.0f, 0.0f };
 			prismaticDef.base.bodyIdA = groundId;
 			prismaticDef.base.bodyIdB = m_platformId;
-			prismaticDef.base.localFrameA.p = b3Body_GetLocalPoint( groundId, b3ToPos( anchor ) );
-			prismaticDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, b3ToPos( anchor ) );
+			prismaticDef.base.localFrameA.p = b3Body_GetLocalPoint( groundId, anchor );
+			prismaticDef.base.localFrameB.p = b3Body_GetLocalPoint( m_platformId, anchor );
 			prismaticDef.maxMotorForce = 1000.0f;
 			prismaticDef.motorSpeed = 0.0f;
 			prismaticDef.enableMotor = true;
@@ -364,7 +364,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 25.0f, 25.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 25.0f, 25.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 30.0f );
@@ -429,8 +429,8 @@ public:
 	{
 		Sample::Step();
 
-		b3Sphere sphere = { b3ToVec3( m_explosionPosition ), m_explosionRadius };
-		DrawWireSphere(b3WorldTransform_identity, &sphere, 64, MakeColor(b3_colorAzure) );
+		b3Sphere sphere = { b3Vec3_zero, m_explosionRadius };
+		DrawWireSphere( { m_explosionPosition, b3Quat_identity }, &sphere, 64, MakeColor( b3_colorAzure ) );
 
 		// This shows how to get the velocity of a point on a body
 		b3Vec3 localPoint = { 0.0f, 2.0f, 0.0f };
@@ -470,7 +470,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 25.0f, 10.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 25.0f, 10.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 20.0f );
@@ -650,16 +650,18 @@ public:
 			input.maxFraction = 1.0f;
 			b3BodyCastResult result = b3Body_CastRay( m_bodyId, &input, m_transform );
 
-			DrawLine( b3ToPos( input.origin ), b3ToPos( input.origin + input.maxFraction * input.translation ), MakeColor( b3_colorCyan ) );
+			b3Pos origin = b3ToPos( input.origin );
+			DrawLine( origin, origin + input.maxFraction * input.translation, MakeColor( b3_colorCyan ) );
 
 			if ( result.hit )
 			{
-				DrawLine( b3ToPos( result.point ), b3ToPos( result.point + 0.2f * result.normal ), MakeColor( b3_colorYellow ) );
-				DrawPoint( b3ToPos( result.point ), 10.0f, MakeColor( b3_colorYellow ) );
+				b3Pos hitPoint = b3ToPos( result.point );
+				DrawLine( hitPoint, hitPoint + 0.2f * result.normal, MakeColor( b3_colorYellow ) );
+				DrawPoint( hitPoint, 10.0f, MakeColor( b3_colorYellow ) );
 			}
 
-			DrawPoint( b3ToPos( input.origin ), 10.0f, MakeColor( b3_colorGreen ) );
-			DrawPoint( b3ToPos( input.origin + input.translation ), 10.0f, MakeColor( b3_colorRed ) );
+			DrawPoint( origin, 10.0f, MakeColor( b3_colorGreen ) );
+			DrawPoint( origin + input.translation, 10.0f, MakeColor( b3_colorRed ) );
 		}
 
 		// Cast sphere
@@ -674,11 +676,13 @@ public:
 			input.canEncroach = true;
 			b3BodyCastResult result = b3Body_CastShape( m_bodyId, &input, m_transform );
 
+			b3Pos sphereCenter = b3ToPos( sphere.center );
 			if ( result.hit )
 			{
 				b3Transform t = { result.fraction * input.translation, b3Quat_identity };
 				DrawSolidSphere( b3MakeWorldTransform( t ), sphere, MakeColor( b3_colorGreen ) );
-				DrawLine( b3ToPos( result.point ), b3ToPos( result.point + 0.2f * result.normal ), MakeColor( b3_colorYellow ) );
+				b3Pos hitPoint = b3ToPos( result.point );
+				DrawLine( hitPoint, hitPoint + 0.2f * result.normal, MakeColor( b3_colorYellow ) );
 			}
 			else
 			{
@@ -686,9 +690,9 @@ public:
 				DrawSolidSphere( b3MakeWorldTransform( t ), sphere, MakeColor( b3_colorWhite ) );
 			}
 
-			DrawLine( b3ToPos( sphere.center ), b3ToPos( sphere.center + input.maxFraction * input.translation ), MakeColor( b3_colorWhite ) );
-			DrawPoint( b3ToPos( sphere.center ), 10.0f, MakeColor( b3_colorGreen ) );
-			DrawPoint( b3ToPos( sphere.center + input.maxFraction * input.translation ), 10.0f, MakeColor( b3_colorRed ) );
+			DrawLine( sphereCenter, sphereCenter + input.maxFraction * input.translation, MakeColor( b3_colorWhite ) );
+			DrawPoint( sphereCenter, 10.0f, MakeColor( b3_colorGreen ) );
+			DrawPoint( sphereCenter + input.maxFraction * input.translation, 10.0f, MakeColor( b3_colorRed ) );
 		}
 
 		// Overlap capsule
@@ -824,7 +828,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 20.0f );
@@ -907,7 +911,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 10.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 15.0f, 10.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 20.0f );

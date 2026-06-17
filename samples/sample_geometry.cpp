@@ -17,7 +17,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Pos_zero );
 		}
 
 		m_hull = nullptr;
@@ -143,7 +143,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Pos_zero );
 		}
 
 		m_hull = nullptr;
@@ -244,7 +244,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Pos_zero );
 		}
 
 		m_hull = nullptr;
@@ -367,7 +367,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Pos_zero );
 		}
 
 		m_original = b3CreateCylinder( 1.0f, 0.5f, 0.0f, 9 );
@@ -495,7 +495,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Pos_zero );
 		}
 
 		m_radius = 1.0f;

@@ -200,7 +200,7 @@ void DrawUI( SampleContext* context );
 struct CastClosestContext
 {
 	b3ShapeId shapeId;
-	b3Vec3 point;
+	b3Pos point;
 	b3Vec3 normal;
 	float fraction;
 	uint64_t materialId;
@@ -220,7 +220,7 @@ struct MoverShapeUserData
 
 struct PlaneExtra
 {
-	b3Vec3 point;
+	b3Pos point;
 	b3ShapeId shapeId;
 };
 
@@ -235,12 +235,12 @@ struct CharacterMover
 	static constexpr float m_friction = 4.0f;
 	static constexpr float m_gravity = 15.0f;
 
-	void Initialize( Sample* sample, b3Vec3 position );
+	void Initialize( Sample* sample, b3Pos position );
 	void SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3Vec2 throttle, bool clipVelocity );
 	void Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVelocity );
 
 	Sample* m_sample;
-	b3Transform m_transform;
+	b3WorldTransform m_transform;
 	b3Vec3 m_velocity;
 	b3Capsule m_capsule;
 	b3CollisionPlane m_planes[m_planeCapacity] = {};

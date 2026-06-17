@@ -108,7 +108,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 25.0f, 10.0f, 70.0f, b3Vec3_zero );
+			m_camera->SetView( 25.0f, 10.0f, 70.0f, b3Pos_zero );
 			GetGuiDraw()->drawJoints = false;
 		}
 
@@ -301,7 +301,7 @@ public:
 		if ( context->restart == false )
 		{
 			float radius = m_isDebug ? 20.0f : 70.0f;
-			m_camera->SetView( 45.0f, 20.0f, radius, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 20.0f, radius, b3Pos_zero );
 		}
 
 		AddGroundBox( 60.0f );
@@ -524,7 +524,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 20.0f, 50.0f );
+			m_camera->SetView( 0.0f, 20.0f, 50.0f, b3Pos_zero );
 		}
 
 		m_columnCount = 50;
@@ -581,11 +581,12 @@ public:
 			for ( float z = -spanZ; z <= spanZ; z += delta )
 			{
 				b3Vec3 rayOrigin = { x, 2.0f, z };
+				b3Pos origin = b3ToPos( rayOrigin );
 
 				b3RayResult result = {};
 				if ( m_radius == 0.0f )
 				{
-					result = b3World_CastRayClosest( m_worldId, b3ToPos( rayOrigin ), rayTranslation, b3DefaultQueryFilter() );
+					result = b3World_CastRayClosest( m_worldId, origin, rayTranslation, b3DefaultQueryFilter() );
 				}
 				else
 				{
@@ -622,17 +623,19 @@ public:
 						}
 
 						b3Vec3 rayEnd = rayOrigin + result.fraction * rayTranslation;
-						DrawLine( b3ToPos( rayOrigin ), b3ToPos( rayEnd ), MakeColor( b3_colorYellow ) );
-						DrawPoint( b3ToPos( rayOrigin ), 2.0f, MakeColor( b3_colorRed ) );
-						DrawPoint( b3ToPos( rayEnd ), 2.0f, MakeColor( b3_colorRed ) );
+						b3Pos end = b3ToPos( rayEnd );
+						DrawLine( origin, end, MakeColor( b3_colorYellow ) );
+						DrawPoint( origin, 2.0f, MakeColor( b3_colorRed ) );
+						DrawPoint( end, 2.0f, MakeColor( b3_colorRed ) );
 					}
 				}
 				else if ( m_isDebug )
 				{
 					b3Vec3 rayEnd = rayOrigin + rayTranslation;
-					DrawLine( b3ToPos( rayOrigin ), b3ToPos( rayEnd ), MakeColor( b3_colorYellow ) );
-					DrawPoint( b3ToPos( rayOrigin ), 2.0f, MakeColor( b3_colorRed ) );
-					DrawPoint( b3ToPos( rayEnd ), 2.0f, MakeColor( b3_colorRed ) );
+					b3Pos end = b3ToPos( rayEnd );
+					DrawLine( origin, end, MakeColor( b3_colorYellow ) );
+					DrawPoint( origin, 2.0f, MakeColor( b3_colorRed ) );
+					DrawPoint( end, 2.0f, MakeColor( b3_colorRed ) );
 				}
 			}
 		}
@@ -1003,7 +1006,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 10.0f, 250.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 10.0f, 250.0f, b3Pos_zero );
 		}
 
 		b3Capacity capacity = {};
@@ -1035,7 +1038,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 15.0f, 5.0f, b3Pos_zero );
 		}
 
 		g_randomSeed = 42;
@@ -1383,12 +1386,12 @@ public:
 		DrawTextLine( "destroy = %.2f ms", m_destroyMilliseconds );
 
 		float r = m_explosionDef.radius;
-		b3Sphere sphere1 = { b3ToVec3( m_explosionDef.position ), r };
-		DrawWireSphere( b3WorldTransform_identity, &sphere1, 24, MakeColor( b3_colorAqua ) );
+		b3Sphere sphere1 = { b3Vec3_zero, r };
+		DrawWireSphere( { m_explosionDef.position, b3Quat_identity }, &sphere1, 24, MakeColor( b3_colorAqua ) );
 
 		float rf = r + m_explosionDef.falloff;
-		b3Sphere sphere2 = { b3ToVec3( m_explosionDef.position ), rf };
-		DrawWireSphere( b3WorldTransform_identity, &sphere2, 24, MakeColor( b3_colorCornsilk ) );
+		b3Sphere sphere2 = { b3Vec3_zero, rf };
+		DrawWireSphere( { m_explosionDef.position, b3Quat_identity }, &sphere2, 24, MakeColor( b3_colorCornsilk ) );
 	}
 
 	void Step() override
@@ -1430,7 +1433,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 125.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 125.0f, b3Pos_zero );
 			GetGuiDraw()->drawJoints = false;
 		}
 

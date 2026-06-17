@@ -39,7 +39,7 @@ public:
 		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
 		b3CreateHullShape( body, &shapeDef, &box.base );
 
-		m_baseTranslation = b3Vec3_zero;
+		m_baseTranslation = b3Pos_zero;
 		m_baseX = 0;
 		m_baseY = 0;
 		m_origin = b3Vec3_zero;
@@ -50,7 +50,7 @@ public:
 	void Solve()
 	{
 		b3PlaneSolverResult result = b3SolvePlanes( b3Vec3_zero, m_planes, m_planeCount );
-		m_transform.p += result.delta;
+		m_transform.p = m_transform.p + result.delta;
 	}
 
 	void Render() override
@@ -114,30 +114,30 @@ public:
 	{
 		m_planeCount = 0;
 
-		DrawSolidCapsule( b3MakeWorldTransform( m_transform ), m_capsule, MakeColor( b3_colorGreen ) );
+		DrawSolidCapsule( m_transform, m_capsule, MakeColor( b3_colorGreen ) );
 		b3QueryFilter filter = b3DefaultQueryFilter();
 
-		b3Capsule capsule = { m_capsule.center1 + m_transform.p, m_capsule.center2 + m_transform.p, m_capsule.radius };
-		b3World_CollideMover( m_worldId, b3Pos_zero, &capsule, filter, PlaneResultFcn, this );
+		b3Capsule capsule = { m_capsule.center1, m_capsule.center2, m_capsule.radius };
+		b3World_CollideMover( m_worldId, m_transform.p, &capsule, filter, PlaneResultFcn, this );
 
 		for ( int i = 0; i < m_planeCount; ++i )
 		{
 			b3Plane plane = m_planes[i].plane;
-			b3Vec3 p1 = m_transform.p + ( plane.offset - m_capsule.radius ) * plane.normal;
-			b3Vec3 p2 = p1 + 0.1f * plane.normal;
-			DrawPoint( b3ToPos( p1 ), 5.0f, MakeColor( b3_colorYellow ) );
-			DrawLine( b3ToPos( p1 ), b3ToPos( p2 ), MakeColor( b3_colorYellow ) );
+			b3Pos p1 = m_transform.p + ( plane.offset - m_capsule.radius ) * plane.normal;
+			b3Pos p2 = p1 + 0.1f * plane.normal;
+			DrawPoint( p1, 5.0f, MakeColor( b3_colorYellow ) );
+			DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
 		}
 	}
 
 	static constexpr int m_planeCapacity = 3;
 
-	b3Transform m_transform;
+	b3WorldTransform m_transform;
 	b3Capsule m_capsule;
 	b3CollisionPlane m_planes[m_planeCapacity] = {};
 	int m_planeCount;
 
-	b3Vec3 m_baseTranslation;
+	b3Pos m_baseTranslation;
 	b3Vec3 m_origin;
 	int m_baseX;
 	int m_baseY;
@@ -200,7 +200,7 @@ public:
 			b3CreateHullShape( body, &shapeDef, &box.base );
 		}
 
-		m_baseTranslation = b3Vec3_zero;
+		m_baseTranslation = b3Pos_zero;
 		m_origin = b3Vec3_zero;
 		m_tracking = false;
 		m_planeCount = 0;
@@ -252,16 +252,16 @@ public:
 
 	void Step() override
 	{
-		// Build the mover in world space and query all overlapping shapes.
-		b3Capsule worldMover = { m_capsule.center1 + m_transform.p, m_capsule.center2 + m_transform.p, m_capsule.radius };
+		// Query overlapping shapes. The mover capsule is relative to the body origin.
+		b3Capsule mover = { m_capsule.center1, m_capsule.center2, m_capsule.radius };
 
 		m_planeCount = 0;
 		m_zeroNormalCount = 0;
 		b3QueryFilter filter = b3DefaultQueryFilter();
-		b3World_CollideMover( m_worldId, b3Pos_zero, &worldMover, filter, PlaneResultFcn, this );
+		b3World_CollideMover( m_worldId, m_transform.p, &mover, filter, PlaneResultFcn, this );
 
 		// Mover at the queried position.
-		DrawSolidCapsule( b3MakeWorldTransform( m_transform ), m_capsule, MakeColor( b3_colorYellow ) );
+		DrawSolidCapsule( m_transform, m_capsule, MakeColor( b3_colorYellow ) );
 
 		// One arrow per returned plane, drawn from the contact point along the
 		// normal. A degenerate (zero) normal is drawn red to surface the bug.
@@ -271,8 +271,9 @@ public:
 			b3PlaneResult r = m_results[i];
 			bool valid = b3IsNormalized( r.plane.normal );
 			b3HexColor color = valid ? b3_colorLimeGreen : b3_colorRed;
-			DrawPoint( b3ToPos( r.point ), 6.0f, MakeColor( color ) );
-			DrawArrow( b3ToPos( r.point ), b3OffsetPos( b3ToPos( r.point ), 0.5f * r.plane.normal ), MakeColor( color ) );
+			b3Pos rp = b3OffsetPos( m_transform.p, r.point );
+			DrawPoint( rp, 6.0f, MakeColor( color ) );
+			DrawArrow( rp, b3OffsetPos( rp, 0.5f * r.plane.normal ), MakeColor( color ) );
 			if ( valid == false )
 			{
 				m_zeroNormalCount += 1;
@@ -282,8 +283,8 @@ public:
 
 		// Solve the planes and show the pushed-out capsule pose.
 		b3PlaneSolverResult solved = b3SolvePlanes( b3Vec3_zero, solverPlanes, m_planeCount );
-		b3Transform pushed = { m_transform.p + solved.delta, m_transform.q };
-		DrawSolidCapsule( b3MakeWorldTransform( pushed ), m_capsule, MakeColor( b3_colorCyan ) );
+		b3WorldTransform pushed = { m_transform.p + solved.delta, m_transform.q };
+		DrawSolidCapsule( pushed, m_capsule, MakeColor( b3_colorCyan ) );
 
 		DrawTextLine( "drag the capsule with the left mouse to push it into the shapes" );
 		DrawTextLine( "yellow = queried pose, cyan = solved push-out, lime = valid plane normals" );
@@ -299,13 +300,13 @@ public:
 
 	static constexpr int m_planeCapacity = 32;
 
-	b3Transform m_transform;
+	b3WorldTransform m_transform;
 	b3Capsule m_capsule;
 	b3PlaneResult m_results[m_planeCapacity] = {};
 	int m_planeCount;
 	int m_zeroNormalCount;
 
-	b3Vec3 m_baseTranslation;
+	b3Pos m_baseTranslation;
 	b3Vec3 m_origin;
 	bool m_tracking;
 };
@@ -318,7 +319,7 @@ public:
 	explicit BasicMover( SampleContext* context )
 		: Sample( context )
 	{
-		b3Vec3 moverPosition = { 7.5f, 0.75f, 9.0f };
+		b3Pos moverPosition = { 7.5f, 0.75f, 9.0f };
 
 		if ( m_context->restart == false )
 		{
@@ -488,7 +489,7 @@ public:
 			b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = bodyId;
-			jointDef.base.localFrameA.p = b3Add( b3ToVec3( bodyDef.position ), offset );
+			jointDef.base.localFrameA.p = b3ToVec3( bodyDef.position + offset );
 			jointDef.base.localFrameA.q = axisQuat;
 			jointDef.base.localFrameB.p = offset;
 			jointDef.base.localFrameB.q = axisQuat;
@@ -700,7 +701,7 @@ struct RigidbodyCharacter
 
 	Sample* m_sample;
 
-	void Initialize( Sample* sample, b3Vec3 position )
+	void Initialize( Sample* sample, b3Pos position )
 	{
 		m_sample = sample;
 		m_onGround = false;
@@ -709,14 +710,14 @@ struct RigidbodyCharacter
 		m_groundNormal = b3Vec3_axisY;
 		m_groundVelocity = b3Vec3_zero;
 		m_lastWishVelocity = b3Vec3_zero;
-		m_massCenterWorld = b3ToPos( position );
 		m_didStep = false;
 		m_stepPosition = b3Pos_zero;
 
 		// Create dynamic body with all rotation locked
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = b3ToPos( position );
+		bodyDef.position = position;
+		m_massCenterWorld = bodyDef.position;
 		bodyDef.motionLocks.angularX = true;
 		bodyDef.motionLocks.angularY = true;
 		bodyDef.motionLocks.angularZ = true;
@@ -1317,7 +1318,7 @@ public:
 	explicit RigidBodyCharacter( SampleContext* context )
 		: Sample( context )
 	{
-		b3Vec3 startPosition = { 7.5f, 2.0f, 9.0f };
+		b3Pos startPosition = { 7.5f, 2.0f, 9.0f };
 
 		if ( m_context->restart == false )
 		{

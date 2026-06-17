@@ -142,7 +142,7 @@ void Camera::SetOrbit( float yawRadians, float pitchRadians, float radius )
 	RebuildBasisAndView( *this );
 }
 
-void Camera::SetView( float yawDegrees, float pitchDegrees, float radius, b3Vec3 pivot )
+void Camera::SetView( float yawDegrees, float pitchDegrees, float radius, b3Pos pivot )
 {
 	// Box3D feeds degrees; render3d stores radians. Pivot first so SetOrbit's
 	// basis rebuild uses the new pivot.

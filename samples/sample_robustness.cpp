@@ -21,7 +21,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 30.0f, 15.0f, 70.0f, b3Vec3_zero );
+			m_camera->SetView( 30.0f, 15.0f, 70.0f, b3Pos_zero );
 			
 		}
 
@@ -136,7 +136,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 20.0f, 15.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 20.0f, 15.0f, b3Pos_zero );
 		}
 
 		m_bodyIds = nullptr;
@@ -442,7 +442,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 30.0f, 35.0f, 15.0f, b3Vec3_zero );
+			m_camera->SetView( 30.0f, 35.0f, 15.0f, b3Pos_zero );
 			
 		}
 

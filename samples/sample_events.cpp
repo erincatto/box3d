@@ -259,13 +259,13 @@ public:
 		AddGroundBox( 40.0f );
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		b3Vec3 pivot = { 0.0f, 1.0f, 0.0f };
+		b3Pos pivot = { 0.0f, 1.0f, 0.0f };
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.position = b3OffsetPos( b3Pos_zero, pivot );
+		bodyDef.position = pivot;
 		bodyDef.name = "big box";
 		m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
-		m_localPivot = b3Body_GetLocalPoint( m_bodyId, b3ToPos( pivot ) );
+		m_localPivot = b3Body_GetLocalPoint( m_bodyId, pivot );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.enableHitEvents = true;
@@ -274,7 +274,7 @@ public:
 
 		b3Pos center = b3Body_GetWorldCenterOfMass( m_bodyId );
 
-		b3Vec3 r = b3SubPos( b3OffsetPos( b3Pos_zero, pivot ), center );
+		b3Vec3 r = b3SubPos( pivot, center );
 		float rr = b3LengthSquared( r );
 		if ( rr > 0.0f )
 		{
@@ -382,13 +382,13 @@ public:
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
 			float length = 2.0f;
-			b3Vec3 pivot1 = { position.x, position.y + 1.0f + length, 0.0f };
-			b3Vec3 pivot2 = { position.x, position.y + 1.0f, 0.0f };
+			b3Pos pivot1 = { position.x, position.y + 1.0f + length, 0.0f };
+			b3Pos pivot2 = { position.x, position.y + 1.0f, 0.0f };
 			b3DistanceJointDef jointDef = b3DefaultDistanceJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = bodyId;
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot1 ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot2 ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot1 );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot2 );
 			jointDef.length = length;
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
@@ -436,12 +436,12 @@ public:
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
-			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
+			b3Pos pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3PrismaticJointDef jointDef = b3DefaultPrismaticJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = bodyId;
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
 			jointDef.base.collideConnected = true;
@@ -460,12 +460,12 @@ public:
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
-			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
+			b3Pos pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = bodyId;
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
 			jointDef.base.collideConnected = true;
@@ -484,12 +484,12 @@ public:
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
-			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
+			b3Pos pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3WeldJointDef jointDef = b3DefaultWeldJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = bodyId;
-			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, b3ToPos( pivot ) );
-			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, b3ToPos( pivot ) );
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
+			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 			jointDef.angularHertz = 2.0f;
 			jointDef.angularDampingRatio = 0.5f;
 			jointDef.base.forceThreshold = forceThreshold;

@@ -156,7 +156,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 150.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 150.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 100.0f );
@@ -170,11 +170,11 @@ public:
 		{
 			float alpha = B3_PI / 16.0f * index;
 			b3CosSin cs = b3ComputeCosSin( alpha );
-			b3Vec3 position = { 15.0f * cs.cosine, 1.0f, 15.0f * cs.sine };
+			b3Pos position = { 15.0f * cs.cosine, 1.0f, 15.0f * cs.sine };
 			b3Quat orientation = b3MakeQuatFromAxisAngle( { 0.0f, 1.0f, 0.0f }, -alpha );
 			b3Vec3 velocity = { 25.0f * cs.cosine, 0.0f, 25.0f * cs.sine };
 
-			bodyDef.position = b3ToPos( position );
+			bodyDef.position = position;
 			bodyDef.rotation = orientation;
 			bodyDef.linearVelocity = velocity;
 			b3BodyId boxBody = b3CreateBody( m_worldId, &bodyDef );
@@ -648,15 +648,14 @@ public:
 				continue;
 			}
 
-			b3Vec3 p = 1.0f / 3.0f * ( v1 + v2 + v3 );
-			p = b3TransformPoint( m_meshTransform, p );
+			b3Pos p = b3ToPos( b3TransformPoint( m_meshTransform, 1.0f / 3.0f * ( v1 + v2 + v3 ) ) );
 
-			DrawString3D( b3ToPos( p ), MakeColor( b3_colorAqua ), "%d", i );
+			DrawString3D( p, MakeColor( b3_colorAqua ), "%d", i );
 
 			int materialIndex = materialIndices[i];
 
 			b3Vec3 v = b3RotateVector( m_meshTransform.q, m_velocities[materialIndex] );
-			DrawLine( b3ToPos( p ), b3ToPos( p + v ), MakeColor( b3_colorBlueViolet ) );
+			DrawLine( p, p + v, MakeColor( b3_colorBlueViolet ) );
 		}
 
 		DrawAxes( b3WorldTransform_identity, 0.5f );
@@ -817,9 +816,9 @@ public:
 			b3Vec3 rand = RandomVec3( { -0.3f, -0.3f, -0.3f }, { 0.3f, 0.3f, 0.3f } );
 			m_noise = b3Lerp( m_noise, rand, 0.05f );
 
-			b3Vec3 p1 = { 0.0f, 0.5f, 0.0f };
-			b3Vec3 p2 = b3MulAdd( p1, 0.2f, wind );
-			DrawArrow( b3ToPos( p1 ), b3ToPos( p2 ), MakeColor( b3_colorFuchsia ) );
+			b3Pos p1 = { 0.0f, 0.5f, 0.0f };
+			b3Pos p2 = p1 + b3MulSV( 0.2f, wind );
+			DrawArrow( p1, p2, MakeColor( b3_colorFuchsia ) );
 		}
 	}
 

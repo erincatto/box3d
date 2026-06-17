@@ -102,16 +102,17 @@ public:
 
 	// Box3D's sample signature: angles in degrees, pivot folded in. Mirrors
 	// the ~140 sample call sites exactly so they need no edits.
-	void SetView( float yawDegrees, float pitchDegrees, float radius, b3Vec3 pivot = b3Vec3_zero );
+	void SetView( float yawDegrees, float pitchDegrees, float radius, b3Pos pivot );
 
-	void SetPivot( b3Vec3 pivot )
+	void SetPivot( b3Pos pivot )
 	{
-		m_pivot = b3ToPos( pivot );
+		m_pivot = pivot;
 	}
+
 	// Forwarder for existing render3d call sites.
-	void SetTarget( b3Vec3 target )
+	void SetTarget( b3Pos target )
 	{
-		m_pivot = b3ToPos( target );
+		m_pivot = target;
 	}
 
 	// Frame an AABB: keep current yaw/pitch, move pivot to the AABB center,

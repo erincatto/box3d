@@ -150,7 +150,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 45.0f, 250.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 45.0f, 250.0f, b3Pos_zero );
 		}
 
 		m_fileNames[0] = { "bounds01" };

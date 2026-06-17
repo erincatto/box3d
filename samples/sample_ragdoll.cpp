@@ -16,7 +16,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 20.0f );
@@ -86,7 +86,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 6.0f, b3Pos_zero );
 		}
 
 		{
@@ -221,7 +221,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 180.0f, 30.0f, 20.0f, b3Vec3_zero );
+			m_camera->SetView( 180.0f, 30.0f, 20.0f, b3Pos_zero );
 		}
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -269,7 +269,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( -20.0f, 30.0f, 25.0f, b3Vec3_zero );
+			m_camera->SetView( -20.0f, 30.0f, 25.0f, b3Pos_zero );
 		}
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();

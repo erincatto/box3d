@@ -39,7 +39,7 @@ public:
 		m_simplexCache = {};
 		m_satCache = {};
 		m_manualFeature = 0;
-		m_baseTranslation = b3Vec3_zero;
+		m_baseTranslation = b3Pos_zero;
 		m_baseQuaternion = b3Quat_identity;
 		m_baseX = 0;
 		m_baseY = 0;
@@ -68,24 +68,24 @@ public:
 		{
 			const b3LocalManifoldPoint& manifoldPoint = m_manifold.points[pointIndex];
 
-			b3Vec3 point = b3TransformPoint( m_transformA, manifoldPoint.point );
+			b3Pos point = b3TransformWorldPoint( m_transformA, manifoldPoint.point );
 
-			DrawLine( b3ToPos( point ), b3ToPos( point + length * normal ), MakeColor( b3_colorWhite ) );
+			DrawLine( point, point + length * normal, MakeColor( b3_colorWhite ) );
 
 			if ( manifoldPoint.separation > 0.0f )
 			{
-				DrawPoint( b3ToPos( point ), 10.0f, MakeColor( b3_colorWhite ) );
+				DrawPoint( point, 10.0f, MakeColor( b3_colorWhite ) );
 			}
 			else
 			{
-				DrawPoint( b3ToPos( point ), 10.0f, MakeColor( b3_colorYellow ) );
+				DrawPoint( point, 10.0f, MakeColor( b3_colorYellow ) );
 			}
 
-			DrawString3D( b3ToPos( point ), MakeColor( b3_colorWhite ), "   %.3f", manifoldPoint.separation );
+			DrawString3D( point, MakeColor( b3_colorWhite ), "   %.3f", manifoldPoint.separation );
 
 			b3Vec3 perp = b3Perp( normal );
 			b3FeaturePair pair = manifoldPoint.pair;
-			DrawString3D( b3ToPos( point + 0.025f * normal + 0.05f * perp ), MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
+			DrawString3D( point + 0.025f * normal + 0.05f * perp, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
 		}
 
 		Sample::Render();
@@ -160,9 +160,9 @@ public:
 	static constexpr int m_pointCapacity = 64;
 	b3LocalManifold m_manifold;
 	b3LocalManifoldPoint m_points[m_pointCapacity];
-	b3Transform m_transformA;
-	b3Transform m_transformB;
-	b3Vec3 m_baseTranslation;
+	b3WorldTransform m_transformA;
+	b3WorldTransform m_transformB;
+	b3Pos m_baseTranslation;
 	b3Quat m_baseQuaternion;
 	b3Vec3 m_origin;
 	b3SimplexCache m_simplexCache;
@@ -231,38 +231,38 @@ public:
 			{
 				const b3LocalManifoldPoint& manifoldPoint = m_manifold.points[pointIndex];
 
-				b3Vec3 point = manifoldPoint.point;
+				b3Pos point = b3ToPos( manifoldPoint.point );
 
-				DrawLine( b3ToPos( point ), b3ToPos( point + length * m_manifold.normal ), MakeColor( b3_colorWhite ) );
+				DrawLine( point, point + length * m_manifold.normal, MakeColor( b3_colorWhite ) );
 
 				if ( manifoldPoint.separation > 0.0f )
 				{
-					DrawPoint( b3ToPos( point ), 10.0f, MakeColor( b3_colorWhite ) );
+					DrawPoint( point, 10.0f, MakeColor( b3_colorWhite ) );
 				}
 				else
 				{
-					DrawPoint( b3ToPos( point ), 10.0f, MakeColor( b3_colorYellow ) );
+					DrawPoint( point, 10.0f, MakeColor( b3_colorYellow ) );
 				}
 
-				DrawString3D( b3ToPos( point ), MakeColor( b3_colorWhite ), "   %.2f", 100.0f * manifoldPoint.separation );
+				DrawString3D( point, MakeColor( b3_colorWhite ), "   %.2f", 100.0f * manifoldPoint.separation );
 
 				b3FeaturePair pair = manifoldPoint.pair;
-				DrawString3D( b3ToPos( point + 0.025f * m_manifold.normal ), MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
+				DrawString3D( point + 0.025f * m_manifold.normal, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
 			}
 		}
 
-		b3Vec3 p1 = b3TransformPoint( m_transformA, m_triangle[0] );
-		b3Vec3 p2 = b3TransformPoint( m_transformA, m_triangle[1] );
-		b3Vec3 p3 = b3TransformPoint( m_transformA, m_triangle[2] );
-		DrawTriangle( b3ToPos( p1 ), b3ToPos( p2 ), b3ToPos( p3 ), MakeColor( b3_colorCyan ) );
+		b3Pos p1 = b3ToPos( b3TransformPoint( m_transformA, m_triangle[0] ) );
+		b3Pos p2 = b3ToPos( b3TransformPoint( m_transformA, m_triangle[1] ) );
+		b3Pos p3 = b3ToPos( b3TransformPoint( m_transformA, m_triangle[2] ) );
+		DrawTriangle( p1, p2, p3, MakeColor( b3_colorCyan ) );
 
-		DrawString3D( b3ToPos( p1 ), MakeColor( b3_colorWhite ), "0" );
-		DrawString3D( b3ToPos( p2 ), MakeColor( b3_colorWhite ), "1" );
-		DrawString3D( b3ToPos( p3 ), MakeColor( b3_colorWhite ), "2" );
+		DrawString3D( p1, MakeColor( b3_colorWhite ), "0" );
+		DrawString3D( p2, MakeColor( b3_colorWhite ), "1" );
+		DrawString3D( p3, MakeColor( b3_colorWhite ), "2" );
 
-		b3Vec3 center = 1.0f / 3.0f * ( p1 + p2 + p3 );
 		b3Vec3 normal = b3Normalize( b3Cross( p2 - p1, p3 - p1 ) );
-		DrawArrow( b3ToPos( center ), b3ToPos( center + 0.5f * normal ), MakeColor( b3_colorMediumPurple ) );
+		b3Pos center = p1 + ( 1.0f / 3.0f ) * ( ( p2 - p1 ) + ( p3 - p1 ) );
+		DrawArrow( center, center + 0.5f * normal, MakeColor( b3_colorMediumPurple ) );
 
 		Sample::Render();
 	}
@@ -363,15 +363,15 @@ public:
 
 	void Render() override
 	{
-		DrawSolidSphere( b3MakeWorldTransform( m_transformA ), m_sphere, MakeColor( b3_colorGreen ) );
-		DrawSolidSphere( b3MakeWorldTransform( m_transformB ), m_sphere, MakeColor( b3_colorCyan ) );
+		DrawSolidSphere( m_transformA, m_sphere, MakeColor( b3_colorGreen ) );
+		DrawSolidSphere( m_transformB, m_sphere, MakeColor( b3_colorCyan ) );
 
 		Manifold::Render();
 	}
 
 	void Step() override
 	{
-		b3Transform transformBtoA = b3InvMulTransforms( m_transformA, m_transformB );
+		b3Transform transformBtoA = b3InvMulWorldTransforms( m_transformA, m_transformB );
 		b3CollideSpheres( &m_manifold, m_pointCapacity, &m_sphere, &m_sphere, transformBtoA );
 	}
 
@@ -405,15 +405,15 @@ public:
 
 	void Render() override
 	{
-		DrawSolidCapsule( b3MakeWorldTransform( m_transformA ), m_capsule, MakeColor( b3_colorCyan ) );
-		DrawSolidSphere( b3MakeWorldTransform( m_transformB ), m_sphere, MakeColor( b3_colorGreen ) );
+		DrawSolidCapsule( m_transformA, m_capsule, MakeColor( b3_colorCyan ) );
+		DrawSolidSphere( m_transformB, m_sphere, MakeColor( b3_colorGreen ) );
 
 		Manifold::Render();
 	}
 
 	void Step() override
 	{
-		b3Transform transformBtoA = b3InvMulTransforms( m_transformA, m_transformB );
+		b3Transform transformBtoA = b3InvMulWorldTransforms( m_transformA, m_transformB );
 		b3CollideCapsuleAndSphere( &m_manifold, m_pointCapacity, &m_capsule, &m_sphere, transformBtoA );
 	}
 
@@ -438,8 +438,8 @@ public:
 
 	void Render() override
 	{
-		DrawHull( b3MakeWorldTransform( m_transformA ), &m_hull.base, MakeColor( b3_colorCyan ) );
-		DrawSolidSphere( b3MakeWorldTransform( m_transformB ), m_sphere, MakeColor( b3_colorGreen ) );
+		DrawHull( m_transformA, &m_hull.base, MakeColor( b3_colorCyan ) );
+		DrawSolidSphere( m_transformB, m_sphere, MakeColor( b3_colorGreen ) );
 
 		Manifold::Render();
 	}
@@ -451,7 +451,7 @@ public:
 			m_simplexCache = {};
 		}
 
-		b3Transform transformBtoA = b3InvMulTransforms( m_transformA, m_transformB );
+		b3Transform transformBtoA = b3InvMulWorldTransforms( m_transformA, m_transformB );
 		b3CollideHullAndSphere( &m_manifold, m_pointCapacity, &m_hull.base, &m_sphere, transformBtoA, &m_simplexCache );
 	}
 
@@ -479,7 +479,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 30.0f, 10.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 30.0f, 10.0f, b3Pos_zero );
 		}
 
 		m_sphere = { { 0.0f, 0.0f, 0.0f }, 1.0f };
@@ -540,15 +540,15 @@ public:
 
 	void Render() override
 	{
-		DrawSolidCapsule( b3MakeWorldTransform( m_transformA ), m_capsule, MakeColor( b3_colorGreen ) );
-		DrawSolidCapsule( b3MakeWorldTransform( m_transformB ), m_capsule, MakeColor( b3_colorCyan ) );
+		DrawSolidCapsule( m_transformA, m_capsule, MakeColor( b3_colorGreen ) );
+		DrawSolidCapsule( m_transformB, m_capsule, MakeColor( b3_colorCyan ) );
 
 		Manifold::Render();
 	}
 
 	void Step() override
 	{
-		b3Transform transformBtoA = b3InvMulTransforms( m_transformA, m_transformB );
+		b3Transform transformBtoA = b3InvMulWorldTransforms( m_transformA, m_transformB );
 		b3CollideCapsules( &m_manifold, m_pointCapacity, &m_capsule, &m_capsule, transformBtoA );
 	}
 
@@ -570,7 +570,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 30.0f, 5.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 30.0f, 5.0f, b3Pos_zero );
 		}
 
 		m_capsule = { { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, 0.5f };
@@ -593,8 +593,8 @@ public:
 
 	void Render() override
 	{
-		DrawHull( b3MakeWorldTransform( m_transformA ), &m_hull.base, MakeColor( b3_colorCyan ) );
-		DrawSolidCapsule( b3MakeWorldTransform( m_transformB ), m_capsule, MakeColor( b3_colorGreen ) );
+		DrawHull( m_transformA, &m_hull.base, MakeColor( b3_colorCyan ) );
+		DrawSolidCapsule( m_transformB, m_capsule, MakeColor( b3_colorGreen ) );
 
 		Manifold::Render();
 	}
@@ -606,7 +606,7 @@ public:
 			m_simplexCache = {};
 		}
 
-		b3Transform transformBtoA = b3InvMulTransforms( m_transformA, m_transformB );
+		b3Transform transformBtoA = b3InvMulWorldTransforms( m_transformA, m_transformB );
 		b3CollideHullAndCapsule( &m_manifold, m_pointCapacity, &m_hull.base, &m_capsule, transformBtoA, &m_simplexCache );
 	}
 
@@ -634,7 +634,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 30.0f, 10.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 30.0f, 10.0f, b3Pos_zero );
 		}
 
 		m_capsule = { { 0.0f, -0.2f, 0.0f }, { 0.0f, 0.2f, 0.0f }, 0.05f };
@@ -696,7 +696,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 15.0f, 4.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 15.0f, 4.0f, b3Pos_zero );
 		}
 
 		// m_boxA = b3MakeTransformedBoxHull( 0.5f, 0.5f, 0.5f, { { 0.0f, -0.5f, 0.0f }, b3Quat_identity } );
@@ -774,8 +774,8 @@ public:
 
 	void Render() override
 	{
-		DrawHull( b3MakeWorldTransform( m_transformA ), m_hullA, MakeColor( b3_colorGreen ) );
-		DrawHull( b3MakeWorldTransform( m_transformB ), m_hullB, MakeColor( b3_colorCyan ) );
+		DrawHull( m_transformA, m_hullA, MakeColor( b3_colorGreen ) );
+		DrawHull( m_transformB, m_hullB, MakeColor( b3_colorCyan ) );
 
 		Manifold::Render();
 	}
@@ -802,7 +802,7 @@ public:
 			m_satCache = {};
 		}
 
-		b3Transform transformBtoA = b3InvMulTransforms( m_transformA, m_transformB );
+		b3Transform transformBtoA = b3InvMulWorldTransforms( m_transformA, m_transformB );
 		b3CollideHulls( &m_manifold, m_pointCapacity, m_hullA, m_hullB, transformBtoA, &m_satCache );
 
 		DrawTextLine( "SAT type: %d", m_satCache.type );
@@ -834,7 +834,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 30.0f, 3.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 30.0f, 3.0f, b3Pos_zero );
 		}
 
 		m_triangle[0] = { 1.00000000, 0, 1.00000000 };

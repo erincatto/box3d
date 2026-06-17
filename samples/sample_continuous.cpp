@@ -22,7 +22,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 30.0f, 30.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 30.0f, 30.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 40.0f );
@@ -80,7 +80,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 45.0f, 45.0f, 50.0f, b3Vec3_zero );
+			m_camera->SetView( 45.0f, 45.0f, 50.0f, b3Pos_zero );
 		}
 
 		AddGroundBox( 10.0f );
@@ -426,7 +426,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 30.0f, 20.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 30.0f, 20.0f, b3Pos_zero );
 			GetGuiDraw()->forceScale = 0.1f;
 		}
 
@@ -752,7 +752,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 30.0f, 20.0f, b3Vec3_zero );
+			m_camera->SetView( 0.0f, 30.0f, 20.0f, b3Pos_zero );
 			GetGuiDraw()->forceScale = 0.1f;
 		}
 
