@@ -652,9 +652,8 @@ static void DestroyDebugShape( void* userShape, void* context )
 	FreeDebugShape( index );
 }
 
-// World-space cell size for the procedural ground grid (meters per minor
-// cell, major lines fire every 10 cells inside the shader).
-#define BOX3D_GROUND_GRID_CELL_SIZE 1.0f
+// BOX3D_GROUND_GRID_CELL_SIZE lives in the header so the host can wrap the draw
+// origin to the same grid period.
 
 // Alpha applied to non-static shapes when box3dAdapterSetTransparentDynamic is on.
 #define BOX3D_TRANSPARENT_DYNAMIC_ALPHA 0.5f

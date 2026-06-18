@@ -108,6 +108,7 @@ layout( binding = 1 ) uniform ub_pass
 	vec4 sun_color;			  // .rgb = color, .a = ambient strength (flat-ambient fallback)
 	ivec4 flags;			  // .x = debug_view_mode (0 lit, 1 view-depth, 2 cascade-index)
 	vec4 camera_pos;		  // .xyz = camera world pos, .w unused
+	vec4 grid_offset;		  // .xy = origin wrapped to grid period (lines), .zw = full origin (axes)
 	mat4 view;				  // for view-space depth debug mode + cascade selection
 	vec4 cascade_far_view_z;  // .xyz = far view-space Z per cascade
 	mat4 cascade_matrices[3]; // light-space view-proj per cascade
@@ -306,7 +307,14 @@ void main()
 	vec3 baseColor = v_base_color.rgb;
 	if ( v_material.z > 0.5 )
 	{
-		vec3 grid_color = proceduralGrid( world_pos.xz, v_base_color.rgb, v_material.w );
+		// world_pos is in the camera relative frame. The grid lines use the
+		// origin wrapped to one grid period: the pattern repeats over it, so
+		// this draws the same lines but stays small enough for a float to
+		// resolve far from the world origin. The axes need the true origin, so
+		// they fade out far away instead of wrapping into ghost axes.
+		vec2 line_xz = world_pos.xz + grid_offset.xy;
+		vec2 axis_xz = world_pos.xz + grid_offset.zw;
+		vec3 grid_color = proceduralGrid( line_xz, axis_xz, v_base_color.rgb, v_material.w );
 		float grid_blend = pow( clamp( n_world.y, 0.0, 1.0 ), 8.0 );
 		baseColor = mix( v_base_color.rgb, grid_color, grid_blend );
 	}

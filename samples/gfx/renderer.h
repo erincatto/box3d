@@ -24,6 +24,19 @@ typedef struct FrameInput
 	Mat4 projInv;
 	b3Vec3 cameraPosition;
 
+	// World-space position of the relative render frame's origin (the draw
+	// origin the host shifts to the camera each frame). Shapes render relative
+	// to it, so the ground grid adds it back to recover absolute world XZ and
+	// stay locked to the world instead of sliding with the camera. Used full
+	// precision for the origin axes, which fade out far from the world origin.
+	b3Vec3 drawOrigin;
+
+	// Draw origin XZ wrapped to the grid period (10 cells) in double before it
+	// narrows. The grid pattern repeats over this period, so the wrapped offset
+	// reproduces the same lines while staying small enough for a float to
+	// resolve a 1 m cell out at planetary distance.
+	b3Vec2 gridWrap;
+
 	// seconds since InitRenderer
 	float time;
 

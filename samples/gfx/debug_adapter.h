@@ -11,6 +11,11 @@ extern "C"
 {
 #endif
 
+// World-space minor-cell size of the procedural ground grid (meters). Major
+// lines fire every 10 cells inside the shader. Shared so the host can wrap the
+// draw origin to the grid period and keep the grid crisp far from the origin.
+#define BOX3D_GROUND_GRID_CELL_SIZE 1.0f
+
 void InitAdapter( void );
 
 // Unconditionally flush the debug-shape pool: release the GPU mesh references

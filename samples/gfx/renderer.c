@@ -1865,6 +1865,8 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		gup.sun_color = sunColor;
 		gup.flags[0] = frame->debugMode;
 		gup.camera_pos = MakeVec4( frame->cameraPosition.x, frame->cameraPosition.y, frame->cameraPosition.z, 0.0f );
+		// .xy = origin wrapped to the grid period (grid lines), .zw = full origin (origin axes).
+		gup.grid_offset = MakeVec4( frame->gridWrap.x, frame->gridWrap.y, frame->drawOrigin.x, frame->drawOrigin.z );
 		gup.view = frame->view;
 		gup.cascade_far_view_z = cascadeFarViewZ;
 		for ( int i = 0; i < 3; ++i )
@@ -2362,6 +2364,8 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	geomPass.sun_color = sunColor;
 	geomPass.flags[0] = frame->debugMode;
 	geomPass.camera_pos = MakeVec4( frame->cameraPosition.x, frame->cameraPosition.y, frame->cameraPosition.z, 0.0f );
+	// .xy = origin wrapped to the grid period (grid lines), .zw = full origin (origin axes).
+	geomPass.grid_offset = MakeVec4( frame->gridWrap.x, frame->gridWrap.y, frame->drawOrigin.x, frame->drawOrigin.z );
 	geomPass.view = frame->view;
 	geomPass.cascade_far_view_z = cascadeFarViewZ;
 	for ( int i = 0; i < 3; ++i )

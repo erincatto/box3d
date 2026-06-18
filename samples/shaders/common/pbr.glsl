@@ -204,24 +204,30 @@ float max_lod)
 // at any distance / viewing angle. Caller passes a flat per-instance
 // `cell_size`, the result is suitable as `base_color` for brdf_evaluate.
 //
+// `line_xz` is the world XZ with the draw origin wrapped to the grid period,
+// so the repeating lines stay precise far from the world origin. `axis_xz` is
+// the true world XZ for the colored origin axes, which there is only one of, so
+// they cannot be wrapped. Far from the origin axis_xz is large and the axes
+// vanish, which is what we want (the origin is not in view).
+//
 // Derivatives are valid here only because the geom shader calls this
 // from a branch on a flat per-instance varying (every fragment in a
 // quad of a single draw shares the same materialMode).
-vec3 proceduralGrid(vec2 world_xz, vec3 base_color, float cell_size)
+vec3 proceduralGrid(vec2 line_xz, vec2 axis_xz, vec3 base_color, float cell_size)
 {
-	vec2 coord_minor = world_xz / cell_size;
+	vec2 coord_minor = line_xz / cell_size;
 	vec2 d_minor = max(fwidth(coord_minor), vec2(1.0e-6));
 	vec2 g_minor = abs(fract(coord_minor - 0.5) - 0.5) / d_minor;
 	float line_minor = 1.0 - clamp(min(g_minor.x, g_minor.y), 0.0, 1.0);
-	
-	vec2 coord_major = world_xz / (cell_size * 10.0);
+
+	vec2 coord_major = line_xz / (cell_size * 10.0);
 	vec2 d_major = max(fwidth(coord_major), vec2(1.0e-6));
 	vec2 g_major = abs(fract(coord_major - 0.5) - 0.5) / d_major;
 	float line_major = 1.0 - clamp(min(g_major.x, g_major.y), 0.0, 1.0);
-	
+
 	vec3 minor_color = base_color * 0.70;
 	vec3 major_color = base_color * 0.35;
-	
+
 	vec3 result = mix(base_color, minor_color, line_minor);
 	result = mix(result, major_color, line_major);
 
@@ -229,9 +235,9 @@ vec3 proceduralGrid(vec2 world_xz, vec3 base_color, float cell_size)
 	// lines, gated to the positive half so the origin reads as a corner.
 	// Saturated primaries are identical in linear and sRGB, so they need no
 	// encoding fixup before the BRDF.
-	vec2 d_axis = max(fwidth(world_xz), vec2(1.0e-6));
-	float axis_x = (1.0 - clamp(abs(world_xz.y) / d_axis.y, 0.0, 1.0)) * step(0.0, world_xz.x);
-	float axis_z = (1.0 - clamp(abs(world_xz.x) / d_axis.x, 0.0, 1.0)) * step(0.0, world_xz.y);
+	vec2 d_axis = max(fwidth(axis_xz), vec2(1.0e-6));
+	float axis_x = (1.0 - clamp(abs(axis_xz.y) / d_axis.y, 0.0, 1.0)) * step(0.0, axis_xz.x);
+	float axis_z = (1.0 - clamp(abs(axis_xz.x) / d_axis.x, 0.0, 1.0)) * step(0.0, axis_xz.y);
 	result = mix(result, vec3(1.0, 0.0, 0.0), axis_x);
 	result = mix(result, vec3(0.0, 0.0, 1.0), axis_z);
 	return result;

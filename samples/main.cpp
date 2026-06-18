@@ -320,6 +320,17 @@ static void OnFrame( void )
 	fi.proj = camera.Proj();
 	fi.projInv = camera.ProjInverse();
 	fi.cameraPosition = camera.Position();
+	// Read back the origin Render actually shifted to. A follow-cam sample can
+	// move it during Step/Render, so reuse the live value rather than the eye.
+	b3Pos drawOrigin = GetDrawOrigin();
+	fi.drawOrigin = b3ToVec3( drawOrigin );
+	// Wrap the origin to the grid period in double, before it narrows to float.
+	// A float can't resolve a 1 m cell at 1e7 m, so feeding the raw origin to
+	// the grid would shatter the lines. The pattern repeats every 10 cells, so
+	// the wrapped offset draws identical lines at any distance.
+	double gridPeriod = 10.0 * BOX3D_GROUND_GRID_CELL_SIZE;
+	fi.gridWrap.x = (float)fmod( (double)drawOrigin.x, gridPeriod );
+	fi.gridWrap.y = (float)fmod( (double)drawOrigin.z, gridPeriod );
 	fi.time = (float)sapp_frame_count() / 60.0f;
 	fi.debugMode = s_context.debugView;
 	fi.disableShadows = !s_context.enableShadows;
