@@ -194,6 +194,9 @@ B3_API b3HullData* b3CreateCylinder( float height, float radius, float yOffset, 
 /// Create a tessellated cone as a hull.
 B3_API b3HullData* b3CreateCone( float height, float radius1, float radius2, int slices );
 
+/// Create a rock shaped hull.
+B3_API b3HullData* b3CreateRock( float radius );
+
 /// Create a generic convex hull.
 B3_API b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount );
 

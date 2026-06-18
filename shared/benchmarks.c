@@ -830,29 +830,7 @@ void CreateJunkyard( b3WorldId worldId )
 		}
 	}
 	{
-		b3HullData* hull;
-		{
-			float radius = 1.5f;
-			int pointCount = 10;
-
-			// Golden ratio
-			const float phi = ( 1.0f + sqrtf( 5.0f ) ) / 2.0f;
-
-			// Random points on sphere (Fibonacci lattice)
-			b3Vec3 points[10];
-			for ( int i = 0; i < pointCount; ++i )
-			{
-				float Theta = 2.0f * B3_PI * i / phi;			   // Azimuthal angle
-				float Z = 1.0f - ( 2.0f * i + 1.0f ) / pointCount; // Z coordinate
-				float Radius_XY = sqrtf( 1.0f - Z * Z );		   // Radius in xy-plane
-
-				points[i].x = radius * Radius_XY * cosf( Theta );
-				points[i].y = radius * Radius_XY * sinf( Theta );
-				points[i].z = radius * Z;
-			}
-
-			hull = b3CreateHull( points, pointCount, pointCount );
-		}
+		b3HullData* rockHull = b3CreateRock( 1.5f );
 
 		int count = BENCHMARK_DEBUG ? 2 : 24;
 		float height = 24.0f;
@@ -869,12 +847,12 @@ void CreateJunkyard( b3WorldId worldId )
 					bodyDef.position.y = 4.0f * Y + height + 1.0f;
 					bodyDef.position.z = -40.0f + 4.0f * Z;
 					b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
-					b3CreateHullShape( bodyId, &shapeDef, hull );
+					b3CreateHullShape( bodyId, &shapeDef, rockHull );
 				}
 			}
 		}
 
-		b3DestroyHull( hull );
+		b3DestroyHull( rockHull );
 	}
 
 	g_junkyardData.radius = 35.0f;

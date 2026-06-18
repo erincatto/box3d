@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_REGISTRY_ENTRIES 256
+#define MAX_REGISTRY_ENTRIES 4096
 #define MAX_GEOM_INSTANCES_GLOBAL 65536
 #define INITIAL_PER_ENTRY_CAPACITY 8
 
