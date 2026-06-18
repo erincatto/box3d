@@ -12,12 +12,12 @@
 // renders crisply because the debug draw origin tracks the content. A float build of the same
 // sample keeps full speed but loses sub-meter resolution far out, so the stack snaps to a coarse
 // grid and jitters. The settled height readout stays put at any offset in double, and drifts in float.
-class LargeWorld : public Sample
+class FarStack : public Sample
 {
 public:
 	static constexpr float m_maxOffset = 10000.0f;
 
-	explicit LargeWorld( SampleContext* context )
+	explicit FarStack( SampleContext* context )
 		: Sample( context )
 	{
 		// Double precision opens at the dramatic offset, float opens at the origin so it is usable
@@ -108,7 +108,7 @@ public:
 
 	static Sample* Create( SampleContext* context )
 	{
-		return new LargeWorld( context );
+		return new FarStack( context );
 	}
 
 	float m_offsetKilometers;
@@ -117,4 +117,4 @@ public:
 	b3Pos m_base; // world position of the offset content, the frame the height readout uses
 };
 
-static int sampleLargeWorld = RegisterSample( "World", "Large World", LargeWorld::Create );
+static int sampleLargeWorld = RegisterSample( "World", "Far Stack", FarStack::Create );

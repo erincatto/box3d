@@ -901,7 +901,7 @@ void StepJunkyard( b3WorldId worldId, int stepCount )
 	g_junkyardData.degrees += omega * timeStep;
 	b3CosSin cs = b3ComputeCosSin( g_junkyardData.degrees * B3_PI / 180.0f );
 	float r = g_junkyardData.radius;
-	b3Vec3 targetPos = { r * cs.cosine, 0.0f, r * cs.sine };
-	b3WorldTransform target = { .p = b3ToPos( targetPos ), .q = b3Quat_identity };
+	b3Pos targetPos = { r * cs.cosine, 0.0f, r * cs.sine };
+	b3WorldTransform target = { .p = targetPos, .q = b3Quat_identity };
 	b3Body_SetTargetTransform( g_junkyardData.pusherId, target, timeStep, false );
 }

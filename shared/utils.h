@@ -71,6 +71,16 @@ B3_INLINE b3Vec3 RandomVec3( b3Vec3 lo, b3Vec3 hi )
 	return v;
 }
 
+// Random world position with coordinates in range [lo, hi]
+B3_INLINE b3Pos RandomPos( b3Vec3 lo, b3Vec3 hi )
+{
+	b3Pos v;
+	v.x = RandomFloatRange( lo.x, hi.x );
+	v.y = RandomFloatRange( lo.y, hi.y );
+	v.z = RandomFloatRange( lo.z, hi.z );
+	return v;
+}
+
 B3_INLINE b3Vec3 RandomVec3Uniform( float lo, float hi )
 {
 	b3Vec3 v;

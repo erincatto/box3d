@@ -558,7 +558,7 @@ public:
 			// m_meshTransform.q = b3Quat_identity;
 
 			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.position = b3ToPos( m_meshTransform.p );
+			bodyDef.position = m_meshTransform.p;
 			bodyDef.rotation = m_meshTransform.q;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
@@ -648,7 +648,7 @@ public:
 				continue;
 			}
 
-			b3Pos p = b3ToPos( b3TransformPoint( m_meshTransform, 1.0f / 3.0f * ( v1 + v2 + v3 ) ) );
+			b3Pos p = b3TransformWorldPoint( m_meshTransform, 1.0f / 3.0f * ( v1 + v2 + v3 ) );
 
 			DrawString3D( p, MakeColor( b3_colorAqua ), "%d", i );
 
@@ -666,7 +666,7 @@ public:
 		return new ConveyorMesh( context );
 	}
 
-	b3Transform m_meshTransform;
+	b3WorldTransform m_meshTransform;
 	b3MeshData* m_meshData;
 	b3HullData* m_cylinderHull;
 	b3Vec3 m_velocities[7];

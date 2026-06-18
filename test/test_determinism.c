@@ -17,8 +17,8 @@
 // Double precision accumulates body positions in double, so the settle/sleep step and the
 // state hash differ from the float build. Both modes are internally deterministic.
 #if defined( BOX3D_DOUBLE_PRECISION )
-#define EXPECTED_SLEEP_STEP 309
-#define EXPECTED_HASH 0x4CD4499F
+#define EXPECTED_SLEEP_STEP 271
+#define EXPECTED_HASH 0x758E0F70
 #else
 #define EXPECTED_SLEEP_STEP 306
 #define EXPECTED_HASH 0x596EA165

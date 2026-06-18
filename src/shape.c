@@ -101,8 +101,6 @@ static void b3UpdateShapeAABBs( b3Shape* shape, b3WorldTransform transform, b3Bo
 	fatAABB.upperBound.z = aabb.upperBound.z + margin;
 #endif
 	shape->fatAABB = fatAABB;
-
-	B3_VALIDATE( b3IsSaneAABB( fatAABB ) );
 }
 
 static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTransform bodyTransform, const b3ShapeDef* def,

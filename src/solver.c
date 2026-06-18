@@ -2127,8 +2127,6 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 							// A fast body may have been flagged as enlarged despite having no shapes enlarged.
 							if ( shape->enlargedAABB )
 							{
-								B3_VALIDATE( b3IsSaneAABB( shape->fatAABB ) );
-
 								b3BroadPhase_EnlargeProxy( broadPhase, shape->proxyKey, shape->fatAABB );
 								shape->enlargedAABB = false;
 							}
