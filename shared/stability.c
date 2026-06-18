@@ -12,11 +12,12 @@
 
 #define MESH_DROP_GRID_COUNT 32
 
-MeshDropData CreateMeshDrop( b3WorldId worldId )
+MeshDropData CreateMeshDrop( b3WorldId worldId, b3Pos origin )
 {
 	MeshDropData data = { 0 };
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = origin;
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
 		int gridCount = 40;
@@ -55,7 +56,8 @@ MeshDropData CreateMeshDrop( b3WorldId worldId )
 				b3Vec3 linearVelocity = RandomVec3Uniform( -1.0f, 1.0f );
 				b3Vec3 angularVelocity = RandomVec3Uniform( -5.0f, 5.0f );
 
-				bodyDef.position = (b3Pos){ 0.5f * ( i - 0.5f * gridCount ), 5.0f, 0.5f * ( j - 0.5f * gridCount ) };
+				bodyDef.position =
+					b3OffsetPos( origin, (b3Vec3){ 0.5f * ( i - 0.5f * gridCount ), 5.0f, 0.5f * ( j - 0.5f * gridCount ) } );
 				bodyDef.linearVelocity = linearVelocity;
 				bodyDef.angularVelocity = angularVelocity;
 				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );

@@ -668,7 +668,7 @@ static int TestMeshDrop( void )
 
 	b3WorldId worldId = b3CreateWorld( &worldDef );
 
-	MeshDropData data = CreateMeshDrop( worldId );
+	MeshDropData data = CreateMeshDrop( worldId, b3Pos_zero );
 
 	float timeStep = 1.0f / 60.0f;
 

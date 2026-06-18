@@ -757,7 +757,7 @@ public:
 			GetGuiDraw()->forceScale = 0.1f;
 		}
 
-		m_data = CreateMeshDrop( m_worldId );
+		m_data = CreateMeshDrop( m_worldId, b3Pos_zero );
 		m_failed = false;
 	}
 

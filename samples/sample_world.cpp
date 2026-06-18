@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 #include "gfx/debug_adapter.h"
+#include "human.h"
 #include "imgui.h"
 #include "sample.h"
+#include "stability.h"
 
 #include "box3d/box3d.h"
 
@@ -118,3 +120,196 @@ public:
 };
 
 static int sampleLargeWorld = RegisterSample( "World", "Far Stack", FarStack::Create );
+
+class FarPyramid : public Sample
+{
+public:
+	static constexpr float m_offsetKilometers = 1000.0f;
+
+	explicit FarPyramid( SampleContext* context )
+		: Sample( context )
+	{
+		b3Pos base = { 1000.0f * m_offsetKilometers, 0.0f, 0.0f };
+
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 40.0f, -10.0f, 110.0f, b3OffsetPos( base, { 0.0f, 40.0f, 0.0f } ) );
+		}
+
+#ifdef NDEBUG
+		int baseCount = 90;
+#else
+		int baseCount = 20;
+#endif
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = b3OffsetPos( base, { 0.0f, -1.0f, 0.0f } );
+		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		b3BoxHull groundHull = b3MakeBoxHull( 100.0f, 1.0f, 100.0f );
+		b3ShapeId groundShapeId = b3CreateHullShape( groundId, &shapeDef, &groundHull.base );
+		SetGroundShape( groundShapeId );
+
+		float h = 0.5f;
+		float shift = h;
+		b3BoxHull box = b3MakeBoxHull( h, h, h );
+
+		bodyDef.type = b3_dynamicBody;
+		for ( int i = 0; i < baseCount; ++i )
+		{
+			float y = ( 2.0f * i + 1.0f ) * shift;
+			for ( int j = i; j < baseCount; ++j )
+			{
+				float x = ( i + 1.0f ) * shift + 2.0f * ( j - i ) * shift - h * baseCount;
+				bodyDef.position = b3OffsetPos( base, { x, y, 0.0f } );
+				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+				b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			}
+		}
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		DrawTextLine( "double precision: %s", b3IsDoublePrecision() ? "ON" : "OFF" );
+		DrawTextLine( "pyramid built %.0f km from the world origin", m_offsetKilometers );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new FarPyramid( context );
+	}
+};
+
+static int sampleFarPyramid = RegisterSample( "World", "Far Pyramid", FarPyramid::Create );
+
+class FarRagdolls : public Sample
+{
+public:
+	enum
+	{
+#ifdef NDEBUG
+		e_count = 20
+#else
+		e_count = 8
+#endif
+	};
+
+	static constexpr float m_offsetKilometers = 10000.0f;
+
+	explicit FarRagdolls( SampleContext* context )
+		: Sample( context )
+	{
+		b3Pos base = { 1000.0f * m_offsetKilometers, 0.0f, 0.0f };
+
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 180.0f, 30.0f, 20.0f, base );
+		}
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = b3OffsetPos( base, { 0.0f, -1.0f, 0.0f } );
+		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		m_groundMesh = b3CreateGridMesh( 20, 20, 1.0f, 1, true );
+		b3CreateMeshShape( groundId, &shapeDef, m_groundMesh, b3Vec3_one );
+
+		for ( int i = 0; i < e_count; ++i )
+		{
+			b3Pos position = b3OffsetPos( base, { 0.1f * i, 2.0f + 0.5f * i, -0.1f * i } );
+			float torque = 10.0f;
+			float hertz = 0.5f;
+			float damping = 0.7f;
+			CreateHuman( m_humans + i, m_worldId, position, torque, hertz, damping, i, nullptr, false );
+		}
+	}
+
+	~FarRagdolls() override
+	{
+		b3DestroyMesh( m_groundMesh );
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		DrawTextLine( "double precision: %s", b3IsDoublePrecision() ? "ON" : "OFF" );
+		DrawTextLine( "%d ragdolls piled %.0f km from the world origin", (int)e_count, m_offsetKilometers );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new FarRagdolls( context );
+	}
+
+	b3MeshData* m_groundMesh;
+	Human m_humans[e_count] = {};
+};
+
+static int sampleFarRagdolls = RegisterSample( "World", "Far Ragdolls", FarRagdolls::Create );
+
+// The Mesh Drop unit test, run 1000 km out in both x and z. A field of thin boxes rains onto a
+// wave mesh and must come to rest. Continuous collision and the contact solver work in delta
+// space, so the pile settles far from the origin exactly as it does at the origin. Past 300 steps
+// any body still moving trips the failure readout, the same check the unit test uses.
+class FarMeshDrop : public Sample
+{
+public:
+	static constexpr float m_offsetKilometers = 1000.0f;
+
+	explicit FarMeshDrop( SampleContext* context )
+		: Sample( context )
+	{
+		b3Pos base = { 1000.0f * m_offsetKilometers, 0.0f, 1000.0f * m_offsetKilometers };
+
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 30.0f, 20.0f, base );
+			GetGuiDraw()->forceScale = 0.1f;
+		}
+
+		m_data = CreateMeshDrop( m_worldId, base );
+		m_failed = false;
+	}
+
+	~FarMeshDrop() override
+	{
+		DestroyMeshDrop( &m_data );
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		// Once the pile should have settled, any remaining body motion means it did not come to
+		// rest far from the origin.
+		if ( m_failed == false && m_stepCount >= 300 )
+		{
+			b3BodyEvents bodyEvents = b3World_GetBodyEvents( m_worldId );
+			if ( bodyEvents.moveCount > 0 )
+			{
+				m_failed = true;
+			}
+		}
+
+		DrawTextLine( "double precision: %s", b3IsDoublePrecision() ? "ON" : "OFF" );
+		DrawTextLine( "mesh drop running %.0f km from the world origin", m_offsetKilometers );
+		if ( m_failed )
+		{
+			DrawTextLine( "failed!" );
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new FarMeshDrop( context );
+	}
+
+	MeshDropData m_data;
+	bool m_failed;
+};
+
+static int sampleFarMeshDrop = RegisterSample( "World", "Far Mesh Drop", FarMeshDrop::Create );

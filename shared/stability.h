@@ -3,6 +3,7 @@
 #pragma once
 
 #include "box3d/id.h"
+#include "box3d/math_functions.h"
 
 #include <stdbool.h>
 
@@ -16,7 +17,7 @@ typedef struct MeshDropData
 	struct b3MeshData* mesh;
 } MeshDropData;
 
-MeshDropData CreateMeshDrop( b3WorldId worldId );
+MeshDropData CreateMeshDrop( b3WorldId worldId, b3Pos origin );
 void DestroyMeshDrop( MeshDropData* data );
 
 #ifdef __cplusplus
