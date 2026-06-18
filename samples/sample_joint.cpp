@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "earcut.h"
 #include "gfx/draw.h"
 #include "gfx/keycodes.h"
 #include "imgui.h"
 #include "sample.h"
 #include "utils.h"
-
-#include "earcut.h"
 
 #include "box3d/box3d.h"
 
@@ -1722,8 +1721,7 @@ public:
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 
-			b3RayResult result =
-				b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
+			b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
 			if ( result.hit )
 			{
@@ -2744,14 +2742,13 @@ public:
 		// b2Chain loop. The solid is inside the loop, so the windings face outward
 		// to put the collision normals on the open basin side where the debris sits.
 		static const b3Vec2 points[32] = {
-			{ -11.3000f, -0.2167f }, { 9.3375f, -0.2167f }, { 9.3375f, 7.1917f }, { 8.8083f, 7.1917f },
-			{ 8.8083f, 0.3125f },	 { 0.3417f, 0.3125f },	 { 0.3417f, 0.8417f }, { -0.1875f, 0.8417f },
-			{ -0.1875f, 1.3708f },	 { -0.7167f, 1.3708f },	 { -0.7167f, 1.9000f }, { -1.2458f, 1.9000f },
-			{ -1.2458f, 2.4292f },	 { -1.7750f, 2.4292f },	 { -1.7750f, 2.9583f }, { -2.3042f, 2.9583f },
-			{ -2.3042f, 3.4875f },	 { -2.8333f, 3.4875f },	 { -2.8333f, 4.0167f }, { -3.3625f, 4.0167f },
-			{ -3.3625f, 4.5458f },	 { -3.8917f, 4.5458f },	 { -3.8917f, 5.0750f }, { -4.4208f, 5.0750f },
-			{ -4.4208f, 5.6042f },	 { -4.9500f, 5.6042f },	 { -4.9500f, 6.1333f }, { -5.4792f, 6.1333f },
-			{ -5.4792f, 6.6625f },	 { -6.0083f, 6.6625f },	 { -6.0083f, 7.1917f }, { -11.3000f, 7.1917f },
+			{ -11.3000f, -0.2167f }, { 9.3375f, -0.2167f },	 { 9.3375f, 7.1917f },	{ 8.8083f, 7.1917f },  { 8.8083f, 0.3125f },
+			{ 0.3417f, 0.3125f },	 { 0.3417f, 0.8417f },	 { -0.1875f, 0.8417f }, { -0.1875f, 1.3708f }, { -0.7167f, 1.3708f },
+			{ -0.7167f, 1.9000f },	 { -1.2458f, 1.9000f },	 { -1.2458f, 2.4292f }, { -1.7750f, 2.4292f }, { -1.7750f, 2.9583f },
+			{ -2.3042f, 2.9583f },	 { -2.3042f, 3.4875f },	 { -2.8333f, 3.4875f }, { -2.8333f, 4.0167f }, { -3.3625f, 4.0167f },
+			{ -3.3625f, 4.5458f },	 { -3.8917f, 4.5458f },	 { -3.8917f, 5.0750f }, { -4.4208f, 5.0750f }, { -4.4208f, 5.6042f },
+			{ -4.9500f, 5.6042f },	 { -4.9500f, 6.1333f },	 { -5.4792f, 6.1333f }, { -5.4792f, 6.6625f }, { -6.0083f, 6.6625f },
+			{ -6.0083f, 7.1917f },	 { -11.3000f, 7.1917f },
 		};
 
 		float zMin = -2.0f; // four meters across z
@@ -2833,15 +2830,16 @@ public:
 
 		float wallHalfThick = 0.05f;
 		b3Vec3 wallCenter = { 0.5f * ( lower.x + upper.x ), 0.5f * ( lower.y + upper.y ), -zMax - wallHalfThick };
-		b3BoxHull wall = b3MakeOffsetBoxHull( 0.5f * ( upper.x - lower.x ), 0.5f * ( upper.y - lower.y ), wallHalfThick, wallCenter );
+		b3BoxHull wall =
+			b3MakeOffsetBoxHull( 0.5f * ( upper.x - lower.x ), 0.5f * ( upper.y - lower.y ), wallHalfThick, wallCenter );
 		b3CreateHullShape( groundId, &shapeDef, &wall.base );
 	}
 
 	// Push one cap triangle, flipping the winding so its z-normal has the wanted sign.
 	void PushCap( std::vector<int>& indices, const b3Vec2* poly, int r0, int r1, int r2, int vOffset, bool wantPositiveZ )
 	{
-		float cross = ( poly[r1].x - poly[r0].x ) * ( poly[r2].y - poly[r0].y ) -
-					  ( poly[r1].y - poly[r0].y ) * ( poly[r2].x - poly[r0].x );
+		float cross =
+			( poly[r1].x - poly[r0].x ) * ( poly[r2].y - poly[r0].y ) - ( poly[r1].y - poly[r0].y ) * ( poly[r2].x - poly[r0].x );
 		bool positive = cross > 0.0f;
 
 		int v0 = 2 * r0 + vOffset;
@@ -2907,7 +2905,6 @@ public:
 		b3Capsule capsule = { { 0.0f, -m_linkHalfLength, 0.0f }, { 0.0f, m_linkHalfLength, 0.0f }, m_linkRadius };
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.density *= 2.0f;
 		shapeDef.baseMaterial.customColor = b3_colorLightSteelBlue;
 
 		b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
@@ -2951,7 +2948,7 @@ public:
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.density *= 0.5f;
 		shapeDef.baseMaterial.friction = 0.1f;
-		shapeDef.baseMaterial.customColor = b3_colorDarkCyan;
+		shapeDef.baseMaterial.customColor = b3MakeDebugColor( b3_colorDarkCyan, b3_debugMaterialMetallic );
 		b3BoxHull box = b3MakeBoxHull( 0.05f, m_doorHalfHeight, m_doorHalfDepth );
 		b3CreateHullShape( doorId, &shapeDef, &box.base );
 
@@ -2967,7 +2964,7 @@ public:
 			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( links[i], pivot );
 			jointDef.base.localFrameB.p = { 0.0f, m_doorHalfHeight, depths[i] };
 			jointDef.enableMotor = true;
-			jointDef.maxMotorTorque = 0.05f;
+			jointDef.maxMotorTorque = 50.0f;
 			b3CreateRevoluteJoint( m_worldId, &jointDef );
 		}
 
@@ -2980,7 +2977,7 @@ public:
 		jointDef.base.localFrameA.q = slideAxis;
 		jointDef.base.localFrameB.p = { 0.0f, 0.0f, 0.0f };
 		jointDef.base.localFrameB.q = slideAxis;
-		jointDef.maxMotorForce = 0.2f;
+		jointDef.maxMotorForce = 200.0f;
 		jointDef.enableMotor = true;
 		jointDef.base.collideConnected = true;
 		b3CreatePrismaticJoint( m_worldId, &jointDef );
@@ -3041,28 +3038,24 @@ public:
 
 		b3HullData* rockHull = b3CreateRock( m_rockRadius );
 
-		float y = 3.8f;
-		int xCount = 5, yCount = 10;
-		for ( int i = 0; i < yCount; ++i )
+		float x = -5.0f;
+		int xCount = 12, yCount = 10;
+		for ( int i = 0; i < xCount; ++i )
 		{
-			float x = -2.5f;
-			for ( int j = 0; j < xCount; ++j )
+			float y = 6.5f - 0.25f * i;
+			for ( int j = 0; j < yCount; ++j )
 			{
 				// Spread the debris across the depth of the stairwell.
-				bodyDef.position = { x, y, RandomFloatRange( -1.65f, 0.25f ) };
+				bodyDef.position = { x, y, RandomFloatRange( -1.65f, 0.35f ) };
 				bodyDef.rotation = RandomQuat();
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
-				//b3BoxHull chunk =
-				//	b3MakeBoxHull( RandomFloatRange( 0.06f, 0.10f ), RandomFloatRange( 0.06f, 0.10f ),
-				//				   RandomFloatRange( 0.06f, 0.10f ) );
 				shapeDef.baseMaterial.customColor = colors[(int)RandomIntRange( 0, 4 )];
 				b3CreateHullShape( bodyId, &shapeDef, rockHull );
 
-				x += 0.3f;
+				y += 0.2f;
 			}
-
-			y += 0.2f;
+			x += 0.3f;
 		}
 
 		b3DestroyHull( rockHull );
@@ -3098,23 +3091,6 @@ public:
 		ImGui::PopItemWidth();
 
 		return true;
-	}
-
-	void Step() override
-	{
-		if ( IsKeyDown( KEY_A ) )
-		{
-			m_motorSpeed = b3MaxFloat( -0.3f, m_motorSpeed - 0.01f );
-			SetMotorSpeed( m_motorSpeed );
-		}
-
-		if ( IsKeyDown( KEY_D ) )
-		{
-			m_motorSpeed = b3MinFloat( 0.3f, m_motorSpeed + 0.01f );
-			SetMotorSpeed( m_motorSpeed );
-		}
-
-		Sample::Step();
 	}
 
 	static Sample* Create( SampleContext* context )
