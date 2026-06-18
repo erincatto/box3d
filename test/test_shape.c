@@ -22,11 +22,12 @@ static int ShapeMassTest( void )
 		float mass = 4.0f / 3.0f * B3_PI;
 		ENSURE_SMALL( md.mass - mass, FLT_EPSILON );
 		ENSURE( md.center.x == 1.0f && md.center.y == 0.0f );
+
+		// Inertia is now about the shape center of mass, so the offset does not appear.
 		float inertia = 2.0f / 5.0f * mass;
-		float offsetInertia = inertia + mass;
 		ENSURE_SMALL( md.inertia.cx.x - inertia, FLT_EPSILON );
-		ENSURE_SMALL( md.inertia.cy.y - offsetInertia, FLT_EPSILON );
-		ENSURE_SMALL( md.inertia.cz.z - offsetInertia, FLT_EPSILON );
+		ENSURE_SMALL( md.inertia.cy.y - inertia, FLT_EPSILON );
+		ENSURE_SMALL( md.inertia.cz.z - inertia, FLT_EPSILON );
 	}
 
 	// Analytic box hull

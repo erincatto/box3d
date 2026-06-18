@@ -20,7 +20,7 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 #if defined( BOX3D_DOUBLE_PRECISION )
 #define B3_HUGE ( 1.0e9f * b3GetLengthUnitsPerMeter() )
 #else
-#define B3_HUGE ( 100000.0f * b3GetLengthUnitsPerMeter() )
+#define B3_HUGE ( 1.0e5f * b3GetLengthUnitsPerMeter() )
 #endif
 
 /// Maximum parallel workers. Used for some fixed size arrays.

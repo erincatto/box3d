@@ -76,7 +76,6 @@ b3Matrix3 b3CylinderInertia( float mass, float radius, float height );
 b3Matrix3 b3BoxInertia( float mass, b3Vec3 min, b3Vec3 max );
 
 // Inertia helper (Io = Ic + Is and Ic = Io - Is)
-b3Matrix3 b3Steiner( float mass, b3Vec3 origin );
 int b3GetProxySupport( const b3ShapeProxy* proxy, b3Vec3 axis );
 int b3GetPointSupport( const b3Vec3* points, int count, b3Vec3 axis );
 

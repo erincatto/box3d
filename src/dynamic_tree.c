@@ -761,6 +761,7 @@ static void b3RemoveLeaf( b3DynamicTree* tree, int leaf )
 int b3DynamicTree_CreateProxy( b3DynamicTree* tree, b3AABB aabb, uint64_t categoryBits, uint64_t userData )
 {
 	B3_ASSERT( b3IsValidAABB( aabb ) );
+	B3_VALIDATE( b3IsBoundedAABB( aabb ) );
 
 	int proxyId = b3AllocateNode( tree );
 	b3TreeNode* node = tree->nodes + proxyId;
@@ -799,12 +800,7 @@ int b3DynamicTree_GetProxyCount( const b3DynamicTree* tree )
 void b3DynamicTree_MoveProxy( b3DynamicTree* tree, int proxyId, b3AABB aabb )
 {
 	B3_ASSERT( b3IsValidAABB( aabb ) );
-	B3_VALIDATE( -B3_HUGE < aabb.lowerBound.x && aabb.lowerBound.x < B3_HUGE );
-	B3_VALIDATE( -B3_HUGE < aabb.lowerBound.y && aabb.lowerBound.y < B3_HUGE );
-	B3_VALIDATE( -B3_HUGE < aabb.lowerBound.z && aabb.lowerBound.z < B3_HUGE );
-	B3_VALIDATE( -B3_HUGE < aabb.upperBound.x && aabb.upperBound.x < B3_HUGE );
-	B3_VALIDATE( -B3_HUGE < aabb.upperBound.y && aabb.upperBound.y < B3_HUGE );
-	B3_VALIDATE( -B3_HUGE < aabb.upperBound.z && aabb.upperBound.z < B3_HUGE );
+	B3_VALIDATE( b3IsBoundedAABB( aabb ) );
 	B3_ASSERT( 0 <= proxyId && proxyId < tree->nodeCapacity );
 	B3_ASSERT( b3IsLeaf( tree->nodes + proxyId ) );
 
@@ -820,9 +816,6 @@ void b3DynamicTree_EnlargeProxy( b3DynamicTree* tree, int proxyId, b3AABB aabb )
 {
 	b3TreeNode* nodes = tree->nodes;
 	B3_VALIDATE( b3IsValidAABB( aabb ) );
-	B3_VALIDATE( aabb.upperBound.x - aabb.lowerBound.x < B3_HUGE );
-	B3_VALIDATE( aabb.upperBound.y - aabb.lowerBound.y < B3_HUGE );
-	B3_VALIDATE( aabb.upperBound.z - aabb.lowerBound.z < B3_HUGE );
 	B3_ASSERT( 0 <= proxyId && proxyId < tree->nodeCapacity );
 	B3_VALIDATE( b3IsLeaf( tree->nodes + proxyId ) );
 

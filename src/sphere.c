@@ -22,7 +22,9 @@ b3MassData b3ComputeSphereMass( const b3Sphere* shape, float density )
 	b3MassData out;
 	out.mass = mass;
 	out.center = center;
-	out.inertia = b3AddMM( b3MakeDiagonalMatrix( ixx, ixx, ixx ), b3Steiner( mass, center ) );
+
+	// Inertia about the center of mass
+	out.inertia = b3MakeDiagonalMatrix( ixx, ixx, ixx );
 	return out;
 }
 

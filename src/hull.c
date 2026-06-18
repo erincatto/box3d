@@ -2384,8 +2384,8 @@ b3MassData b3ComputeHullMass( const b3HullData* shape, float density )
 	out.mass = density * shape->volume;
 	out.center = shape->center;
 
-	// todo_erin switch to central
-	out.inertia = b3AddMM( b3MulSM( density, shape->centralInertia ), b3Steiner( out.mass, out.center ) );
+	// Inertia about the center of mass
+	out.inertia = b3MulSM( density, shape->centralInertia );
 	return out;
 }
 

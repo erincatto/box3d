@@ -88,10 +88,6 @@ static void b3UpdateShapeAABBs( b3Shape* shape, b3WorldTransform transform, b3Bo
 
 	// Smaller margin for static bodies. Cannot be zero due to TOI tolerance.
 	float margin = proxyType == b3_staticBody ? speculativeDistance : aabbMargin;
-#if defined( BOX3D_DOUBLE_PRECISION )
-	// Fold the margin into the double translation so it survives far from the origin
-	b3AABB fatAABB = b3ComputeFatShapeAABB( shape, transform, speculativeDistance + margin );
-#else
 	b3AABB fatAABB;
 	fatAABB.lowerBound.x = aabb.lowerBound.x - margin;
 	fatAABB.lowerBound.y = aabb.lowerBound.y - margin;
@@ -99,7 +95,6 @@ static void b3UpdateShapeAABBs( b3Shape* shape, b3WorldTransform transform, b3Bo
 	fatAABB.upperBound.x = aabb.upperBound.x + margin;
 	fatAABB.upperBound.y = aabb.upperBound.y + margin;
 	fatAABB.upperBound.z = aabb.upperBound.z + margin;
-#endif
 	shape->fatAABB = fatAABB;
 }
 

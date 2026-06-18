@@ -465,13 +465,8 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	b3BodySim* fastBodySim = b3Array_Get( awakeSet->bodySims, bodySimIndex );
 	B3_ASSERT( fastBodySim->flags & b3_isFast );
 
-	// Re-center the sweeps to a base position so TOI stays in float precision far from the origin.
-	// In float mode the base is zero and everything below is identical to an absolute world sweep.
-#if defined( BOX3D_DOUBLE_PRECISION )
+	// Re-center the sweep on the fast body so the TOI and the swept query stay in float precision
 	b3Pos base = fastBodySim->center0;
-#else
-	b3Pos base = b3Pos_zero;
-#endif
 
 	b3Sweep sweep = b3MakeRelativeSweep( fastBodySim, base );
 
@@ -569,12 +564,8 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 			if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 			{
 				float marginScalar = shape->aabbMargin;
-#if defined( BOX3D_DOUBLE_PRECISION )
-				shape->fatAABB = b3ComputeFatShapeAABB( shape, transform, speculativeScalar + marginScalar );
-#else
 				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 				shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
-#endif
 
 				shape->enlargedAABB = true;
 				fastBodySim->flags |= b3_enlargeBounds;
@@ -602,15 +593,11 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 			if ( b3AABB_Contains( shape->fatAABB, shape->aabb ) == false )
 			{
 				float marginScalar = shape->aabbMargin;
-#if defined( BOX3D_DOUBLE_PRECISION )
-				shape->fatAABB = b3ComputeFatShapeAABB( shape, fastBodySim->transform, marginScalar );
-#else
 				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 				shape->fatAABB = (b3AABB){
 					.lowerBound = b3Sub( shape->aabb.lowerBound, aabbMargin ),
 					.upperBound = b3Add( shape->aabb.upperBound, aabbMargin ),
 				};
-#endif
 
 				if ( b3IsSaneAABB( shape->fatAABB ) == false )
 				{
@@ -822,12 +809,8 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 				if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 				{
 					float marginScalar = shape->aabbMargin;
-#if defined( BOX3D_DOUBLE_PRECISION )
-					shape->fatAABB = b3ComputeFatShapeAABB( shape, transform, speculativeScalar + marginScalar );
-#else
 					b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 					shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
-#endif
 					shape->enlargedAABB = true;
 
 					// Bit-set to keep the move array sorted

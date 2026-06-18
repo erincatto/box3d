@@ -837,9 +837,13 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 		return;
 	}
 
+	int shapeCount = body->shapeCount;
+	b3MassData* masses = b3StackAlloc( &world->stack, shapeCount * sizeof( b3MassData ), "mass data" );
+
 	// Accumulate mass over all shapes.
 	b3Vec3 localCenter = b3Vec3_zero;
 	int shapeId = body->headShapeId;
+	int shapeIndex = 0;
 	while ( shapeId != B3_NULL_INDEX )
 	{
 		const b3Shape* s = b3Array_Get( world->shapes, shapeId );
@@ -847,13 +851,17 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 
 		if ( s->density == 0.0f )
 		{
+			masses[shapeIndex] = (b3MassData){ 0 };
+			shapeIndex += 1;
 			continue;
 		}
 
 		b3MassData massData = b3ComputeShapeMass( s );
 		body->mass += massData.mass;
 		localCenter = b3MulAdd( localCenter, massData.mass, massData.center );
-		body->inertia = b3AddMM( body->inertia, massData.inertia );
+
+		masses[shapeIndex] = massData;
+		shapeIndex += 1;
 	}
 
 	// Compute center of mass.
@@ -861,10 +869,31 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 	{
 		bodySim->invMass = 1.0f / body->mass;
 		localCenter = b3MulSV( bodySim->invMass, localCenter );
+	}
 
-		// Shift inertia to mass center
-		body->inertia = b3SubMM( body->inertia, b3Steiner( body->mass, localCenter ) );
+	// Second loop to accumulate the rotational inertia about the center of mass
+	for ( shapeIndex = 0; shapeIndex < shapeCount; ++shapeIndex )
+	{
+		b3MassData massData = masses[shapeIndex];
+		if ( massData.mass == 0.0f )
+		{
+			continue;
+		}
 
+		// Shift to center of mass. This is safe because it can only increase.
+		b3Vec3 offset = b3Sub( localCenter, massData.center );
+		b3Matrix3 inertia = b3AddMM( massData.inertia, b3Steiner( massData.mass, offset ) );
+		body->inertia = b3AddMM(body->inertia, inertia);
+	}
+
+	b3StackFree( &world->stack, masses );
+	masses = NULL;
+
+	float det = b3Det( body->inertia );
+	B3_ASSERT( det >= 0.0f );
+
+	if ( det > 0.0f )
+	{
 		// This call is faster than b3Invert
 		bodySim->invInertiaLocal = b3InvertT( body->inertia );
 
@@ -1051,9 +1080,6 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation )
 		if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 		{
 			float margin = shape->aabbMargin;
-#if defined( BOX3D_DOUBLE_PRECISION )
-			b3AABB fatAABB = b3ComputeFatShapeAABB( shape, transform, speculativeDistance + margin );
-#else
 			b3AABB fatAABB;
 			fatAABB.lowerBound.x = aabb.lowerBound.x - margin;
 			fatAABB.lowerBound.y = aabb.lowerBound.y - margin;
@@ -1061,7 +1087,6 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation )
 			fatAABB.upperBound.x = aabb.upperBound.x + margin;
 			fatAABB.upperBound.y = aabb.upperBound.y + margin;
 			fatAABB.upperBound.z = aabb.upperBound.z + margin;
-#endif
 			shape->fatAABB = fatAABB;
 
 			// The body could be disabled

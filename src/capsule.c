@@ -39,14 +39,15 @@ b3MassData b3ComputeCapsuleMass( const b3Capsule* shape, float density )
 		rotation = b3MakeMatrixFromQuat( q );
 	}
 
-	// Parallel Axis Theorem capsule
 	float mass = sphereMass + cylinderMass;
 	b3Vec3 center = b3MulSV( 0.5f, b3Add( c1, c2 ) );
 
 	b3MassData out;
 	out.mass = mass;
 	out.center = center;
-	out.inertia = b3AddMM( b3MulMM( rotation, b3MulMM( inertia, b3Transpose( rotation ) ) ), b3Steiner( mass, center ) );
+
+	// Rotate the central inertia into the shape frame
+	out.inertia = b3MulMM( rotation, b3MulMM( inertia, b3Transpose( rotation ) ) );
 
 	return out;
 }

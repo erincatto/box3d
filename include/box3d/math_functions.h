@@ -1051,7 +1051,10 @@ B3_API bool b3IsValidMatrix3( b3Matrix3 a );
 /// Is this a valid bounding box? Not Nan or infinity. Upper bound greater than or equal to lower bound.
 B3_API bool b3IsValidAABB( b3AABB a );
 
-/// Is this AABB valid and not huge or very far from the origin?
+/// Is this AABB reasonably close to the origin? See B3_HUGE.
+B3_API bool b3IsBoundedAABB( b3AABB a );
+
+/// Is this AABB valid and reasonable?
 B3_API bool b3IsSaneAABB( b3AABB a );
 
 /// Is this a valid plane? Normal is a unit vector. Not Nan or infinity.

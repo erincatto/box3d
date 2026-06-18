@@ -1859,8 +1859,8 @@ typedef struct b3MassData
 	/// The local center of mass position.
 	b3Vec3 center;
 
-	/// The inertia tensor.
-	b3Matrix3 inertia; // todo this should be central inertia
+	/// The inertia tensor about the shape center of mass.
+	b3Matrix3 inertia;
 } b3MassData;
 
 /**

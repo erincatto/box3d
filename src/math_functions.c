@@ -96,6 +96,21 @@ bool b3IsValidAABB( b3AABB a )
 	return true;
 }
 
+bool b3IsBoundedAABB( b3AABB a )
+{
+	if ( a.lowerBound.x < -B3_HUGE || a.lowerBound.y < -B3_HUGE || a.lowerBound.z < -B3_HUGE )
+	{
+		return false;
+	}
+
+	if ( a.upperBound.x > B3_HUGE || a.upperBound.y > B3_HUGE || a.upperBound.z > B3_HUGE )
+	{
+		return false;
+	}
+
+	return true;
+}
+
 bool b3IsSaneAABB( b3AABB a )
 {
 	if ( b3IsValidAABB( a ) == false )
