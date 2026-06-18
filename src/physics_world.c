@@ -2634,7 +2634,8 @@ static bool TreeCollideCallback( int proxyId, uint64_t userData, void* context )
 
 	// Re-center on the query origin, the mover and the resulting planes are origin relative
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), worldContext->origin );
+	b3WorldTransform bodyTransform = b3GetBodyTransformQuick( world, body );
+	b3Transform transform = b3ToRelativeTransform( bodyTransform, worldContext->origin );
 
 	b3PlaneResult buffer[64];
 	int count = b3CollideMover( buffer, 64, shape, transform, &worldContext->mover );
@@ -2706,15 +2707,12 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 		return input->maxFraction;
 	}
 
-	// Re-center on the body so the per-shape cast stays in float precision far from the origin. The
-	// tree traversal already used the demoted origin in input. Here we re-difference in full precision
-	// against the body position.
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3WorldTransform xf = b3GetBodyTransformQuick( world, body );
-	b3Pos base = xf.p;
-	b3Transform transform = b3ToRelativeTransform( xf, base );
+	b3WorldTransform bodyTransform = b3GetBodyTransformQuick( world, body );
+	b3Transform transform = b3ToRelativeTransform( bodyTransform, worldContext->origin );
+
 	b3RayCastInput localInput = *input;
-	localInput.origin = b3SubPos( worldContext->origin, base );
+	localInput.origin = b3Vec3_zero;
 	b3CastOutput output = b3RayCastShape( shape, transform, &localInput );
 
 	if ( output.hit )
@@ -2722,14 +2720,14 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 		B3_ASSERT( output.fraction <= input->maxFraction );
 
 		b3ShapeId id = { shapeId + 1, world->worldId, shape->generation };
-
+		b3Pos point = b3OffsetPos( worldContext->origin, output.point );
 		int materialIndex = b3ClampInt( output.materialIndex, 0, shape->materialCount - 1 );
 		uint64_t userMaterialId = shape->materials[materialIndex].userMaterialId;
 
 		int triangleIndex = output.triangleIndex;
 		int childIndex = output.childIndex;
-		float fraction = worldContext->fcn( id, b3OffsetPos( base, output.point ), output.normal, output.fraction, userMaterialId,
-											triangleIndex, childIndex, worldContext->userContext );
+		float fraction = worldContext->fcn( id, point, output.normal, output.fraction, userMaterialId, triangleIndex, childIndex,
+											worldContext->userContext );
 
 		// The user may return -1 to skip this shape
 		if ( 0.0f <= fraction && fraction <= 1.0f )
@@ -2758,7 +2756,7 @@ b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation
 	B3_ASSERT( b3IsValidVec3( translation ) );
 
 	// The tree traverses in float relative to the world origin. Each shape is then re-differenced at
-	// full precision against its body, so a hit stays accurate far from the origin.
+	// full precision against the origin, so a hit stays accurate far from the origin.
 	b3RayCastInput input = { b3ToVec3( origin ), translation, 1.0f };
 
 	WorldRayCastContext worldContext = { world, fcn, filter, 1.0f, origin, context };

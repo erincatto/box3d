@@ -1,19 +1,6 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-// Box3D samples host: a sokol_app shell driving render3d's renderer. The four
-// sokol_app callbacks own the window and input; everything below the entry
-// points (InitRenderer, RenderFrame, the Draw* API, the b3DebugDraw adapter) is
-// host-agnostic. See render3d's HOST_INTEGRATION.md for the contract this fills.
-//
-//   OnInit:    InitRenderer -> InitUI -> InitAdapter -> Load -> SelectSample
-//   OnEvent:   Esc quits; ImGui gate; else feed camera + dispatch to the sample
-//   OnFrame:   ResetFrameArena -> Step -> Render -> RenderFrame -> UI -> commit
-//   OnCleanup: destroy sample + Save -> ShutdownUI -> ShutdownRenderer
-//
-// --frames N runs N frames then exits with status = sokol validation-error
-// count, the automated regression net for the port.
-
 #include "gfx/debug_adapter.h"
 #include "gfx/keycodes.h"
 #include "gfx/renderer.h"
@@ -24,6 +11,7 @@
 
 #include "box3d/box3d.h"
 #include "box3d/math_functions.h"
+#include "gfx/draw.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -306,7 +294,7 @@ static void OnFrame( void )
 	// Sync the draw origin to the camera eye once per frame, before any drawing. This must hold even
 	// for samples that drive their own Step without calling Sample::Step. Render re-syncs after Step
 	// because a third person follow moves the eye while stepping.
-	s_context.sample->SyncDrawOrigin();
+	SetDrawOrigin( camera.m_worldEye );
 
 	ResetFrameArena();
 

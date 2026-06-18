@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "sample.h"
 #include "gfx/draw.h"
-
 #include "gfx/keycodes.h"
+#include "sample.h"
 
 #include "box3d/box3d.h"
 #include "box3d/constants.h"
@@ -43,7 +42,7 @@ public:
 		m_baseQuaternion = b3Quat_identity;
 		m_baseX = 0;
 		m_baseY = 0;
-		m_origin = b3Vec3_zero;
+		m_origin = b3Pos_zero;
 		m_useCache = false;
 		m_tracking = false;
 		m_rotating = false;
@@ -85,7 +84,8 @@ public:
 
 			b3Vec3 perp = b3Perp( normal );
 			b3FeaturePair pair = manifoldPoint.pair;
-			DrawString3D( point + 0.025f * normal + 0.05f * perp, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
+			DrawString3D( point + 0.025f * normal + 0.05f * perp, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1,
+						  pair.index1, pair.owner2, pair.index2 );
 		}
 
 		Sample::Render();
@@ -142,8 +142,8 @@ public:
 		if ( m_tracking )
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
-			b3Vec3 origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
-			m_transformB.p = m_baseTranslation + origin - m_origin;
+			b3Pos origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
+			m_transformB.p = m_baseTranslation + b3SubPos( origin, m_origin );
 		}
 
 		if ( m_rotating )
@@ -164,7 +164,7 @@ public:
 	b3WorldTransform m_transformB;
 	b3Pos m_baseTranslation;
 	b3Quat m_baseQuaternion;
-	b3Vec3 m_origin;
+	b3Pos m_origin;
 	b3SimplexCache m_simplexCache;
 	b3SATCache m_satCache;
 	int m_manualFeature;
@@ -202,11 +202,11 @@ public:
 
 		m_simplexCache = {};
 		m_satCache = {};
-		m_baseTranslation = b3Vec3_zero;
+		m_baseTranslation = b3Pos_zero;
 		m_baseQuaternion = b3Quat_identity;
 		m_baseX = 0;
 		m_baseY = 0;
-		m_origin = b3Vec3_zero;
+		m_origin = b3Pos_zero;
 		m_useCache = false;
 		m_tracking = false;
 		m_rotating = false;
@@ -226,14 +226,14 @@ public:
 		if ( m_manifold.pointCount > 0 )
 		{
 			float length = 0.5f * b3GetLengthUnitsPerMeter();
+			b3Vec3 normal = b3RotateVector( m_transformB.q, m_manifold.normal );
 
 			for ( int pointIndex = 0; pointIndex < m_manifold.pointCount; ++pointIndex )
 			{
 				const b3LocalManifoldPoint& manifoldPoint = m_manifold.points[pointIndex];
 
-				b3Pos point = b3ToPos( manifoldPoint.point );
-
-				DrawLine( point, point + length * m_manifold.normal, MakeColor( b3_colorWhite ) );
+				b3Pos point = b3TransformWorldPoint(m_transformB, manifoldPoint.point );
+				DrawLine( point, point + length * normal, MakeColor( b3_colorWhite ) );
 
 				if ( manifoldPoint.separation > 0.0f )
 				{
@@ -247,15 +247,16 @@ public:
 				DrawString3D( point, MakeColor( b3_colorWhite ), "   %.2f", 100.0f * manifoldPoint.separation );
 
 				b3FeaturePair pair = manifoldPoint.pair;
-				DrawString3D( point + 0.025f * m_manifold.normal, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1, pair.owner2, pair.index2 );
+				DrawString3D( point + 0.025f * normal, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1,
+							  pair.index1, pair.owner2, pair.index2 );
 			}
 		}
 
-		b3Pos p1 = b3ToPos( b3TransformPoint( m_transformA, m_triangle[0] ) );
-		b3Pos p2 = b3ToPos( b3TransformPoint( m_transformA, m_triangle[1] ) );
-		b3Pos p3 = b3ToPos( b3TransformPoint( m_transformA, m_triangle[2] ) );
-		DrawTriangle( p1, p2, p3, MakeColor( b3_colorCyan ) );
+		DrawTriangle( m_transformA, m_triangle[0], m_triangle[1], m_triangle[2], MakeColor( b3_colorCyan ) );
 
+		b3Pos p1 = b3TransformWorldPoint( m_transformA, m_triangle[0] );
+		b3Pos p2 = b3TransformWorldPoint( m_transformA, m_triangle[1] );
+		b3Pos p3 = b3TransformWorldPoint( m_transformA, m_triangle[2] );
 		DrawString3D( p1, MakeColor( b3_colorWhite ), "0" );
 		DrawString3D( p2, MakeColor( b3_colorWhite ), "1" );
 		DrawString3D( p3, MakeColor( b3_colorWhite ), "2" );
@@ -318,8 +319,8 @@ public:
 		if ( m_tracking )
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
-			b3Vec3 origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
-			m_transformB.p = m_baseTranslation + origin - m_origin;
+			b3Pos origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
+			m_transformB.p = m_baseTranslation + b3SubPos( origin, m_origin );
 		}
 
 		if ( m_rotating )
@@ -336,12 +337,17 @@ public:
 	static constexpr int m_pointCapacity = 8;
 	b3LocalManifold m_manifold;
 	b3LocalManifoldPoint m_points[m_pointCapacity];
-	b3Transform m_transformA;
-	b3Transform m_transformB;
+
+	// Triangle transform
+	b3WorldTransform m_transformA;
+
+	// Convex shape transform
+	b3WorldTransform m_transformB;
+
 	b3Vec3 m_triangle[3] = {};
-	b3Vec3 m_baseTranslation;
+	b3Pos m_baseTranslation;
 	b3Quat m_baseQuaternion;
-	b3Vec3 m_origin;
+	b3Pos m_origin;
 	b3SimplexCache m_simplexCache;
 	b3SATCache m_satCache;
 	int m_manualFeature;
@@ -482,7 +488,7 @@ public:
 			m_camera->SetView( 0.0f, 30.0f, 10.0f, b3Pos_zero );
 		}
 
-		m_sphere = { { 0.0f, 0.0f, 0.0f }, 1.0f };
+		m_sphere = { { 0.0f, 0.0f, 0.0f }, 0.25f };
 		m_triangle[0] = { 0.0f, 0.0f, 0.0f };
 		m_triangle[1] = { 4.0f, 0.0f, 4.0f };
 		m_triangle[2] = { 4.0f, 0.0f, 0.0f };
@@ -490,13 +496,13 @@ public:
 		// b3Quat qA = b3MakeQuatFromAxisAngle( { 0.0f, 1.0f, 0.0f }, 2.0f );
 		// m_transformA = { { 1.0f, 1.0f, 0.0f }, qA };
 
-		m_transformA = b3Transform_identity;
+		m_transformA = b3WorldTransform_identity;
 		m_transformB = { { 2.0f, 0.5f, 1.0f }, b3Quat_identity };
 	}
 
 	void Render() override
 	{
-		DrawSolidSphere( b3MakeWorldTransform( m_transformB ), m_sphere, MakeColor( b3_colorGreen ) );
+		DrawSolidSphere( m_transformB, m_sphere, MakeColorAlpha( b3_colorGreen, 0.5f ) );
 
 		TriangleManifold::Render();
 	}
@@ -504,7 +510,7 @@ public:
 	void Step() override
 	{
 		// Convert triangle to frame B
-		b3Transform xf = b3InvMulTransforms( m_transformB, m_transformA );
+		b3Transform xf = b3InvMulWorldTransforms( m_transformB, m_transformA );
 		b3Vec3 localTriangle[3] = {
 			b3TransformPoint( xf, m_triangle[0] ),
 			b3TransformPoint( xf, m_triangle[1] ),
@@ -512,13 +518,6 @@ public:
 		};
 
 		b3CollideSphereAndTriangle( &m_manifold, m_pointCapacity, &m_sphere, localTriangle );
-
-		// Convert manifold from frame B to world space
-		m_manifold.normal = b3RotateVector( m_transformB.q, m_manifold.normal );
-		for ( int i = 0; i < m_manifold.pointCount; ++i )
-		{
-			m_manifold.points[i].point = b3TransformPoint( m_transformB, m_manifold.points[i].point );
-		}
 	}
 
 	b3Sphere m_sphere;
@@ -642,7 +641,7 @@ public:
 		m_triangle[1] = { -4.0f, 0.0f, 0.0f };
 		m_triangle[2] = { 0.0f, 0.0f, 0.0f };
 
-		m_transformA = b3Transform_identity;
+		m_transformA = b3WorldTransform_identity;
 		m_transformB = { { 0.0f, 0.5f, 0.0f }, b3Quat_identity };
 		m_transformB.q = b3MakeQuatFromAxisAngle( { 0.0f, 0.0f, 1.0f }, 0.5f * B3_PI );
 
@@ -652,8 +651,8 @@ public:
 
 	void Render() override
 	{
-		DrawSolidCapsule( b3MakeWorldTransform( m_transformB ), m_capsule, MakeColor( b3_colorGreen ) );
-		DrawAxes( b3MakeWorldTransform( m_transformB ), 0.1f );
+		DrawSolidCapsule( m_transformB, m_capsule, MakeColorAlpha( b3_colorGreen, 0.5f ) );
+		DrawAxes( m_transformB, 0.1f );
 
 		TriangleManifold::Render();
 	}
@@ -666,7 +665,7 @@ public:
 		}
 
 		// Put triangle into capsule coordinates
-		b3Transform xf = b3InvMulTransforms( m_transformB, m_transformA );
+		b3Transform xf = b3InvMulWorldTransforms( m_transformB, m_transformA );
 		b3Vec3 localTriangle[3] = {
 			b3TransformPoint( xf, m_triangle[0] ),
 			b3TransformPoint( xf, m_triangle[1] ),
@@ -674,13 +673,6 @@ public:
 		};
 
 		b3CollideCapsuleAndTriangle( &m_manifold, m_pointCapacity, &m_capsule, localTriangle, &m_simplexCache );
-
-		// Convert manifold from frame B to world space
-		m_manifold.normal = b3RotateVector( m_transformB.q, m_manifold.normal );
-		for ( int i = 0; i < m_manifold.pointCount; ++i )
-		{
-			m_manifold.points[i].point = b3TransformPoint( m_transformB, m_manifold.points[i].point );
-		}
 	}
 
 	b3Capsule m_capsule;
@@ -843,8 +835,8 @@ public:
 
 		m_boxHull = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
 
-		m_transformA = b3Transform_identity;
-		m_transformB = b3Transform_identity;
+		m_transformA = b3WorldTransform_identity;
+		m_transformB = b3WorldTransform_identity;
 		m_transformB.p = { 0.0f, 0.45f, 0.1f };
 
 		// b3MeshEdgeFlags
@@ -879,12 +871,12 @@ public:
 
 	void Render() override
 	{
-		DrawHull( b3MakeWorldTransform( m_transformB ), m_hull, MakeColor( b3_colorGreen ) );
+		DrawHull( m_transformB, m_hull, MakeColor( b3_colorGreen ) );
 
-		b3Transform xf;
-		xf.p = b3TransformPoint( m_transformB, m_hull->center );
+		b3WorldTransform xf;
+		xf.p = b3TransformWorldPoint( m_transformB, m_hull->center );
 		xf.q = m_transformB.q;
-		DrawAxes( b3MakeWorldTransform( xf ), 0.1f );
+		DrawAxes( xf, 0.1f );
 
 		TriangleManifold::Render();
 	}
@@ -911,7 +903,7 @@ public:
 			m_satCache = {};
 		}
 
-		b3Transform xf = b3InvMulTransforms( m_transformB, m_transformA );
+		b3Transform xf = b3InvMulWorldTransforms( m_transformB, m_transformA );
 		b3Vec3 localTriangle[3] = {
 			b3TransformPoint( xf, m_triangle[0] ),
 			b3TransformPoint( xf, m_triangle[1] ),
@@ -920,13 +912,6 @@ public:
 
 		b3CollideHullAndTriangle( &m_manifold, m_pointCapacity, m_hull, localTriangle[0], localTriangle[1], localTriangle[2],
 								  m_flags, &m_satCache );
-
-		// Convert manifold from frame B to world space
-		m_manifold.normal = b3RotateVector( m_transformB.q, m_manifold.normal );
-		for ( int i = 0; i < m_manifold.pointCount; ++i )
-		{
-			m_manifold.points[i].point = b3TransformPoint( m_transformB, m_manifold.points[i].point );
-		}
 	}
 
 	int m_flags;

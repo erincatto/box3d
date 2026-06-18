@@ -33,7 +33,9 @@ static inline bool BuildPickRay( float mouseX, float mouseY, b3Vec3* outOrigin, 
 {
 	CameraState s = GetCameraState();
 	if ( s.viewportW <= 0 || s.viewportH <= 0 )
+	{
 		return false;
+	}
 
 	// Pixel -> NDC. Origin top-left, Y down. NDC has Y up, X right.
 	const float ndcX = ( 2.0f * mouseX / (float)s.viewportW ) - 1.0f;

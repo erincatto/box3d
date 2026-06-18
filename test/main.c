@@ -27,6 +27,7 @@
 
 extern int AllocatorTest( void );
 extern int BitTest( void );
+extern int BodyQueryTest( void );
 extern int CollisionTest( void );
 extern int CompoundTest( void );
 extern int ContainerTest( void );
@@ -87,6 +88,7 @@ int main( int argc, char** argv )
 
 	MAYBE_RUN_TEST( AllocatorTest );
 	MAYBE_RUN_TEST( BitTest );
+	MAYBE_RUN_TEST( BodyQueryTest );
 	MAYBE_RUN_TEST( CollisionTest );
 	MAYBE_RUN_TEST( CompoundTest );
 	MAYBE_RUN_TEST( ContainerTest );

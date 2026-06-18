@@ -36,7 +36,7 @@ struct sapp_event;
 // translation spans near -> far. Feeds straight into b3World_CastRay*.
 struct PickRay
 {
-	b3Vec3 origin;
+	b3Pos origin;
 	b3Vec3 translation;
 };
 
@@ -108,8 +108,7 @@ public:
 	{
 		m_pivot = pivot;
 	}
-
-	// Forwarder for existing render3d call sites.
+ 
 	void SetTarget( b3Pos target )
 	{
 		m_pivot = target;

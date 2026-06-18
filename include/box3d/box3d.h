@@ -16,9 +16,9 @@
  * These functions allow you to create a simulation world.
  *
  * You can add rigid bodies and joint constraints to the world and run the simulation. You can get contact
- * information to get contact points and normals as well as events. You can query the world, checking for overlaps and casting rays
- * or shapes. There is also debugging information such as debug draw, timing information, and counters. You can find documentation
- * here: https://box2d.org/
+ * information to get contact points and normals as well as events. You can query the world, checking for overlaps and casting
+ * rays or shapes. There is also debugging information such as debug draw, timing information, and counters. You can find
+ * documentation here: https://box2d.org/
  * @{
  */
 
@@ -115,8 +115,8 @@ B3_API b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3S
 /// @param fcn Optional callback for custom shape filtering
 /// @param context A user context that is passed along to the callback function
 /// @return the translation fraction
-B3_API float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover, b3Vec3 translation,
-								b3QueryFilter filter, b3MoverFilterFcn* fcn, void* context );
+B3_API float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover, b3Vec3 translation, b3QueryFilter filter,
+								b3MoverFilterFcn* fcn, void* context );
 
 /// Collide a capsule mover with the world, gathering collision planes that can be fed to b3SolvePlanes. Useful for
 /// kinematic character movement. The mover and the returned planes are relative to the origin.
@@ -538,17 +538,21 @@ B3_API b3AABB b3Body_ComputeAABB( b3BodyId bodyId );
 B3_API float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target );
 
 /// Cast a ray at a specific body using a specified body transform.
-B3_API b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, const b3BodyRayCastInput* input, b3Transform bodyTransform );
+B3_API b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter,
+										float maxFraction, b3WorldTransform bodyTransform );
 
 /// Cast a shape at a specific body using a specified body transform.
-B3_API b3BodyCastResult b3Body_CastShape( b3BodyId bodyId, const b3BodyShapeCastInput* input, b3Transform bodyTransform );
+B3_API b3BodyCastResult b3Body_CastShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy, b3Vec3 translation,
+										  b3QueryFilter filter, float maxFraction, bool canEncroach,
+										  b3WorldTransform bodyTransform );
 
 /// Overlap a shape with a specific body using a specified body transform.
-B3_API bool b3Body_OverlapShape( b3BodyId bodyId, const b3ShapeProxy* proxy, b3QueryFilter filter, b3Transform bodyTransform );
+B3_API bool b3Body_OverlapShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy, b3QueryFilter filter,
+								 b3WorldTransform bodyTransform );
 
 /// Collide a character mover with a specific body using a specified body transform.
-B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, const b3Capsule* mover,
-								b3QueryFilter filter, b3Transform bodyTransform );
+B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin, const b3Capsule* mover,
+								b3QueryFilter filter, b3WorldTransform bodyTransform );
 
 /** @} */ // body
 
@@ -578,8 +582,8 @@ B3_API b3ShapeId b3CreateHullShape( b3BodyId bodyId, const b3ShapeDef* def, cons
 /// Use this for non-uniform or mirrored scale or a baked local transform. The baked result is shared through the
 /// world hull database. The shape definition and geometry are fully cloned. Contacts are not created until the next time step.
 /// @return the shape id for accessing the shape
-B3_API b3ShapeId b3CreateTransformedHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HullData* hull, b3Transform transform,
-											   b3Vec3 scale );
+B3_API b3ShapeId b3CreateTransformedHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HullData* hull,
+											   b3Transform transform, b3Vec3 scale );
 
 /// Create a mesh hull shape and attach it to a body. The shape definition is fully cloned but the mesh is not.
 /// Contacts are not created until the next time step.

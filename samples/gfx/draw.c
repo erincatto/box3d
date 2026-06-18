@@ -299,11 +299,13 @@ void DrawGroundGrid( int size )
 	DrawGrid( b3Pos_zero, b3Vec3_axisY, (float)size, size, color );
 }
 
-void DrawTriangle( b3Pos a, b3Pos b, b3Pos c, Vec4 color )
+void DrawTriangle( b3WorldTransform transform, b3Vec3 a, b3Vec3 b, b3Vec3 c, Vec4 color )
 {
-	b3Vec3 ra = ToRelative( a );
-	b3Vec3 rb = ToRelative( b );
-	b3Vec3 rc = ToRelative( c );
+	b3Transform rel = ToRelativeFrame( transform );
+
+	b3Vec3 ra = b3TransformPoint( rel, a );
+	b3Vec3 rb = b3TransformPoint( rel, b );
+	b3Vec3 rc = b3TransformPoint( rel, c );
 	float th = DEFAULT_LINE_THICKNESS_PX;
 	OverlayAppendLine( ra, rb, color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 	OverlayAppendLine( rb, rc, color, th, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );

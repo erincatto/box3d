@@ -123,9 +123,10 @@ int b3Body_CollideMover(
     b3BodyId            bodyId,
     b3BodyPlaneResult*  bodyPlanes,
     int                 planeCapacity,
+    b3Pos               origin,
     const b3Capsule*    mover,
     b3QueryFilter       filter,
-    b3Transform         bodyTransform
+    b3WorldTransform    bodyTransform
 );
 ```
 

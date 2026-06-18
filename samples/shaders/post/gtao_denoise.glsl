@@ -44,7 +44,7 @@
 //     XeGTAO_DecodeGatherPartial path collapses to identity, we inline it.
 //
 //   * `XE_GTAO_SHOW_EDGES` / `XE_GTAO_SHOW_BENT_NORMALS` debug-viz
-// branches dropped, render3d uses its own debug_view_mode plumbing.
+// branches dropped, Box3D uses its own debug_view_mode plumbing.
 //
 // * `finalApply` is delivered as a per-dispatch UBO field instead
 //     HLSL root constants. Lives in a small dedicated ub_denoise UBO at

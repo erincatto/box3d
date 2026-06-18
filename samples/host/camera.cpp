@@ -144,8 +144,6 @@ void Camera::SetOrbit( float yawRadians, float pitchRadians, float radius )
 
 void Camera::SetView( float yawDegrees, float pitchDegrees, float radius, b3Pos pivot )
 {
-	// Box3D feeds degrees; render3d stores radians. Pivot first so SetOrbit's
-	// basis rebuild uses the new pivot.
 	SetPivot( pivot );
 	SetOrbit( yawDegrees * DEG_TO_RAD, pitchDegrees * DEG_TO_RAD, radius );
 }
@@ -163,13 +161,15 @@ b3Vec3 Camera::Position() const
 PickRay Camera::BuildPickRay( float x, float y ) const
 {
 	PickRay ray;
-	if ( !::BuildPickRay( x, y, &ray.origin, &ray.translation ) )
+	b3Vec3 origin;
+	if ( ::BuildPickRay( x, y, &origin, &ray.translation ) == false)
 	{
 		// Camera state not latched yet, or degenerate matrices: defined zero
 		// ray so callers never read uninitialized values.
-		ray.origin = m_position;
+		ray.origin = b3Pos_zero;
 		ray.translation = b3Vec3_zero;
 	}
+	ray.origin = b3OffsetPos( m_worldEye, origin );
 	return ray;
 }
 
@@ -351,8 +351,7 @@ void Camera::Update( float dt, int width, int height )
 		const b3Pos eyeBefore = b3OffsetPos( m_pivot, b3MulSV( m_radius, ForwardFromAngles( m_yaw, m_pitch ) ) );
 
 		// FPS look: drag right -> yaw decreases (turn head right, scene
-		// shifts left); drag down -> pitch increases (look down). Box3D's
-		// signs - opposite of render3d's orbit pitch sign on purpose.
+		// shifts left); drag down -> pitch increases (look down).
 		if ( m_orbitDX != 0.0f || m_orbitDY != 0.0f )
 		{
 			m_yaw -= m_orbitDX * FLY_LOOK_SENS;

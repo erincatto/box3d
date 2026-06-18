@@ -1453,44 +1453,6 @@ typedef b3CastOutput b3WorldCastOutput;
 
 #endif
 
-/// Body ray cast for ray casting a specific body with a specified transform.
-typedef struct b3BodyRayCastInput
-{
-	/// Start point of the ray cast
-	b3Vec3 origin;
-
-	/// Translation of the ray cast.
-	/// end = start + translation.
-	b3Vec3 translation;
-
-	/// The query filter bits.
-	b3QueryFilter filter;
-
-	/// The maximum fraction to consider along the ray.
-	/// end = start + fraction * translation
-	float maxFraction;
-} b3BodyRayCastInput;
-
-/// Body shape cast for shape casting a specific body with a specified transform.
-typedef struct b3BodyShapeCastInput
-{
-	/// A generic query shape.
-	b3ShapeProxy proxy;
-
-	/// The translation of the shape cast.
-	b3Vec3 translation;
-
-	/// The query filter bits.
-	b3QueryFilter filter;
-
-	/// The maximum fraction to consider along the shape cast.
-	/// end = start + fraction * translation
-	float maxFraction;
-
-	/// Allow shape cast to encroach when initially touching. This only works if the radius is greater than zero.
-	bool canEncroach;
-} b3BodyShapeCastInput;
-
 /// Body cast result for ray and shape casts.
 typedef struct b3BodyCastResult
 {
@@ -1498,7 +1460,7 @@ typedef struct b3BodyCastResult
 	b3ShapeId shapeId;
 
 	/// The world point on the shape surface.
-	b3Vec3 point;
+	b3Pos point;
 
 	/// The world normal vector on the shape surface.
 	b3Vec3 normal;

@@ -1,11 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erin Catto
 // SPDX-License-Identifier: MIT
 
-// Named key / modifier / mouse-button aliases over sokol_app's codes, so
-// host Sample code can read input without including sokol_app.h directly.
-// render3d's own code uses SAPP_* directly; this header is for the port-side
-// host shell. The aliases are the codes actually exercised by the samples
-// (character + joint movers, scene hotkeys, picking).
+// todo get rid of this file
 
 #pragma once
 

@@ -650,7 +650,8 @@ public:
 		{
 			PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, b3ToPos( pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
+			b3RayResult result =
+				b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
 			if ( result.hit )
 			{

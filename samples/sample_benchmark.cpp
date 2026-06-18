@@ -571,28 +571,25 @@ public:
 		uint64_t startTick = b3GetTicks();
 
 		b3Vec3 rayTranslation = { 80000.0f, -80000.0f, 8.0f };
-		// b3Vec3 rayTranslation = { 0.0f, -16.0f, 0.0f };
 
-		b3Sphere sphere = { b3Vec3_zero, m_radius };
 		int castCount = 0;
 
 		for ( float x = -spanX; x <= spanX; x += delta )
 		{
 			for ( float z = -spanZ; z <= spanZ; z += delta )
 			{
-				b3Vec3 rayOrigin = { x, 2.0f, z };
-				b3Pos origin = b3ToPos( rayOrigin );
+				b3Pos rayOrigin = { x, 2.0f, z };
 
 				b3RayResult result = {};
 				if ( m_radius == 0.0f )
 				{
-					result = b3World_CastRayClosest( m_worldId, origin, rayTranslation, b3DefaultQueryFilter() );
+					result = b3World_CastRayClosest( m_worldId, rayOrigin, rayTranslation, b3DefaultQueryFilter() );
 				}
 				else
 				{
 					Context context = {};
-					b3ShapeProxy proxy = { &rayOrigin, 1, m_radius };
-					b3World_CastShape( m_worldId, b3Pos_zero, &proxy, rayTranslation, b3DefaultQueryFilter(), CastCallback, &context );
+					b3ShapeProxy proxy = { &b3Vec3_zero, 1, m_radius };
+					b3World_CastShape( m_worldId, rayOrigin, &proxy, rayTranslation, b3DefaultQueryFilter(), CastCallback, &context );
 
 					if ( context.hit )
 					{
@@ -616,26 +613,24 @@ public:
 
 						if ( m_radius > 0.0f )
 						{
-							b3Transform t = b3Transform_identity;
+							b3WorldTransform t = b3WorldTransform_identity;
 							t.p = rayOrigin + result.fraction * rayTranslation;
-							DrawSphereEx( b3MakeWorldTransform( t ), m_radius, MakeColorAlpha( b3_colorPurple, 0.5f ), 0.0f, 0.5f,
+							DrawSphereEx( t, m_radius, MakeColorAlpha( b3_colorPurple, 0.5f ), 0.0f, 0.5f,
 										  TRANSPARENT_SHADOW_NONE );
 						}
 
-						b3Vec3 rayEnd = rayOrigin + result.fraction * rayTranslation;
-						b3Pos end = b3ToPos( rayEnd );
-						DrawLine( origin, end, MakeColor( b3_colorYellow ) );
-						DrawPoint( origin, 2.0f, MakeColor( b3_colorRed ) );
-						DrawPoint( end, 2.0f, MakeColor( b3_colorRed ) );
+						b3Pos rayEnd = rayOrigin + result.fraction * rayTranslation;
+						DrawLine( rayOrigin, rayEnd, MakeColor( b3_colorYellow ) );
+						DrawPoint( rayOrigin, 2.0f, MakeColor( b3_colorRed ) );
+						DrawPoint( rayEnd, 2.0f, MakeColor( b3_colorRed ) );
 					}
 				}
 				else if ( m_isDebug )
 				{
-					b3Vec3 rayEnd = rayOrigin + rayTranslation;
-					b3Pos end = b3ToPos( rayEnd );
-					DrawLine( origin, end, MakeColor( b3_colorYellow ) );
-					DrawPoint( origin, 2.0f, MakeColor( b3_colorRed ) );
-					DrawPoint( end, 2.0f, MakeColor( b3_colorRed ) );
+					b3Pos rayEnd = rayOrigin + rayTranslation;
+					DrawLine( rayOrigin, rayEnd, MakeColor( b3_colorYellow ) );
+					DrawPoint( rayOrigin, 2.0f, MakeColor( b3_colorRed ) );
+					DrawPoint( rayEnd, 2.0f, MakeColor( b3_colorRed ) );
 				}
 			}
 		}

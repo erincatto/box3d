@@ -118,14 +118,14 @@ if(BOX3D_BUILD_SHADERS)
     unset(_shdc_exe)
 endif()
 
-# --- Renderer + shaders (ported verbatim from render3d). ---------------------
+# --- Renderer + shaders
 add_subdirectory(shaders)
 add_subdirectory(gfx)
 
 set(SAMPLE_FILES
     main.cpp
 
-    # Host glue (ported from render3d's app/).
+    # Host
     host/camera.cpp
     host/camera.h
     host/gui.cpp
@@ -142,32 +142,31 @@ set(SAMPLE_FILES
     earcut.h
 
     # Samples
-    sample_stacking.cpp
+    sample_benchmark.cpp
+    sample_bodies.cpp
     sample_character.cpp
     sample_collision.cpp
+    sample_compound.cpp
+    sample_continuous.cpp
     sample_determinism.cpp
-    sample_robustness.cpp
-    sample_benchmark.cpp
-    sample_ragdoll.cpp
+    sample_events.cpp
     sample_geometry.cpp
     sample_issues.cpp
-    sample_shapes.cpp
-    sample_tree.cpp
-    sample_mesh.cpp
-    sample_compound.cpp
-    sample_events.cpp
-    sample_bodies.cpp
-    sample_manifold.cpp
-    sample_continuous.cpp
     sample_joint.cpp
-    sample_large_world.cpp
+    sample_manifold.cpp
+    sample_mesh.cpp
+    sample_ragdoll.cpp
+    sample_robustness.cpp
+    sample_shapes.cpp
+    sample_stacking.cpp
+    sample_tree.cpp
+    sample_world.cpp
 )
 
 add_executable(samples ${SAMPLE_FILES})
 
 if(APPLE)
-    # sokol_app's Cocoa backend is Objective-C; compile its impl TU as OBJC
-    # with ARC, matching render3d's app/CMakeLists.
+    # sokol_app's Cocoa backend is Objective-C. Compile its impl TU as OBJC with ARC.
     set_source_files_properties(host/sokol_app_impl.c PROPERTIES LANGUAGE OBJC)
     set_source_files_properties(host/sokol_app_impl.c PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 endif()

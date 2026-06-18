@@ -94,7 +94,7 @@ float XeGTAO_ScreenSpaceToViewSpaceDepth(float screenDepth, GTAOConsts consts)
 }
 
 // XeGTAO.esh:104-115 with the Esoterica reverse-Z patch (negate Z so it
-// points OUT of the screen in view space). render3d's view space is
+// points OUT of the screen in view space). Box3D's view space is
 // also right-handed Y-up with camera looking down -Z, matching Esoterica.
 vec3 XeGTAO_ComputeViewspacePosition(vec2 screenPos, float viewspaceDepth, GTAOConsts consts) {
 	vec3 ret;

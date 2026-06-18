@@ -1,12 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "sample.h"
-
-#include "mesh_loader.h"
 #include "gfx/draw.h"
-
 #include "gfx/keycodes.h"
+#include "mesh_loader.h"
+#include "sample.h"
 
 #include "box3d/box3d.h"
 
@@ -42,7 +40,7 @@ public:
 		m_baseTranslation = b3Pos_zero;
 		m_baseX = 0;
 		m_baseY = 0;
-		m_origin = b3Vec3_zero;
+		m_origin = b3Pos_zero;
 		m_tracking = false;
 		m_planeCount = 0;
 	}
@@ -105,8 +103,8 @@ public:
 		if ( m_tracking )
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
-			b3Vec3 origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
-			m_transform.p = m_baseTranslation + origin - m_origin;
+			b3Pos origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
+			m_transform.p = m_baseTranslation + b3SubPos( origin, m_origin );
 		}
 	}
 
@@ -138,7 +136,7 @@ public:
 	int m_planeCount;
 
 	b3Pos m_baseTranslation;
-	b3Vec3 m_origin;
+	b3Pos m_origin;
 	int m_baseX;
 	int m_baseY;
 	bool m_tracking;
@@ -201,7 +199,7 @@ public:
 		}
 
 		m_baseTranslation = b3Pos_zero;
-		m_origin = b3Vec3_zero;
+		m_origin = b3Pos_zero;
 		m_tracking = false;
 		m_planeCount = 0;
 		m_zeroNormalCount = 0;
@@ -245,8 +243,8 @@ public:
 		if ( m_tracking )
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
-			b3Vec3 origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
-			m_transform.p = m_baseTranslation + origin - m_origin;
+			b3Pos origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
+			m_transform.p = m_baseTranslation + b3SubPos( origin, m_origin );
 		}
 	}
 
@@ -307,7 +305,7 @@ public:
 	int m_zeroNormalCount;
 
 	b3Pos m_baseTranslation;
-	b3Vec3 m_origin;
+	b3Pos m_origin;
 	bool m_tracking;
 };
 
@@ -418,7 +416,7 @@ public:
 				0.3f,
 			};
 
-			//shapeDef.filter = { 2u, ~0u, 0 };
+			// shapeDef.filter = { 2u, ~0u, 0 };
 			shapeDef.userData = &m_enemyShape;
 			shapeDef.baseMaterial.customColor = b3_colorMediumVioletRed;
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
@@ -522,9 +520,9 @@ public:
 		m_clipVelocity = true;
 		// sapp_lock_mouse( true );
 
-		//m_haveMouseLast = false;
-		//m_mouseLast = { 0.0f, 0.0f };
-		//m_mouseDelta = { 0.0f, 0.0f };
+		// m_haveMouseLast = false;
+		// m_mouseLast = { 0.0f, 0.0f };
+		// m_mouseDelta = { 0.0f, 0.0f };
 	}
 
 	~BasicMover() override
@@ -566,7 +564,7 @@ public:
 
 	void Step() override
 	{
-		m_mover.Step(&m_ignoreShapeId, 1, m_clipVelocity);
+		m_mover.Step( &m_ignoreShapeId, 1, m_clipVelocity );
 		DrawTextLine( "third person (T) = %d", m_camera->m_thirdPerson );
 		DrawTextLine( "deltaX = %g, deltaY = %g", m_mouseDelta.x, m_mouseDelta.y );
 
@@ -1606,7 +1604,7 @@ public:
 
 		// Latch the draw origin to the followed eye so the debug overlays demote against the same
 		// point the view renders from.
-		SyncDrawOrigin();
+		SetDrawOrigin(m_camera->m_worldEye);
 
 		// Debug visualization
 		if ( m_showDebug )

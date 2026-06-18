@@ -92,7 +92,7 @@ public:
 	// Update and render are split to support pausing the simulation
 	virtual void Step();
 
-	virtual void Render();
+	virtual void Render() {}
 
 	// Draw sample controls into the shared info panel. Return true if any widget
 	// was drawn so the panel can add a separator.
@@ -122,11 +122,6 @@ public:
 	void DrawTextLine( const char* text, ... );
 	void ResetProfile();
 
-	// Latch the draw origin to the current camera eye and push it to the host overlay system.
-	// Call after any camera move (Step, Render, third person follow) so debug shapes and host
-	// overlays demote against the same point the translation free view renders from.
-	void SyncDrawOrigin();
-
 	// Static ground box at the origin, drawn with the procedural grid material
 	b3BodyId AddGroundBox( float extent );
 
@@ -144,10 +139,6 @@ public:
 	Camera* m_camera;
 
 	b3WorldId m_worldId;
-
-	// World position the scene is drawn and picked relative to: the camera eye, refreshed each
-	// frame from the camera so the float render frame stays near the origin wherever it roams.
-	b3Pos m_drawOrigin;
 
 	b3Pos m_mousePoint;
 	b3BodyId m_mouseBodyId;

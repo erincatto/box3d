@@ -71,7 +71,7 @@ b3BodyState* b3GetBodyState( b3World* world, b3Body* body )
 	return NULL;
 }
 
-static void b3SyncBodyFlags(b3World* world, b3Body* body)
+static void b3SyncBodyFlags( b3World* world, b3Body* body )
 {
 	// Never sync transient flags
 	uint32_t flags = body->flags & ~b3_bodyTransientFlags;
@@ -80,7 +80,7 @@ static void b3SyncBodyFlags(b3World* world, b3Body* body)
 	bodySim->flags = flags;
 
 	b3BodyState* bodyState = b3GetBodyState( world, body );
-	if (bodyState != NULL)
+	if ( bodyState != NULL )
 	{
 		bodyState->flags = flags;
 	}
@@ -574,7 +574,8 @@ float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target )
 	return closestDistance;
 }
 
-b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, const b3BodyRayCastInput* input, b3Transform bodyTransform )
+b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter, float maxFraction,
+								 b3WorldTransform bodyTransform )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -585,128 +586,13 @@ b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, const b3BodyRayCastInput* inpu
 	b3BodyCastResult result = { 0 };
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
+	// The consistent framing is to center on the ray origin.
 	b3RayCastInput shapeInput = { 0 };
-	shapeInput.origin = input->origin;
-	shapeInput.translation = input->translation;
-	shapeInput.maxFraction = input->maxFraction;
+	shapeInput.origin = b3Vec3_zero;
+	shapeInput.translation = translation;
+	shapeInput.maxFraction = maxFraction;
 
-	int shapeId = body->headShapeId;
-	while ( shapeId != B3_NULL_INDEX )
-	{
-		b3Shape* shape = b3Array_Get( world->shapes, shapeId );
-		shapeId = shape->nextShapeId;
-
-		if ( b3ShouldQueryCollide( &shape->filter, &input->filter ) == false )
-		{
-			continue;
-		}
-
-		b3CastOutput shapeOutput = b3RayCastShape( shape, bodyTransform, &shapeInput );
-
-		if ( shapeOutput.hit == false )
-		{
-			continue;
-		}
-
-		if ( shapeOutput.fraction > shapeInput.maxFraction )
-		{
-			continue;
-		}
-
-		// Careful with id, shapeId is the next shape.
-		b3ShapeId id = { shape->id + 1, bodyId.world0, shape->generation };
-
-		int materialIndex = b3ClampInt( shapeOutput.materialIndex, 0, shape->materialCount - 1 );
-		uint64_t userMaterialId = shape->materials[materialIndex].userMaterialId;
-
-		result = (b3BodyCastResult){
-			.shapeId = id,
-			.point = shapeOutput.point,
-			.normal = shapeOutput.normal,
-			.fraction = shapeOutput.fraction,
-			.triangleIndex = shapeOutput.triangleIndex,
-			.userMaterialId = userMaterialId,
-			.iterations = shapeOutput.iterations,
-			.hit = true,
-		};
-
-		shapeInput.maxFraction = shapeOutput.fraction;
-	}
-
-	return result;
-}
-
-b3BodyCastResult b3Body_CastShape( b3BodyId bodyId, const b3BodyShapeCastInput* input, b3Transform bodyTransform )
-{
-	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
-	if ( world == NULL )
-	{
-		return (b3BodyCastResult){ 0 };
-	}
-
-	b3BodyCastResult result = { 0 };
-	b3Body* body = b3GetBodyFullId( world, bodyId );
-
-	b3ShapeCastInput shapeInput = { 0 };
-	shapeInput.proxy = input->proxy;
-	shapeInput.translation = input->translation;
-	shapeInput.maxFraction = input->maxFraction;
-	shapeInput.canEncroach = input->canEncroach;
-
-	int shapeId = body->headShapeId;
-	while ( shapeId != B3_NULL_INDEX )
-	{
-		b3Shape* shape = b3Array_Get( world->shapes, shapeId );
-		shapeId = shape->nextShapeId;
-
-		if ( b3ShouldQueryCollide( &shape->filter, &input->filter ) == false )
-		{
-			continue;
-		}
-
-		b3CastOutput shapeOutput = b3ShapeCastShape( shape, bodyTransform, &shapeInput );
-
-		if ( shapeOutput.hit == false )
-		{
-			continue;
-		}
-
-		if ( shapeOutput.fraction > shapeInput.maxFraction )
-		{
-			continue;
-		}
-
-		// Careful with id, shapeId is the next shape.
-		b3ShapeId id = { shape->id + 1, bodyId.world0, shape->generation };
-		int materialIndex = b3ClampInt( shapeOutput.materialIndex, 0, shape->materialCount - 1 );
-		uint64_t userMaterialId = shape->materials[materialIndex].userMaterialId;
-
-		result = (b3BodyCastResult){
-			.shapeId = id,
-			.point = shapeOutput.point,
-			.normal = shapeOutput.normal,
-			.fraction = shapeOutput.fraction,
-			.triangleIndex = shapeOutput.triangleIndex,
-			.userMaterialId = userMaterialId,
-			.iterations = shapeOutput.iterations,
-			.hit = true,
-		};
-
-		shapeInput.maxFraction = shapeOutput.fraction;
-	}
-
-	return result;
-}
-
-bool b3Body_OverlapShape( b3BodyId bodyId, const b3ShapeProxy* proxy, b3QueryFilter filter, b3Transform bodyTransform )
-{
-	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
-	if ( world == NULL )
-	{
-		return false;
-	}
-
-	b3Body* body = b3GetBodyFullId( world, bodyId );
+	b3Transform transform = b3ToRelativeTransform( bodyTransform, origin );
 
 	int shapeId = body->headShapeId;
 	while ( shapeId != B3_NULL_INDEX )
@@ -719,7 +605,130 @@ bool b3Body_OverlapShape( b3BodyId bodyId, const b3ShapeProxy* proxy, b3QueryFil
 			continue;
 		}
 
-		bool overlaps = b3OverlapShape( shape, bodyTransform, proxy );
+		b3CastOutput shapeOutput = b3RayCastShape( shape, transform, &shapeInput );
+
+		if ( shapeOutput.hit == false )
+		{
+			continue;
+		}
+
+		if ( shapeOutput.fraction > shapeInput.maxFraction )
+		{
+			continue;
+		}
+
+		// Careful with id, shapeId is the next shape.
+		b3ShapeId id = { shape->id + 1, bodyId.world0, shape->generation };
+
+		int materialIndex = b3ClampInt( shapeOutput.materialIndex, 0, shape->materialCount - 1 );
+		uint64_t userMaterialId = shape->materials[materialIndex].userMaterialId;
+
+		result = (b3BodyCastResult){
+			.shapeId = id,
+			.point = b3OffsetPos( origin, shapeOutput.point ),
+			.normal = shapeOutput.normal,
+			.fraction = shapeOutput.fraction,
+			.triangleIndex = shapeOutput.triangleIndex,
+			.userMaterialId = userMaterialId,
+			.iterations = shapeOutput.iterations,
+			.hit = true,
+		};
+
+		shapeInput.maxFraction = shapeOutput.fraction;
+	}
+
+	return result;
+}
+
+b3BodyCastResult b3Body_CastShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy, b3Vec3 translation,
+								   b3QueryFilter filter, float maxFraction, bool canEncroach, b3WorldTransform bodyTransform )
+{
+	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
+	if ( world == NULL )
+	{
+		return (b3BodyCastResult){ 0 };
+	}
+
+	b3BodyCastResult result = { 0 };
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+
+	b3Transform transform = b3ToRelativeTransform( bodyTransform, origin );
+
+	b3ShapeCastInput shapeInput = { 0 };
+	shapeInput.proxy = *proxy;
+	shapeInput.translation = translation;
+	shapeInput.maxFraction = maxFraction;
+	shapeInput.canEncroach = canEncroach;
+
+	int shapeId = body->headShapeId;
+	while ( shapeId != B3_NULL_INDEX )
+	{
+		b3Shape* shape = b3Array_Get( world->shapes, shapeId );
+		shapeId = shape->nextShapeId;
+
+		if ( b3ShouldQueryCollide( &shape->filter, &filter ) == false )
+		{
+			continue;
+		}
+
+		b3CastOutput shapeOutput = b3ShapeCastShape( shape, transform, &shapeInput );
+
+		if ( shapeOutput.hit == false )
+		{
+			continue;
+		}
+
+		if ( shapeOutput.fraction > shapeInput.maxFraction )
+		{
+			continue;
+		}
+
+		// Careful with id, shapeId is the next shape.
+		b3ShapeId id = { shape->id + 1, bodyId.world0, shape->generation };
+		int materialIndex = b3ClampInt( shapeOutput.materialIndex, 0, shape->materialCount - 1 );
+		uint64_t userMaterialId = shape->materials[materialIndex].userMaterialId;
+
+		result = (b3BodyCastResult){
+			.shapeId = id,
+			.point = b3OffsetPos( origin, shapeOutput.point ),
+			.normal = shapeOutput.normal,
+			.fraction = shapeOutput.fraction,
+			.triangleIndex = shapeOutput.triangleIndex,
+			.userMaterialId = userMaterialId,
+			.iterations = shapeOutput.iterations,
+			.hit = true,
+		};
+
+		shapeInput.maxFraction = shapeOutput.fraction;
+	}
+
+	return result;
+}
+
+bool b3Body_OverlapShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy, b3QueryFilter filter,
+						  b3WorldTransform bodyTransform )
+{
+	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
+	if ( world == NULL )
+	{
+		return false;
+	}
+
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	b3Transform transform = b3ToRelativeTransform( bodyTransform, origin );
+
+	int shapeId = body->headShapeId;
+	while ( shapeId != B3_NULL_INDEX )
+	{
+		b3Shape* shape = b3Array_Get( world->shapes, shapeId );
+		shapeId = shape->nextShapeId;
+
+		if ( b3ShouldQueryCollide( &shape->filter, &filter ) == false )
+		{
+			continue;
+		}
+
+		bool overlaps = b3OverlapShape( shape, transform, proxy );
 		if ( overlaps )
 		{
 			return true;
@@ -729,8 +738,8 @@ bool b3Body_OverlapShape( b3BodyId bodyId, const b3ShapeProxy* proxy, b3QueryFil
 	return false;
 }
 
-int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, const b3Capsule* mover,
-						 b3QueryFilter filter, b3Transform bodyTransform )
+int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin, const b3Capsule* mover,
+						 b3QueryFilter filter, b3WorldTransform bodyTransform )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -745,6 +754,8 @@ int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int pla
 
 	int resultCount = 0;
 	b3Body* body = b3GetBodyFullId( world, bodyId );
+
+	b3Transform transform = b3ToRelativeTransform( bodyTransform, origin );
 
 	int shapeId = body->headShapeId;
 	while ( shapeId != B3_NULL_INDEX )
@@ -764,11 +775,11 @@ int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int pla
 		}
 
 		b3PlaneResult plane;
-		int count = b3CollideMover( &plane, 1, shape, bodyTransform, mover );
+		int count = b3CollideMover( &plane, 1, shape, transform, mover );
 
 		if ( count > 0 )
 		{
-			b3ShapeId id = { shape->id + 1, world->worldId, shape->generation };
+			b3ShapeId id = { shape->id + 1, bodyId.world0, shape->generation };
 			bodyPlanes[resultCount] = (b3BodyPlaneResult){ .shapeId = id, .result = plane };
 			resultCount += 1;
 			if ( resultCount == planeCapacity )

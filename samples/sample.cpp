@@ -29,7 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//#include <thread>
+// #include <thread>
 
 #define INFO_PANEL_WIDTH 16.0f
 
@@ -268,7 +268,6 @@ Sample::Sample( SampleContext* context )
 	}
 
 	m_worldId = b3_nullWorldId;
-	m_drawOrigin = b3Pos_zero;
 
 	m_mouseBodyId = {};
 	m_mouseJointId = {};
@@ -345,12 +344,6 @@ void Sample::ResetText()
 	}
 }
 
-void Sample::SyncDrawOrigin()
-{
-	m_drawOrigin = m_camera->m_worldEye;
-	SetDrawOrigin( m_drawOrigin );
-}
-
 void Sample::Step()
 {
 	m_didStep = false;
@@ -410,8 +403,7 @@ void Sample::Step()
 	{
 		PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
-		b3RayResult result =
-			b3World_CastRayClosest( m_worldId, b3OffsetPos( m_drawOrigin, pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
+		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
 		b3BodyId hovered = b3_nullBodyId;
 		if ( result.hit )
@@ -434,14 +426,11 @@ void Sample::Step()
 
 		SetHoveredBody( hovered );
 	}
-}
 
-void Sample::Render()
-{
 	// The frame latched the origin before Step, but a third person follow moves the eye while
 	// stepping, so refresh it here. Shapes come back demoted to float against this origin, the same
 	// relative frame the translation free view renders, so everything stays precise far from the origin.
-	SyncDrawOrigin();
+	SetDrawOrigin( m_camera->m_worldEye );
 
 	b3DebugDraw debugDraw;
 	MakeDebugDraw( &debugDraw );
@@ -450,8 +439,8 @@ void Sample::Render()
 	// draw set and lazily fire createDebugShape. The cull bounds live in absolute world space to
 	// match the broad-phase tree; the draw origin is the world eye.
 	b3Vec3 r = { 1000.0f, 1000.0f, 1000.0f };
-	b3Vec3 eye = b3ToVec3( m_drawOrigin );
-	debugDraw.drawingBounds = { b3Sub( eye, r ), b3Add( eye, r ) };
+	b3AABB bounds = b3OffsetAABB( { b3Neg( r ), r }, m_camera->m_worldEye );
+	debugDraw.drawingBounds = bounds;
 
 	ApplyGuiFlags( &debugDraw );
 
@@ -1063,8 +1052,8 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 	{
 		PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 
-		b3RayResult result =
-			b3World_CastRayClosest( m_worldId, b3OffsetPos( m_drawOrigin, pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
+		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation,
+													 b3DefaultQueryFilter() );
 
 		if ( result.hit )
 		{
@@ -1130,7 +1119,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = b3OffsetPos( m_drawOrigin, pickRay.origin + 2.0f * direction );
+			bodyDef.position = pickRay.origin + 2.0f * direction;
 			bodyDef.linearVelocity = ( 10.0f * m_launchSpeedScale ) * direction;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
@@ -1140,7 +1129,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 		}
 		else if ( modifiers & MOD_ALT )
 		{
-			b3Pos position = b3OffsetPos( m_drawOrigin, pickRay.origin + 2.0f * direction );
+			b3Pos position = pickRay.origin + 2.0f * direction;
 			Human human = {};
 			CreateHuman( &human, m_worldId, position, 1.0f, 1.0f, 1.0f, 0, nullptr, true );
 			Human_SetBullet( &human, true );
@@ -1150,7 +1139,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = b3OffsetPos( m_drawOrigin, pickRay.origin + 2.0f * direction );
+			bodyDef.position = pickRay.origin + 2.0f * direction;
 			bodyDef.linearVelocity = ( 20.0f * m_launchSpeedScale ) * direction;
 			bodyDef.isBullet = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
@@ -1198,7 +1187,7 @@ void Sample::MouseMove( b3Vec2 p )
 	PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 	if ( B3_IS_NON_NULL( m_mouseJointId ) )
 	{
-		m_mousePoint = b3OffsetPos( m_drawOrigin, pickRay.origin + m_mouseFraction * pickRay.translation );
+		m_mousePoint = pickRay.origin + m_mouseFraction * pickRay.translation;
 	}
 }
 
@@ -1939,7 +1928,7 @@ static bool PlaneResultFcn( b3ShapeId shapeId, const b3PlaneResult* planeResults
 			.clipVelocity = clipVelocity,
 		};
 		self->m_planeExtras[self->m_planeCount] = {
-			.point = b3OffsetPos(self->m_transform.p, planeResults[i].point),
+			.point = b3OffsetPos( self->m_transform.p, planeResults[i].point ),
 			.shapeId = shapeId,
 		};
 		self->m_planeCount += 1;
@@ -2185,7 +2174,8 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 		m_sample->m_camera->m_pivot = position;
 		m_sample->m_camera->UpdateTransform();
 	}
-	m_sample->SyncDrawOrigin();
+
+	SetDrawOrigin( m_sample->m_camera->m_worldEye );
 
 	int count = m_planeCount;
 	for ( int i = 0; i < count; ++i )

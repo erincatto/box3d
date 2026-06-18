@@ -1716,7 +1716,8 @@ public:
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, b3ToPos( pickRay.origin ), pickRay.translation, b3DefaultQueryFilter() );
+			b3RayResult result =
+				b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
 			if ( result.hit )
 			{

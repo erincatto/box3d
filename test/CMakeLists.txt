@@ -4,6 +4,7 @@ set(BOX3D_TEST_FILES
     main.c
 	test_allocator.c
     test_bitset.c
+	test_body_query.c
 	test_collision.c
 	test_compound.c
 	test_container.c

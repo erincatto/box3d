@@ -13,7 +13,7 @@
 //
 // Departures from XeGTAO_PrefilterDepths16x16:
 //
-//   * Input depth is **already positive linear view-Z** (render3d's
+//   * Input depth is **already positive linear view-Z** (Box3D's
 //     R32F prepass target), not NDC reverse-Z. Esoterica's
 //     XeGTAO_ScreenSpaceToViewSpaceDepth call collapses to a pass-
 // through, we just clamp. GTAOConstants.DepthUnpackConsts is
