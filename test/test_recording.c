@@ -653,6 +653,86 @@ static int PlayerAccessors( void )
 	return 0;
 }
 
+// A keyframe restore is a deterministic replay state, so shapes that persist must keep their renderer
+// handle rather than being torn down and rebuilt every seek. Record a snapshot-seeded session (shapes
+// exist at frame 0), replay with handle callbacks, scrub backward across keyframes repeatedly, and
+// verify no new handles are built per restore and the create/destroy counts still balance at teardown.
+static int KeyframeHandleReuse( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	groundDef.type    = b3_staticBody;
+	b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+	b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
+	b3ShapeDef groundShape = b3DefaultShapeDef();
+	b3CreateHullShape( groundId, &groundShape, &groundBox.base );
+
+	const int dynamicCount = 5;
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3ShapeDef boxShape = b3DefaultShapeDef();
+	boxShape.density = 1.0f;
+	for ( int i = 0; i < dynamicCount; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type     = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ 0.0f, 1.0f + 1.1f * (float)i, 0.0f };
+		b3BodyId bodyId  = b3CreateBody( worldId, &bodyDef );
+		b3CreateHullShape( bodyId, &boxShape, &box.base );
+	}
+	int shapeCount = 1 + dynamicCount;
+
+	// Settle, then record with a snapshot of the populated world so shapes exist at frame 0.
+	for ( int i = 0; i < 10; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+	b3World_StartRecording( worldId, rec );
+
+	int totalFrames = 80;
+	for ( int i = 0; i < totalFrames; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
+	ENSURE( player != NULL );
+
+	DebugShapeCounters counters = { 0, 0 };
+	b3RecPlayer_SetDebugShapeCallbacks( player, RecTestCreateDebugShape, RecTestDestroyDebugShape, &counters );
+
+	// Replay to the end and draw: one handle per shape.
+	b3RecPlayer_SeekFrame( player, totalFrames );
+	RecTestDrawWorld( b3RecPlayer_GetWorldId( player ) );
+	ENSURE( !b3RecPlayer_HasDiverged( player ) );
+	ENSURE( counters.created == shapeCount );
+
+	// Scrub backward and forward across keyframes. Each restore keeps the persistent shapes' handles,
+	// so drawing builds no new ones.
+	int createdAfterFirstDraw = counters.created;
+	int seekTargets[] = { 40, 70, 20, 60, 8, 75 };
+	for ( int k = 0; k < (int)( sizeof( seekTargets ) / sizeof( seekTargets[0] ) ); ++k )
+	{
+		b3RecPlayer_SeekFrame( player, seekTargets[k] );
+		RecTestDrawWorld( b3RecPlayer_GetWorldId( player ) );
+	}
+	ENSURE( counters.created == createdAfterFirstDraw );
+
+	// Teardown releases exactly the live handles, so the leak-free invariant holds.
+	b3RecPlayer_Destroy( player );
+	ENSURE( counters.created == counters.destroyed );
+
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( SphereRoundTrip );
@@ -663,5 +743,6 @@ int RecordingTest( void )
 	RUN_SUBTEST( SeekWithHull );
 	RUN_SUBTEST( DebugShapeCallbacks );
 	RUN_SUBTEST( PlayerAccessors );
+	RUN_SUBTEST( KeyframeHandleReuse );
 	return 0;
 }

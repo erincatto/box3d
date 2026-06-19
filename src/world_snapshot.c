@@ -535,6 +535,28 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 		return;
 	}
 
+	// Save renderer handles before the array is wiped. A keyframe restore is a deterministic replay
+	// state, so a live shape that still occupies the same slot with the same generation is the same
+	// shape with the same geometry. Carrying its handle over avoids tearing down and rebuilding every
+	// GPU mesh on each seek, which the host (a 3D renderer) would otherwise pay for. Handles that are
+	// not reclaimed below belong to shapes that are gone or were replaced, and get released so the host
+	// pool does not leak across seeks. Box2D has no such handles, so its restore skips all of this.
+	int       oldShapeCount  = world->shapes.count;
+	void**    savedUserShape  = NULL;
+	uint16_t* savedGeneration = NULL;
+	if ( oldShapeCount > 0 )
+	{
+		savedUserShape  = (void**)b3Alloc( (size_t)oldShapeCount * sizeof( void* ) );
+		savedGeneration = (uint16_t*)b3Alloc( (size_t)oldShapeCount * sizeof( uint16_t ) );
+		for ( int i = 0; i < oldShapeCount; ++i )
+		{
+			b3Shape* old       = world->shapes.data + i;
+			bool     oldLive   = ( old->id == i );
+			savedUserShape[i]  = oldLive ? old->userShape : NULL;
+			savedGeneration[i] = old->generation;
+		}
+	}
+
 	b3Array_Resize( world->shapes, count );
 	memset( world->shapes.data, 0, (size_t)count * sizeof( b3Shape ) );
 
@@ -550,6 +572,15 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 		memset( &dst->capsule, 0, sizeof( dst->capsule ) );
 
 		bool isLive = ( dst->id == i );
+
+		// Carry the renderer handle over when the same shape still occupies this slot. Consumed
+		// handles are nulled so the teardown sweep only releases the ones that vanished.
+		if ( isLive && i < oldShapeCount && savedUserShape != NULL && savedUserShape[i] != NULL &&
+		     savedGeneration[i] == dst->generation )
+		{
+			dst->userShape    = savedUserShape[i];
+			savedUserShape[i] = NULL;
+		}
 
 		// Serializer writes: matCount, matData, geoKind, geoData
 		int matCount = b3SnapR_I32( r );
@@ -683,6 +714,21 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 				// Unknown or sentinel — no geometry
 				break;
 		}
+	}
+
+	// Release handles for shapes that are gone or were replaced this restore, so the host pool and any
+	// GPU resources they pinned do not leak across seeks.
+	if ( savedUserShape != NULL )
+	{
+		for ( int i = 0; i < oldShapeCount; ++i )
+		{
+			if ( savedUserShape[i] != NULL && world->destroyDebugShape != NULL )
+			{
+				world->destroyDebugShape( savedUserShape[i], world->userDebugShapeContext );
+			}
+		}
+		b3Free( savedUserShape, (size_t)oldShapeCount * sizeof( void* ) );
+		b3Free( savedGeneration, (size_t)oldShapeCount * sizeof( uint16_t ) );
 	}
 }
 
