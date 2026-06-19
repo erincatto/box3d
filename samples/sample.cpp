@@ -1121,6 +1121,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.position = pickRay.origin + 2.0f * direction;
 			bodyDef.linearVelocity = ( 10.0f * m_launchSpeedScale ) * direction;
+			bodyDef.isBullet = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3HullData* hull = b3CreateCylinder( 2.0f, 0.15f, 0.0f, 6 );
@@ -1133,7 +1134,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			Human human = {};
 			CreateHuman( &human, m_worldId, position, 1.0f, 1.0f, 1.0f, 0, nullptr, true );
 			Human_SetBullet( &human, true );
-			Human_SetVelocity( &human, ( 5.0f * m_launchSpeedScale ) * direction );
+			Human_SetVelocity( &human, ( 10.0f * m_launchSpeedScale ) * direction );
 		}
 		else
 		{

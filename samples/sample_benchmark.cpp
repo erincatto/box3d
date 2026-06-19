@@ -589,7 +589,8 @@ public:
 				{
 					Context context = {};
 					b3ShapeProxy proxy = { &b3Vec3_zero, 1, m_radius };
-					b3World_CastShape( m_worldId, rayOrigin, &proxy, rayTranslation, b3DefaultQueryFilter(), CastCallback, &context );
+					b3World_CastShape( m_worldId, rayOrigin, &proxy, rayTranslation, b3DefaultQueryFilter(), CastCallback,
+									   &context );
 
 					if ( context.hit )
 					{
@@ -1439,7 +1440,11 @@ public:
 
 	void Step() override
 	{
-		StepJunkyard( m_worldId, m_stepCount );
+		if ( m_context->pause == false || m_context->singleStep == 0 )
+		{
+			StepJunkyard( m_worldId, m_stepCount );
+		}
+
 		Sample::Step();
 	}
 

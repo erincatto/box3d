@@ -124,7 +124,7 @@ static int sampleLargeWorld = RegisterSample( "World", "Far Stack", FarStack::Cr
 class FarPyramid : public Sample
 {
 public:
-	static constexpr float m_offsetKilometers = 1000.0f;
+	static constexpr float m_offsetKilometers = 10000.0f;
 
 	explicit FarPyramid( SampleContext* context )
 		: Sample( context )
@@ -133,28 +133,24 @@ public:
 
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 40.0f, -10.0f, 110.0f, b3OffsetPos( base, { 0.0f, 40.0f, 0.0f } ) );
+			m_camera->SetView( 40.0f, -10.0f, 60.0f, b3OffsetPos( base, { 0.0f, 20.0f, 0.0f } ) );
 		}
 
-#ifdef NDEBUG
-		int baseCount = 90;
-#else
-		int baseCount = 20;
-#endif
+		int baseCount = 40;
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.position = b3OffsetPos( base, { 0.0f, -1.0f, 0.0f } );
 		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3BoxHull groundHull = b3MakeBoxHull( 100.0f, 1.0f, 100.0f );
+		b3BoxHull groundHull = b3MakeBoxHull( 400.0f, 1.0f, 400.0f );
 		b3ShapeId groundShapeId = b3CreateHullShape( groundId, &shapeDef, &groundHull.base );
 		SetGroundShape( groundShapeId );
 
 		float h = 0.5f;
 		float shift = h;
 		b3BoxHull box = b3MakeBoxHull( h, h, h );
-
+		shapeDef.density = 100.0f;
 		bodyDef.type = b3_dynamicBody;
 		for ( int i = 0; i < baseCount; ++i )
 		{
@@ -197,7 +193,7 @@ public:
 #endif
 	};
 
-	static constexpr float m_offsetKilometers = 10000.0f;
+	static constexpr float m_offsetKilometers = 1000.0f;
 
 	explicit FarRagdolls( SampleContext* context )
 		: Sample( context )
@@ -219,7 +215,8 @@ public:
 
 		for ( int i = 0; i < e_count; ++i )
 		{
-			b3Pos position = b3OffsetPos( base, { 0.1f * i, 2.0f + 0.5f * i, -0.1f * i } );
+			b3Pos position =
+				b3OffsetPos( base, { 0.15f * ( i - 0.5f * e_count ), 2.0f + 0.25f * i, 0.15f * ( 0.5f * e_count - i ) } );
 			float torque = 10.0f;
 			float hertz = 0.5f;
 			float damping = 0.7f;

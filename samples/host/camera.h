@@ -143,8 +143,6 @@ public:
 	// ready yet, so callers never read uninitialized values.
 	PickRay BuildPickRay( float x, float y ) const;
 
-	// b3AABB GetViewBounds() consts;
-
 	b3Pos m_pivot; // look-at point, world space. Double precision so it stays exact far from origin.
 	float m_yaw;	// radians, around Y
 	float m_pitch;	// radians, around camera-frame X

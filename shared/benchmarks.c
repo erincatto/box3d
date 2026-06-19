@@ -109,7 +109,7 @@ void CreateLargePyramid( b3WorldId worldId )
 		bodyDef.position = (b3Pos){ 0.0f, -1.0f, 0.0f };
 		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
 
-		b3BoxHull box = b3MakeBoxHull( 100.0f, 1.0f, 100.0f );
+		b3BoxHull box = b3MakeBoxHull( 400.0f, 1.0f, 400.0f );
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
 	}
@@ -118,7 +118,7 @@ void CreateLargePyramid( b3WorldId worldId )
 	bodyDef.type = b3_dynamicBody;
 
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	shapeDef.density = 1.0f;
+	shapeDef.density = 100.0f;
 
 	float h = 0.5f;
 	b3BoxHull box = b3MakeBoxHull( h, h, h );

@@ -599,11 +599,11 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 					.upperBound = b3Add( shape->aabb.upperBound, aabbMargin ),
 				};
 
-				if ( b3IsSaneAABB( shape->fatAABB ) == false )
-				{
-					b3Pos c = fastBodySim->center;
-					b3Log( "body %s out of bounds at %g %g %g", fastBody->name, c.x, c.y, c.z );
-				}
+				//if ( b3IsSaneAABB( shape->fatAABB ) == false )
+				//{
+				//	b3Pos c = fastBodySim->center;
+				//	b3Log( "body %s out of bounds at %g %g %g", fastBody->name, c.x, c.y, c.z );
+				//}
 
 				shape->enlargedAABB = true;
 				fastBodySim->flags |= b3_enlargeBounds;

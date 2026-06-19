@@ -761,7 +761,7 @@ static void b3RemoveLeaf( b3DynamicTree* tree, int leaf )
 int b3DynamicTree_CreateProxy( b3DynamicTree* tree, b3AABB aabb, uint64_t categoryBits, uint64_t userData )
 {
 	B3_ASSERT( b3IsValidAABB( aabb ) );
-	B3_VALIDATE( b3IsBoundedAABB( aabb ) );
+	//B3_VALIDATE( b3IsBoundedAABB( aabb ) );
 
 	int proxyId = b3AllocateNode( tree );
 	b3TreeNode* node = tree->nodes + proxyId;

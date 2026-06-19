@@ -403,7 +403,12 @@ sapp_desc sokol_main( int argc, char** argv )
 	// No swap-chain MSAA. The renderer runs MSAA in its own scene target.
 	desc.sample_count = 1;
 
-	desc.window_title = "Box3D Samples";
+	// Static so the pointer outlives sokol_main; sokol keeps it for the window lifetime.
+	b3Version version = b3GetVersion();
+	static char title[64];
+	snprintf( title, sizeof( title ), "Box3D %d.%d.%d - %s precision", version.major, version.minor,
+			  version.revision, b3IsDoublePrecision() ? "double" : "single" );
+	desc.window_title = title;
 
 	// Vsync off: the software limiter in OnFrame owns the cadence. A hard 60 Hz
 	// cap under vsync would beat against a non-60 display and pace to the wrong rate.
