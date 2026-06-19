@@ -184,15 +184,7 @@ static int sampleFarPyramid = RegisterSample( "World", "Far Pyramid", FarPyramid
 class FarRagdolls : public Sample
 {
 public:
-	enum
-	{
-#ifdef NDEBUG
-		e_count = 20
-#else
-		e_count = 8
-#endif
-	};
-
+	static constexpr int m_count = 20;
 	static constexpr float m_offsetKilometers = 1000.0f;
 
 	explicit FarRagdolls( SampleContext* context )
@@ -213,10 +205,14 @@ public:
 		m_groundMesh = b3CreateGridMesh( 20, 20, 1.0f, 1, true );
 		b3CreateMeshShape( groundId, &shapeDef, m_groundMesh, b3Vec3_one );
 
-		for ( int i = 0; i < e_count; ++i )
+		for ( int i = 0; i < m_count; ++i )
 		{
-			b3Pos position =
-				b3OffsetPos( base, { 0.15f * ( i - 0.5f * e_count ), 2.0f + 0.25f * i, 0.15f * ( 0.5f * e_count - i ) } );
+			b3Vec3 offset = {
+				0.15f * ( i - 0.5f * m_count ),
+				2.0f + 0.25f * i,
+				0.15f * ( 0.5f * m_count - i ),
+			};
+			b3Pos position = b3OffsetPos( base, offset );
 			float torque = 10.0f;
 			float hertz = 0.5f;
 			float damping = 0.7f;
@@ -234,7 +230,7 @@ public:
 		Sample::Step();
 
 		DrawTextLine( "double precision: %s", b3IsDoublePrecision() ? "ON" : "OFF" );
-		DrawTextLine( "%d ragdolls piled %.0f km from the world origin", (int)e_count, m_offsetKilometers );
+		DrawTextLine( "%d ragdolls piled %.0f km from the world origin", m_count, m_offsetKilometers );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -243,7 +239,7 @@ public:
 	}
 
 	b3MeshData* m_groundMesh;
-	Human m_humans[e_count] = {};
+	Human m_humans[m_count] = {};
 };
 
 static int sampleFarRagdolls = RegisterSample( "World", "Far Ragdolls", FarRagdolls::Create );

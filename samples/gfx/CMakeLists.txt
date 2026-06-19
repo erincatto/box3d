@@ -24,7 +24,6 @@ set(GFX_FILES
     ibl.h
     overlay.c
     overlay.h
-    picking.h
 	projection.h
     qsort.h
     renderer.c

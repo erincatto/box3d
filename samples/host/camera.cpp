@@ -1,6 +1,5 @@
 #include "camera.h"
 
-#include "gfx/picking.h"
 #include "sokol_app.h"
 
 #include "box3d/math_functions.h"
@@ -160,19 +159,47 @@ b3Vec3 Camera::Position() const
 
 PickRay Camera::BuildPickRay( float x, float y ) const
 {
+	// Defined zero ray so callers never read uninitialized values when the
+	// camera has no size yet or the unprojection is degenerate.
 	PickRay ray;
-	b3Vec3 origin;
-	if ( ::BuildPickRay( x, y, &origin, &ray.translation ) == false)
+	ray.origin = b3Pos_zero;
+	ray.translation = b3Vec3_zero;
+
+	if ( m_width <= 0 || m_height <= 0 )
 	{
-		// Camera state not latched yet, or degenerate matrices: defined zero
-		// ray so callers never read uninitialized values.
-		ray.origin = b3Pos_zero;
-		ray.translation = b3Vec3_zero;
+		return ray;
 	}
-	else
+
+	// Pixel -> NDC. Origin top-left, Y down. NDC has Y up, X right.
+	const float ndcX = ( 2.0f * x / (float)m_width ) - 1.0f;
+	const float ndcY = 1.0f - ( 2.0f * y / (float)m_height );
+
+	// Reverse-Z: near maps to clip-Z = +w, far to 0. Unproject both clip points
+	// through inv(P*V) = viewInv * projInv, no runtime matrix inversion. The
+	// matrices are eye-relative, so the recovered points are too.
+	const Mat4 invVP = MulMM4( m_viewInv, m_projInv );
+
+	const Vec4 clipN = MakeVec4( ndcX, ndcY, 1.0f, 1.0f );
+	const Vec4 clipF = MakeVec4( ndcX, ndcY, 0.0f, 1.0f );
+
+	const Vec4 wN = MulMV4( invVP, clipN );
+	const Vec4 wF = MulMV4( invVP, clipF );
+
+	if ( wN.w == 0.0f || wF.w == 0.0f )
 	{
-		ray.origin = b3OffsetPos( m_worldEye, origin );
+		return ray;
 	}
+
+	const float invWN = 1.0f / wN.w;
+	const float invWF = 1.0f / wF.w;
+
+	b3Vec3 nearWorld = { wN.x * invWN, wN.y * invWN, wN.z * invWN };
+	b3Vec3 farWorld = { wF.x * invWF, wF.y * invWF, wF.z * invWF };
+
+	// Lift the near point to absolute world with the double eye. Translation is
+	// a delta so it stays eye-relative and needs no offset.
+	ray.origin = b3OffsetPos( m_worldEye, nearWorld );
+	ray.translation = b3Sub( farWorld, nearWorld );
 	return ray;
 }
 

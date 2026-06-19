@@ -137,10 +137,10 @@ public:
 	// point for sample code that mutates m_pivot directly (third-person follow).
 	void UpdateTransform();
 
-	// World-space pick ray from a framebuffer-pixel coordinate, using the
-	// latched camera state. Wraps the free function in gfx/picking.h; hands
-	// back a zero-translation ray (origin at the eye) if that state is not
-	// ready yet, so callers never read uninitialized values.
+	// World-space pick ray from a framebuffer-pixel coordinate. Unprojects
+	// through the camera's own eye-relative matrices and framebuffer size, then
+	// lifts the origin to absolute world with the double eye. Hands back a zero
+	// ray if the camera has no size yet, so callers never read uninitialized values.
 	PickRay BuildPickRay( float x, float y ) const;
 
 	b3Pos m_pivot; // look-at point, world space. Double precision so it stays exact far from origin.
