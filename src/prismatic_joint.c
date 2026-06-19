@@ -8,6 +8,7 @@
 #include "physics_world.h"
 #include "solver.h"
 #include "solver_set.h"
+#include "recording.h"
 
 // needed for dll export
 #include "box3d/box3d.h"
@@ -52,6 +53,8 @@
 
 void b3PrismaticJoint_EnableLimit( b3JointId jointId, bool enableLimit )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, PrismaticJointEnableLimit, jointId, enableLimit );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
 	if ( enableLimit != base->prismaticJoint.enableLimit )
 	{
@@ -82,6 +85,8 @@ float b3PrismaticJoint_GetUpperLimit( b3JointId jointId )
 void b3PrismaticJoint_SetLimits( b3JointId jointId, float lower, float upper )
 {
 	B3_ASSERT( b3IsValidFloat( lower ) && b3IsValidFloat( upper ) );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, PrismaticJointSetLimits, jointId, lower, upper );
 	float lowerAngle = b3MinFloat( lower, upper );
 	float upperAngle = b3MaxFloat( lower, upper );
 
@@ -109,6 +114,8 @@ float b3PrismaticJoint_GetTranslation( b3JointId jointId )
 
 void b3PrismaticJoint_EnableSpring( b3JointId jointId, bool enableSpring )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, PrismaticJointEnableSpring, jointId, enableSpring );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
 	if ( enableSpring != base->prismaticJoint.enableSpring )
 	{
@@ -126,6 +133,8 @@ bool b3PrismaticJoint_IsSpringEnabled( b3JointId jointId )
 void b3PrismaticJoint_SetTargetTranslation( b3JointId jointId, float targetTranslation )
 {
 	B3_ASSERT( b3IsValidFloat( targetTranslation ) );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, PrismaticJointSetTargetTranslation, jointId, targetTranslation );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
 	base->prismaticJoint.targetTranslation = targetTranslation;
 }
@@ -139,6 +148,8 @@ float b3PrismaticJoint_GetTargetTranslation( b3JointId jointId )
 void b3PrismaticJoint_SetSpringHertz( b3JointId jointId, float hertz )
 {
 	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, PrismaticJointSetSpringHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
 	base->prismaticJoint.hertz = hertz;
 }
@@ -152,6 +163,8 @@ float b3PrismaticJoint_GetSpringHertz( b3JointId jointId )
 void b3PrismaticJoint_SetSpringDampingRatio( b3JointId jointId, float dampingRatio )
 {
 	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, PrismaticJointSetSpringDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
 	base->prismaticJoint.dampingRatio = dampingRatio;
 }
@@ -164,6 +177,8 @@ float b3PrismaticJoint_GetSpringDampingRatio( b3JointId jointId )
 
 void b3PrismaticJoint_EnableMotor( b3JointId jointId, bool enableMotor )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, PrismaticJointEnableMotor, jointId, enableMotor );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
 	if ( enableMotor != base->prismaticJoint.enableMotor )
 	{
@@ -181,6 +196,8 @@ bool b3PrismaticJoint_IsMotorEnabled( b3JointId jointId )
 void b3PrismaticJoint_SetMotorSpeed( b3JointId jointId, float motorSpeed )
 {
 	B3_ASSERT( b3IsValidFloat( motorSpeed ) );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, PrismaticJointSetMotorSpeed, jointId, motorSpeed );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
 	base->prismaticJoint.motorSpeed = motorSpeed;
 }
@@ -194,6 +211,8 @@ float b3PrismaticJoint_GetMotorSpeed( b3JointId jointId )
 void b3PrismaticJoint_SetMaxMotorForce( b3JointId jointId, float maxForce )
 {
 	B3_ASSERT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, PrismaticJointSetMaxMotorForce, jointId, maxForce );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
 	base->prismaticJoint.maxMotorForce = maxForce;
 }

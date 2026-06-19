@@ -3,6 +3,8 @@
 
 #include "physics_world.h"
 
+#include "recording.h"
+
 #include "arena_allocator.h"
 #include "bitset.h"
 #include "body.h"
@@ -1030,6 +1032,8 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 		return;
 	}
 
+	B3_REC( world, Step, worldId, timeStep, subStepCount );
+
 	world->locked = true;
 
 	b3TracyCZoneNC( world_step, "Step", b3_colorBox2DGreen, true );
@@ -1162,6 +1166,14 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 	b3Array_Clear( world->sensorEndEvents[world->endEventArrayIndex] );
 	b3Array_Clear( world->contactEndEvents[world->endEventArrayIndex] );
 	world->locked = false;
+
+	if ( world->recording != NULL )
+	{
+		uint64_t hash = b3HashWorldState( world );
+		b3RecArgs_StateHash stateHash = { worldId, hash };
+		b3RecWrite_StateHash( world->recording, &stateHash );
+		// TODO seed bounds per step
+	}
 
 	b3TracyCZoneEnd( world_step );
 	b3TracyCFrame;
@@ -1909,6 +1921,8 @@ void b3World_EnableSleeping( b3WorldId worldId, bool flag )
 		return;
 	}
 
+	B3_REC( world, WorldEnableSleeping, worldId, flag );
+
 	world->enableSleep = flag;
 
 	if ( flag == false )
@@ -1939,6 +1953,8 @@ void b3World_EnableWarmStarting( b3WorldId worldId, bool flag )
 		return;
 	}
 
+	B3_REC( world, WorldEnableWarmStarting, worldId, flag );
+
 	world->enableWarmStarting = flag;
 }
 
@@ -1967,6 +1983,8 @@ void b3World_EnableContinuous( b3WorldId worldId, bool flag )
 		return;
 	}
 
+	B3_REC( world, WorldEnableContinuous, worldId, flag );
+
 	world->enableContinuous = flag;
 }
 
@@ -1983,6 +2001,8 @@ void b3World_SetRestitutionThreshold( b3WorldId worldId, float value )
 	{
 		return;
 	}
+
+	B3_REC( world, WorldSetRestitutionThreshold, worldId, value );
 
 	world->restitutionThreshold = b3ClampFloat( value, 0.0f, FLT_MAX );
 }
@@ -2001,6 +2021,8 @@ void b3World_SetHitEventThreshold( b3WorldId worldId, float value )
 		return;
 	}
 
+	B3_REC( world, WorldSetHitEventThreshold, worldId, value );
+
 	world->hitEventThreshold = b3ClampFloat( value, 0.0f, FLT_MAX );
 }
 
@@ -2018,6 +2040,8 @@ void b3World_SetContactTuning( b3WorldId worldId, float hertz, float dampingRati
 		return;
 	}
 
+	B3_REC( world, WorldSetContactTuning, worldId, hertz, dampingRatio, contactSpeed );
+
 	world->contactHertz = b3ClampFloat( hertz, 0.0f, FLT_MAX );
 	world->contactDampingRatio = b3ClampFloat( dampingRatio, 0.0f, FLT_MAX );
 	world->contactSpeed = b3ClampFloat( contactSpeed, 0.0f, FLT_MAX );
@@ -2031,6 +2055,8 @@ void b3World_SetContactRecycleDistance( b3WorldId worldId, float recycleDistance
 	{
 		return;
 	}
+
+	B3_REC( world, WorldSetContactRecycleDistance, worldId, recycleDistance );
 
 	world->contactRecycleDistance = b3ClampFloat( recycleDistance, 0.0f, FLT_MAX );
 }
@@ -2050,6 +2076,8 @@ void b3World_SetMaximumLinearSpeed( b3WorldId worldId, float maximumLinearSpeed 
 	{
 		return;
 	}
+
+	B3_REC( world, WorldSetMaximumLinearSpeed, worldId, maximumLinearSpeed );
 
 	world->maxLinearSpeed = maximumLinearSpeed;
 }
@@ -3089,6 +3117,9 @@ void b3World_SetPreSolveCallback( b3WorldId worldId, b3PreSolveFcn* fcn, void* c
 void b3World_SetGravity( b3WorldId worldId, b3Vec3 gravity )
 {
 	b3World* world = b3GetWorldFromId( worldId );
+
+	B3_REC( world, WorldSetGravity, worldId, gravity );
+
 	world->gravity = gravity;
 }
 
@@ -3212,6 +3243,8 @@ void b3World_Explode( b3WorldId worldId, const b3ExplosionDef* explosionDef )
 		return;
 	}
 
+	B3_REC( world, WorldExplode, worldId, *explosionDef );
+
 	// Locked due to waking
 	world->locked = true;
 
@@ -3235,6 +3268,8 @@ void b3World_RebuildStaticTree( b3WorldId worldId )
 		return;
 	}
 
+	B3_REC( world, WorldRebuildStaticTree, worldId );
+
 	b3DynamicTree* staticTree = world->broadPhase.trees + b3_staticBody;
 	b3DynamicTree_Rebuild( staticTree, true );
 }
@@ -3246,6 +3281,9 @@ void b3World_EnableSpeculative( b3WorldId worldId, bool flag )
 	{
 		return;
 	}
+
+	B3_REC( world, WorldEnableSpeculative, worldId, flag );
+
 	world->enableSpeculative = flag;
 }
 

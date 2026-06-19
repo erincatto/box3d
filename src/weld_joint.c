@@ -6,6 +6,7 @@
 #include "physics_world.h"
 #include "solver.h"
 #include "solver_set.h"
+#include "recording.h"
 
 // needed for dll export
 #include "box3d/box3d.h"
@@ -13,6 +14,8 @@
 void b3WeldJoint_SetLinearHertz( b3JointId jointId, float hertz )
 {
 	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, WeldJointSetLinearHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_weldJoint );
 	base->weldJoint.linearHertz = hertz;
 }
@@ -26,6 +29,8 @@ float b3WeldJoint_GetLinearHertz( b3JointId jointId )
 void b3WeldJoint_SetLinearDampingRatio( b3JointId jointId, float dampingRatio )
 {
 	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, WeldJointSetLinearDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_weldJoint );
 	base->weldJoint.linearDampingRatio = dampingRatio;
 }
@@ -39,6 +44,8 @@ float b3WeldJoint_GetLinearDampingRatio( b3JointId jointId )
 void b3WeldJoint_SetAngularHertz( b3JointId jointId, float hertz )
 {
 	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, WeldJointSetAngularHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_weldJoint );
 	base->weldJoint.angularHertz = hertz;
 }
@@ -52,6 +59,8 @@ float b3WeldJoint_GetAngularHertz( b3JointId jointId )
 void b3WeldJoint_SetAngularDampingRatio( b3JointId jointId, float dampingRatio )
 {
 	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, WeldJointSetAngularDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_weldJoint );
 	base->weldJoint.angularDampingRatio = dampingRatio;
 }

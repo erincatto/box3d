@@ -8,6 +8,7 @@
 #include "core.h"
 #include "island.h"
 #include "physics_world.h"
+#include "recording.h"
 #include "shape.h"
 #include "solver.h"
 #include "solver_set.h"
@@ -378,6 +379,7 @@ void b3Joint_SetConstraintTuning( b3JointId jointId, float hertz, float dampingR
 	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
 
 	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, JointSetConstraintTuning, jointId, hertz, dampingRatio );
 	b3Joint* joint = b3GetJointFullId( world, jointId );
 	b3JointSim* base = b3GetJointSim( world, joint );
 	base->constraintHertz = hertz;
@@ -398,6 +400,7 @@ void b3Joint_SetForceThreshold( b3JointId jointId, float threshold )
 	B3_ASSERT( b3IsValidFloat( threshold ) && threshold >= 0.0f );
 
 	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, JointSetForceThreshold, jointId, threshold );
 	b3Joint* joint = b3GetJointFullId( world, jointId );
 	b3JointSim* base = b3GetJointSim( world, joint );
 	base->forceThreshold = threshold;
@@ -416,6 +419,7 @@ void b3Joint_SetTorqueThreshold( b3JointId jointId, float threshold )
 	B3_ASSERT( b3IsValidFloat( threshold ) && threshold >= 0.0f );
 
 	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, JointSetTorqueThreshold, jointId, threshold );
 	b3Joint* joint = b3GetJointFullId( world, jointId );
 	b3JointSim* base = b3GetJointSim( world, joint );
 	base->torqueThreshold = threshold;
@@ -464,6 +468,7 @@ b3JointId b3CreateDistanceJoint( b3WorldId worldId, const b3DistanceJointDef* de
 	joint->distanceJoint.motorImpulse = 0.0f;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateDistanceJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -492,6 +497,7 @@ b3JointId b3CreateMotorJoint( b3WorldId worldId, const b3MotorJointDef* def )
 	joint->motorJoint.maxSpringTorque = def->maxSpringTorque;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateMotorJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -509,6 +515,7 @@ b3JointId b3CreateFilterJoint( b3WorldId worldId, const b3FilterJointDef* def )
 	b3JointSim* joint = pair.jointSim;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateFilterJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -535,6 +542,7 @@ b3JointId b3CreateParallelJoint( b3WorldId worldId, const b3ParallelJointDef* de
 	joint->parallelJoint.maxTorque = def->maxTorque;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateParallelJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -566,6 +574,7 @@ b3JointId b3CreatePrismaticJoint( b3WorldId worldId, const b3PrismaticJointDef* 
 	joint->prismaticJoint.enableMotor = def->enableMotor;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreatePrismaticJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -601,6 +610,7 @@ b3JointId b3CreateRevoluteJoint( b3WorldId worldId, const b3RevoluteJointDef* de
 	joint->revoluteJoint.enableMotor = def->enableMotor;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateRevoluteJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -640,6 +650,7 @@ b3JointId b3CreateSphericalJoint( b3WorldId worldId, const b3SphericalJointDef* 
 	joint->sphericalJoint.enableMotor = def->enableMotor;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateSphericalJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -668,6 +679,7 @@ b3JointId b3CreateWeldJoint( b3WorldId worldId, const b3WeldJointDef* def )
 	joint->weldJoint.angularDampingRatio = def->angularDampingRatio;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateWeldJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -707,6 +719,7 @@ b3JointId b3CreateWheelJoint( b3WorldId worldId, const b3WheelJointDef* def )
 	joint->wheelJoint.upperSteeringLimit = def->upperSteeringLimit;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateWheelJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -825,6 +838,8 @@ void b3DestroyJoint( b3JointId jointId, bool wakeAttached )
 		return;
 	}
 
+	B3_REC( world, DestroyJoint, jointId, wakeAttached );
+
 	b3Joint* joint = b3GetJointFullId( world, jointId );
 
 	b3DestroyJointInternal( world, joint, wakeAttached );
@@ -862,6 +877,7 @@ void b3Joint_SetLocalFrameA( b3JointId jointId, b3Transform localFrame )
 	B3_ASSERT( b3IsValidTransform( localFrame ) );
 
 	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, JointSetLocalFrameA, jointId, localFrame );
 	b3Joint* joint = b3GetJointFullId( world, jointId );
 	b3JointSim* jointSim = b3GetJointSim( world, joint );
 	jointSim->localFrameA = localFrame;
@@ -880,6 +896,7 @@ void b3Joint_SetLocalFrameB( b3JointId jointId, b3Transform localFrame )
 	B3_ASSERT( b3IsValidTransform( localFrame ) );
 
 	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, JointSetLocalFrameB, jointId, localFrame );
 	b3Joint* joint = b3GetJointFullId( world, jointId );
 	b3JointSim* jointSim = b3GetJointSim( world, joint );
 	jointSim->localFrameB = localFrame;
@@ -900,6 +917,8 @@ void b3Joint_SetCollideConnected( b3JointId jointId, bool shouldCollide )
 	{
 		return;
 	}
+
+	B3_REC( world, JointSetCollideConnected, jointId, shouldCollide );
 
 	b3Joint* joint = b3GetJointFullId( world, jointId );
 	if ( joint->collideConnected == shouldCollide )
@@ -966,6 +985,8 @@ void b3Joint_WakeBodies( b3JointId jointId )
 	{
 		return;
 	}
+
+	B3_REC( world, JointWakeBodies, jointId );
 
 	world->locked = true;
 

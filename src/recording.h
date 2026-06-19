@@ -274,6 +274,13 @@ uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_
 void     b3FreeRegistry( b3GeometryRegistry* reg );
 void     b3RecWriteRegistry( b3Recording* rec );
 
+// Intern each large geometry kind and return a stable u32 id for use in create ops.
+// Caller does NOT free bytes; b3InternGeometry takes ownership (frees on duplicate).
+uint32_t b3RecInternHull( b3Recording* rec, const b3HullData* hull );
+uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh );
+uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightField* hf );
+uint32_t b3RecInternCompound( b3Recording* rec, const b3Compound* compound );
+
 uint64_t b3Hash64Blob( const uint8_t* bytes, int n );
 
 // HeightField codec

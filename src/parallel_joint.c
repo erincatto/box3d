@@ -8,6 +8,7 @@
 #include "physics_world.h"
 #include "solver.h"
 #include "solver_set.h"
+#include "recording.h"
 
 // needed for dll export
 #include "box3d/box3d.h"
@@ -15,6 +16,8 @@
 void b3ParallelJoint_SetSpringHertz( b3JointId jointId, float hertz )
 {
 	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, ParallelJointSetSpringHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_parallelJoint );
 	base->parallelJoint.hertz = hertz;
 }
@@ -28,6 +31,8 @@ float b3ParallelJoint_GetSpringHertz( b3JointId jointId )
 void b3ParallelJoint_SetSpringDampingRatio( b3JointId jointId, float dampingRatio )
 {
 	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, ParallelJointSetSpringDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_parallelJoint );
 	base->parallelJoint.dampingRatio = dampingRatio;
 }
@@ -41,6 +46,8 @@ float b3ParallelJoint_GetSpringDampingRatio( b3JointId jointId )
 void b3ParallelJoint_SetMaxTorque( b3JointId jointId, float maxForce )
 {
 	B3_ASSERT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, ParallelJointSetMaxTorque, jointId, maxForce );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_parallelJoint );
 	base->parallelJoint.maxTorque = maxForce;
 }

@@ -7,6 +7,7 @@
 #include "physics_world.h"
 #include "solver.h"
 #include "solver_set.h"
+#include "recording.h"
 
 // needed for dll export
 #include "box3d/box3d.h"
@@ -41,6 +42,8 @@
 
 void b3RevoluteJoint_EnableLimit( b3JointId jointId, bool enableLimit )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointEnableLimit, jointId, enableLimit );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
 	if ( enableLimit != base->revoluteJoint.enableLimit )
 	{
@@ -72,6 +75,8 @@ void b3RevoluteJoint_SetLimits( b3JointId jointId, float lowerLimitRadians, floa
 {
 	B3_ASSERT( lowerLimitRadians <= upperLimitRadians );
 	B3_ASSERT( b3IsValidFloat( lowerLimitRadians ) && b3IsValidFloat( upperLimitRadians ) );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointSetLimits, jointId, lowerLimitRadians, upperLimitRadians );
 	float lowerAngle = b3ClampFloat( lowerLimitRadians, -B3_PI, B3_PI );
 	float upperAngle = b3ClampFloat( upperLimitRadians, -B3_PI, B3_PI );
 
@@ -105,6 +110,8 @@ float b3RevoluteJoint_GetAngle( b3JointId jointId )
 
 void b3RevoluteJoint_EnableSpring( b3JointId jointId, bool enableSpring )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointEnableSpring, jointId, enableSpring );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
 	if ( enableSpring != base->revoluteJoint.enableSpring )
 	{
@@ -122,6 +129,8 @@ bool b3RevoluteJoint_IsSpringEnabled( b3JointId jointId )
 void b3RevoluteJoint_SetTargetAngle( b3JointId jointId, float targetRadians )
 {
 	B3_ASSERT( b3IsValidFloat( targetRadians ) && -B3_PI <= targetRadians && targetRadians <= B3_PI );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointSetTargetAngle, jointId, targetRadians );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
 	base->revoluteJoint.targetAngle = targetRadians;
 }
@@ -135,6 +144,8 @@ float b3RevoluteJoint_GetTargetAngle( b3JointId jointId )
 void b3RevoluteJoint_SetSpringHertz( b3JointId jointId, float hertz )
 {
 	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointSetSpringHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
 	base->revoluteJoint.hertz = hertz;
 }
@@ -148,6 +159,8 @@ float b3RevoluteJoint_GetSpringHertz( b3JointId jointId )
 void b3RevoluteJoint_SetSpringDampingRatio( b3JointId jointId, float dampingRatio )
 {
 	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointSetSpringDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
 	base->revoluteJoint.dampingRatio = dampingRatio;
 }
@@ -160,6 +173,8 @@ float b3RevoluteJoint_GetSpringDampingRatio( b3JointId jointId )
 
 void b3RevoluteJoint_EnableMotor( b3JointId jointId, bool enableMotor )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointEnableMotor, jointId, enableMotor );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
 	if ( enableMotor != base->revoluteJoint.enableMotor )
 	{
@@ -177,6 +192,8 @@ bool b3RevoluteJoint_IsMotorEnabled( b3JointId jointId )
 void b3RevoluteJoint_SetMotorSpeed( b3JointId jointId, float motorSpeed )
 {
 	B3_ASSERT( b3IsValidFloat( motorSpeed ) );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointSetMotorSpeed, jointId, motorSpeed );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
 	base->revoluteJoint.motorSpeed = motorSpeed;
 }
@@ -190,6 +207,8 @@ float b3RevoluteJoint_GetMotorSpeed( b3JointId jointId )
 void b3RevoluteJoint_SetMaxMotorTorque( b3JointId jointId, float maxForce )
 {
 	B3_ASSERT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointSetMaxMotorTorque, jointId, maxForce );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
 	base->revoluteJoint.maxMotorTorque = maxForce;
 }

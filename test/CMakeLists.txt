@@ -18,6 +18,7 @@ set(BOX3D_TEST_FILES
     test_macros.h
     test_math.c
 	test_mover.c
+    test_recording.c
     test_shape.c
     test_table.c
     test_world.c

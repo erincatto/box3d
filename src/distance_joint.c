@@ -5,6 +5,7 @@
 #include "core.h"
 #include "joint.h"
 #include "physics_world.h"
+#include "recording.h"
 #include "solver.h"
 #include "solver_set.h"
 
@@ -13,6 +14,8 @@
 
 void b3DistanceJoint_SetLength( b3JointId jointId, float length )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointSetLength, jointId, length );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	b3DistanceJoint* joint = &base->distanceJoint;
 
@@ -31,6 +34,8 @@ float b3DistanceJoint_GetLength( b3JointId jointId )
 
 void b3DistanceJoint_EnableLimit( b3JointId jointId, bool enableLimit )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointEnableLimit, jointId, enableLimit );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	b3DistanceJoint* joint = &base->distanceJoint;
 	joint->enableLimit = enableLimit;
@@ -44,6 +49,8 @@ bool b3DistanceJoint_IsLimitEnabled( b3JointId jointId )
 
 void b3DistanceJoint_SetLengthRange( b3JointId jointId, float minLength, float maxLength )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointSetLengthRange, jointId, minLength, maxLength );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	b3DistanceJoint* joint = &base->distanceJoint;
 
@@ -92,6 +99,8 @@ float b3DistanceJoint_GetCurrentLength( b3JointId jointId )
 
 void b3DistanceJoint_EnableSpring( b3JointId jointId, bool enableSpring )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointEnableSpring, jointId, enableSpring );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	base->distanceJoint.enableSpring = enableSpring;
 }
@@ -106,6 +115,8 @@ bool b3DistanceJoint_IsSpringEnabled( b3JointId jointId )
 void b3DistanceJoint_SetSpringForceRange( b3JointId jointId, float lowerForce, float upperForce )
 {
 	B3_ASSERT( lowerForce <= upperForce );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointSetSpringForceRange, jointId, lowerForce, upperForce );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	base->distanceJoint.lowerSpringForce = lowerForce;
 	base->distanceJoint.upperSpringForce = upperForce;
@@ -120,12 +131,16 @@ void b3DistanceJoint_GetSpringForceRange( b3JointId jointId, float* lowerForce, 
 
 void b3DistanceJoint_SetSpringHertz( b3JointId jointId, float hertz )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointSetSpringHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	base->distanceJoint.hertz = hertz;
 }
 
 void b3DistanceJoint_SetSpringDampingRatio( b3JointId jointId, float dampingRatio )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointSetSpringDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	base->distanceJoint.dampingRatio = dampingRatio;
 }
@@ -146,6 +161,8 @@ float b3DistanceJoint_GetSpringDampingRatio( b3JointId jointId )
 
 void b3DistanceJoint_EnableMotor( b3JointId jointId, bool enableMotor )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointEnableMotor, jointId, enableMotor );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	if ( enableMotor != joint->distanceJoint.enableMotor )
 	{
@@ -162,6 +179,8 @@ bool b3DistanceJoint_IsMotorEnabled( b3JointId jointId )
 
 void b3DistanceJoint_SetMotorSpeed( b3JointId jointId, float motorSpeed )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointSetMotorSpeed, jointId, motorSpeed );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	joint->distanceJoint.motorSpeed = motorSpeed;
 }
@@ -181,6 +200,8 @@ float b3DistanceJoint_GetMotorForce( b3JointId jointId )
 
 void b3DistanceJoint_SetMaxMotorForce( b3JointId jointId, float force )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, DistanceJointSetMaxMotorForce, jointId, force );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_distanceJoint );
 	joint->distanceJoint.maxMotorForce = force;
 }

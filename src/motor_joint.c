@@ -8,12 +8,15 @@
 #include "physics_world.h"
 #include "solver.h"
 #include "solver_set.h"
+#include "recording.h"
 
 // needed for dll export
 #include "box3d/box3d.h"
 
 void b3MotorJoint_SetLinearVelocity( b3JointId jointId, b3Vec3 velocity )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetLinearVelocity, jointId, velocity );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.linearVelocity = velocity;
 }
@@ -26,6 +29,8 @@ b3Vec3 b3MotorJoint_GetLinearVelocity( b3JointId jointId )
 
 void b3MotorJoint_SetAngularVelocity( b3JointId jointId, b3Vec3 velocity )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetAngularVelocity, jointId, velocity );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.angularVelocity = velocity;
 }
@@ -38,6 +43,8 @@ b3Vec3 b3MotorJoint_GetAngularVelocity( b3JointId jointId )
 
 void b3MotorJoint_SetMaxVelocityTorque( b3JointId jointId, float maxTorque )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetMaxVelocityTorque, jointId, maxTorque );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.maxVelocityTorque = maxTorque;
 }
@@ -50,6 +57,8 @@ float b3MotorJoint_GetMaxVelocityTorque( b3JointId jointId )
 
 void b3MotorJoint_SetMaxVelocityForce( b3JointId jointId, float maxForce )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetMaxVelocityForce, jointId, maxForce );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.maxVelocityForce = maxForce;
 }
@@ -62,6 +71,8 @@ float b3MotorJoint_GetMaxVelocityForce( b3JointId jointId )
 
 void b3MotorJoint_SetLinearHertz( b3JointId jointId, float hertz )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetLinearHertz, jointId, hertz );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.linearHertz = hertz;
 }
@@ -74,6 +85,8 @@ float b3MotorJoint_GetLinearHertz( b3JointId jointId )
 
 void b3MotorJoint_SetLinearDampingRatio( b3JointId jointId, float damping )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetLinearDampingRatio, jointId, damping );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.linearDampingRatio = damping;
 }
@@ -86,6 +99,8 @@ float b3MotorJoint_GetLinearDampingRatio( b3JointId jointId )
 
 void b3MotorJoint_SetAngularHertz( b3JointId jointId, float hertz )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetAngularHertz, jointId, hertz );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.angularHertz = hertz;
 }
@@ -98,6 +113,8 @@ float b3MotorJoint_GetAngularHertz( b3JointId jointId )
 
 void b3MotorJoint_SetAngularDampingRatio( b3JointId jointId, float damping )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetAngularDampingRatio, jointId, damping );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.angularDampingRatio = damping;
 }
@@ -110,6 +127,8 @@ float b3MotorJoint_GetAngularDampingRatio( b3JointId jointId )
 
 void b3MotorJoint_SetMaxSpringForce( b3JointId jointId, float maxForce )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetMaxSpringForce, jointId, maxForce );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.maxSpringForce = b3MaxFloat( 0.0f, maxForce );
 }
@@ -122,6 +141,8 @@ float b3MotorJoint_GetMaxSpringForce( b3JointId jointId )
 
 void b3MotorJoint_SetMaxSpringTorque( b3JointId jointId, float maxTorque )
 {
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, MotorJointSetMaxSpringTorque, jointId, maxTorque );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
 	joint->motorJoint.maxSpringTorque = b3MaxFloat( 0.0f, maxTorque );
 }

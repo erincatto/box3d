@@ -7,6 +7,8 @@
 
 #include "recording.h"
 
+#include "body.h"
+#include "compound.h"
 #include "physics_world.h"
 
 #include "box3d/box3d.h"
@@ -298,8 +300,14 @@ void b3RecW_SHAPEDEF( b3RecBuffer* buf, b3ShapeDef v )
 	b3RecW_STR( buf, v.name );
 	// userData: not preserved
 	b3RecW_U64( buf, 0u );
-	// materials array: not serialized here (mesh per-triangle materials handled separately)
-	b3RecW_I32( buf, v.materialCount );
+	// Per-triangle materials: length-prefixed so the reader can rebuild the array.
+	// Guard NULL so a default def (materialCount=0, materials=NULL) round-trips cleanly.
+	int matCount = ( v.materials != NULL ) ? v.materialCount : 0;
+	b3RecW_I32( buf, matCount );
+	for ( int i = 0; i < matCount; ++i )
+	{
+		b3RecW_MATERIAL( buf, v.materials[i] );
+	}
 	b3RecW_MATERIAL( buf, v.baseMaterial );
 	b3RecW_F32( buf, v.density );
 	b3RecW_F32( buf, v.explosionScale );
@@ -743,7 +751,13 @@ void b3StartRecordingIntoBuffer( b3World* world, b3Recording* recording )
 
 	// Phase 3: snapshot seed goes here
 
-	// Phase 2: StateHash anchor goes here
+	// Anchor the recording with the current world state hash so replay can assert
+	// determinism from the very first step.
+	b3WorldId worldId = { (uint16_t)( world->worldId + 1 ), world->generation };
+	b3RecArgs_StateHash stateHash = { worldId, b3HashWorldState( world ) };
+	b3RecWrite_StateHash( recording, &stateHash );
+
+	// TODO seed bounds
 }
 
 void b3StopRecordingInternal( b3World* world )
@@ -859,12 +873,94 @@ b3Recording* b3LoadRecordingFromFile( const char* path )
 	return rec;
 }
 
-// Phase 2: implement full body-state hash
+// Geometry interning helpers
+
+uint32_t b3RecInternHull( b3Recording* rec, const b3HullData* hull )
+{
+	int byteCount = hull->byteCount;
+	uint8_t* bytes = (uint8_t*)b3Alloc( (size_t)byteCount );
+	memcpy( bytes, hull, (size_t)byteCount );
+	uint64_t h = b3Hash64Blob( bytes, byteCount );
+	return b3InternGeometry( &rec->registry, b3_geometryHull, h, bytes, byteCount );
+}
+
+uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh )
+{
+	int byteCount = mesh->byteCount;
+	uint8_t* bytes = (uint8_t*)b3Alloc( (size_t)byteCount );
+	memcpy( bytes, mesh, (size_t)byteCount );
+	uint64_t h = b3Hash64Blob( bytes, byteCount );
+	return b3InternGeometry( &rec->registry, b3_geometryMesh, h, bytes, byteCount );
+}
+
+uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightField* hf )
+{
+	int byteCount = 0;
+	uint8_t* bytes = b3PackHeightField( hf, &byteCount );
+	uint64_t h = b3Hash64Blob( bytes, byteCount );
+	return b3InternGeometry( &rec->registry, b3_geometryHeightField, h, bytes, byteCount );
+}
+
+uint32_t b3RecInternCompound( b3Recording* rec, const b3Compound* compound )
+{
+	int byteCount = compound->byteCount;
+	uint8_t* bytes = (uint8_t*)b3Alloc( (size_t)byteCount );
+	memcpy( bytes, compound, (size_t)byteCount );
+	// Null the tree node pointer in the copy so the canonical bytes are pointer-free.
+	// b3ConvertBytesToCompound fixes it back on load via nodeOffset.
+	( (b3Compound*)bytes )->tree.nodes = NULL;
+	uint64_t h = b3Hash64Blob( bytes, byteCount );
+	return b3InternGeometry( &rec->registry, b3_geometryCompound, h, bytes, byteCount );
+}
+
 uint64_t b3HashWorldState( b3World* world )
 {
-	(void)world;
-	// Phase 2: hash transforms and velocities of all active bodies
-	return 0;
+	uint64_t hash = B3_SNAP_FNV_INIT;
+
+	int bodyCapacity = world->bodies.count;
+	for ( int i = 0; i < bodyCapacity; ++i )
+	{
+		b3Body* body = world->bodies.data + i;
+		if ( body->id != i )
+		{
+			continue;
+		}
+
+		b3BodySim* sim = b3GetBodySim( world, body );
+
+		hash = b3FnvMixPosition( hash, sim->transform.p );
+
+		// quaternion: v.x, v.y, v.z, s
+		uint32_t qx, qy, qz, qs;
+		memcpy( &qx, &sim->transform.q.v.x, 4 );
+		memcpy( &qy, &sim->transform.q.v.y, 4 );
+		memcpy( &qz, &sim->transform.q.v.z, 4 );
+		memcpy( &qs, &sim->transform.q.s,   4 );
+		hash = ( hash ^ (uint64_t)qx ) * B3_SNAP_FNV_PRIME;
+		hash = ( hash ^ (uint64_t)qy ) * B3_SNAP_FNV_PRIME;
+		hash = ( hash ^ (uint64_t)qz ) * B3_SNAP_FNV_PRIME;
+		hash = ( hash ^ (uint64_t)qs ) * B3_SNAP_FNV_PRIME;
+
+		b3BodyState* state = b3GetBodyState( world, body );
+		if ( state != NULL )
+		{
+			uint32_t lx, ly, lz, ax, ay, az;
+			memcpy( &lx, &state->linearVelocity.x,  4 );
+			memcpy( &ly, &state->linearVelocity.y,  4 );
+			memcpy( &lz, &state->linearVelocity.z,  4 );
+			memcpy( &ax, &state->angularVelocity.x, 4 );
+			memcpy( &ay, &state->angularVelocity.y, 4 );
+			memcpy( &az, &state->angularVelocity.z, 4 );
+			hash = ( hash ^ (uint64_t)lx ) * B3_SNAP_FNV_PRIME;
+			hash = ( hash ^ (uint64_t)ly ) * B3_SNAP_FNV_PRIME;
+			hash = ( hash ^ (uint64_t)lz ) * B3_SNAP_FNV_PRIME;
+			hash = ( hash ^ (uint64_t)ax ) * B3_SNAP_FNV_PRIME;
+			hash = ( hash ^ (uint64_t)ay ) * B3_SNAP_FNV_PRIME;
+			hash = ( hash ^ (uint64_t)az ) * B3_SNAP_FNV_PRIME;
+		}
+	}
+
+	return hash;
 }
 
 // Public API entry points

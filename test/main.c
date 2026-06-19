@@ -40,6 +40,7 @@ extern int IdTest( void );
 extern int LargeWorldTest( void );
 extern int MathTest( void );
 extern int MoverTest( void );
+extern int RecordingTest( void );
 extern int ShapeTest( void );
 extern int TableTest( void );
 extern int WorldTest( void );
@@ -102,6 +103,7 @@ int main( int argc, char** argv )
 	MAYBE_RUN_TEST( LargeWorldTest );
 	MAYBE_RUN_TEST( MathTest );
 	MAYBE_RUN_TEST( MoverTest );
+	MAYBE_RUN_TEST( RecordingTest );
 	MAYBE_RUN_TEST( ShapeTest );
 	MAYBE_RUN_TEST( TableTest );
 	MAYBE_RUN_TEST( WorldTest );

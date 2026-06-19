@@ -58,6 +58,8 @@ set(BOX3D_SOURCE_FILES
 	recording.c
 	recording.h
 	recording_ops.inl
+	recording_replay.c
+	recording_replay.h
 	revolute_joint.c
 	scheduler.c
 	scheduler.h

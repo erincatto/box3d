@@ -10,6 +10,7 @@
 #include "island.h"
 #include "joint.h"
 #include "physics_world.h"
+#include "recording.h"
 #include "sensor.h"
 #include "shape.h"
 #include "solver_set.h"
@@ -318,6 +319,8 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 
 	world->locked = false;
 
+	B3_REC_CREATE( world, CreateBody, id, worldId, *def );
+
 	return id;
 }
 
@@ -355,6 +358,8 @@ void b3DestroyBody( b3BodyId bodyId )
 	{
 		return;
 	}
+
+	B3_REC( world, DestroyBody, bodyId );
 
 	world->locked = true;
 
@@ -1052,6 +1057,8 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation )
 	b3World* world = b3GetWorld( bodyId.world0 );
 	B3_ASSERT( world->locked == false );
 
+	B3_REC( world, BodySetTransform, bodyId, position, rotation );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3BodySim* bodySim = b3GetBodySim( world, body );
 
@@ -1129,6 +1136,9 @@ void b3Body_SetLinearVelocity( b3BodyId bodyId, b3Vec3 linearVelocity )
 	B3_ASSERT( b3IsValidVec3( linearVelocity ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodySetLinearVelocity, bodyId, linearVelocity );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	if ( body->type == b3_staticBody )
@@ -1155,6 +1165,9 @@ void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 	B3_ASSERT( b3IsValidVec3( angularVelocity ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodySetAngularVelocity, bodyId, angularVelocity );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	if ( body->type == b3_staticBody )
@@ -1187,6 +1200,9 @@ void b3Body_SetTargetTransform( b3BodyId bodyId, b3WorldTransform target, float 
 	B3_ASSERT( b3IsValidWorldTransform( target ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodySetTargetTransform, bodyId, target, timeStep, wake );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	if ( body->setIndex == b3_disabledSet )
@@ -1292,6 +1308,9 @@ void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Pos point, bool wake )
 	B3_ASSERT( b3IsValidVec3( force ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodyApplyForce, bodyId, force, point, wake );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	if ( wake && body->setIndex >= b3_firstSleepingSet )
@@ -1312,6 +1331,9 @@ void b3Body_ApplyForceToCenter( b3BodyId bodyId, b3Vec3 force, bool wake )
 	B3_ASSERT( b3IsValidVec3( force ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodyApplyForceToCenter, bodyId, force, wake );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	if ( wake && body->setIndex >= b3_firstSleepingSet )
@@ -1331,6 +1353,9 @@ void b3Body_ApplyTorque( b3BodyId bodyId, b3Vec3 torque, bool wake )
 	B3_ASSERT( b3IsValidVec3( torque ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodyApplyTorque, bodyId, torque, wake );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	if ( wake && body->setIndex >= b3_firstSleepingSet )
@@ -1351,6 +1376,9 @@ void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Pos point, bo
 	B3_ASSERT( b3IsValidPosition( point ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodyApplyLinearImpulse, bodyId, impulse, point, wake );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	if ( wake && body->setIndex >= b3_firstSleepingSet )
@@ -1383,6 +1411,9 @@ void b3Body_ApplyLinearImpulseToCenter( b3BodyId bodyId, b3Vec3 impulse, bool wa
 	B3_ASSERT( b3IsValidVec3( impulse ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodyApplyLinearImpulseToCenter, bodyId, impulse, wake );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	if ( wake && body->setIndex >= b3_firstSleepingSet )
@@ -1412,6 +1443,8 @@ void b3Body_ApplyAngularImpulse( b3BodyId bodyId, b3Vec3 impulse, bool wake )
 	B3_ASSERT( b3Body_IsValid( bodyId ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodyApplyAngularImpulse, bodyId, impulse, wake );
 
 	int id = bodyId.index1 - 1;
 	b3Body* body = b3Array_Get( world->bodies, id );
@@ -1478,6 +1511,8 @@ void b3Body_SetType( b3BodyId bodyId, b3BodyType type )
 	{
 		return;
 	}
+
+	B3_REC( world, BodySetType, bodyId, (int32_t)type );
 
 	world->locked = true;
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1690,6 +1725,9 @@ void b3Body_SetType( b3BodyId bodyId, b3BodyType type )
 void b3Body_SetName( b3BodyId bodyId, const char* name )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodySetName, bodyId, name );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
 	if ( name )
@@ -1786,6 +1824,8 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 		return;
 	}
 
+	B3_REC( world, BodySetMassData, bodyId, massData );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3BodySim* bodySim = b3GetBodySim( world, body );
 
@@ -1818,6 +1858,8 @@ void b3Body_ApplyMassFromShapes( b3BodyId bodyId )
 		return;
 	}
 
+	B3_REC( world, BodyApplyMassFromShapes, bodyId );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3UpdateBodyMassData( world, body );
 }
@@ -1831,6 +1873,8 @@ void b3Body_SetLinearDamping( b3BodyId bodyId, float linearDamping )
 	{
 		return;
 	}
+
+	B3_REC( world, BodySetLinearDamping, bodyId, linearDamping );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3BodySim* bodySim = b3GetBodySim( world, body );
@@ -1855,6 +1899,8 @@ void b3Body_SetAngularDamping( b3BodyId bodyId, float angularDamping )
 		return;
 	}
 
+	B3_REC( world, BodySetAngularDamping, bodyId, angularDamping );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3BodySim* bodySim = b3GetBodySim( world, body );
 	bodySim->angularDamping = angularDamping;
@@ -1878,6 +1924,8 @@ void b3Body_SetGravityScale( b3BodyId bodyId, float gravityScale )
 	{
 		return;
 	}
+
+	B3_REC( world, BodySetGravityScale, bodyId, gravityScale );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3BodySim* bodySim = b3GetBodySim( world, body );
@@ -1907,6 +1955,8 @@ void b3Body_SetAwake( b3BodyId bodyId, bool awake )
 	{
 		return;
 	}
+
+	B3_REC( world, BodySetAwake, bodyId, awake );
 
 	world->locked = true;
 
@@ -1948,6 +1998,9 @@ bool b3Body_IsSleepEnabled( b3BodyId bodyId )
 void b3Body_SetSleepThreshold( b3BodyId bodyId, float sleepThreshold )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodySetSleepThreshold, bodyId, sleepThreshold );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	body->sleepThreshold = sleepThreshold;
 }
@@ -1966,6 +2019,8 @@ void b3Body_EnableSleep( b3BodyId bodyId, bool enableSleep )
 	{
 		return;
 	}
+
+	B3_REC( world, BodyEnableSleep, bodyId, enableSleep );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
@@ -1997,6 +2052,8 @@ void b3Body_Disable( b3BodyId bodyId )
 	{
 		return;
 	}
+
+	B3_REC( world, BodyDisable, bodyId );
 
 	world->locked = true;
 
@@ -2072,6 +2129,8 @@ void b3Body_Enable( b3BodyId bodyId )
 	{
 		return;
 	}
+
+	B3_REC( world, BodyEnable, bodyId );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	if ( body->setIndex != b3_disabledSet )
@@ -2163,6 +2222,8 @@ void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks )
 		return;
 	}
 
+	B3_REC( world, BodySetMotionLocks, bodyId, locks );
+
 	uint32_t newLocks = 0;
 	newLocks |= locks.linearX ? b3_lockLinearX : 0;
 	newLocks |= locks.linearY ? b3_lockLinearY : 0;
@@ -2249,6 +2310,8 @@ void b3Body_SetBullet( b3BodyId bodyId, bool flag )
 		return;
 	}
 
+	B3_REC( world, BodySetBullet, bodyId, flag );
+
 	uint32_t newFlag = flag ? b3_isBullet : 0;
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -2278,6 +2341,8 @@ void b3Body_EnableContactRecycling( b3BodyId bodyId, bool flag )
 		return;
 	}
 
+	B3_REC( world, BodyEnableContactRecycling, bodyId, flag );
+
 	uint32_t newFlag = flag ? b3_bodyEnableContactRecycling : 0;
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -2302,6 +2367,9 @@ bool b3Body_IsContactRecyclingEnabled( b3BodyId bodyId )
 void b3Body_EnableHitEvents( b3BodyId bodyId, bool enableHitEvents )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
+
+	B3_REC( world, BodyEnableHitEvents, bodyId, enableHitEvents );
+
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	int shapeId = body->headShapeId;
 	while ( shapeId != B3_NULL_INDEX )
