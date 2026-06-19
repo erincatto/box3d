@@ -7,6 +7,7 @@
 
 #include "recording_replay.h"
 
+#include "body.h"
 #include "compound.h"
 #include "physics_world.h"
 #include "world_snapshot.h"
@@ -568,6 +569,11 @@ b3WheelJointDef b3RecR_WHEELJOINTDEF( b3RecReader* rdr )
 	return def;
 }
 
+// Outliner body tracking. Defined after the player struct; forward declared here because the
+// create/destroy dispatch sits above that struct.
+static void b3RecTrackBodyCreate( b3RecPlayer* player, b3BodyId id );
+static void b3RecTrackBodyDestroy( b3RecPlayer* player, b3BodyId id );
+
 // Id retargeting: replace world0 with the replay world's slot index.
 
 static b3BodyId b3RecMakeBodyId( b3RecReader* rdr, b3BodyId recorded )
@@ -744,11 +750,20 @@ static void b3RecDispatch_CreateBody( const b3RecArgs_CreateBody* a, b3RecReader
 	b3BodyId recId = b3RecR_BODYID( rdr );
 	b3BodyId gotId = b3CreateBody( rdr->replayWorldId, &a->def );
 	b3RecCheckBodyId( rdr, gotId, recId );
+	if ( rdr->owner != NULL )
+	{
+		b3RecTrackBodyCreate( rdr->owner, gotId );
+	}
 }
 
 static void b3RecDispatch_DestroyBody( const b3RecArgs_DestroyBody* a, b3RecReader* rdr )
 {
-	b3DestroyBody( b3RecMakeBodyId( rdr, a->body ) );
+	b3BodyId id = b3RecMakeBodyId( rdr, a->body );
+	if ( rdr->owner != NULL )
+	{
+		b3RecTrackBodyDestroy( rdr->owner, id );
+	}
+	b3DestroyBody( id );
 }
 
 static void b3RecDispatch_BodySetTransform( const b3RecArgs_BodySetTransform* a, b3RecReader* rdr )
@@ -1840,6 +1855,10 @@ typedef struct b3RecKeyframe
 	int      cursor;        // op-stream cursor for the frame AFTER this one
 	int      divergeFrame;  // divergeFrame state at capture
 	bool     diverged;      // rdr.diverged state at capture
+
+	// Outliner body list as it stood at this frame, restored verbatim so ordinals are stable.
+	b3BodyId* bodyIds;
+	int       bodyIdCount;
 } b3RecKeyframe;
 
 struct b3RecPlayer
@@ -1854,9 +1873,20 @@ struct b3RecPlayer
 	int      frameCount;
 	float    recordedDt;
 	int      recordedSubStepCount;
+	int      recordedWorkerCount; // worker count requested for the replay world
+	b3AABB   bounds;           // accumulated world bounds, decoded from the trailing record
 	bool     atEnd;
 	int      divergeFrame;     // first frame that diverged, -1 until then
 	bool     snapshotSeeded;   // true when snapshotSize > 0
+
+	// Outliner body list, indexed by creation ordinal. Holes (null ids) mark destroyed bodies so
+	// later ordinals never shift. Snapshotted into each keyframe and the frame-0 copy, not rebuilt
+	// from the world, so a stored selection survives backward seeks.
+	b3BodyId* bodyIds;
+	int       bodyIdCount;
+	int       bodyIdCap;
+	b3BodyId* frame0BodyIds;
+	int       frame0BodyIdCount;
 
 	// Host debug-shape callbacks applied to every world the player creates. The 3D
 	// sample renderer builds GPU meshes here, so a replay world without them draws
@@ -1887,6 +1917,88 @@ struct b3RecPlayer
 	// Its registry mirrors rdr.slots so geometry ids stay stable.
 	b3Recording*   keyframeRec;
 };
+
+// Overflow-safe growth for the player's accumulating arrays. Counts come from the replay itself,
+// not the file, so this only guards the byte-size multiply. Preserves keep elements.
+static void b3RecGrow( void** data, int* capacity, int need, int keep, int elemSize )
+{
+	if ( need <= *capacity )
+	{
+		return;
+	}
+	int newCap = *capacity == 0 ? 8 : 2 * *capacity;
+	if ( newCap < need )
+	{
+		newCap = need;
+	}
+	void* grown = b3Alloc( (size_t)newCap * (size_t)elemSize );
+	if ( *data != NULL )
+	{
+		if ( keep > 0 )
+		{
+			memcpy( grown, *data, (size_t)keep * (size_t)elemSize );
+		}
+		b3Free( *data, (size_t)*capacity * (size_t)elemSize );
+	}
+	*data     = grown;
+	*capacity = newCap;
+}
+
+// Append a created body to the outliner list. Ordinals are creation order and never reused.
+static void b3RecTrackBodyCreate( b3RecPlayer* player, b3BodyId id )
+{
+	b3RecGrow( (void**)&player->bodyIds, &player->bodyIdCap, player->bodyIdCount + 1, player->bodyIdCount,
+	           (int)sizeof( b3BodyId ) );
+	player->bodyIds[player->bodyIdCount] = id;
+	player->bodyIdCount += 1;
+}
+
+// Leave a hole so later ordinals do not shift, keeping a stored selection stable.
+static void b3RecTrackBodyDestroy( b3RecPlayer* player, b3BodyId id )
+{
+	for ( int i = 0; i < player->bodyIdCount; ++i )
+	{
+		if ( B3_ID_EQUALS( player->bodyIds[i], id ) )
+		{
+			player->bodyIds[i] = b3_nullBodyId;
+			return;
+		}
+	}
+}
+
+// Snapshot bodies are restored as a struct image and never hit the CreateBody hook the tracker keys
+// on, so the seed world must be walked once to populate the outliner list. Slot order is stable.
+static void b3RecSeedBodyIds( b3RecPlayer* player )
+{
+	b3World* world      = b3GetWorldFromId( player->rdr.replayWorldId );
+	player->bodyIdCount = 0;
+	int count           = world->bodies.count;
+	for ( int i = 0; i < count; ++i )
+	{
+		if ( world->bodies.data[i].id != i )
+		{
+			continue; // free slot
+		}
+		b3RecTrackBodyCreate( player, b3MakeBodyId( world, i ) );
+	}
+}
+
+// Seed the outliner list from the current world and save it as the frame-0 restore copy.
+static void b3RecSeedFrame0BodyIds( b3RecPlayer* player )
+{
+	b3RecSeedBodyIds( player );
+	if ( player->frame0BodyIds != NULL )
+	{
+		b3Free( player->frame0BodyIds, (size_t)player->frame0BodyIdCount * sizeof( b3BodyId ) );
+		player->frame0BodyIds = NULL;
+	}
+	player->frame0BodyIdCount = player->bodyIdCount;
+	if ( player->bodyIdCount > 0 )
+	{
+		player->frame0BodyIds = (b3BodyId*)b3Alloc( (size_t)player->bodyIdCount * sizeof( b3BodyId ) );
+		memcpy( player->frame0BodyIds, player->bodyIds, (size_t)player->bodyIdCount * sizeof( b3BodyId ) );
+	}
+}
 
 // Load the trailing registry block and fill rdr->slots/slotCount.
 // Returns true on success. On failure sets rdr->ok = false and returns false.
@@ -2041,6 +2153,12 @@ static void b3RecScanFile( b3RecPlayer* player )
 				gotStep = true;
 			}
 		}
+		else if ( opcode == 0xF2 && payloadSize >= (uint32_t)sizeof( b3AABB ) ) // RecordingBounds
+		{
+			// Payload is a single b3AABB (lower xyz, upper xyz as f32), written at stop so the
+			// viewer can frame the whole recorded motion without playing to the end.
+			memcpy( &player->bounds, data + payloadStart, sizeof( b3AABB ) );
+		}
 		cursor = payloadStart + (int)payloadSize;
 	}
 	player->frameCount = frameCount;
@@ -2052,6 +2170,10 @@ static void b3RecFreeKeyframe( b3RecKeyframe* kf )
 	if ( kf->image != NULL )
 	{
 		b3Free( kf->image, (size_t)kf->imageCapacity );
+	}
+	if ( kf->bodyIds != NULL )
+	{
+		b3Free( kf->bodyIds, (size_t)kf->bodyIdCount * sizeof( b3BodyId ) );
 	}
 }
 
@@ -2091,7 +2213,8 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 	// Registry must not grow: all geometry was pre-seeded.
 	B3_ASSERT( player->keyframeRec->registry.count == regCountBefore );
 
-	size_t newBytes = (size_t)buf.capacity;
+	size_t bodyBytes = (size_t)player->bodyIdCount * sizeof( b3BodyId );
+	size_t newBytes  = (size_t)buf.capacity + bodyBytes;
 
 	// Make room under the budget by doubling the spacing and evicting off-grid keyframes.
 	while ( player->keyframeCount > 0 && player->keyframeBytes + newBytes > player->keyframeBudget )
@@ -2105,7 +2228,7 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 			if ( kf->frame % player->keyframeInterval == 0 )
 			{
 				player->keyframes[kept] = *kf;
-				keptBytes += (size_t)kf->imageCapacity;
+				keptBytes += (size_t)kf->imageCapacity + (size_t)kf->bodyIdCount * sizeof( b3BodyId );
 				kept += 1;
 			}
 			else
@@ -2140,6 +2263,13 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 	kf->cursor        = player->rdr.cursor;
 	kf->divergeFrame  = player->divergeFrame;
 	kf->diverged      = player->rdr.diverged;
+	kf->bodyIdCount   = player->bodyIdCount;
+	kf->bodyIds       = NULL;
+	if ( bodyBytes > 0 )
+	{
+		kf->bodyIds = (b3BodyId*)b3Alloc( bodyBytes );
+		memcpy( kf->bodyIds, player->bodyIds, bodyBytes );
+	}
 
 	player->keyframeBytes += newBytes;
 	player->keyframeCount += 1;
@@ -2161,6 +2291,14 @@ static void b3RecRestoreKeyframe( b3RecPlayer* player, const b3RecKeyframe* kf )
 	player->frame        = kf->frame;
 	player->divergeFrame = kf->divergeFrame;
 	player->atEnd        = false;
+
+	// Restore the outliner list verbatim so ordinals match this frame.
+	b3RecGrow( (void**)&player->bodyIds, &player->bodyIdCap, kf->bodyIdCount, 0, (int)sizeof( b3BodyId ) );
+	player->bodyIdCount = kf->bodyIdCount;
+	if ( kf->bodyIdCount > 0 )
+	{
+		memcpy( player->bodyIds, kf->bodyIds, (size_t)kf->bodyIdCount * sizeof( b3BodyId ) );
+	}
 }
 
 // Create a replay world carrying the host debug-shape callbacks. Every world the player
@@ -2176,8 +2314,6 @@ static b3WorldId b3RecPlayerCreateWorld( const b3RecPlayer* player )
 
 b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 {
-	(void)workerCount;
-
 	if ( data == NULL || size < (int)sizeof( b3RecHeader ) )
 	{
 		printf( "b3RecPlayer_Create: recording too small\n" );
@@ -2236,6 +2372,7 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 	player->frameCount        = 0;
 	player->recordedDt        = 0.0f;
 	player->recordedSubStepCount = 0;
+	player->recordedWorkerCount  = workerCount;
 	player->atEnd             = false;
 	player->divergeFrame      = -1;
 	player->keyframeMinInterval = B3_REC_KEYFRAME_INTERVAL_DEFAULT;
@@ -2263,6 +2400,7 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 	player->rdr.replayWorldId = worldId;
 	player->rdr.ok            = true;
 	player->rdr.diverged      = false;
+	player->rdr.owner         = player;
 
 	// Load the trailing geometry registry.
 	if ( !b3RecLoadSlots( &player->rdr, copy, size, hdr.registryOffset, hdr.registryByteCount ) )
@@ -2292,6 +2430,10 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 		player->frame0Image = copy + snapStart;
 		player->frame0Size  = snapSize;
 	}
+
+	// Seed the outliner from the seed world (snapshot bodies bypass the create hook) and save the
+	// frame-0 restore copy. For from-creation recordings the world is empty here, so this is a no-op.
+	b3RecSeedFrame0BodyIds( player );
 
 	// Build the keyframe recording with a pre-seeded registry that mirrors rdr.slots,
 	// so b3SerializeWorld geometry ids stay stable across captures.
@@ -2336,6 +2478,16 @@ void b3RecPlayer_Destroy( b3RecPlayer* player )
 	if ( player->keyframeRec != NULL )
 	{
 		b3DestroyRecording( player->keyframeRec );
+	}
+
+	// Free the outliner body lists.
+	if ( player->bodyIds != NULL )
+	{
+		b3Free( player->bodyIds, (size_t)player->bodyIdCap * sizeof( b3BodyId ) );
+	}
+	if ( player->frame0BodyIds != NULL )
+	{
+		b3Free( player->frame0BodyIds, (size_t)player->frame0BodyIdCount * sizeof( b3BodyId ) );
 	}
 
 	// frame0Image points into the owned data copy, not separately allocated.
@@ -2424,6 +2576,14 @@ void b3RecPlayer_Restart( b3RecPlayer* player )
 	player->frame        = 0;
 	player->divergeFrame = -1;
 	player->atEnd        = false;
+
+	// Roll the outliner body list back to its frame-0 contents.
+	b3RecGrow( (void**)&player->bodyIds, &player->bodyIdCap, player->frame0BodyIdCount, 0, (int)sizeof( b3BodyId ) );
+	player->bodyIdCount = player->frame0BodyIdCount;
+	if ( player->frame0BodyIdCount > 0 )
+	{
+		memcpy( player->bodyIds, player->frame0BodyIds, (size_t)player->frame0BodyIdCount * sizeof( b3BodyId ) );
+	}
 }
 
 void b3RecPlayer_SeekFrame( b3RecPlayer* player, int targetFrame )
@@ -2496,6 +2656,86 @@ bool b3RecPlayer_HasDiverged( const b3RecPlayer* player )
 	return player != NULL ? player->rdr.diverged : false;
 }
 
+b3RecPlayerInfo b3RecPlayer_GetInfo( const b3RecPlayer* player )
+{
+	b3RecPlayerInfo info = { 0 };
+	if ( player != NULL )
+	{
+		info.frameCount   = player->frameCount;
+		info.workerCount  = player->recordedWorkerCount;
+		info.timeStep     = player->recordedDt;
+		info.subStepCount = player->recordedSubStepCount;
+		info.lengthScale  = player->lengthScale;
+		info.bounds       = player->bounds;
+	}
+	return info;
+}
+
+int b3RecPlayer_GetDivergeFrame( const b3RecPlayer* player )
+{
+	return player != NULL ? player->divergeFrame : -1;
+}
+
+void b3RecPlayer_SetKeyframePolicy( b3RecPlayer* player, size_t budgetBytes, int minIntervalFrames )
+{
+	if ( player == NULL )
+	{
+		return;
+	}
+	if ( budgetBytes > 0 )
+	{
+		player->keyframeBudget = budgetBytes;
+	}
+	if ( minIntervalFrames > 0 )
+	{
+		player->keyframeMinInterval = minIntervalFrames;
+	}
+
+	// Drop the ring so it repopulates under the new policy on the next replay.
+	for ( int i = 0; i < player->keyframeCount; ++i )
+	{
+		b3RecFreeKeyframe( player->keyframes + i );
+	}
+	player->keyframeCount     = 0;
+	player->keyframeBytes     = 0;
+	player->keyframeInterval  = player->keyframeMinInterval;
+	player->lastKeyframeFrame = 0;
+}
+
+size_t b3RecPlayer_GetKeyframeBudget( const b3RecPlayer* player )
+{
+	return player != NULL ? player->keyframeBudget : 0;
+}
+
+int b3RecPlayer_GetKeyframeMinInterval( const b3RecPlayer* player )
+{
+	return player != NULL ? player->keyframeMinInterval : 0;
+}
+
+int b3RecPlayer_GetKeyframeInterval( const b3RecPlayer* player )
+{
+	return player != NULL ? player->keyframeInterval : 0;
+}
+
+size_t b3RecPlayer_GetKeyframeBytes( const b3RecPlayer* player )
+{
+	return player != NULL ? player->keyframeBytes : 0;
+}
+
+int b3RecPlayer_GetBodyCount( const b3RecPlayer* player )
+{
+	return player != NULL ? player->bodyIdCount : 0;
+}
+
+b3BodyId b3RecPlayer_GetBodyId( const b3RecPlayer* player, int index )
+{
+	if ( player == NULL || index < 0 || index >= player->bodyIdCount )
+	{
+		return b3_nullBodyId;
+	}
+	return player->bodyIds[index];
+}
+
 void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShapeCallback* createDebugShape,
                                          b3DestroyDebugShapeCallback* destroyDebugShape, void* context )
 {
@@ -2534,4 +2774,7 @@ void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShape
 		}
 		player->rdr.cursor = player->headerEnd;
 	}
+
+	// Rebuild the outliner from the frame-0 world that was just stood up under the new callbacks.
+	b3RecSeedFrame0BodyIds( player );
 }

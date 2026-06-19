@@ -46,6 +46,14 @@ struct SampleContext
 	// Used to shift the origin and test round-off problems
 	b3Vec3 origin = b3Vec3_zero;
 
+	// Recording output path and the path the Replay viewer opens. Edited in the UI and persisted.
+	char recordingFile[256] = "recording.b3rec";
+	char replayFile[256] = "";
+
+	// Keyframe ring policy the Replay viewer applies on open, persisted across sessions.
+	int replayKeyframeBudgetMB = 512;
+	int replayKeyframeMinInterval = 16;
+
 	float hertz = 60.0f;
 	float recycleDistance = 0.05f;
 	int subStepCount = 4;
@@ -107,8 +115,23 @@ public:
 		return true;
 	}
 
+	// Arm recording on the live world, snapshotting it as the seed so capture can begin at any
+	// step boundary. Stop writes the file named by the context and frees the buffer.
+	void StartRecording();
+	void FinishRecording();
+
 	// Bottom diagnostics drawer (Profile / Counters / Renderer / Frame Time).
 	void DrawMetrics();
+
+	// Append extra tabs to the diagnostics drawer's tab bar (the Replay viewer adds Timeline).
+	virtual void DrawMetricsTab()
+	{
+	}
+
+	// Draw extra top-level windows when the UI is shown (the Replay viewer adds the Outline panel).
+	virtual void DrawSampleWindows()
+	{
+	}
 
 	virtual void Keyboard( int key, int action, int modifiers )
 	{
@@ -152,6 +175,10 @@ public:
 	int m_triangleIndex;
 	uint64_t m_userMaterialId;
 
+	// Active recording, or null when not recording. The step recording began on drives the status.
+	struct b3Recording* m_recording;
+	int m_recordStartStep;
+
 	b3Profile m_profiles[m_profileCapacity];
 	int m_currentProfileIndex;
 	int m_profileReadIndex;
@@ -178,7 +205,13 @@ struct SampleEntry
 extern SampleEntry g_sampleEntries[MAX_SAMPLES];
 extern int g_sampleCount;
 
+// Index of the registered Replay viewer, or -1 if none. Gates the Replay menu.
+extern int g_replayIndex;
+
 int RegisterSample( const char* category, const char* name, SampleCreateFcn* fcn );
+
+// Register the Replay viewer and record its index in g_replayIndex.
+int RegisterReplay( const char* category, const char* name, SampleCreateFcn* fcn );
 
 // Destroy the active sample and build the selected one. restart keeps the camera
 // by leaving the restart flag set while the new sample constructs.

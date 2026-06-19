@@ -1172,7 +1172,25 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 		uint64_t hash = b3HashWorldState( world );
 		b3RecArgs_StateHash stateHash = { worldId, hash };
 		b3RecWrite_StateHash( world->recording, &stateHash );
-		// TODO seed bounds per step
+
+		// Fold this step's world bounds into the recording so a viewer can frame the whole motion.
+		b3AABB worldBounds = { 0 };
+		bool   haveBounds = false;
+		for ( int i = 0; i < b3_bodyTypeCount; ++i )
+		{
+			b3DynamicTree* tree = world->broadPhase.trees + i;
+			if ( b3DynamicTree_GetProxyCount( tree ) == 0 )
+			{
+				continue;
+			}
+			b3AABB bounds = b3DynamicTree_GetRootBounds( tree );
+			worldBounds   = haveBounds ? b3AABB_Union( worldBounds, bounds ) : bounds;
+			haveBounds    = true;
+		}
+		if ( haveBounds )
+		{
+			b3RecAccumulateBounds( world->recording, worldBounds );
+		}
 	}
 
 	b3TracyCZoneEnd( world_step );

@@ -313,6 +313,17 @@ B3_API bool b3ValidateReplay( const void* data, int size, int workerCount );
 /// Opaque incremental replay player with a keyframe ring for O(interval) backward seek.
 typedef struct b3RecPlayer b3RecPlayer;
 
+/// Summary of a recording, read once at open so a viewer can frame and label it.
+typedef struct b3RecPlayerInfo
+{
+	int    frameCount;   // total recorded steps
+	int    workerCount;  // worker count requested for the replay world
+	float  timeStep;     // dt of the recorded steps
+	int    subStepCount; // recorded sub-steps
+	float  lengthScale;  // length units per meter in effect when recorded
+	b3AABB bounds;       // accumulated world bounds over the recording, zero-extent if unavailable
+} b3RecPlayerInfo;
+
 /// Create a player over a recording. Owns a private copy of the bytes.
 /// @param data pointer to recording bytes
 /// @param size byte count of the recording
@@ -348,6 +359,41 @@ B3_API bool b3RecPlayer_IsAtEnd( const b3RecPlayer* player );
 
 /// @return true when any StateHash mismatch has been detected
 B3_API bool b3RecPlayer_HasDiverged( const b3RecPlayer* player );
+
+/// @return a summary of the recording read at open: frame count, recorded tuning, and bounds
+B3_API b3RecPlayerInfo b3RecPlayer_GetInfo( const b3RecPlayer* player );
+
+/// @return the first frame at which replay diverged, or -1 if it has not diverged
+B3_API int b3RecPlayer_GetDivergeFrame( const b3RecPlayer* player );
+
+/// Tune the keyframe ring used to speed up backward seeking. A keyframe is a periodic snapshot the
+/// player restores from instead of replaying from the start, trading memory for seek speed.
+/// @param player the recording player
+/// @param budgetBytes memory cap for the kept snapshots; the spacing widens to stay under it
+/// @param minIntervalFrames finest spacing between keyframes, in frames
+/// A zero budget or a non-positive interval keeps that value. Clears the existing ring, so call
+/// b3RecPlayer_Restart afterward to repopulate it under the new policy.
+B3_API void b3RecPlayer_SetKeyframePolicy( b3RecPlayer* player, size_t budgetBytes, int minIntervalFrames );
+
+/// @return the keyframe memory budget in bytes
+B3_API size_t b3RecPlayer_GetKeyframeBudget( const b3RecPlayer* player );
+
+/// @return the finest keyframe spacing in frames
+B3_API int b3RecPlayer_GetKeyframeMinInterval( const b3RecPlayer* player );
+
+/// @return the current keyframe spacing in frames; starts at the min interval and doubles as the
+/// ring evicts to stay under budget, so it reflects the effective backward-seek granularity now
+B3_API int b3RecPlayer_GetKeyframeInterval( const b3RecPlayer* player );
+
+/// @return the memory currently held by keyframe snapshots, in bytes
+B3_API size_t b3RecPlayer_GetKeyframeBytes( const b3RecPlayer* player );
+
+/// @return the number of bodies tracked in creation order (including holes for destroyed bodies)
+B3_API int b3RecPlayer_GetBodyCount( const b3RecPlayer* player );
+
+/// Resolve a creation ordinal to the live body id at the current frame.
+/// @return the body id, or a null id if that ordinal is out of range or its body is destroyed
+B3_API b3BodyId b3RecPlayer_GetBodyId( const b3RecPlayer* player, int index );
 
 /// Wire host debug-shape callbacks into the player's replay world so a renderer can build
 /// per-shape draw resources (the 3D sample needs this or the replay world draws nothing).

@@ -552,6 +552,107 @@ static int DebugShapeCallbacks( void )
 	return 0;
 }
 
+// Exercise the viewer-facing player accessors: recording info, creation-ordinal body tracking
+// (seeded from a snapshot), divergence frame, and keyframe policy. Recording starts after the
+// bodies exist, so the snapshot seeds the outliner list and ordinals are stable from frame 0.
+static int PlayerAccessors( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	// Static ground (creation ordinal 0)
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	groundDef.type = b3_staticBody;
+	b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+	b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
+	b3ShapeDef groundShape = b3DefaultShapeDef();
+	b3CreateHullShape( groundId, &groundShape, &groundBox.base );
+
+	// Four dynamic boxes (ordinals 1..4)
+	const int dynamicCount = 4;
+	b3ShapeDef boxShape = b3DefaultShapeDef();
+	boxShape.density = 1.0f;
+	for ( int i = 0; i < dynamicCount; ++i )
+	{
+		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ 0.0f, 2.0f + (float)i * 1.5f, 0.0f };
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+		b3CreateHullShape( bodyId, &boxShape, &box.base );
+	}
+
+	float timeStep = 1.0f / 60.0f;
+	int   subStepCount = 4;
+
+	// Settle, then record with a snapshot of the populated world.
+	for ( int i = 0; i < 10; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+	b3World_StartRecording( worldId, rec );
+
+	int totalFrames = 80;
+	for ( int i = 0; i < totalFrames; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
+	ENSURE( player != NULL );
+
+	// Info reflects the recorded tuning and a non-degenerate bounds.
+	b3RecPlayerInfo info = b3RecPlayer_GetInfo( player );
+	ENSURE( info.frameCount == totalFrames );
+	ENSURE( info.subStepCount == subStepCount );
+	ENSURE( info.timeStep > 0.0f );
+	b3Vec3 extent = b3Sub( info.bounds.upperBound, info.bounds.lowerBound );
+	ENSURE( extent.x > 0.0f && extent.y > 0.0f && extent.z > 0.0f );
+
+	// Body ordinals: ground + 4 dynamic, seeded from the snapshot and present at frame 0.
+	ENSURE( b3RecPlayer_GetBodyCount( player ) == 1 + dynamicCount );
+	b3BodyId ground = b3RecPlayer_GetBodyId( player, 0 );
+	ENSURE( b3Body_IsValid( ground ) );
+	ENSURE( b3Body_GetType( ground ) == b3_staticBody );
+	for ( int i = 1; i <= dynamicCount; ++i )
+	{
+		b3BodyId id = b3RecPlayer_GetBodyId( player, i );
+		ENSURE( b3Body_IsValid( id ) );
+		ENSURE( b3Body_GetType( id ) == b3_dynamicBody );
+	}
+	ENSURE( B3_IS_NULL( b3RecPlayer_GetBodyId( player, 1 + dynamicCount ) ) );
+
+	// No divergence on a clean serial replay.
+	b3RecPlayer_SeekFrame( player, totalFrames );
+	ENSURE( !b3RecPlayer_HasDiverged( player ) );
+	ENSURE( b3RecPlayer_GetDivergeFrame( player ) == -1 );
+
+	// Ordinals survive a backward seek that restores from a keyframe.
+	b3BodyId before = b3RecPlayer_GetBodyId( player, 2 );
+	b3RecPlayer_SeekFrame( player, totalFrames / 2 );
+	b3RecPlayer_SeekFrame( player, totalFrames );
+	b3BodyId after = b3RecPlayer_GetBodyId( player, 2 );
+	ENSURE( B3_ID_EQUALS( before, after ) );
+
+	// Keyframe policy: defaults present, setter takes effect and clears the ring.
+	ENSURE( b3RecPlayer_GetKeyframeMinInterval( player ) == 16 );
+	b3RecPlayer_SetKeyframePolicy( player, (size_t)256 * 1024 * 1024, 8 );
+	ENSURE( b3RecPlayer_GetKeyframeMinInterval( player ) == 8 );
+	ENSURE( b3RecPlayer_GetKeyframeInterval( player ) == 8 );
+	ENSURE( b3RecPlayer_GetKeyframeBudget( player ) == (size_t)256 * 1024 * 1024 );
+	ENSURE( b3RecPlayer_GetKeyframeBytes( player ) == 0 );
+
+	b3RecPlayer_Destroy( player );
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( SphereRoundTrip );
@@ -561,5 +662,6 @@ int RecordingTest( void )
 	RUN_SUBTEST( ScrubBackward );
 	RUN_SUBTEST( SeekWithHull );
 	RUN_SUBTEST( DebugShapeCallbacks );
+	RUN_SUBTEST( PlayerAccessors );
 	return 0;
 }

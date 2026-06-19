@@ -16,6 +16,17 @@ FetchContent_Declare(implot
 )
 FetchContent_MakeAvailable(implot)
 
+# nativefiledialog-extended for the Replay open dialog. Native OS file picker, target nfd.
+set(NFD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(NFD_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(nfd
+    GIT_REPOSITORY https://github.com/btzy/nativefiledialog-extended.git
+    GIT_TAG        v1.3.0
+    GIT_SHALLOW    TRUE
+    GIT_PROGRESS   TRUE
+)
+FetchContent_MakeAvailable(nfd)
+
 # The shader compiler is only needed when recompiling shaders. A fresh clone
 # with BOX3D_BUILD_SHADERS=OFF builds from the committed headers and skips this.
 if(BOX3D_BUILD_SHADERS)
@@ -181,7 +192,7 @@ target_include_directories(samples PRIVATE
 
 # gfx: the renderer + Draw*/adapter. shared: human, utils (Random*), the
 # benchmark/determinism helpers the samples lean on.
-target_link_libraries(samples PRIVATE gfx shared imgui implot sokol)
+target_link_libraries(samples PRIVATE gfx shared imgui implot sokol nfd)
 
 set_target_properties(samples PROPERTIES
     CXX_STANDARD 20

@@ -30,6 +30,10 @@ typedef struct b3RecReader
 	bool           ok;       // false on read overrun or id mismatch, fatal stop
 	bool           diverged; // a StateHash failed, non-fatal
 
+	// Player that owns this reader, or NULL during a headless b3ValidateReplay. Body
+	// create/destroy and the bounds record fold back into it for the outliner and camera framing.
+	b3RecPlayer*   owner;
+
 	// Scratch for per-triangle materials in shape defs (grown on demand, freed at teardown)
 	b3SurfaceMaterial* matScratch;
 	int                matScratchCap;

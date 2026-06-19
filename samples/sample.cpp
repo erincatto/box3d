@@ -24,6 +24,8 @@
 
 #include "box3d/box3d.h"
 
+#include <nfd.h>
+
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -269,6 +271,9 @@ Sample::Sample( SampleContext* context )
 
 	m_worldId = b3_nullWorldId;
 
+	m_recording = nullptr;
+	m_recordStartStep = 0;
+
 	m_mouseBodyId = {};
 	m_mouseJointId = {};
 	m_mouseFraction = 0.0f;
@@ -302,13 +307,44 @@ Sample::~Sample()
 {
 	ResetAdapterPool();
 	ResetGroundShapeId();
-	b3DestroyWorld( m_worldId );
+	if ( B3_IS_NON_NULL( m_worldId ) )
+	{
+		FinishRecording();
+		b3DestroyWorld( m_worldId );
+	}
+}
+
+void Sample::StartRecording()
+{
+	if ( m_recording != nullptr )
+	{
+		return;
+	}
+
+	// Snapshot the live world as the seed, so recording can begin at any step boundary.
+	m_recording = b3CreateRecording( 0 );
+	b3World_StartRecording( m_worldId, m_recording );
+	m_recordStartStep = m_stepCount;
+}
+
+void Sample::FinishRecording()
+{
+	if ( m_recording == nullptr )
+	{
+		return;
+	}
+
+	b3World_StopRecording( m_worldId );
+	b3SaveRecordingToFile( m_recording, m_context->recordingFile );
+	b3DestroyRecording( m_recording );
+	m_recording = nullptr;
 }
 
 void Sample::CreateWorld( b3Capacity* capacity )
 {
 	if ( B3_IS_NON_NULL( m_worldId ) )
 	{
+		FinishRecording();
 		b3DestroyWorld( m_worldId );
 	}
 
@@ -1042,6 +1078,9 @@ void Sample::DrawMetrics()
 		ImGui::EndTabItem();
 	}
 
+	// Sample-specific tabs (the Replay viewer adds Timeline here).
+	DrawMetricsTab();
+
 	ImGui::EndTabBar();
 	ImGui::End();
 }
@@ -1205,6 +1244,7 @@ void Sample::DrawTextLine( const char* text, ... )
 
 SampleEntry g_sampleEntries[MAX_SAMPLES];
 int g_sampleCount = 0;
+int g_replayIndex = -1;
 
 int RegisterSample( const char* category, const char* name, SampleCreateFcn* fcn )
 {
@@ -1217,6 +1257,17 @@ int RegisterSample( const char* category, const char* name, SampleCreateFcn* fcn
 	}
 
 	return -1;
+}
+
+// Like RegisterSample but remembers the index so the Replay menu can switch to the viewer.
+int RegisterReplay( const char* category, const char* name, SampleCreateFcn* fcn )
+{
+	int index = RegisterSample( category, name, fcn );
+	if ( index >= 0 )
+	{
+		g_replayIndex = index;
+	}
+	return index;
 }
 
 void SelectSample( SampleContext* context, int selection, bool restart )
@@ -1573,6 +1624,26 @@ static void DrawMenuBar( SampleContext* context )
 			ImGui::EndMenu();
 		}
 
+		// Only present once the replay viewer is registered. Open pops a native picker, then hands
+		// the chosen file to the viewer through replayFile.
+		if ( g_replayIndex >= 0 && ImGui::BeginMenu( "Replay" ) )
+		{
+			if ( ImGui::MenuItem( "Open..." ) )
+			{
+				NFD_Init();
+				nfdu8char_t* outPath = nullptr;
+				nfdu8filteritem_t filter[1] = { { "Box3D recording", "b3rec" } };
+				if ( NFD_OpenDialogU8( &outPath, filter, 1, nullptr ) == NFD_OKAY )
+				{
+					snprintf( context->replayFile, sizeof( context->replayFile ), "%s", outPath );
+					NFD_FreePathU8( outPath );
+					SelectSample( context, g_replayIndex, false );
+				}
+				NFD_Quit();
+			}
+			ImGui::EndMenu();
+		}
+
 		static bool showHelp = false;
 		static bool showAbout = false;
 		if ( ImGui::BeginMenu( "Help" ) )
@@ -1808,6 +1879,37 @@ static void DrawInfoPanel( SampleContext* context )
 		}
 	}
 
+	if ( context->sample->HasSolverControls() && ImGui::CollapsingHeader( "Recording", ImGuiTreeNodeFlags_DefaultOpen ) )
+	{
+		ImGui::PushItemWidth( 9.0f * fontSize );
+		ImGui::InputText( "File##Recording", context->recordingFile, sizeof( context->recordingFile ) );
+		ImGui::PopItemWidth();
+
+		if ( context->sample->m_recording == nullptr )
+		{
+			// Restart to a clean world then snapshot it at step 0, a whole session capture.
+			if ( ImGui::Button( "Record (restart)##Recording" ) )
+			{
+				SelectSample( context, context->sampleIndex, true );
+				context->sample->StartRecording();
+			}
+
+			// Snapshot the running world and log from here, the mid simulation case.
+			if ( ImGui::Button( "Record Now##Recording" ) )
+			{
+				context->sample->StartRecording();
+			}
+		}
+		else
+		{
+			if ( ImGui::Button( "Stop##Recording" ) )
+			{
+				context->sample->FinishRecording();
+			}
+			ImGui::TextColored( HexColor( b3_colorSeaGreen ), "recording (from step %d)", context->sample->m_recordStartStep );
+		}
+	}
+
 	ImGui::End();
 }
 
@@ -1835,6 +1937,9 @@ void DrawUI( SampleContext* context )
 	DrawMenuBar( context );
 	DrawSamplePicker( context );
 	DrawInfoPanel( context );
+
+	// Extra top-level windows (the Replay viewer adds the Outline panel).
+	context->sample->DrawSampleWindows();
 
 	// Bottom diagnostics drawer. Sample controls live in the info panel.
 	context->sample->DrawMetrics();
