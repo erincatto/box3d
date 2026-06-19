@@ -9,6 +9,7 @@
 
 #include "compound.h"
 #include "physics_world.h"
+#include "world_snapshot.h"
 
 #include "box3d/box3d.h"
 
@@ -1630,12 +1631,6 @@ bool b3ValidateReplay( const void* data, int size, int workerCount )
 		printf( "b3ValidateReplay: big-endian recordings not supported\n" );
 		return false;
 	}
-	if ( hdr.snapshotSize != 0 )
-	{
-		printf( "b3ValidateReplay: snapshot replay not supported yet\n" );
-		return false;
-	}
-
 	int headerEnd = (int)sizeof( b3RecHeader );
 	int opEnd     = ( hdr.registryOffset != 0 ) ? (int)hdr.registryOffset : size;
 
@@ -1726,19 +1721,48 @@ bool b3ValidateReplay( const void* data, int size, int workerCount )
 	}
 
 	// Create the replay world
-	b3WorldDef worldDef     = b3DefaultWorldDef();
+	b3WorldDef worldDef      = b3DefaultWorldDef();
 	b3WorldId  replayWorldId = b3CreateWorld( &worldDef );
 
 	b3RecReader rdr;
 	memset( &rdr, 0, sizeof( rdr ) );
 	rdr.data          = (const uint8_t*)data;
 	rdr.size          = size;
-	rdr.cursor        = headerEnd;
 	rdr.replayWorldId = replayWorldId;
 	rdr.ok            = true;
 	rdr.diverged      = false;
 	rdr.slots         = slots;
 	rdr.slotCount     = slotCount;
+
+	// When a snapshot seed is present, restore the world from it and set the op cursor
+	// to just past the snapshot blob. Without a snapshot, start from the header end.
+	if ( hdr.snapshotSize > 0 )
+	{
+		int snapStart = headerEnd;
+		int snapSize  = (int)hdr.snapshotSize;
+		if ( snapStart + snapSize > size )
+		{
+			printf( "b3ValidateReplay: snapshot blob out of bounds\n" );
+			rdr.ok = false;
+		}
+		else
+		{
+			b3World* replayWorld = b3GetWorldFromId( replayWorldId );
+			if ( b3DeserializeIntoShell( (const uint8_t*)data + snapStart, snapSize, replayWorld, &rdr ) == false )
+			{
+				printf( "b3ValidateReplay: snapshot deserialization failed\n" );
+				rdr.ok = false;
+			}
+			else
+			{
+				rdr.cursor = snapStart + snapSize;
+			}
+		}
+	}
+	else
+	{
+		rdr.cursor = headerEnd;
+	}
 
 	// Dispatch op stream
 	while ( rdr.cursor < opEnd && rdr.ok )

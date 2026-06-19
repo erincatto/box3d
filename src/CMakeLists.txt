@@ -60,6 +60,8 @@ set(BOX3D_SOURCE_FILES
 	recording_ops.inl
 	recording_replay.c
 	recording_replay.h
+	world_snapshot.c
+	world_snapshot.h
 	revolute_joint.c
 	scheduler.c
 	scheduler.h

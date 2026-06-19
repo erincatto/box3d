@@ -126,9 +126,123 @@ static int HullDedup( void )
 	return 0;
 }
 
+// Mid-stream snapshot with only dynamic bodies floating in air (no contacts).
+static int MidStreamNoContacts( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	b3Sphere sphere;
+	sphere.center = (b3Vec3){ 0.0f, 0.0f, 0.0f };
+	sphere.radius = 0.5f;
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.density    = 1.0f;
+
+	// A few dynamic bodies well apart from each other so no contacts form
+	for ( int i = 0; i < 4; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type      = b3_dynamicBody;
+		bodyDef.position  = (b3Pos){ (float)( i * 10 ), 50.0f, 0.0f };
+		b3BodyId bodyId   = b3CreateBody( worldId, &bodyDef );
+		b3CreateSphereShape( bodyId, &shapeDef, &sphere );
+	}
+
+	float timeStep    = 1.0f / 60.0f;
+	int   subStepCount = 4;
+	for ( int i = 0; i < 10; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	// Start recording mid-stream, with a snapshot of the current world
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+	b3World_StartRecording( worldId, rec );
+
+	for ( int i = 0; i < 30; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 ) );
+
+	b3DestroyRecording( rec );
+	return 0;
+}
+
+// Mid-stream snapshot with contacts: bodies touching ground with warm-start manifolds.
+static int MidStreamContacts( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	// Static ground using a box hull
+	{
+		b3BodyDef groundDef = b3DefaultBodyDef();
+		groundDef.type      = b3_staticBody;
+		b3BodyId groundId   = b3CreateBody( worldId, &groundDef );
+
+		b3BoxHull  groundBox  = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
+		b3ShapeDef groundShape = b3DefaultShapeDef();
+		b3CreateHullShape( groundId, &groundShape, &groundBox.base );
+	}
+
+	b3ShapeDef dynamicShape = b3DefaultShapeDef();
+	dynamicShape.density    = 1.0f;
+
+	// A few dynamic boxes dropped onto the ground
+	for ( int i = 0; i < 3; ++i )
+	{
+		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type      = b3_dynamicBody;
+		bodyDef.position  = (b3Pos){ (float)( i * 2 ) - 2.0f, 5.0f, 0.0f };
+		b3BodyId bodyId   = b3CreateBody( worldId, &bodyDef );
+		b3CreateHullShape( bodyId, &dynamicShape, &box.base );
+	}
+
+	float timeStep    = 1.0f / 60.0f;
+	int   subStepCount = 4;
+
+	// Let the scene settle: bodies hit ground, build manifolds, islands, graph colors
+	for ( int i = 0; i < 60; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	// Start recording with snapshot of the settled world (contacts, islands, warm starts)
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+	b3World_StartRecording( worldId, rec );
+
+	for ( int i = 0; i < 30; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 ) );
+
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( SphereRoundTrip );
 	RUN_SUBTEST( HullDedup );
+	RUN_SUBTEST( MidStreamNoContacts );
+	RUN_SUBTEST( MidStreamContacts );
 	return 0;
 }
