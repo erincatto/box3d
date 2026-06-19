@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+typedef struct b3RecPlayer b3RecPlayer;
+
 // One slot in the preloaded geometry registry. Loaded from the trailing block before any
 // ops run; live pointer built lazily on first shape create that references the id.
 typedef struct b3RegistrySlot

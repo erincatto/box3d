@@ -1559,14 +1559,19 @@ static void b3RecDispatch_RecordingBounds( const b3RecArgs_RecordingBounds* a, b
 }
 
 // X-macro dispatch switch: read opcode+u24 payloadSize, dispatch, skip unknown ops.
+// Returns the opcode dispatched, or -1 when the stream is exhausted or broken.
 
-static void b3RecDispatchOne( b3RecReader* rdr )
+static int b3RecDispatchOne( b3RecReader* rdr )
 {
+	if ( rdr->cursor >= rdr->size || !rdr->ok )
+	{
+		return -1;
+	}
 	uint8_t  opcode      = b3RecR_U8( rdr );
 	uint32_t payloadSize = b3RecR_U24( rdr );
 	if ( !rdr->ok )
 	{
-		return;
+		return -1;
 	}
 	int payloadStart = rdr->cursor;
 
@@ -1593,6 +1598,7 @@ static void b3RecDispatchOne( b3RecReader* rdr )
 			rdr->cursor = payloadStart + (int)payloadSize;
 			break;
 	}
+	return (int)(unsigned)opcode;
 }
 
 // Public entry point
@@ -1767,7 +1773,11 @@ bool b3ValidateReplay( const void* data, int size, int workerCount )
 	// Dispatch op stream
 	while ( rdr.cursor < opEnd && rdr.ok )
 	{
-		b3RecDispatchOne( &rdr );
+		int op = b3RecDispatchOne( &rdr );
+		if ( op < 0 )
+		{
+			break;
+		}
 	}
 
 	bool ok = rdr.ok && !rdr.diverged;
@@ -1813,4 +1823,656 @@ bool b3ValidateReplay( const void* data, int size, int workerCount )
 	}
 
 	return ok;
+}
+
+// b3RecPlayer implementation
+
+#define B3_REC_KEYFRAME_INTERVAL_DEFAULT 16
+#define B3_REC_KEYFRAME_BUDGET_DEFAULT   ( (size_t)512 * 1024 * 1024 )
+
+// Stored snapshot for fast backward seek.
+typedef struct b3RecKeyframe
+{
+	uint8_t* image;       // serialized world image at the end of this frame
+	int      imageSize;
+	int      imageCapacity; // allocation size (may exceed imageSize)
+	int      frame;         // frame index this restores to
+	int      cursor;        // op-stream cursor for the frame AFTER this one
+	int      divergeFrame;  // divergeFrame state at capture
+	bool     diverged;      // rdr.diverged state at capture
+} b3RecKeyframe;
+
+struct b3RecPlayer
+{
+	uint8_t* data;             // owned copy of recording bytes
+	int      size;
+	int      headerEnd;        // first byte of op stream (past header + snapshot blob)
+	int      registryEnd;      // end of op stream = start of registry block (or size)
+	float    lengthScale;
+	float    previousLengthScale;
+	int      frame;
+	int      frameCount;
+	float    recordedDt;
+	int      recordedSubStepCount;
+	bool     atEnd;
+	int      divergeFrame;     // first frame that diverged, -1 until then
+	bool     snapshotSeeded;   // true when snapshotSize > 0
+
+	b3RecReader rdr;
+
+	// Frame-0 restore image: points into owned data when snapshot-seeded,
+	// or NULL when from-creation (restart rebuilds world from scratch).
+	const uint8_t* frame0Image;
+	int            frame0Size;
+
+	// Keyframe ring
+	b3RecKeyframe* keyframes;
+	int            keyframeCount;
+	int            keyframeCapacity;
+	size_t         keyframeBudget;
+	size_t         keyframeBytes;
+	int            keyframeMinInterval;
+	int            keyframeInterval;
+	int            lastKeyframeFrame;
+
+	// Pre-populated recording used by b3SerializeWorld during keyframe capture.
+	// Its registry mirrors rdr.slots so geometry ids stay stable.
+	b3Recording*   keyframeRec;
+};
+
+// Load the trailing registry block and fill rdr->slots/slotCount.
+// Returns true on success. On failure sets rdr->ok = false and returns false.
+static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64_t registryOffset, uint64_t registryByteCount )
+{
+	if ( registryOffset == 0 || registryByteCount == 0 )
+	{
+		rdr->slots     = NULL;
+		rdr->slotCount = 0;
+		return true;
+	}
+
+	int regStart = (int)registryOffset;
+	int regEnd   = regStart + (int)registryByteCount;
+	if ( regEnd > size )
+	{
+		printf( "b3RecPlayer: registry block out of bounds\n" );
+		return false;
+	}
+	if ( regStart + 4 > size )
+	{
+		printf( "b3RecPlayer: registry too small\n" );
+		return false;
+	}
+
+	const uint8_t* rp    = (const uint8_t*)data + regStart;
+	uint32_t       count = (uint32_t)rp[0] | ( (uint32_t)rp[1] << 8 ) | ( (uint32_t)rp[2] << 16 ) | ( (uint32_t)rp[3] << 24 );
+	rp += 4;
+
+	if ( count == 0 )
+	{
+		rdr->slots     = NULL;
+		rdr->slotCount = 0;
+		return true;
+	}
+
+	b3RegistrySlot* slots = (b3RegistrySlot*)b3Alloc( (size_t)count * sizeof( b3RegistrySlot ) );
+	memset( slots, 0, (size_t)count * sizeof( b3RegistrySlot ) );
+
+	const uint8_t* dataEnd = (const uint8_t*)data + regEnd;
+	for ( uint32_t i = 0; i < count; ++i )
+	{
+		if ( rp + 5 > dataEnd )
+		{
+			printf( "b3RecPlayer: registry truncated at entry %u\n", i );
+			for ( uint32_t j = 0; j < i; ++j )
+			{
+				if ( slots[j].bytes != NULL )
+				{
+					b3Free( slots[j].bytes, (size_t)slots[j].byteCount );
+				}
+			}
+			b3Free( slots, (size_t)count * sizeof( b3RegistrySlot ) );
+			return false;
+		}
+		uint8_t  kind      = rp[0];
+		uint32_t byteCount = (uint32_t)rp[1] | ( (uint32_t)rp[2] << 8 ) | ( (uint32_t)rp[3] << 16 ) | ( (uint32_t)rp[4] << 24 );
+		rp += 5;
+		if ( rp + byteCount > dataEnd )
+		{
+			printf( "b3RecPlayer: registry entry %u bytes out of bounds\n", i );
+			for ( uint32_t j = 0; j < i; ++j )
+			{
+				if ( slots[j].bytes != NULL )
+				{
+					b3Free( slots[j].bytes, (size_t)slots[j].byteCount );
+				}
+			}
+			b3Free( slots, (size_t)count * sizeof( b3RegistrySlot ) );
+			return false;
+		}
+		uint8_t* bytes = (uint8_t*)b3Alloc( byteCount > 0 ? (size_t)byteCount : 1u );
+		if ( byteCount > 0 )
+		{
+			memcpy( bytes, rp, (size_t)byteCount );
+		}
+		rp += byteCount;
+		slots[i].kind      = (b3GeometryKind)kind;
+		slots[i].byteCount = (int)byteCount;
+		slots[i].bytes     = bytes;
+		slots[i].live      = NULL;
+	}
+
+	rdr->slots     = slots;
+	rdr->slotCount = (int)count;
+	return true;
+}
+
+// Free slots loaded by b3RecLoadSlots.
+static void b3RecFreeSlots( b3RegistrySlot* slots, int slotCount )
+{
+	if ( slots == NULL )
+	{
+		return;
+	}
+	for ( int i = 0; i < slotCount; ++i )
+	{
+		b3RegistrySlot* slot = slots + i;
+		if ( slot->live != NULL )
+		{
+			switch ( slot->kind )
+			{
+				case b3_geometryMesh:
+					b3Free( slot->live, (size_t)slot->byteCount );
+					break;
+				case b3_geometryHeightField:
+					b3DestroyHeightField( (b3HeightField*)slot->live );
+					break;
+				case b3_geometryCompound:
+					b3Free( slot->live, (size_t)slot->byteCount );
+					break;
+				default:
+					break;
+			}
+		}
+		if ( slot->bytes != NULL )
+		{
+			b3Free( slot->bytes, slot->byteCount > 0 ? (size_t)slot->byteCount : 1u );
+		}
+	}
+	b3Free( slots, (size_t)slotCount * sizeof( b3RegistrySlot ) );
+}
+
+// Walk the op stream once without dispatching: count Step ops and grab the first step's tuning.
+static void b3RecScanFile( b3RecPlayer* player )
+{
+	const uint8_t* data   = player->data;
+	int            size   = player->registryEnd;
+	int            cursor = player->headerEnd;
+	int            frameCount = 0;
+	bool           gotStep   = false;
+
+	while ( cursor + 4 <= size )
+	{
+		uint8_t  opcode      = data[cursor];
+		uint32_t payloadSize = (uint32_t)data[cursor + 1] | ( (uint32_t)data[cursor + 2] << 8 ) | ( (uint32_t)data[cursor + 3] << 16 );
+		int      payloadStart = cursor + 4;
+		if ( payloadStart + (int)payloadSize > size )
+		{
+			break;
+		}
+		if ( opcode == 0x80 ) // Step
+		{
+			frameCount += 1;
+			if ( !gotStep && payloadSize >= 12 )
+			{
+				uint32_t dtBits = (uint32_t)data[payloadStart + 4] | ( (uint32_t)data[payloadStart + 5] << 8 ) |
+				                  ( (uint32_t)data[payloadStart + 6] << 16 ) | ( (uint32_t)data[payloadStart + 7] << 24 );
+				memcpy( &player->recordedDt, &dtBits, 4 );
+				player->recordedSubStepCount = (int)( (uint32_t)data[payloadStart + 8] | ( (uint32_t)data[payloadStart + 9] << 8 ) |
+				                                      ( (uint32_t)data[payloadStart + 10] << 16 ) | ( (uint32_t)data[payloadStart + 11] << 24 ) );
+				gotStep = true;
+			}
+		}
+		cursor = payloadStart + (int)payloadSize;
+	}
+	player->frameCount = frameCount;
+}
+
+// Free one keyframe's heap.
+static void b3RecFreeKeyframe( b3RecKeyframe* kf )
+{
+	if ( kf->image != NULL )
+	{
+		b3Free( kf->image, (size_t)kf->imageCapacity );
+	}
+}
+
+// Pre-populate keyframeRec's registry to mirror rdr.slots so geometry ids stay stable during
+// b3SerializeWorld. b3InternGeometry deduplicates so the count stays constant.
+static void b3RecSeedKeyframeRegistry( b3RecPlayer* player )
+{
+	b3GeometryRegistry* reg = &player->keyframeRec->registry;
+	for ( int i = 0; i < player->rdr.slotCount; ++i )
+	{
+		b3RegistrySlot* slot = player->rdr.slots + i;
+		// Copy so b3InternGeometry can take ownership (it frees on dedup, which won't happen
+		// since we're inserting fresh entries in order).
+		int      n    = slot->byteCount > 0 ? slot->byteCount : 1;
+		uint8_t* copy = (uint8_t*)b3Alloc( (size_t)n );
+		if ( slot->byteCount > 0 )
+		{
+			memcpy( copy, slot->bytes, (size_t)slot->byteCount );
+		}
+		uint64_t h  = b3Hash64Blob( slot->bytes, slot->byteCount );
+		uint32_t id = b3InternGeometry( reg, slot->kind, h, copy, slot->byteCount );
+		// Each slot should get id == its index since we seed in order.
+		B3_ASSERT( id == (uint32_t)i );
+		(void)id;
+	}
+}
+
+// Capture a restore-point keyframe for the just-completed frame. rdr.cursor already points to
+// the next frame's Step op.
+static void b3RecCaptureKeyframe( b3RecPlayer* player )
+{
+	b3World*   world = b3GetWorldFromId( player->rdr.replayWorldId );
+	b3RecBuffer buf  = { 0 };
+
+	int regCountBefore = player->keyframeRec->registry.count;
+	b3SerializeWorld( world, &buf, player->keyframeRec );
+	// Registry must not grow: all geometry was pre-seeded.
+	B3_ASSERT( player->keyframeRec->registry.count == regCountBefore );
+
+	size_t newBytes = (size_t)buf.capacity;
+
+	// Make room under the budget by doubling the spacing and evicting off-grid keyframes.
+	while ( player->keyframeCount > 0 && player->keyframeBytes + newBytes > player->keyframeBudget )
+	{
+		player->keyframeInterval *= 2;
+		int    kept      = 0;
+		size_t keptBytes = 0;
+		for ( int i = 0; i < player->keyframeCount; ++i )
+		{
+			b3RecKeyframe* kf = player->keyframes + i;
+			if ( kf->frame % player->keyframeInterval == 0 )
+			{
+				player->keyframes[kept] = *kf;
+				keptBytes += (size_t)kf->imageCapacity;
+				kept += 1;
+			}
+			else
+			{
+				b3RecFreeKeyframe( kf );
+			}
+		}
+		bool progress    = ( kept < player->keyframeCount );
+		player->keyframeCount = kept;
+		player->keyframeBytes = keptBytes;
+		if ( !progress )
+		{
+			break;
+		}
+	}
+
+	// Grow the keyframe ring if needed.
+	if ( player->keyframeCount >= player->keyframeCapacity )
+	{
+		int newCap = player->keyframeCapacity < 8 ? 8 : player->keyframeCapacity * 2;
+		player->keyframes = (b3RecKeyframe*)b3GrowAlloc( player->keyframes,
+		                                                  player->keyframeCapacity * (int)sizeof( b3RecKeyframe ),
+		                                                  newCap * (int)sizeof( b3RecKeyframe ) );
+		player->keyframeCapacity = newCap;
+	}
+
+	b3RecKeyframe* kf = player->keyframes + player->keyframeCount;
+	kf->image         = buf.data;
+	kf->imageSize     = buf.size;
+	kf->imageCapacity = buf.capacity;
+	kf->frame         = player->frame;
+	kf->cursor        = player->rdr.cursor;
+	kf->divergeFrame  = player->divergeFrame;
+	kf->diverged      = player->rdr.diverged;
+
+	player->keyframeBytes += newBytes;
+	player->keyframeCount += 1;
+	player->lastKeyframeFrame = player->frame;
+}
+
+// Restore the world in-place from a keyframe image.
+static void b3RecRestoreKeyframe( b3RecPlayer* player, const b3RecKeyframe* kf )
+{
+	b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
+	if ( b3DeserializeIntoShell( kf->image, kf->imageSize, world, &player->rdr ) == false )
+	{
+		player->rdr.ok = false;
+		return;
+	}
+	player->rdr.cursor   = kf->cursor;
+	player->rdr.ok       = true;
+	player->rdr.diverged = kf->diverged;
+	player->frame        = kf->frame;
+	player->divergeFrame = kf->divergeFrame;
+	player->atEnd        = false;
+}
+
+b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
+{
+	(void)workerCount;
+
+	if ( data == NULL || size < (int)sizeof( b3RecHeader ) )
+	{
+		printf( "b3RecPlayer_Create: recording too small\n" );
+		return NULL;
+	}
+
+	b3RecHeader hdr;
+	memcpy( &hdr, data, sizeof( hdr ) );
+
+	if ( hdr.magic != B3_REC_MAGIC )
+	{
+		printf( "b3RecPlayer_Create: bad magic 0x%08X\n", hdr.magic );
+		return NULL;
+	}
+	if ( hdr.versionMajor != B3_REC_VERSION_MAJOR || hdr.versionMinor != B3_REC_VERSION_MINOR )
+	{
+		printf( "b3RecPlayer_Create: version mismatch %u.%u vs %u.%u\n",
+		        hdr.versionMajor, hdr.versionMinor, B3_REC_VERSION_MAJOR, B3_REC_VERSION_MINOR );
+		return NULL;
+	}
+	if ( hdr.pointerWidth != (uint8_t)sizeof( void* ) )
+	{
+		printf( "b3RecPlayer_Create: pointer width mismatch %u vs %u\n", hdr.pointerWidth, (unsigned)sizeof( void* ) );
+		return NULL;
+	}
+	if ( hdr.bigEndian != 0 )
+	{
+		printf( "b3RecPlayer_Create: big-endian recording not supported\n" );
+		return NULL;
+	}
+
+	int headerEnd = (int)sizeof( b3RecHeader ) + (int)hdr.snapshotSize;
+	int registryEnd = ( hdr.registryOffset != 0 ) ? (int)hdr.registryOffset : size;
+
+	if ( headerEnd < (int)sizeof( b3RecHeader ) || headerEnd > registryEnd || registryEnd > size )
+	{
+		printf( "b3RecPlayer_Create: corrupt offsets\n" );
+		return NULL;
+	}
+
+	// Own a private copy so the caller can free their buffer right away.
+	uint8_t* copy = (uint8_t*)b3Alloc( (size_t)size );
+	memcpy( copy, data, (size_t)size );
+
+	b3RecPlayer* player = (b3RecPlayer*)b3Alloc( sizeof( b3RecPlayer ) );
+	memset( player, 0, sizeof( b3RecPlayer ) );
+
+	player->data              = copy;
+	player->size              = size;
+	player->headerEnd         = headerEnd;
+	player->registryEnd       = registryEnd;
+	player->lengthScale       = hdr.lengthScale;
+	player->previousLengthScale = b3GetLengthUnitsPerMeter();
+	player->snapshotSeeded    = ( hdr.snapshotSize > 0 );
+	player->frame             = 0;
+	player->frameCount        = 0;
+	player->recordedDt        = 0.0f;
+	player->recordedSubStepCount = 0;
+	player->atEnd             = false;
+	player->divergeFrame      = -1;
+	player->keyframeMinInterval = B3_REC_KEYFRAME_INTERVAL_DEFAULT;
+	player->keyframeInterval    = B3_REC_KEYFRAME_INTERVAL_DEFAULT;
+	player->keyframeBudget      = B3_REC_KEYFRAME_BUDGET_DEFAULT;
+	player->lastKeyframeFrame   = 0;
+
+	// Set length scale so replay reproduces the same tuning constants.
+	if ( hdr.lengthScale > 0.0f )
+	{
+		b3SetLengthUnitsPerMeter( hdr.lengthScale );
+	}
+
+	// Count frames and read first step's dt so the viewer can show hz up front.
+	b3RecScanFile( player );
+
+	// Create the replay world.
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+
+	// Initialize the reader.
+	player->rdr.data          = copy;
+	player->rdr.size          = size;
+	player->rdr.cursor        = headerEnd;
+	player->rdr.replayWorldId = worldId;
+	player->rdr.ok            = true;
+	player->rdr.diverged      = false;
+
+	// Load the trailing geometry registry.
+	if ( !b3RecLoadSlots( &player->rdr, copy, size, hdr.registryOffset, hdr.registryByteCount ) )
+	{
+		b3DestroyWorld( worldId );
+		b3Free( copy, (size_t)size );
+		b3Free( player, sizeof( b3RecPlayer ) );
+		return NULL;
+	}
+
+	// Restore seed snapshot when present; otherwise the world starts empty.
+	if ( player->snapshotSeeded )
+	{
+		int snapStart = (int)sizeof( b3RecHeader );
+		int snapSize  = (int)hdr.snapshotSize;
+		b3World* replayWorld = b3GetWorldFromId( worldId );
+		if ( b3DeserializeIntoShell( copy + snapStart, snapSize, replayWorld, &player->rdr ) == false )
+		{
+			printf( "b3RecPlayer_Create: snapshot deserialization failed\n" );
+			b3DestroyWorld( worldId );
+			b3RecFreeSlots( player->rdr.slots, player->rdr.slotCount );
+			b3Free( copy, (size_t)size );
+			b3Free( player, sizeof( b3RecPlayer ) );
+			return NULL;
+		}
+		player->rdr.cursor  = headerEnd;
+		player->frame0Image = copy + snapStart;
+		player->frame0Size  = snapSize;
+	}
+
+	// Build the keyframe recording with a pre-seeded registry that mirrors rdr.slots,
+	// so b3SerializeWorld geometry ids stay stable across captures.
+	player->keyframeRec = b3CreateRecording( 0 );
+	b3RecSeedKeyframeRegistry( player );
+
+	return player;
+}
+
+void b3RecPlayer_Destroy( b3RecPlayer* player )
+{
+	if ( player == NULL )
+	{
+		return;
+	}
+
+	if ( b3World_IsValid( player->rdr.replayWorldId ) )
+	{
+		b3DestroyWorld( player->rdr.replayWorldId );
+	}
+
+	// Free live geometry after destroying the world (slot->live may be used by the world).
+	b3RecFreeSlots( player->rdr.slots, player->rdr.slotCount );
+
+	// Free reader scratch.
+	if ( player->rdr.matScratch != NULL )
+	{
+		b3Free( player->rdr.matScratch, (size_t)player->rdr.matScratchCap * sizeof( b3SurfaceMaterial ) );
+	}
+
+	// Free keyframe ring.
+	for ( int i = 0; i < player->keyframeCount; ++i )
+	{
+		b3RecFreeKeyframe( player->keyframes + i );
+	}
+	if ( player->keyframes != NULL )
+	{
+		b3Free( player->keyframes, (size_t)player->keyframeCapacity * sizeof( b3RecKeyframe ) );
+	}
+
+	// The keyframe recording owns only its buffer and registry; b3DestroyRecording frees both.
+	if ( player->keyframeRec != NULL )
+	{
+		b3DestroyRecording( player->keyframeRec );
+	}
+
+	// frame0Image points into the owned data copy, not separately allocated.
+
+	b3Free( player->data, (size_t)player->size );
+
+	// Restore the global length scale.
+	b3SetLengthUnitsPerMeter( player->previousLengthScale );
+
+	b3Free( player, sizeof( b3RecPlayer ) );
+}
+
+bool b3RecPlayer_StepFrame( b3RecPlayer* player )
+{
+	if ( player->atEnd )
+	{
+		return false;
+	}
+
+	bool stepped = false;
+	for ( ;; )
+	{
+		if ( player->rdr.cursor >= player->registryEnd || !player->rdr.ok )
+		{
+			player->atEnd = true;
+			return stepped;
+		}
+
+		// Peek the opcode. If we've already stepped and the next op is another Step, this
+		// frame is complete. Capture a keyframe here before returning.
+		if ( stepped && player->rdr.data[player->rdr.cursor] == 0x80 )
+		{
+			if ( player->frame > player->lastKeyframeFrame && player->frame % player->keyframeInterval == 0 )
+			{
+				b3RecCaptureKeyframe( player );
+			}
+			return true;
+		}
+
+		int op = b3RecDispatchOne( &player->rdr );
+		if ( op < 0 )
+		{
+			player->atEnd = true;
+			return stepped;
+		}
+		if ( op == 0x01 ) // DestroyWorld — end of recording
+		{
+			player->atEnd = true;
+			return stepped;
+		}
+		if ( op == 0x80 ) // Step
+		{
+			player->frame += 1;
+			stepped = true;
+			// Latch the first frame that diverged.
+			if ( player->divergeFrame < 0 && player->rdr.diverged )
+			{
+				player->divergeFrame = player->frame;
+			}
+		}
+	}
+}
+
+void b3RecPlayer_Restart( b3RecPlayer* player )
+{
+	if ( player->snapshotSeeded )
+	{
+		// Restore the frame-0 image in-place; replay world id stays stable.
+		b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
+		if ( b3DeserializeIntoShell( player->frame0Image, player->frame0Size, world, &player->rdr ) == false )
+		{
+			player->rdr.ok = false;
+			return;
+		}
+	}
+	else
+	{
+		// From-creation: destroy and re-create the world.
+		b3DestroyWorld( player->rdr.replayWorldId );
+		b3WorldDef worldDef         = b3DefaultWorldDef();
+		player->rdr.replayWorldId   = b3CreateWorld( &worldDef );
+	}
+	player->rdr.cursor   = player->headerEnd;
+	player->rdr.ok       = true;
+	player->rdr.diverged = false;
+	player->frame        = 0;
+	player->divergeFrame = -1;
+	player->atEnd        = false;
+}
+
+void b3RecPlayer_SeekFrame( b3RecPlayer* player, int targetFrame )
+{
+	if ( player == NULL )
+	{
+		return;
+	}
+	if ( targetFrame < 0 )
+	{
+		targetFrame = 0;
+	}
+
+	// Find the best keyframe strictly before the target.
+	const b3RecKeyframe* best = NULL;
+	for ( int i = 0; i < player->keyframeCount; ++i )
+	{
+		const b3RecKeyframe* kf = player->keyframes + i;
+		if ( kf->frame < targetFrame && ( best == NULL || kf->frame > best->frame ) )
+		{
+			best = kf;
+		}
+	}
+
+	if ( targetFrame < player->frame )
+	{
+		// Backward seek: restore keyframe or restart from frame 0.
+		if ( best != NULL )
+		{
+			b3RecRestoreKeyframe( player, best );
+		}
+		else
+		{
+			b3RecPlayer_Restart( player );
+		}
+	}
+	else if ( best != NULL && best->frame > player->frame )
+	{
+		// Forward seek that can skip ahead via a keyframe.
+		b3RecRestoreKeyframe( player, best );
+	}
+
+	while ( player->frame < targetFrame && b3RecPlayer_StepFrame( player ) )
+	{
+	}
+}
+
+b3WorldId b3RecPlayer_GetWorldId( const b3RecPlayer* player )
+{
+	return player != NULL ? player->rdr.replayWorldId : b3_nullWorldId;
+}
+
+int b3RecPlayer_GetFrame( const b3RecPlayer* player )
+{
+	return player != NULL ? player->frame : 0;
+}
+
+int b3RecPlayer_GetFrameCount( const b3RecPlayer* player )
+{
+	return player != NULL ? player->frameCount : 0;
+}
+
+bool b3RecPlayer_IsAtEnd( const b3RecPlayer* player )
+{
+	return player != NULL ? player->atEnd : true;
+}
+
+bool b3RecPlayer_HasDiverged( const b3RecPlayer* player )
+{
+	return player != NULL ? player->rdr.diverged : false;
 }

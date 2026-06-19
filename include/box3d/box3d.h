@@ -310,6 +310,45 @@ B3_API b3Recording* b3LoadRecordingFromFile( const char* path );
 /// @param workerCount reserved for future multithreaded replay; pass 1 for now
 B3_API bool b3ValidateReplay( const void* data, int size, int workerCount );
 
+/// Opaque incremental replay player with a keyframe ring for O(interval) backward seek.
+typedef struct b3RecPlayer b3RecPlayer;
+
+/// Create a player over a recording. Owns a private copy of the bytes.
+/// @param data pointer to recording bytes
+/// @param size byte count of the recording
+/// @param workerCount ignored for now; replay is always serial
+/// @return a new player, or NULL on bad header or deserialization failure
+B3_API b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount );
+
+/// Destroy the player and free all memory. Restores the previous global length scale.
+B3_API void b3RecPlayer_Destroy( b3RecPlayer* player );
+
+/// Advance one frame: dispatch ops until the next Step completes.
+/// @return true when a frame was stepped, false at end-of-recording
+B3_API bool b3RecPlayer_StepFrame( b3RecPlayer* player );
+
+/// Rewind to frame 0 (in-place restore so the world id stays stable).
+B3_API void b3RecPlayer_Restart( b3RecPlayer* player );
+
+/// Seek to a specific frame. Forward seek steps op-by-op; backward seek restores
+/// the nearest keyframe then re-steps the remaining gap.
+B3_API void b3RecPlayer_SeekFrame( b3RecPlayer* player, int targetFrame );
+
+/// @return the world currently driven by this player
+B3_API b3WorldId b3RecPlayer_GetWorldId( const b3RecPlayer* player );
+
+/// @return the last fully-stepped frame index (0 before any step)
+B3_API int b3RecPlayer_GetFrame( const b3RecPlayer* player );
+
+/// @return total number of recorded frames
+B3_API int b3RecPlayer_GetFrameCount( const b3RecPlayer* player );
+
+/// @return true when the op stream is exhausted
+B3_API bool b3RecPlayer_IsAtEnd( const b3RecPlayer* player );
+
+/// @return true when any StateHash mismatch has been detected
+B3_API bool b3RecPlayer_HasDiverged( const b3RecPlayer* player );
+
 /**@}*/ // recording
 
 /** @} */ // world

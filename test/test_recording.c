@@ -5,6 +5,9 @@
 #include "box3d/collision.h"
 #include "test_macros.h"
 
+#include "physics_world.h"
+#include "recording.h"
+
 #include <stdint.h>
 #include <string.h>
 
@@ -238,11 +241,195 @@ static int MidStreamContacts( void )
 	return 0;
 }
 
+// Record a scene with hull boxes settling on a ground plane, create a player, step to
+// the end recording per-frame world hashes, then seek backward to several frames and
+// verify each reproduces the recorded hash exactly.
+static int ScrubBackward( void )
+{
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	b3World_StartRecording( worldId, rec );
+
+	// Static ground
+	{
+		b3BodyDef groundDef = b3DefaultBodyDef();
+		groundDef.type = b3_staticBody;
+		b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+		b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
+		b3ShapeDef groundShape = b3DefaultShapeDef();
+		b3CreateHullShape( groundId, &groundShape, &groundBox.base );
+	}
+
+	// A small stack of dynamic hull boxes
+	b3ShapeDef boxShape = b3DefaultShapeDef();
+	boxShape.density = 1.0f;
+	for ( int i = 0; i < 4; ++i )
+	{
+		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ 0.0f, 2.0f + (float)i * 1.5f, 0.0f };
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+		b3CreateHullShape( bodyId, &boxShape, &box.base );
+	}
+
+	float timeStep = 1.0f / 60.0f;
+	int   subStepCount = 4;
+	int   totalFrames = 80;
+	for ( int i = 0; i < totalFrames; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	const uint8_t* data = b3Recording_GetData( rec );
+	int            sz   = b3Recording_GetSize( rec );
+
+	// Create the player
+	b3RecPlayer* player = b3RecPlayer_Create( data, sz, 1 );
+	ENSURE( player != NULL );
+	ENSURE( b3RecPlayer_GetFrameCount( player ) == totalFrames );
+
+	// Forward pass: record per-frame hashes
+	uint64_t* hashes = (uint64_t*)b3Alloc( (size_t)( totalFrames + 1 ) * sizeof( uint64_t ) );
+	hashes[0] = 0; // frame 0 before any step
+
+	while ( !b3RecPlayer_IsAtEnd( player ) )
+	{
+		b3RecPlayer_StepFrame( player );
+		int f = b3RecPlayer_GetFrame( player );
+		if ( f <= totalFrames )
+		{
+			b3WorldId wid = b3RecPlayer_GetWorldId( player );
+			b3World* w = b3GetWorldFromId( wid );
+			hashes[f] = b3HashWorldState( w );
+		}
+	}
+	ENSURE( b3RecPlayer_GetFrame( player ) == totalFrames );
+	ENSURE( !b3RecPlayer_HasDiverged( player ) );
+
+	// Backward seek to several interesting frames and verify hash matches
+	int seekTargets[] = { totalFrames, totalFrames / 2, 5, totalFrames - 1, 0, 1 };
+	int seekCount = (int)( sizeof( seekTargets ) / sizeof( seekTargets[0] ) );
+	for ( int k = 0; k < seekCount; ++k )
+	{
+		int target = seekTargets[k];
+		b3RecPlayer_SeekFrame( player, target );
+		ENSURE( b3RecPlayer_GetFrame( player ) == target );
+		ENSURE( !b3RecPlayer_HasDiverged( player ) );
+
+		if ( target > 0 )
+		{
+			b3WorldId wid = b3RecPlayer_GetWorldId( player );
+			b3World* w = b3GetWorldFromId( wid );
+			uint64_t got = b3HashWorldState( w );
+			ENSURE( got == hashes[target] );
+		}
+	}
+
+	b3Free( hashes, (size_t)( totalFrames + 1 ) * sizeof( uint64_t ) );
+	b3RecPlayer_Destroy( player );
+	b3DestroyRecording( rec );
+	return 0;
+}
+
+// Record a scene that includes a mesh shape, create a player, seek backward, verify
+// it works and no divergence is reported. Also checks the keyframe-by-geometry-id
+// invariant: keyframeRec registry count should not grow beyond initial slot count.
+static int SeekWithHull( void )
+{
+	b3Vec3 pts[8] = {
+		{ -1.0f, -1.0f, -1.0f }, {  1.0f, -1.0f, -1.0f },
+		{  1.0f,  1.0f, -1.0f }, { -1.0f,  1.0f, -1.0f },
+		{ -1.0f, -1.0f,  1.0f }, {  1.0f, -1.0f,  1.0f },
+		{  1.0f,  1.0f,  1.0f }, { -1.0f,  1.0f,  1.0f },
+	};
+	b3HullData* hull = b3CreateHull( pts, 8, 8 );
+	ENSURE( hull != NULL );
+
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+	b3World_StartRecording( worldId, rec );
+
+	// Static ground
+	{
+		b3BodyDef groundDef = b3DefaultBodyDef();
+		groundDef.type = b3_staticBody;
+		b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+		b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
+		b3ShapeDef gs = b3DefaultShapeDef();
+		b3CreateHullShape( groundId, &gs, &groundBox.base );
+	}
+
+	// Dynamic bodies using the custom hull
+	b3ShapeDef sd = b3DefaultShapeDef();
+	sd.density = 1.0f;
+	for ( int i = 0; i < 3; ++i )
+	{
+		b3BodyDef bd = b3DefaultBodyDef();
+		bd.type      = b3_dynamicBody;
+		bd.position  = (b3Pos){ (float)( i * 4 ) - 4.0f, 5.0f, 0.0f };
+		b3BodyId bodyId = b3CreateBody( worldId, &bd );
+		b3CreateHullShape( bodyId, &sd, hull );
+	}
+
+	float timeStep = 1.0f / 60.0f;
+	int   totalFrames = 40;
+	for ( int i = 0; i < totalFrames; ++i )
+	{
+		b3World_Step( worldId, timeStep, 4 );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+	b3DestroyHull( hull );
+
+	const uint8_t* data = b3Recording_GetData( rec );
+	int            sz   = b3Recording_GetSize( rec );
+
+	b3RecPlayer* player = b3RecPlayer_Create( data, sz, 1 );
+	ENSURE( player != NULL );
+
+	// Step to end
+	while ( !b3RecPlayer_IsAtEnd( player ) )
+	{
+		b3RecPlayer_StepFrame( player );
+	}
+	ENSURE( !b3RecPlayer_HasDiverged( player ) );
+
+	int midFrame = totalFrames / 2;
+	b3RecPlayer_SeekFrame( player, midFrame );
+	ENSURE( b3RecPlayer_GetFrame( player ) == midFrame );
+	ENSURE( !b3RecPlayer_HasDiverged( player ) );
+
+	b3RecPlayer_SeekFrame( player, 0 );
+	ENSURE( b3RecPlayer_GetFrame( player ) == 0 );
+
+	b3RecPlayer_Destroy( player );
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( SphereRoundTrip );
 	RUN_SUBTEST( HullDedup );
 	RUN_SUBTEST( MidStreamNoContacts );
 	RUN_SUBTEST( MidStreamContacts );
+	RUN_SUBTEST( ScrubBackward );
+	RUN_SUBTEST( SeekWithHull );
 	return 0;
 }

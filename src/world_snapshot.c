@@ -822,15 +822,25 @@ static void b3DesContacts( b3SnapReader* r, b3World* world )
 // so restoring over a populated world doesn't leak.
 static void b3FreeLiveSimElements( b3World* world )
 {
-	// Shape heap: materials
+	// Shape heap: materials and hull DB references
 	for ( int i = 0; i < world->shapes.count; ++i )
 	{
 		b3Shape* s = world->shapes.data + i;
-		if ( s->id == i && s->materials != NULL )
+		if ( s->id != i )
+		{
+			continue;
+		}
+		if ( s->materials != NULL )
 		{
 			b3Free( s->materials, (size_t)s->materialCount * sizeof( b3SurfaceMaterial ) );
 			s->materials   = NULL;
 			s->materialCount = 0;
+		}
+		// Hull is ref-counted in the world DB; release before overwrite so re-adding is ref-neutral.
+		if ( s->type == b3_hullShape && s->hull != NULL )
+		{
+			b3RemoveHullFromDatabase( world, s->hull );
+			s->hull = NULL;
 		}
 		// name / userData / userShape are host-owned; do not free
 	}
