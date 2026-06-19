@@ -643,7 +643,7 @@ public:
 				b3Vec3 normal = manifold->normal;
 				for ( int j = 0; j < manifold->pointCount; ++j )
 				{
-					const b3ManifoldPoint* manifoldPoint = manifold->points + i;
+					const b3ManifoldPoint* manifoldPoint = manifold->points + j;
 					b3Pos p1 = b3OffsetPos( centerOfMass, manifoldPoint->anchorA );
 					b3Pos p2 = b3OffsetPos( p1, manifoldPoint->totalNormalImpulse * normal );
 					DrawLine( p1, p2, MakeColor( b3_colorCrimson ) );
