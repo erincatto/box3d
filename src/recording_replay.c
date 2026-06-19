@@ -1858,6 +1858,14 @@ struct b3RecPlayer
 	int      divergeFrame;     // first frame that diverged, -1 until then
 	bool     snapshotSeeded;   // true when snapshotSize > 0
 
+	// Host debug-shape callbacks applied to every world the player creates. The 3D
+	// sample renderer builds GPU meshes here, so a replay world without them draws
+	// nothing. Set once via b3RecPlayer_SetDebugShapeCallbacks; persisted so a
+	// from-creation Restart that rebuilds the world keeps drawing.
+	b3CreateDebugShapeCallback*  createDebugShape;
+	b3DestroyDebugShapeCallback* destroyDebugShape;
+	void*                        debugShapeContext;
+
 	b3RecReader rdr;
 
 	// Frame-0 restore image: points into owned data when snapshot-seeded,
@@ -2155,6 +2163,17 @@ static void b3RecRestoreKeyframe( b3RecPlayer* player, const b3RecKeyframe* kf )
 	player->atEnd        = false;
 }
 
+// Create a replay world carrying the host debug-shape callbacks. Every world the player
+// stands up funnels through here so the sample renderer can draw replayed shapes.
+static b3WorldId b3RecPlayerCreateWorld( const b3RecPlayer* player )
+{
+	b3WorldDef worldDef            = b3DefaultWorldDef();
+	worldDef.createDebugShape      = player->createDebugShape;
+	worldDef.destroyDebugShape     = player->destroyDebugShape;
+	worldDef.userDebugShapeContext = player->debugShapeContext;
+	return b3CreateWorld( &worldDef );
+}
+
 b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 {
 	(void)workerCount;
@@ -2233,9 +2252,9 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 	// Count frames and read first step's dt so the viewer can show hz up front.
 	b3RecScanFile( player );
 
-	// Create the replay world.
-	b3WorldDef worldDef = b3DefaultWorldDef();
-	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+	// Create the replay world. Debug-shape callbacks are NULL here; the sample wires
+	// them right after Create via b3RecPlayer_SetDebugShapeCallbacks, which rebuilds.
+	b3WorldId worldId = b3RecPlayerCreateWorld( player );
 
 	// Initialize the reader.
 	player->rdr.data          = copy;
@@ -2394,10 +2413,10 @@ void b3RecPlayer_Restart( b3RecPlayer* player )
 	}
 	else
 	{
-		// From-creation: destroy and re-create the world.
+		// From-creation: destroy and re-create the world. Keep the host debug-shape
+		// callbacks so the rebuilt world still renders.
 		b3DestroyWorld( player->rdr.replayWorldId );
-		b3WorldDef worldDef         = b3DefaultWorldDef();
-		player->rdr.replayWorldId   = b3CreateWorld( &worldDef );
+		player->rdr.replayWorldId = b3RecPlayerCreateWorld( player );
 	}
 	player->rdr.cursor   = player->headerEnd;
 	player->rdr.ok       = true;
@@ -2475,4 +2494,44 @@ bool b3RecPlayer_IsAtEnd( const b3RecPlayer* player )
 bool b3RecPlayer_HasDiverged( const b3RecPlayer* player )
 {
 	return player != NULL ? player->rdr.diverged : false;
+}
+
+void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShapeCallback* createDebugShape,
+                                         b3DestroyDebugShapeCallback* destroyDebugShape, void* context )
+{
+	if ( player == NULL )
+	{
+		return;
+	}
+
+	player->createDebugShape  = createDebugShape;
+	player->destroyDebugShape = destroyDebugShape;
+	player->debugShapeContext = context;
+
+	// A world fixes its debug-shape callbacks at creation, so rebuild frame 0 under the new
+	// wiring. The old world held no adapter shapes (its callbacks were NULL), so the tear-down
+	// is balanced. Geometry slots are byte blobs reused as-is, the same path Restart relies on.
+	if ( b3World_IsValid( player->rdr.replayWorldId ) )
+	{
+		b3DestroyWorld( player->rdr.replayWorldId );
+	}
+	player->rdr.replayWorldId = b3RecPlayerCreateWorld( player );
+	player->rdr.cursor        = player->headerEnd;
+	player->rdr.ok            = true;
+	player->rdr.diverged      = false;
+	player->frame             = 0;
+	player->divergeFrame      = -1;
+	player->atEnd             = false;
+
+	// Re-seed a snapshot world so its shapes are recreated through the callbacks.
+	if ( player->snapshotSeeded )
+	{
+		b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
+		if ( b3DeserializeIntoShell( player->frame0Image, player->frame0Size, world, &player->rdr ) == false )
+		{
+			player->rdr.ok = false;
+			return;
+		}
+		player->rdr.cursor = player->headerEnd;
+	}
 }

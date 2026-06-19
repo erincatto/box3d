@@ -9,6 +9,7 @@
 #include "recording.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 // Sphere round-trip: record/step/stop, then replay and validate.
@@ -423,6 +424,134 @@ static int SeekWithHull( void )
 	return 0;
 }
 
+// Host debug-shape callbacks just count create/destroy so the test can prove the player
+// wires them into every world it builds. The returned token is opaque to the engine.
+typedef struct
+{
+	int created;
+	int destroyed;
+} DebugShapeCounters;
+
+static void* RecTestCreateDebugShape( const b3DebugShape* debugShape, void* userContext )
+{
+	(void)debugShape;
+	DebugShapeCounters* counters = (DebugShapeCounters*)userContext;
+	counters->created += 1;
+	return userContext; // any non-NULL token; engine stores and hands it back to destroy
+}
+
+static void RecTestDestroyDebugShape( void* userShape, void* userContext )
+{
+	(void)userShape;
+	DebugShapeCounters* counters = (DebugShapeCounters*)userContext;
+	counters->destroyed += 1;
+}
+
+static bool RecTestDrawShape( void* userShape, b3WorldTransform transform, b3HexColor color, void* context )
+{
+	(void)userShape;
+	(void)transform;
+	(void)color;
+	(void)context;
+	return true;
+}
+
+// b3World_Draw lazily fires createDebugShape for shapes entering the draw set, the same way the
+// sample renderer does. Drive a draw so the player's wired callbacks actually run.
+static void RecTestDrawWorld( b3WorldId worldId )
+{
+	b3DebugDraw draw = b3DefaultDebugDraw();
+	draw.DrawShapeFcn = RecTestDrawShape;
+	draw.drawShapes = true;
+	float big = 1.0e6f;
+	draw.drawingBounds = (b3AABB){ { -big, -big, -big }, { big, big, big } };
+	b3World_Draw( worldId, &draw, B3_DEFAULT_MASK_BITS );
+}
+
+// The 3D sample renderer builds per-shape GPU meshes through createDebugShape, so the replay
+// world must carry the host callbacks. Verify b3RecPlayer_SetDebugShapeCallbacks rewinds, fires
+// the callbacks for every replayed shape, keeps them across a backward-seek world rebuild, and
+// balances create/destroy at teardown.
+static int DebugShapeCallbacks( void )
+{
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+
+	b3World_StartRecording( worldId, rec );
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	groundDef.type    = b3_staticBody;
+	b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+	b3BoxHull groundBox = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
+	b3ShapeDef groundShape = b3DefaultShapeDef();
+	b3CreateHullShape( groundId, &groundShape, &groundBox.base );
+
+	// Four dynamic boxes sharing one hull: ground + 4 boxes = 5 shapes total.
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3ShapeDef boxShape = b3DefaultShapeDef();
+	boxShape.density = 1.0f;
+	for ( int i = 0; i < 4; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type     = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ 0.0f, 1.0f + 1.1f * (float)i, 0.0f };
+		b3BodyId bodyId  = b3CreateBody( worldId, &bodyDef );
+		b3CreateHullShape( bodyId, &boxShape, &box.base );
+	}
+
+	int totalFrames = 30;
+	for ( int i = 0; i < totalFrames; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	// Round-trip through a file, mirroring the replay sample's Generate/Load path exactly.
+	const char* path = "replay_test.b3rec";
+	ENSURE( b3SaveRecordingToFile( rec, path ) );
+	b3Recording* loaded = b3LoadRecordingFromFile( path );
+	ENSURE( loaded != NULL );
+
+	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( loaded ), b3Recording_GetSize( loaded ), 1 );
+	ENSURE( player != NULL );
+
+	// Wiring the callbacks rebuilds the world and rewinds to frame 0.
+	DebugShapeCounters counters = { 0, 0 };
+	b3RecPlayer_SetDebugShapeCallbacks( player, RecTestCreateDebugShape, RecTestDestroyDebugShape, &counters );
+	ENSURE( b3RecPlayer_GetFrame( player ) == 0 );
+
+	// Replay to the end, then draw: createDebugShape fires once per shape (ground + 4 boxes = 5).
+	while ( !b3RecPlayer_IsAtEnd( player ) )
+	{
+		b3RecPlayer_StepFrame( player );
+	}
+	RecTestDrawWorld( b3RecPlayer_GetWorldId( player ) );
+	ENSURE( counters.created >= 5 );
+	ENSURE( !b3RecPlayer_HasDiverged( player ) );
+
+	// A backward seek rebuilds the world (from-creation) and must keep the callbacks, so re-stepping
+	// then drawing fires more creates.
+	int createdBefore = counters.created;
+	b3RecPlayer_SeekFrame( player, 0 );
+	b3RecPlayer_SeekFrame( player, totalFrames );
+	RecTestDrawWorld( b3RecPlayer_GetWorldId( player ) );
+	ENSURE( counters.created > createdBefore );
+
+	// Teardown destroys the final world; every live shape is released, so the counts balance.
+	b3RecPlayer_Destroy( player );
+	ENSURE( counters.created == counters.destroyed );
+
+	b3DestroyRecording( loaded );
+	b3DestroyRecording( rec );
+	remove( path );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( SphereRoundTrip );
@@ -431,5 +560,6 @@ int RecordingTest( void )
 	RUN_SUBTEST( MidStreamContacts );
 	RUN_SUBTEST( ScrubBackward );
 	RUN_SUBTEST( SeekWithHull );
+	RUN_SUBTEST( DebugShapeCallbacks );
 	return 0;
 }

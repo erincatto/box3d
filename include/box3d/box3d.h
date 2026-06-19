@@ -349,6 +349,18 @@ B3_API bool b3RecPlayer_IsAtEnd( const b3RecPlayer* player );
 /// @return true when any StateHash mismatch has been detected
 B3_API bool b3RecPlayer_HasDiverged( const b3RecPlayer* player );
 
+/// Wire host debug-shape callbacks into the player's replay world so a renderer can build
+/// per-shape draw resources (the 3D sample needs this or the replay world draws nothing).
+/// Rebuilds the current world under the new callbacks and rewinds to frame 0, so call it
+/// once right after b3RecPlayer_Create and re-read the world id afterward. The callbacks
+/// persist across Restart and backward seeks, which recreate the world internally.
+/// @param player the player to configure
+/// @param createDebugShape called when a replayed shape is added; returns a user draw handle
+/// @param destroyDebugShape called when a replayed shape is removed; may be NULL
+/// @param context user context passed to both callbacks
+B3_API void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShapeCallback* createDebugShape,
+                                                b3DestroyDebugShapeCallback* destroyDebugShape, void* context );
+
 /**@}*/ // recording
 
 /** @} */ // world

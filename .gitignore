@@ -12,3 +12,4 @@ CMakeUserPresets.json
 .tmp/
 .fetchcontent-cache/
 build-dp/
+*.b3rec

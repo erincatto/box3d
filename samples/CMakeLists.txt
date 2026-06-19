@@ -156,6 +156,7 @@ set(SAMPLE_FILES
     sample_manifold.cpp
     sample_mesh.cpp
     sample_ragdoll.cpp
+    sample_replay.cpp
     sample_robustness.cpp
     sample_shapes.cpp
     sample_stacking.cpp
