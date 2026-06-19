@@ -252,6 +252,57 @@ B3_API void b3World_DumpAwake( b3WorldId worldId );
 /// Dump world to a text file. Meshes are saved to binary b3m files.
 B3_API void b3World_Dump( b3WorldId worldId );
 
+/**
+ * @defgroup recording Recording
+ * @brief Record and replay world state for debugging.
+ * @{
+ */
+
+/// Opaque recording handle. Create with b3CreateRecording, destroy with b3DestroyRecording.
+typedef struct b3Recording b3Recording;
+
+/// Create a recording buffer with an optional initial byte capacity.
+/// Pass 0 to use the default (64 KiB). The buffer grows on demand.
+/// @return a new recording, owned by the caller
+B3_API b3Recording* b3CreateRecording( int byteCapacity );
+
+/// Destroy a recording and free its buffer.
+/// @param recording may be NULL
+B3_API void b3DestroyRecording( b3Recording* recording );
+
+/// Get a pointer to the raw recording bytes.
+/// Valid until the recording buffer is modified or destroyed.
+/// @param recording the recording handle
+/// @return pointer to the byte buffer, or NULL if no bytes have been written
+B3_API const uint8_t* b3Recording_GetData( const b3Recording* recording );
+
+/// Get the number of bytes currently in the recording buffer.
+/// @param recording the recording handle
+B3_API int b3Recording_GetSize( const b3Recording* recording );
+
+/// Begin recording world mutations into the provided buffer.
+/// The buffer is reset on each call so a single b3Recording can be reused for multiple sessions.
+/// @param worldId the world to record
+/// @param recording the recording handle to write into
+B3_API void b3World_StartRecording( b3WorldId worldId, b3Recording* recording );
+
+/// End the current recording session. Writes the trailing geometry registry and
+/// backpatches the header. The buffer remains valid until the recording is destroyed.
+/// @param worldId the world currently being recorded
+B3_API void b3World_StopRecording( b3WorldId worldId );
+
+/// Save the recording buffer to a file. Returns true on success.
+/// @param recording the recording to save
+/// @param path file path to write
+B3_API bool b3SaveRecordingToFile( const b3Recording* recording, const char* path );
+
+/// Load a recording from a file. Returns NULL on failure (file not found, wrong magic).
+/// The caller owns the returned recording and must destroy it with b3DestroyRecording.
+/// @param path file path to read
+B3_API b3Recording* b3LoadRecordingFromFile( const char* path );
+
+/**@}*/ // recording
+
 /** @} */ // world
 
 /**

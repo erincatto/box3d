@@ -1,0 +1,291 @@
+// SPDX-FileCopyrightText: 2026 Erin Catto
+// SPDX-License-Identifier: MIT
+
+#pragma once
+
+#include "core.h"
+
+#include "box3d/id.h"
+#include "box3d/math_functions.h"
+#include "box3d/types.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+// FNV-1a 64-bit constants
+#define B3_SNAP_FNV_INIT 14695981039346656037ull
+#define B3_SNAP_FNV_PRIME 1099511628211ull
+
+// Mix a world position at full width so the determinism gate validates past float precision
+// when the body is far from the origin.
+static inline uint64_t b3FnvMixPosition( uint64_t hash, b3Pos p )
+{
+#if defined( BOX3D_DOUBLE_PRECISION )
+	uint64_t bx, by, bz;
+	memcpy( &bx, &p.x, 8 );
+	memcpy( &by, &p.y, 8 );
+	memcpy( &bz, &p.z, 8 );
+#else
+	uint32_t fx, fy, fz;
+	memcpy( &fx, &p.x, 4 );
+	memcpy( &fy, &p.y, 4 );
+	memcpy( &fz, &p.z, 4 );
+	uint64_t bx = fx, by = fy, bz = fz;
+#endif
+	hash = ( hash ^ bx ) * B3_SNAP_FNV_PRIME;
+	hash = ( hash ^ by ) * B3_SNAP_FNV_PRIME;
+	hash = ( hash ^ bz ) * B3_SNAP_FNV_PRIME;
+	return hash;
+}
+
+typedef struct b3World b3World;
+
+// Magic 'B3RC' in little-endian: bytes B(0x42) 3(0x33) R(0x52) C(0x43)
+#define B3_REC_MAGIC 0x43523342u
+
+#define B3_REC_VERSION_MAJOR 1
+#define B3_REC_VERSION_MINOR 0
+
+// File header, fixed 48 bytes, little-endian. Contains the registry locator so the player
+// can load geometry before replaying any ops.
+typedef struct b3RecHeader
+{
+	uint32_t magic;			     // 'B3RC' = 0x43523342
+	uint16_t versionMajor;		 // B3_REC_VERSION_MAJOR
+	uint16_t versionMinor;		 // B3_REC_VERSION_MINOR
+	uint8_t  pointerWidth;		 // sizeof(void*), gates POD-def struct layout
+	uint8_t  bigEndian;		     // 0 on all supported targets
+	uint8_t  validationEnabled;  // 1 if built with BOX3D_VALIDATE, diagnostic only
+	uint8_t  reserved;
+	float    lengthScale;		 // b3GetLengthUnitsPerMeter()
+	uint32_t reserved2;
+	uint32_t reserved3;		     // explicit pad so the 64-bit fields align with no implicit gap
+	uint64_t snapshotSize;		 // bytes of snapshot blob after the header (0 in Phase 1)
+	uint64_t registryOffset;	 // absolute offset to trailing registry block, backpatched at stop
+	uint64_t registryByteCount;  // size of the registry block
+} b3RecHeader;
+
+_Static_assert( sizeof( b3RecHeader ) == 48, "recording header must be 48 bytes" );
+
+// Growable append-only byte buffer. Doubles on demand. countOnly mode tallies size without
+// allocating, used to size a buffer cheaply before a second filling pass.
+typedef struct b3RecBuffer
+{
+	uint8_t* data;
+	int      capacity;
+	int      size;
+	bool     countOnly;
+} b3RecBuffer;
+
+// Geometry kinds for the trailing registry section
+typedef enum b3GeometryKind
+{
+	b3_geometryHull,
+	b3_geometryMesh,
+	b3_geometryHeightField,
+	b3_geometryCompound,
+} b3GeometryKind;
+
+// One entry per unique geometry blob. id == index in the entries array.
+typedef struct b3GeometryEntry
+{
+	uint64_t       contentHash;
+	uint32_t       id;
+	b3GeometryKind kind;
+	int            byteCount;
+	uint8_t*       bytes;
+} b3GeometryEntry;
+
+// Simple growable array of geometry entries. Dedup is a linear scan for Phase 1.
+// TODO: replace linear dedup scan with a hash map
+typedef struct b3GeometryRegistry
+{
+	b3GeometryEntry* entries;
+	int              count;
+	int              capacity;
+} b3GeometryRegistry;
+
+// User-owned recording buffer. The world appends into it while active; the host saves and
+// destroys it. Opaque across the public API.
+typedef struct b3Recording
+{
+	b3RecBuffer      buffer;
+	int              recordStart;      // offset of the 3-byte size field for u24 backpatch
+	b3Mutex*         lock;             // serializes query commits from concurrent threads
+	b3GeometryRegistry registry;
+
+	// Union of world bounds over every recorded step, written at stop.
+	b3AABB           accumulatedBounds;
+	bool             haveBounds;
+} b3Recording;
+
+// C type aliases per TAG, used in the X-macro codegen arg structs
+typedef bool             b3RecCType_BOOL;
+typedef int32_t          b3RecCType_I32;
+typedef uint8_t          b3RecCType_U8;
+typedef uint16_t         b3RecCType_U16;
+typedef uint32_t         b3RecCType_U32;
+typedef uint64_t         b3RecCType_U64;
+typedef float            b3RecCType_F32;
+typedef double           b3RecCType_F64;
+typedef b3Vec3           b3RecCType_VEC3;
+typedef b3Quat           b3RecCType_QUAT;
+typedef b3Transform      b3RecCType_TRANSFORM;
+typedef b3Pos            b3RecCType_POSITION;
+typedef b3WorldTransform b3RecCType_WORLDXF;
+typedef b3Matrix3        b3RecCType_MATRIX3;
+typedef b3AABB           b3RecCType_AABB;
+typedef b3Sphere         b3RecCType_SPHERE;
+typedef b3Capsule        b3RecCType_CAPSULE;
+// Geometry reference: a plain u32 id into the trailing registry
+typedef uint32_t         b3RecCType_GEOMID;
+typedef b3Filter         b3RecCType_FILTER;
+typedef b3SurfaceMaterial b3RecCType_MATERIAL;
+typedef b3MassData       b3RecCType_MASSDATA;
+typedef b3MotionLocks    b3RecCType_LOCKS;
+typedef const char*      b3RecCType_STR;
+typedef b3WorldId        b3RecCType_WORLDID;
+typedef b3BodyId         b3RecCType_BODYID;
+typedef b3ShapeId        b3RecCType_SHAPEID;
+typedef b3JointId        b3RecCType_JOINTID;
+typedef b3BodyDef        b3RecCType_BODYDEF;
+typedef b3ShapeDef       b3RecCType_SHAPEDEF;
+typedef b3ExplosionDef   b3RecCType_EXPLOSIONDEF;
+typedef b3ParallelJointDef  b3RecCType_PARALLELJOINTDEF;
+typedef b3DistanceJointDef  b3RecCType_DISTANCEJOINTDEF;
+typedef b3FilterJointDef    b3RecCType_FILTERJOINTDEF;
+typedef b3MotorJointDef     b3RecCType_MOTORJOINTDEF;
+typedef b3PrismaticJointDef b3RecCType_PRISMATICJOINTDEF;
+typedef b3RevoluteJointDef  b3RecCType_REVOLUTEJOINTDEF;
+typedef b3SphericalJointDef b3RecCType_SPHERICALJOINTDEF;
+typedef b3WeldJointDef      b3RecCType_WELDJOINTDEF;
+typedef b3WheelJointDef     b3RecCType_WHEELJOINTDEF;
+
+// Codegen pass 1a: arg structs. Generated here so call sites (body.c, shape.c, etc.) can see them.
+#define ARG( TAG, field ) b3RecCType_##TAG field;
+#define B3_REC_OP( op, Name, RET, ... )                                                                                          \
+	typedef struct                                                                                                               \
+	{                                                                                                                            \
+		__VA_ARGS__                                                                                                              \
+	} b3RecArgs_##Name;
+#include "recording_ops.inl"
+#undef B3_REC_OP
+#undef ARG
+
+// Low-level buffer helpers
+void b3RecBufAppend( b3RecBuffer* buf, const void* data, int size );
+void b3RecBufFree( b3RecBuffer* buf );
+
+// Write primitives
+void b3RecW_U8( b3RecBuffer* buf, uint8_t v );
+void b3RecW_U16( b3RecBuffer* buf, uint16_t v );
+void b3RecW_U32( b3RecBuffer* buf, uint32_t v );
+void b3RecW_U64( b3RecBuffer* buf, uint64_t v );
+void b3RecW_I32( b3RecBuffer* buf, int32_t v );
+void b3RecW_F32( b3RecBuffer* buf, float v );
+void b3RecW_F64( b3RecBuffer* buf, double v );
+void b3RecW_BOOL( b3RecBuffer* buf, bool v );
+void b3RecW_VEC3( b3RecBuffer* buf, b3Vec3 v );
+void b3RecW_QUAT( b3RecBuffer* buf, b3Quat v );
+void b3RecW_TRANSFORM( b3RecBuffer* buf, b3Transform v );
+// World position: doubles in large-world mode, floats otherwise (wire-identical to VEC3 in float build)
+void b3RecW_POSITION( b3RecBuffer* buf, b3Pos v );
+void b3RecW_WORLDXF( b3RecBuffer* buf, b3WorldTransform v );
+void b3RecW_MATRIX3( b3RecBuffer* buf, b3Matrix3 v );
+void b3RecW_AABB( b3RecBuffer* buf, b3AABB v );
+void b3RecW_WORLDID( b3RecBuffer* buf, b3WorldId v );
+void b3RecW_BODYID( b3RecBuffer* buf, b3BodyId v );
+void b3RecW_SHAPEID( b3RecBuffer* buf, b3ShapeId v );
+void b3RecW_JOINTID( b3RecBuffer* buf, b3JointId v );
+void b3RecW_SPHERE( b3RecBuffer* buf, b3Sphere v );
+void b3RecW_CAPSULE( b3RecBuffer* buf, b3Capsule v );
+void b3RecW_GEOMID( b3RecBuffer* buf, uint32_t v );
+void b3RecW_FILTER( b3RecBuffer* buf, b3Filter v );
+void b3RecW_MATERIAL( b3RecBuffer* buf, b3SurfaceMaterial v );
+void b3RecW_MASSDATA( b3RecBuffer* buf, b3MassData v );
+void b3RecW_LOCKS( b3RecBuffer* buf, b3MotionLocks v );
+void b3RecW_STR( b3RecBuffer* buf, const char* s );
+void b3RecW_EXPLOSIONDEF( b3RecBuffer* buf, b3ExplosionDef v );
+void b3RecW_BODYDEF( b3RecBuffer* buf, b3BodyDef v );
+void b3RecW_SHAPEDEF( b3RecBuffer* buf, b3ShapeDef v );
+void b3RecW_PARALLELJOINTDEF( b3RecBuffer* buf, b3ParallelJointDef v );
+void b3RecW_DISTANCEJOINTDEF( b3RecBuffer* buf, b3DistanceJointDef v );
+void b3RecW_FILTERJOINTDEF( b3RecBuffer* buf, b3FilterJointDef v );
+void b3RecW_MOTORJOINTDEF( b3RecBuffer* buf, b3MotorJointDef v );
+void b3RecW_PRISMATICJOINTDEF( b3RecBuffer* buf, b3PrismaticJointDef v );
+void b3RecW_REVOLUTEJOINTDEF( b3RecBuffer* buf, b3RevoluteJointDef v );
+void b3RecW_SPHERICALJOINTDEF( b3RecBuffer* buf, b3SphericalJointDef v );
+void b3RecW_WELDJOINTDEF( b3RecBuffer* buf, b3WeldJointDef v );
+void b3RecW_WHEELJOINTDEF( b3RecBuffer* buf, b3WheelJointDef v );
+
+// Record framing
+void b3RecBeginRecord( b3Recording* rec, uint8_t opcode );
+void b3RecEndRecord( b3Recording* rec );
+
+// Per-op arg writers (no framing) and full writers (framing + args), generated from the manifest.
+#define B3_REC_OP( op, Name, RET, ... )                                                                                          \
+	void b3RecWriteArgs_##Name( b3Recording* rec, const b3RecArgs_##Name* a );                                                   \
+	void b3RecWrite_##Name( b3Recording* rec, const b3RecArgs_##Name* a );
+#include "recording_ops.inl"
+#undef B3_REC_OP
+
+// Create ops: declare writers that also append the returned id inside the record.
+#define B3_REC_RETDECL_RET_NONE( Name )
+#define B3_REC_RETDECL_RET_BODYID( Name )  void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, b3BodyId id );
+#define B3_REC_RETDECL_RET_SHAPEID( Name ) void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, b3ShapeId id );
+#define B3_REC_RETDECL_RET_JOINTID( Name ) void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, b3JointId id );
+#define B3_REC_OP( op, Name, RET, ... ) B3_REC_RETDECL_##RET( Name )
+#include "recording_ops.inl"
+#undef B3_REC_OP
+#undef B3_REC_RETDECL_RET_NONE
+#undef B3_REC_RETDECL_RET_BODYID
+#undef B3_REC_RETDECL_RET_SHAPEID
+#undef B3_REC_RETDECL_RET_JOINTID
+
+// Record a void op. The branch is free when recording is off.
+#define B3_REC( world, Name, ... )                                                                                               \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		if ( ( world )->recording != NULL )                                                                                      \
+		{                                                                                                                        \
+			b3RecArgs_##Name recArgs = { __VA_ARGS__ };                                                                             \
+			b3RecWrite_##Name( ( world )->recording, &recArgs );                                                                    \
+		}                                                                                                                        \
+	}                                                                                                                            \
+	while ( 0 )
+
+// Record a create op and its returned id in one framed record. Place after the real create call.
+#define B3_REC_CREATE( world, Name, id, ... )                                                                                    \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		if ( ( world )->recording != NULL )                                                                                      \
+		{                                                                                                                        \
+			b3RecArgs_##Name recCreateArgs = { __VA_ARGS__ };                                                                       \
+			b3RecWriteRet_##Name( ( world )->recording, &recCreateArgs, id );                                                       \
+		}                                                                                                                        \
+	}                                                                                                                            \
+	while ( 0 )
+
+// Geometry registry
+uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
+                           uint8_t* bytes, int byteCount );
+void     b3FreeRegistry( b3GeometryRegistry* reg );
+void     b3RecWriteRegistry( b3Recording* rec );
+
+uint64_t b3Hash64Blob( const uint8_t* bytes, int n );
+
+// HeightField codec
+uint8_t*       b3PackHeightField( const b3HeightField* hf, int* outByteCount );
+b3HeightField* b3UnpackHeightField( const uint8_t* bytes, int byteCount );
+
+// Lifecycle engine-side hooks
+void b3StartRecordingIntoBuffer( b3World* world, b3Recording* recording );
+void b3StopRecordingInternal( b3World* world );
+
+// Fold one step's world bounds into the running union.
+void b3RecAccumulateBounds( b3Recording* rec, b3AABB bounds );
+
+// Deterministic hash over all body transforms and velocities. Stub until Phase 2.
+uint64_t b3HashWorldState( b3World* world );

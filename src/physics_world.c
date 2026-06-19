@@ -405,6 +405,10 @@ void b3DestroyWorld( b3WorldId worldId )
 
 	world->locked = true;
 
+	// Detach any live recording so the buffer handle is not freed with the world.
+	// The caller still owns the b3Recording and must destroy it separately.
+	world->recording = NULL;
+
 	if ( world->scheduler != NULL )
 	{
 		b3DestroyScheduler( world->scheduler );

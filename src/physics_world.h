@@ -16,6 +16,7 @@
 #define B3_DEBUG_LINE_CAPACITY 64
 
 typedef struct b3Body b3Body;
+typedef struct b3Recording b3Recording;
 typedef struct b3Contact b3Contact;
 typedef struct b3Island b3Island;
 typedef struct b3Joint b3Joint;
@@ -273,6 +274,10 @@ typedef struct b3World
 	// This indicates there is a world write operation in progress. This is for debugging and
 	// not a real mutex. This should have minimal performance impact.
 	bool locked;
+
+	// Non-NULL while a recording session is active. Set by b3World_StartRecording,
+	// cleared by b3World_StopRecording. Hooks in mutators check this before writing.
+	struct b3Recording* recording;
 
 	bool enableWarmStarting;
 	bool enableContinuous;
