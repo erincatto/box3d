@@ -2309,6 +2309,9 @@ static b3WorldId b3RecPlayerCreateWorld( const b3RecPlayer* player )
 	worldDef.createDebugShape      = player->createDebugShape;
 	worldDef.destroyDebugShape     = player->destroyDebugShape;
 	worldDef.userDebugShapeContext = player->debugShapeContext;
+	// Carry the requested worker count so a rebuild on Restart or backward seek keeps the same
+	// graph partitioning. Replaying at a different count than recorded is a determinism check.
+	worldDef.workerCount = b3MaxInt( 1, player->recordedWorkerCount );
 	return b3CreateWorld( &worldDef );
 }
 
@@ -2674,6 +2677,24 @@ b3RecPlayerInfo b3RecPlayer_GetInfo( const b3RecPlayer* player )
 int b3RecPlayer_GetDivergeFrame( const b3RecPlayer* player )
 {
 	return player != NULL ? player->divergeFrame : -1;
+}
+
+void b3RecPlayer_SetWorkerCount( b3RecPlayer* player, int count )
+{
+	if ( player == NULL )
+	{
+		return;
+	}
+
+	player->recordedWorkerCount = b3ClampInt( count, 1, B3_MAX_WORKERS );
+
+	// Apply to the live world now so the next steps re-partition without a rebuild. Worker count is
+	// host state, not part of a keyframe image, so it survives an in-place restore. A rebuild on
+	// Restart or deep backward seek picks the count back up through b3RecPlayerCreateWorld.
+	if ( b3World_IsValid( player->rdr.replayWorldId ) )
+	{
+		b3World_SetWorkerCount( player->rdr.replayWorldId, player->recordedWorkerCount );
+	}
 }
 
 void b3RecPlayer_SetKeyframePolicy( b3RecPlayer* player, size_t budgetBytes, int minIntervalFrames )

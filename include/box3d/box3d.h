@@ -327,7 +327,9 @@ typedef struct b3RecPlayerInfo
 /// Create a player over a recording. Owns a private copy of the bytes.
 /// @param data pointer to recording bytes
 /// @param size byte count of the recording
-/// @param workerCount ignored for now; replay is always serial
+/// @param workerCount worker count for the replay world; pass 1 to match a serial recording.
+/// Replaying at a different count re-partitions the constraint graph, so the StateHash check
+/// becomes a cross-thread determinism test. Adjustable later with b3RecPlayer_SetWorkerCount.
 /// @return a new player, or NULL on bad header or deserialization failure
 B3_API b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount );
 
@@ -365,6 +367,12 @@ B3_API b3RecPlayerInfo b3RecPlayer_GetInfo( const b3RecPlayer* player );
 
 /// @return the first frame at which replay diverged, or -1 if it has not diverged
 B3_API int b3RecPlayer_GetDivergeFrame( const b3RecPlayer* player );
+
+/// Set the worker count of the replay world. Clamped to [1, B3_MAX_WORKERS]. Applied to the live
+/// world at once and reused whenever the player rebuilds its world on Restart or a backward seek.
+/// Replaying at a different count than recorded re-partitions the constraint graph, so the StateHash
+/// check becomes a cross-thread determinism test.
+B3_API void b3RecPlayer_SetWorkerCount( b3RecPlayer* player, int count );
 
 /// Tune the keyframe ring used to speed up backward seeking. A keyframe is a periodic snapshot the
 /// player restores from instead of replaying from the start, trading memory for seek speed.
