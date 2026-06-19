@@ -169,7 +169,10 @@ PickRay Camera::BuildPickRay( float x, float y ) const
 		ray.origin = b3Pos_zero;
 		ray.translation = b3Vec3_zero;
 	}
-	ray.origin = b3OffsetPos( m_worldEye, origin );
+	else
+	{
+		ray.origin = b3OffsetPos( m_worldEye, origin );
+	}
 	return ray;
 }
 

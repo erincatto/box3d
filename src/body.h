@@ -240,7 +240,6 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body );
 void b3DumpBody( b3World* world, b3Body* body );
 
 // Make a sweep relative to a base position to keep TOI in float precision far from the origin.
-// In float mode the base is zero so the sweep is identical to the absolute world sweep.
 static inline b3Sweep b3MakeRelativeSweep( const b3BodySim* bodySim, b3Pos base )
 {
 	b3Sweep s;
