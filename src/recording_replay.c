@@ -3307,6 +3307,35 @@ static void b3RecDrawHitBounds( const b3RecPlayer* player, const b3RecDrawQuery*
 	}
 }
 
+// Draw a recorded shape proxy at basePos. A lone point with no radius draws a fat point, a lone point
+// with a radius draws a translucent sphere, and a multi-point cloud draws its points. Capsule and hull
+// proxies are rare and fall through to the point cloud for now.
+static void b3RecDrawProxy( b3DebugDraw* draw, b3Pos basePos, const b3RecDrawQuery* q, b3HexColor color )
+{
+	if ( q->proxyCount == 1 )
+	{
+		b3Pos p = b3OffsetPos( basePos, q->proxyPoints[0] );
+		if ( q->proxyRadius > 0.0f )
+		{
+			if ( draw->DrawSphereFcn )
+			{
+				draw->DrawSphereFcn( p, q->proxyRadius, color, 0.5f, draw->context );
+			}
+		}
+		else if ( draw->DrawPointFcn )
+		{
+			draw->DrawPointFcn( p, 10.0f, color, draw->context );
+		}
+	}
+	else if ( q->proxyCount >= 2 && draw->DrawPointFcn )
+	{
+		for ( int i = 0; i < q->proxyCount; ++i )
+		{
+			draw->DrawPointFcn( b3OffsetPos( basePos, q->proxyPoints[i] ), 6.0f, color, draw->context );
+		}
+	}
+}
+
 void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int queryIndex )
 {
 	if ( player == NULL || draw == NULL )
@@ -3352,6 +3381,13 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 			}
 			case B3_RECQ_CAST_SHAPE:
 			{
+				// Draw the cast line and the proxy at its start, then each hit point and normal.
+				if ( draw->DrawSegmentFcn )
+				{
+					draw->DrawSegmentFcn( q->origin, b3OffsetPos( q->origin, q->translation ), b3_colorSkyBlue,
+										  draw->context );
+				}
+				b3RecDrawProxy( draw, q->origin, q, b3_colorLightGreen );
 				for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
 				{
 					const b3RecRecordedHit* h = &player->frameHits[hi];
@@ -3363,6 +3399,11 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 					{
 						draw->DrawSegmentFcn( h->point, b3OffsetPos( h->point, b3MulSV( 0.2f, h->normal ) ),
 											  b3_colorLightSkyBlue, draw->context );
+					}
+					if (draw->DrawSphereFcn)
+					{
+						b3Pos p = b3OffsetPos(q->origin, b3MulSV(h->fraction, q->translation));
+						b3RecDrawProxy( draw, p, q, b3_colorSkyBlue );
 					}
 				}
 				break;
@@ -3408,15 +3449,8 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 			}
 			case B3_RECQ_OVERLAP_SHAPE:
 			{
-				// The proxy points are origin relative; draw them as a point cloud.
-				if ( draw->DrawPointFcn )
-				{
-					for ( int i = 0; i < q->proxyCount; ++i )
-					{
-						draw->DrawPointFcn( b3OffsetPos( q->origin, q->proxyPoints[i] ), 4.0f, b3_colorLimeGreen,
-											draw->context );
-					}
-				}
+				// The overlap proxy sits at the origin; draw it, then the overlapping shape bounds.
+				b3RecDrawProxy( draw, q->origin, q, b3_colorLimeGreen );
 				b3RecDrawHitBounds( player, q, draw );
 				break;
 			}
