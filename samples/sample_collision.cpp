@@ -511,11 +511,6 @@ public:
 		}
 	}
 
-	//bool HasSolverControls() const override
-	//{
-	//	return true;
-	//}
-
 	bool DrawControls() override
 	{
 		const char* castTypes[] = { "Ray", "Sphere", "Capsule", "Box" };
@@ -663,6 +658,7 @@ public:
 				else if ( m_castType == e_sphereCast )
 				{
 					DrawLine( point, head, MakeColor( color1 ) );
+					//DrawWireSphere( transform, &sphere, 32, MakeColorAlpha( colors[i], 0.5f ) );
 					DrawSolidSphere( transform, sphere, MakeColorAlpha( colors[i], 0.5f ) );
 				}
 				else if ( m_castType == e_capsuleCast )

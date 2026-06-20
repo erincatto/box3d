@@ -3,7 +3,6 @@
 
 #include "gfx/debug_adapter.h"
 
-#include "box3d/box3d.h"
 #include "gfx/debug_shapes.h"
 #include "gfx/draw.h"
 #include "gfx/geometry_registry.h"
@@ -11,6 +10,8 @@
 #include "gfx/overlay.h"
 #include "gfx/renderer.h"
 #include "gfx/text.h"
+
+#include "box3d/box3d.h"
 
 #include <assert.h>
 #include <math.h>
@@ -226,7 +227,7 @@ void SetShapeMaterial( b3ShapeId shapeId, Vec4 color, float metallic, float roug
 			return;
 		}
 	}
-	
+
 	if ( s_adapter.materialOverrideCount >= BOX3D_MATERIAL_OVERRIDE_CAPACITY )
 	{
 		return;
@@ -285,12 +286,12 @@ static HighlightKind ResolveHighlightKind( b3BodyId bodyId )
 	{
 		return HIGHLIGHT_KIND_SELECT;
 	}
-	
+
 	if ( B3_ID_EQUALS( bodyId, s_adapter.hoveredBodyId ) )
 	{
 		return HIGHLIGHT_KIND_HOVER;
 	}
-	
+
 	return HIGHLIGHT_KIND_NONE;
 }
 
@@ -340,6 +341,15 @@ static Vec4 HexColorToVec4( b3HexColor color )
 	return MakeVec4( r, g, b, 1.0f );
 }
 
+static Vec4 HexColorAToVec4( b3HexColor color, float alpha )
+{
+	const uint32_t v = (uint32_t)color;
+	const float r = (float)( ( v >> 16 ) & 0xFFu ) * ( 1.0f / 255.0f );
+	const float g = (float)( ( v >> 8 ) & 0xFFu ) * ( 1.0f / 255.0f );
+	const float b = (float)( v & 0xFFu ) * ( 1.0f / 255.0f );
+	return MakeVec4( r, g, b, alpha );
+}
+
 // sRGB EOTF, the standard piecewise curve (IEC 61966-2-1), one channel.
 static float SRGBToLinear( float c )
 {
@@ -357,7 +367,7 @@ static Vec4 HexColorToLinear( b3HexColor color )
 // Get a capsule transform to represent axial spin
 static b3Transform GetCapsuleLocalFrame( b3Vec3 c1, b3Vec3 c2, float* outHalfLength )
 {
-	b3Vec3 d = b3Sub(c2, c1);
+	b3Vec3 d = b3Sub( c2, c1 );
 	float length = b3Length( d );
 	*outHalfLength = 0.5f * length;
 
@@ -767,7 +777,7 @@ static bool DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexCo
 }
 
 #define BOX3D_LINE_THICKNESS_PX 2.5f
-#define BOX3D_TRANSFORM_LENGTH (0.25f * b3GetLengthUnitsPerMeter())
+#define BOX3D_TRANSFORM_LENGTH ( 0.25f * b3GetLengthUnitsPerMeter() )
 
 static void DrawSegmentFcn( b3Pos p1, b3Pos p2, b3HexColor color, void* context )
 {
@@ -802,6 +812,13 @@ static void DrawPointFcn( b3Pos p, float size, b3HexColor color, void* context )
 						OVERLAY_OCCLUSION_HIDE );
 }
 
+static void DrawSphereFcn( b3Pos p, float radius, b3HexColor color, float alpha, void* context )
+{
+	(void)context;
+	DrawSphereEx( (b3WorldTransform){ p, b3Quat_identity }, radius, HexColorAToVec4( color, alpha ), DEFAULT_METALLIC,
+				  DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_NONE );
+}
+
 static void DrawBoundsFcn( b3AABB aabb, b3HexColor color, void* context )
 {
 	(void)context;
@@ -824,7 +841,7 @@ static void DrawBoundsFcn( b3AABB aabb, b3HexColor color, void* context )
 	float th = BOX3D_LINE_THICKNESS_PX;
 	OverlayThicknessUnit u = OVERLAY_THICKNESS_PIXELS;
 	OverlayOcclusionMode o = OVERLAY_OCCLUSION_HIDE;
-	
+
 	// Bottom face
 	OverlayAppendLine( c000, c100, c, th, u, o );
 	OverlayAppendLine( c100, c101, c, th, u, o );
@@ -917,6 +934,7 @@ void MakeDebugDraw( b3DebugDraw* out )
 	out->DrawSegmentFcn = DrawSegmentFcn;
 	out->DrawTransformFcn = DrawTransformFcn;
 	out->DrawPointFcn = DrawPointFcn;
+	out->DrawSphereFcn = DrawSphereFcn;
 	out->DrawBoundsFcn = DrawBoundsFcn;
 	out->DrawBoxFcn = DrawBoxFcn;
 	out->DrawStringFcn = DrawStringFcn;
