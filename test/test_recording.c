@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#if defined( _MSC_VER ) && !defined( _CRT_SECURE_NO_WARNINGS )
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "box3d/box3d.h"
 #include "box3d/collision.h"
 #include "test_macros.h"
@@ -11,6 +15,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+static const char* s_recPath = "recording_allops_test.b3rec";
 
 // Sphere round-trip: record/step/stop, then replay and validate.
 static int SphereRoundTrip( void )
@@ -834,9 +840,6 @@ static int QueryReplay( void )
 	// Headless validation: re-issues every recorded query and compares the results.
 	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 ) );
 
-	// A different worker count replays the same queries, a cross-thread determinism check.
-	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 4 ) );
-
 	// Player path: seek to a mid frame and confirm the per-frame store holds all seven queries.
 	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
 	ENSURE( player != NULL );
@@ -918,6 +921,569 @@ static int EmptyWorldRoundTrip( void )
 	return 0;
 }
 
+// Exercise every recorded op in a single session, then validate replay at two worker
+// counts, round-trip through a file, and drive the incremental player. Mirrors the
+// comprehensive RecordingTest in Box2D's test suite (box2d/test/test_recording.c).
+static int RecTestAssertDbg( const char* cond, const char* file, int line )
+{
+	fprintf( stderr, "BOX3D ASSERTION: %s, %s:%d\n", cond, file, line );
+	fflush( stderr );
+	return 1;
+}
+
+static int AllOps( void )
+{
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.workerCount = 1;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	ENSURE( b3World_IsValid( worldId ) );
+
+	b3World_StartRecording( worldId, rec );
+
+	// Static ground with a box-hull shape
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	groundDef.type = b3_staticBody;
+	b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+	ENSURE( b3Body_IsValid( groundId ) );
+	b3BoxHull groundBox = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
+	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
+	b3ShapeId groundShapeId = b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
+	ENSURE( b3Shape_IsValid( groundShapeId ) );
+
+	// Dynamic body with a sphere shape. The name is intentionally longer than B3_NAME_LENGTH so
+	// replay exercises the over-length name path in the body def reader.
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ 0.0f, 5.0f, 0.0f };
+	bodyDef.name = "testBodyWithVeryLongNameThatExceedsTheNameLength";
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+	ENSURE( b3Body_IsValid( bodyId ) );
+
+	b3ShapeDef sphereShapeDef = b3DefaultShapeDef();
+	sphereShapeDef.density = 1.0f;
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+	b3ShapeId sphereShapeId = b3CreateSphereShape( bodyId, &sphereShapeDef, &sphere );
+	ENSURE( b3Shape_IsValid( sphereShapeId ) );
+
+	// Capsule shape on a second dynamic body
+	b3BodyDef capsuleBodyDef = b3DefaultBodyDef();
+	capsuleBodyDef.type = b3_dynamicBody;
+	capsuleBodyDef.position = (b3Pos){ 3.0f, 5.0f, 0.0f };
+	b3BodyId capsuleBodyId = b3CreateBody( worldId, &capsuleBodyDef );
+	ENSURE( b3Body_IsValid( capsuleBodyId ) );
+
+	b3ShapeDef capsuleShapeDef = b3DefaultShapeDef();
+	capsuleShapeDef.density = 1.0f;
+	b3Capsule capsule = { { 0.0f, -0.4f, 0.0f }, { 0.0f, 0.4f, 0.0f }, 0.25f };
+	b3ShapeId capsuleShapeId = b3CreateCapsuleShape( capsuleBodyId, &capsuleShapeDef, &capsule );
+	ENSURE( b3Shape_IsValid( capsuleShapeId ) );
+
+	// Custom hull shape on a third dynamic body
+	b3Vec3 hullPts[8] = {
+		{ -0.5f, -0.5f, -0.5f }, {  0.5f, -0.5f, -0.5f },
+		{  0.5f,  0.5f, -0.5f }, { -0.5f,  0.5f, -0.5f },
+		{ -0.5f, -0.5f,  0.5f }, {  0.5f, -0.5f,  0.5f },
+		{  0.5f,  0.5f,  0.5f }, { -0.5f,  0.5f,  0.5f },
+	};
+	b3HullData* customHull = b3CreateHull( hullPts, 8, 8 );
+	ENSURE( customHull != NULL );
+
+	b3BodyDef hullBodyDef = b3DefaultBodyDef();
+	hullBodyDef.type = b3_dynamicBody;
+	hullBodyDef.position = (b3Pos){ -3.0f, 5.0f, 0.0f };
+	b3BodyId hullBodyId = b3CreateBody( worldId, &hullBodyDef );
+	ENSURE( b3Body_IsValid( hullBodyId ) );
+
+	b3ShapeDef hullShapeDef = b3DefaultShapeDef();
+	hullShapeDef.density = 1.0f;
+	b3ShapeId hullShapeId = b3CreateHullShape( hullBodyId, &hullShapeDef, customHull );
+	ENSURE( b3Shape_IsValid( hullShapeId ) );
+
+	// Box hull shape on a fourth dynamic body (b3MakeBoxHull path)
+	b3BodyDef boxBodyDef = b3DefaultBodyDef();
+	boxBodyDef.type = b3_dynamicBody;
+	boxBodyDef.position = (b3Pos){ 6.0f, 5.0f, 0.0f };
+	b3BodyId boxBodyId = b3CreateBody( worldId, &boxBodyDef );
+	ENSURE( b3Body_IsValid( boxBodyId ) );
+
+	b3ShapeDef boxShapeDef = b3DefaultShapeDef();
+	boxShapeDef.density = 2.0f;
+	b3BoxHull boxHull = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3ShapeId boxShapeId = b3CreateHullShape( boxBodyId, &boxShapeDef, &boxHull.base );
+	ENSURE( b3Shape_IsValid( boxShapeId ) );
+
+	// Mesh, height field, and compound static shapes (3D-only)
+	b3BodyDef meshBodyDef = b3DefaultBodyDef();
+	meshBodyDef.type = b3_staticBody;
+	meshBodyDef.position = (b3Pos){ 20.0f, 0.0f, 0.0f };
+	b3BodyId meshBodyId = b3CreateBody( worldId, &meshBodyDef );
+	b3MeshData* meshData = b3CreateGridMesh( 3, 3, 2.0f, 0, false );
+	ENSURE( meshData != NULL );
+	b3ShapeDef meshShapeDef = b3DefaultShapeDef();
+	b3CreateMeshShape( meshBodyId, &meshShapeDef, meshData, (b3Vec3){ 1.0f, 1.0f, 1.0f } );
+
+	b3BodyDef hfBodyDef = b3DefaultBodyDef();
+	hfBodyDef.type = b3_staticBody;
+	hfBodyDef.position = (b3Pos){ -20.0f, 0.0f, 0.0f };
+	b3BodyId hfBodyId = b3CreateBody( worldId, &hfBodyDef );
+	b3HeightField* hf = b3CreateGrid( 4, 4, (b3Vec3){ 2.0f, 1.0f, 2.0f }, false );
+	ENSURE( hf != NULL );
+	b3ShapeDef hfShapeDef = b3DefaultShapeDef();
+	b3CreateHeightFieldShape( hfBodyId, &hfShapeDef, hf );
+
+	b3BodyDef compoundBodyDef = b3DefaultBodyDef();
+	compoundBodyDef.type = b3_staticBody;
+	compoundBodyDef.position = (b3Pos){ 30.0f, 0.0f, 0.0f };
+	b3BodyId compoundBodyId = b3CreateBody( worldId, &compoundBodyDef );
+	b3CompoundSphereDef compSphere;
+	compSphere.sphere = (b3Sphere){ { 0.0f, 0.0f, 0.0f }, 1.0f };
+	compSphere.material = b3DefaultSurfaceMaterial();
+	b3CompoundDef compoundDef;
+	memset( &compoundDef, 0, sizeof( compoundDef ) );
+	compoundDef.spheres = &compSphere;
+	compoundDef.sphereCount = 1;
+	b3Compound* compound = b3CreateCompound( &compoundDef );
+	ENSURE( compound != NULL );
+	b3ShapeDef compoundShapeDef = b3DefaultShapeDef();
+	b3CreateCompoundShape( compoundBodyId, &compoundShapeDef, compound );
+
+	// Throwaway shape to exercise DestroyShape
+	b3Sphere tmpSphere = { { 0.0f, 0.0f, 0.0f }, 0.1f };
+	b3ShapeId tmpShapeId = b3CreateSphereShape( capsuleBodyId, &capsuleShapeDef, &tmpSphere );
+	b3DestroyShape( tmpShapeId, true );
+
+	// Shape mutators: SetFriction, SetRestitution, SetDensity, SetSurfaceMaterial, SetFilter,
+	// EnableSensorEvents, EnableContactEvents, EnableHitEvents, EnablePreSolveEvents, ApplyWind,
+	// SetSphere, SetCapsule
+	b3Shape_SetFriction( boxShapeId, 0.3f );
+	b3Shape_SetRestitution( capsuleShapeId, 0.5f );
+	b3Shape_SetDensity( boxShapeId, 3.0f, true );
+	b3SurfaceMaterial surfMat = b3DefaultSurfaceMaterial();
+	surfMat.friction = 0.7f;
+	surfMat.restitution = 0.1f;
+	b3Shape_SetSurfaceMaterial( capsuleShapeId, surfMat );
+	b3Filter shapeFilter = b3DefaultFilter();
+	shapeFilter.categoryBits = 0x2;
+	b3Shape_SetFilter( boxShapeId, shapeFilter, false );
+	b3Shape_EnableSensorEvents( capsuleShapeId, true );
+	b3Shape_EnableContactEvents( capsuleShapeId, true );
+	b3Shape_EnableHitEvents( boxShapeId, true );
+	b3Shape_EnablePreSolveEvents( boxShapeId, true );
+	b3Shape_ApplyWind( capsuleShapeId, (b3Vec3){ 1.0f, 0.0f, 0.0f }, 0.1f, 0.0f, 10.0f, true );
+	b3Sphere newSphere = { { 0.0f, 0.0f, 0.0f }, 0.45f };
+	b3Shape_SetSphere( sphereShapeId, &newSphere );
+	b3Capsule newCapsule = { { 0.0f, -0.3f, 0.0f }, { 0.0f, 0.3f, 0.0f }, 0.3f };
+	b3Shape_SetCapsule( capsuleShapeId, &newCapsule );
+
+	// Body mutators: SetTransform, SetLinearVelocity/AngularVelocity (Vec3), SetName,
+	// damping, gravity scale, sleep threshold, SetAwake, EnableSleep, SetBullet, SetMotionLocks,
+	// SetMassData, ApplyMassFromShapes, SetType, SetTargetTransform, Disable/Enable, EnableContactRecycling,
+	// EnableHitEvents, all force/impulse/torque variants
+	b3Body_SetTransform( bodyId, (b3Pos){ 1.0f, 6.0f, 0.0f }, b3Quat_identity );
+	b3Body_SetLinearVelocity( bodyId, (b3Vec3){ 0.5f, 0.0f, 0.0f } );
+	b3Body_SetAngularVelocity( bodyId, (b3Vec3){ 0.0f, 0.25f, 0.0f } );
+	b3Body_SetName( bodyId, "renamedBody" );
+	b3Body_SetLinearDamping( bodyId, 0.1f );
+	b3Body_SetAngularDamping( bodyId, 0.05f );
+	b3Body_SetGravityScale( bodyId, 0.9f );
+	b3Body_SetSleepThreshold( bodyId, 0.02f );
+	b3Body_EnableSleep( bodyId, false );
+	b3Body_SetBullet( bodyId, true );
+	b3Body_EnableContactRecycling( bodyId, false );
+	b3Body_EnableHitEvents( bodyId, true );
+	b3Body_SetMotionLocks( bodyId, (b3MotionLocks){ false, false, false, false, false, true } );
+	b3MassData massData;
+	massData.mass = 2.0f;
+	massData.center = (b3Vec3){ 0.0f, 0.0f, 0.0f };
+	massData.inertia = b3Mat3_identity;
+	b3Body_SetMassData( bodyId, massData );
+	b3Body_ApplyMassFromShapes( bodyId );
+	b3Body_SetType( capsuleBodyId, b3_kinematicBody );
+	b3Body_SetType( capsuleBodyId, b3_dynamicBody );
+	b3Body_SetAwake( bodyId, true );
+
+	// Kinematic body to exercise SetTargetTransform
+	b3BodyDef kinematicDef = b3DefaultBodyDef();
+	kinematicDef.type = b3_kinematicBody;
+	kinematicDef.position = (b3Pos){ -6.0f, 5.0f, 0.0f };
+	b3BodyId kinematicId = b3CreateBody( worldId, &kinematicDef );
+	b3BoxHull kinBox = b3MakeBoxHull( 0.4f, 0.4f, 0.4f );
+	b3ShapeDef kinShapeDef = b3DefaultShapeDef();
+	b3CreateHullShape( kinematicId, &kinShapeDef, &kinBox.base );
+	b3WorldTransform kinTarget;
+	kinTarget.p = (b3Pos){ -5.0f, 5.0f, 0.0f };
+	kinTarget.q = b3Quat_identity;
+	b3Body_SetTargetTransform( kinematicId, kinTarget, 1.0f / 60.0f, true );
+
+	// Body to exercise Disable/Enable
+	b3BodyDef disableDef = b3DefaultBodyDef();
+	disableDef.type = b3_dynamicBody;
+	disableDef.position = (b3Pos){ 9.0f, 5.0f, 0.0f };
+	b3BodyId disableId = b3CreateBody( worldId, &disableDef );
+	b3Sphere disableSphere = { { 0.0f, 0.0f, 0.0f }, 0.3f };
+	b3CreateSphereShape( disableId, &sphereShapeDef, &disableSphere );
+	b3Body_Disable( disableId );
+	b3Body_Enable( disableId );
+
+	// Force/impulse/torque (Vec3 args in 3D)
+	b3Body_ApplyForce( bodyId, (b3Vec3){ 0.0f, 50.0f, 0.0f }, (b3Pos){ 1.0f, 6.0f, 0.0f }, true );
+	b3Body_ApplyForceToCenter( bodyId, (b3Vec3){ 5.0f, 0.0f, 0.0f }, true );
+	b3Body_ApplyTorque( bodyId, (b3Vec3){ 0.0f, 1.0f, 0.0f }, true );
+	b3Body_ApplyLinearImpulse( bodyId, (b3Vec3){ 0.1f, 0.0f, 0.0f }, (b3Pos){ 1.0f, 6.0f, 0.0f }, true );
+	b3Body_ApplyLinearImpulseToCenter( bodyId, (b3Vec3){ 0.0f, 0.1f, 0.0f }, true );
+	b3Body_ApplyAngularImpulse( bodyId, (b3Vec3){ 0.0f, 0.05f, 0.0f }, true );
+
+	// Joint bodies: a row of dynamic bodies connected by each joint type
+	b3BodyId jb[9];
+	for ( int i = 0; i < 9; ++i )
+	{
+		b3BodyDef jbd = b3DefaultBodyDef();
+		jbd.type = b3_dynamicBody;
+		jbd.position = (b3Pos){ -8.0f + (float)i * 2.0f, 10.0f, 0.0f };
+		jb[i] = b3CreateBody( worldId, &jbd );
+		b3Sphere js = { { 0.0f, 0.0f, 0.0f }, 0.25f };
+		b3ShapeDef jsd = b3DefaultShapeDef();
+		jsd.density = 1.0f;
+		b3CreateSphereShape( jb[i], &jsd, &js );
+	}
+
+	// Revolute joint with full setter coverage and the generic joint mutators
+	b3RevoluteJointDef revDef = b3DefaultRevoluteJointDef();
+	revDef.base.bodyIdA = jb[0];
+	revDef.base.bodyIdB = jb[1];
+	revDef.base.localFrameA.p = (b3Vec3){ 1.0f, 0.0f, 0.0f };
+	revDef.base.localFrameB.p = (b3Vec3){ -1.0f, 0.0f, 0.0f };
+	b3JointId revId = b3CreateRevoluteJoint( worldId, &revDef );
+	ENSURE( b3Joint_IsValid( revId ) );
+	b3RevoluteJoint_EnableLimit( revId, true );
+	b3RevoluteJoint_SetLimits( revId, -1.0f, 1.0f );
+	b3RevoluteJoint_EnableMotor( revId, true );
+	b3RevoluteJoint_SetMotorSpeed( revId, 0.5f );
+	b3RevoluteJoint_SetMaxMotorTorque( revId, 10.0f );
+	b3RevoluteJoint_EnableSpring( revId, true );
+	b3RevoluteJoint_SetSpringHertz( revId, 2.0f );
+	b3RevoluteJoint_SetSpringDampingRatio( revId, 0.5f );
+	b3RevoluteJoint_SetTargetAngle( revId, 0.25f );
+	b3Joint_SetLocalFrameA( revId, (b3Transform){ (b3Vec3){ 1.0f, 0.0f, 0.0f }, b3Quat_identity } );
+	b3Joint_SetLocalFrameB( revId, (b3Transform){ (b3Vec3){ -1.0f, 0.0f, 0.0f }, b3Quat_identity } );
+	b3Joint_SetConstraintTuning( revId, 60.0f, 2.0f );
+	b3Joint_SetForceThreshold( revId, 100.0f );
+	b3Joint_SetTorqueThreshold( revId, 50.0f );
+	b3Joint_SetCollideConnected( revId, false );
+	b3Joint_WakeBodies( revId );
+
+	// Distance joint
+	b3DistanceJointDef distDef = b3DefaultDistanceJointDef();
+	distDef.base.bodyIdA = jb[1];
+	distDef.base.bodyIdB = jb[2];
+	distDef.length = 2.0f;
+	b3JointId distId = b3CreateDistanceJoint( worldId, &distDef );
+	b3DistanceJoint_SetLength( distId, 2.2f );
+	b3DistanceJoint_EnableSpring( distId, true );
+	b3DistanceJoint_SetSpringHertz( distId, 3.0f );
+	b3DistanceJoint_SetSpringDampingRatio( distId, 0.4f );
+	b3DistanceJoint_SetSpringForceRange( distId, -50.0f, 50.0f );
+	b3DistanceJoint_EnableLimit( distId, true );
+	b3DistanceJoint_SetLengthRange( distId, 1.0f, 4.0f );
+	b3DistanceJoint_EnableMotor( distId, true );
+	b3DistanceJoint_SetMotorSpeed( distId, 0.3f );
+	b3DistanceJoint_SetMaxMotorForce( distId, 5.0f );
+
+	// Filter joint (plus a throwaway to exercise DestroyJoint)
+	b3FilterJointDef filterDef = b3DefaultFilterJointDef();
+	filterDef.base.bodyIdA = jb[2];
+	filterDef.base.bodyIdB = jb[3];
+	b3JointId filterId = b3CreateFilterJoint( worldId, &filterDef );
+	ENSURE( b3Joint_IsValid( filterId ) );
+
+	b3DistanceJointDef tmpJointDef = b3DefaultDistanceJointDef();
+	tmpJointDef.base.bodyIdA = jb[0];
+	tmpJointDef.base.bodyIdB = jb[8];
+	tmpJointDef.length = 5.0f;
+	b3JointId tmpJointId = b3CreateDistanceJoint( worldId, &tmpJointDef );
+	b3DestroyJoint( tmpJointId, true );
+
+	// Motor joint (Vec3 velocities in 3D)
+	b3MotorJointDef motorDef = b3DefaultMotorJointDef();
+	motorDef.base.bodyIdA = jb[3];
+	motorDef.base.bodyIdB = jb[4];
+	b3JointId motorId = b3CreateMotorJoint( worldId, &motorDef );
+	b3MotorJoint_SetLinearVelocity( motorId, (b3Vec3){ 0.1f, 0.0f, 0.0f } );
+	b3MotorJoint_SetAngularVelocity( motorId, (b3Vec3){ 0.0f, 0.2f, 0.0f } );
+	b3MotorJoint_SetMaxVelocityForce( motorId, 10.0f );
+	b3MotorJoint_SetMaxVelocityTorque( motorId, 10.0f );
+	b3MotorJoint_SetLinearHertz( motorId, 2.0f );
+	b3MotorJoint_SetLinearDampingRatio( motorId, 0.5f );
+	b3MotorJoint_SetAngularHertz( motorId, 2.0f );
+	b3MotorJoint_SetAngularDampingRatio( motorId, 0.5f );
+	b3MotorJoint_SetMaxSpringForce( motorId, 20.0f );
+	b3MotorJoint_SetMaxSpringTorque( motorId, 20.0f );
+
+	// Prismatic joint
+	b3PrismaticJointDef prisDef = b3DefaultPrismaticJointDef();
+	prisDef.base.bodyIdA = jb[4];
+	prisDef.base.bodyIdB = jb[5];
+	b3JointId prisId = b3CreatePrismaticJoint( worldId, &prisDef );
+	b3PrismaticJoint_EnableSpring( prisId, true );
+	b3PrismaticJoint_SetSpringHertz( prisId, 2.0f );
+	b3PrismaticJoint_SetSpringDampingRatio( prisId, 0.5f );
+	b3PrismaticJoint_SetTargetTranslation( prisId, 0.1f );
+	b3PrismaticJoint_EnableLimit( prisId, true );
+	b3PrismaticJoint_SetLimits( prisId, -1.0f, 1.0f );
+	b3PrismaticJoint_EnableMotor( prisId, true );
+	b3PrismaticJoint_SetMotorSpeed( prisId, 0.2f );
+	b3PrismaticJoint_SetMaxMotorForce( prisId, 8.0f );
+
+	// Spherical joint (3D-only)
+	b3SphericalJointDef sphDef = b3DefaultSphericalJointDef();
+	sphDef.base.bodyIdA = jb[5];
+	sphDef.base.bodyIdB = jb[6];
+	b3JointId sphId = b3CreateSphericalJoint( worldId, &sphDef );
+	b3SphericalJoint_EnableConeLimit( sphId, true );
+	b3SphericalJoint_SetConeLimit( sphId, 0.5f );
+	b3SphericalJoint_EnableTwistLimit( sphId, true );
+	b3SphericalJoint_SetTwistLimits( sphId, -0.3f, 0.3f );
+	b3SphericalJoint_EnableSpring( sphId, true );
+	b3SphericalJoint_SetSpringHertz( sphId, 3.0f );
+	b3SphericalJoint_SetSpringDampingRatio( sphId, 0.5f );
+	b3SphericalJoint_SetTargetRotation( sphId, b3Quat_identity );
+	b3SphericalJoint_EnableMotor( sphId, true );
+	b3SphericalJoint_SetMotorVelocity( sphId, (b3Vec3){ 0.0f, 0.1f, 0.0f } );
+	b3SphericalJoint_SetMaxMotorTorque( sphId, 5.0f );
+
+	// Weld joint
+	b3WeldJointDef weldDef = b3DefaultWeldJointDef();
+	weldDef.base.bodyIdA = jb[6];
+	weldDef.base.bodyIdB = jb[7];
+	b3JointId weldId = b3CreateWeldJoint( worldId, &weldDef );
+	b3WeldJoint_SetLinearHertz( weldId, 5.0f );
+	b3WeldJoint_SetLinearDampingRatio( weldId, 0.6f );
+	b3WeldJoint_SetAngularHertz( weldId, 5.0f );
+	b3WeldJoint_SetAngularDampingRatio( weldId, 0.6f );
+
+	// Wheel joint (Box3D uses Suspension/Spin/Steering naming)
+	b3WheelJointDef wheelDef = b3DefaultWheelJointDef();
+	wheelDef.base.bodyIdA = jb[7];
+	wheelDef.base.bodyIdB = jb[8];
+	b3JointId wheelId = b3CreateWheelJoint( worldId, &wheelDef );
+	b3WheelJoint_EnableSuspension( wheelId, true );
+	b3WheelJoint_SetSuspensionHertz( wheelId, 4.0f );
+	b3WheelJoint_SetSuspensionDampingRatio( wheelId, 0.7f );
+	b3WheelJoint_EnableSuspensionLimit( wheelId, true );
+	b3WheelJoint_SetSuspensionLimits( wheelId, -0.5f, 0.5f );
+	b3WheelJoint_EnableSpinMotor( wheelId, true );
+	b3WheelJoint_SetSpinMotorSpeed( wheelId, 1.0f );
+	b3WheelJoint_SetMaxSpinTorque( wheelId, 6.0f );
+	b3WheelJoint_EnableSteering( wheelId, true );
+	b3WheelJoint_SetSteeringHertz( wheelId, 2.0f );
+	b3WheelJoint_SetSteeringDampingRatio( wheelId, 0.5f );
+	b3WheelJoint_SetMaxSteeringTorque( wheelId, 3.0f );
+	b3WheelJoint_EnableSteeringLimit( wheelId, true );
+	b3WheelJoint_SetSteeringLimits( wheelId, -0.5f, 0.5f );
+	b3WheelJoint_SetTargetSteeringAngle( wheelId, 0.1f );
+
+	// Parallel joint (3D-only)
+	b3ParallelJointDef parallelDef = b3DefaultParallelJointDef();
+	parallelDef.base.bodyIdA = groundId;
+	parallelDef.base.bodyIdB = bodyId;
+	b3JointId parallelId = b3CreateParallelJoint( worldId, &parallelDef );
+	b3ParallelJoint_SetSpringHertz( parallelId, 2.0f );
+	b3ParallelJoint_SetSpringDampingRatio( parallelId, 0.5f );
+	b3ParallelJoint_SetMaxTorque( parallelId, 20.0f );
+
+	// World config mutators
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -9.8f, 0.0f } );
+	b3World_EnableSleeping( worldId, true );
+	b3World_EnableContinuous( worldId, false );
+	b3World_EnableWarmStarting( worldId, true );
+	b3World_EnableSpeculative( worldId, true );
+	b3World_SetRestitutionThreshold( worldId, 1.5f );
+	b3World_SetHitEventThreshold( worldId, 2.0f );
+	b3World_SetContactTuning( worldId, 30.0f, 10.0f, 3.0f );
+	b3World_SetContactRecycleDistance( worldId, 0.05f );
+	b3World_SetMaximumLinearSpeed( worldId, 100.0f );
+	b3World_RebuildStaticTree( worldId );
+
+	b3ExplosionDef explosion = b3DefaultExplosionDef();
+	explosion.position = (b3Pos){ 0.0f, 5.0f, 0.0f };
+	explosion.radius = 3.0f;
+	explosion.falloff = 1.0f;
+	explosion.impulsePerArea = 2.0f;
+	b3World_Explode( worldId, &explosion );
+
+	// Pre-step queries
+	b3QueryFilter qfilter = b3DefaultQueryFilter();
+	b3AABB qaabb = { { -10.0f, -5.0f, -10.0f }, { 10.0f, 15.0f, 10.0f } };
+	b3World_OverlapAABB( worldId, qaabb, qfilter, QueryReplayOverlapFcn, NULL );
+	b3Pos qorigin = { 0.0f, 15.0f, 0.0f };
+	b3Vec3 proxyPts = { 0.0f, 0.0f, 0.0f };
+	b3ShapeProxy proxy = { &proxyPts, 1, 0.5f };
+	b3World_OverlapShape( worldId, qorigin, &proxy, qfilter, QueryReplayOverlapFcn, NULL );
+	b3Vec3 qTranslation = { 0.0f, -20.0f, 0.0f };
+	b3World_CastRay( worldId, qorigin, qTranslation, qfilter, QueryReplayCastFcn, NULL );
+	b3World_CastRayClosest( worldId, qorigin, qTranslation, qfilter );
+	b3World_CastShape( worldId, qorigin, &proxy, qTranslation, qfilter, QueryReplayCastFcn, NULL );
+	b3Capsule mover = { { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 0.3f };
+	b3World_CastMover( worldId, qorigin, &mover, qTranslation, qfilter, QueryReplayMoverFilterFcn, NULL );
+	b3World_CollideMover( worldId, qorigin, &mover, qfilter, QueryReplayPlaneFcn, NULL );
+
+	float timeStep = 1.0f / 60.0f;
+	int subStepCount = 4;
+	for ( int i = 0; i < 12; ++i )
+	{
+		// Inject mutators mid-simulation
+		if ( i == 6 )
+		{
+			b3Body_ApplyLinearImpulseToCenter( capsuleBodyId, (b3Vec3){ 2.0f, 0.0f, 0.0f }, true );
+			b3Body_SetGravityScale( bodyId, 1.0f );
+		}
+
+		// Issue queries mid-loop to exercise recording across steps
+		if ( i == 3 )
+		{
+			b3World_OverlapAABB( worldId, qaabb, qfilter, QueryReplayOverlapFcn, NULL );
+			b3World_CastRay( worldId, qorigin, qTranslation, qfilter, QueryReplayCastFcn, NULL );
+		}
+
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	// Free geometry allocated for this subtest
+	b3DestroyHull( customHull );
+	b3DestroyMesh( meshData );
+	b3DestroyHeightField( hf );
+	b3DestroyCompound( compound );
+
+	const uint8_t* recData = b3Recording_GetData( rec );
+	int recSize = b3Recording_GetSize( rec );
+	ENSURE( recSize > 0 );
+
+	// Replay headless at worker count 1 and 4, a cross-thread determinism check matching Box2D.
+	ENSURE( b3ValidateReplay( recData, recSize, 1 ) );
+	ENSURE( b3ValidateReplay( recData, recSize, 4 ) );
+
+	// File round-trip
+	ENSURE( b3SaveRecordingToFile( rec, s_recPath ) );
+	b3Recording* loaded = b3LoadRecordingFromFile( s_recPath );
+	ENSURE( loaded != NULL );
+	ENSURE( b3ValidateReplay( b3Recording_GetData( loaded ), b3Recording_GetSize( loaded ), 1 ) );
+	b3DestroyRecording( loaded );
+
+	// Drive the incremental player. Exercises per-frame stepping, restart, getters, and the
+	// draw path beyond what b3ValidateReplay covers.
+	{
+		b3RecPlayer* player = b3RecPlayer_Create( recData, recSize, 1 );
+		ENSURE( player != NULL );
+
+		b3RecPlayerInfo info = b3RecPlayer_GetInfo( player );
+		b3Vec3 recExtents = b3Sub( info.bounds.upperBound, info.bounds.lowerBound );
+		ENSURE( recExtents.x > 0.0f && recExtents.y > 0.0f );
+
+		// Build a no-op b3DebugDraw to exercise the draw path headlessly
+		b3DebugDraw dd = b3DefaultDebugDraw();
+		dd.DrawShapeFcn = RecTestDrawShape;
+		dd.drawShapes = true;
+		dd.drawingBounds = (b3AABB){ { -1.0e6f, -1.0e6f, -1.0e6f }, { 1.0e6f, 1.0e6f, 1.0e6f } };
+
+		int frames = 0;
+		while ( b3RecPlayer_StepFrame( player ) )
+		{
+			if ( frames % 2 == 0 )
+			{
+				b3RecPlayer_DrawFrameQueries( player, &dd, -1 );
+			}
+			frames += 1;
+		}
+		ENSURE( frames == 12 );
+		ENSURE( b3RecPlayer_GetFrame( player ) == 12 );
+		ENSURE( b3RecPlayer_IsAtEnd( player ) );
+		ENSURE( b3RecPlayer_HasDiverged( player ) == false );
+
+		// The trailing DestroyWorld is an end marker; the world stays valid after end
+		ENSURE( b3World_IsValid( b3RecPlayer_GetWorldId( player ) ) );
+
+		// Restart reproduces the same run without reloading the file
+		b3RecPlayer_Restart( player );
+		ENSURE( b3RecPlayer_GetFrame( player ) == 0 );
+		ENSURE( b3RecPlayer_IsAtEnd( player ) == false );
+
+		int frames2 = 0;
+		while ( b3RecPlayer_StepFrame( player ) )
+		{
+			frames2 += 1;
+		}
+		ENSURE( frames2 == 12 );
+		ENSURE( b3RecPlayer_HasDiverged( player ) == false );
+
+		b3RecPlayer_Destroy( player );
+	}
+
+	b3DestroyRecording( rec );
+	remove( s_recPath );
+	return 0;
+}
+
+// Patch the reserved header bytes to nonzero and confirm b3ValidateReplay ignores them.
+// Guards a future change that starts validating them or shrinks the header.
+static int ReservedHeaderBytes( void )
+{
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	b3World_StartRecording( worldId, rec );
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	b3BodyDef bd = b3DefaultBodyDef();
+	bd.type = b3_dynamicBody;
+	bd.position = (b3Pos){ 0.0f, 5.0f, 0.0f };
+	b3BodyId bodyId = b3CreateBody( worldId, &bd );
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+	b3ShapeDef sd = b3DefaultShapeDef();
+	sd.density = 1.0f;
+	b3CreateSphereShape( bodyId, &sd, &s );
+
+	for ( int i = 0; i < 10; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	const uint8_t* recData = b3Recording_GetData( rec );
+	int recSize = b3Recording_GetSize( rec );
+	ENSURE( recSize >= (int)sizeof( b3RecHeader ) );
+
+	// Patch reserved fields at their byte offsets in b3RecHeader:
+	//   byte 11 : reserved  (uint8_t at offset 11)
+	//   bytes 16-19 : reserved2 (uint32_t at offset 16)
+	//   bytes 20-23 : reserved3 (uint32_t at offset 20)
+	uint8_t* patched = (uint8_t*)b3Alloc( (size_t)recSize );
+	memcpy( patched, recData, (size_t)recSize );
+	patched[11] = 0xAB;
+	patched[16] = 0xCD;
+	patched[17] = 0xEF;
+	patched[18] = 0x12;
+	patched[19] = 0x34;
+	patched[20] = 0x56;
+	patched[21] = 0x78;
+	patched[22] = 0x9A;
+	patched[23] = 0xBC;
+	ENSURE( b3ValidateReplay( patched, recSize, 1 ) );
+	b3Free( patched, (size_t)recSize );
+
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( SphereRoundTrip );
@@ -931,5 +1497,7 @@ int RecordingTest( void )
 	RUN_SUBTEST( PlayerAccessors );
 	RUN_SUBTEST( KeyframeHandleReuse );
 	RUN_SUBTEST( QueryReplay );
+	RUN_SUBTEST( AllOps );
+	RUN_SUBTEST( ReservedHeaderBytes );
 	return 0;
 }

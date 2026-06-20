@@ -335,5 +335,6 @@ void b3StopRecordingInternal( b3World* world );
 // Fold one step's world bounds into the running union.
 void b3RecAccumulateBounds( b3Recording* rec, b3AABB bounds );
 
-// Deterministic hash over all body transforms and velocities. Stub until Phase 2.
+// Deterministic hash over all body transforms and velocities.
+// Called by both recorder and replayer to verify simulation reproduces exactly.
 uint64_t b3HashWorldState( b3World* world );

@@ -107,6 +107,87 @@ typedef struct b3RecReader
 	int     proxyScratchCap;
 } b3RecReader;
 
+// Stored snapshot for fast backward seek.
+typedef struct b3RecKeyframe
+{
+	uint8_t* image;       // serialized world image at the end of this frame
+	int      imageSize;
+	int      imageCapacity; // allocation size (may exceed imageSize)
+	int      frame;         // frame index this restores to
+	int      cursor;        // op-stream cursor for the frame AFTER this one
+	int      divergeFrame;  // divergeFrame state at capture
+	bool     diverged;      // rdr.diverged state at capture
+
+	// Outliner body list as it stood at this frame, restored verbatim so ordinals are stable.
+	b3BodyId* bodyIds;
+	int       bodyIdCount;
+} b3RecKeyframe;
+
+struct b3RecPlayer
+{
+	uint8_t* data;             // owned copy of recording bytes
+	int      size;
+	int      headerEnd;        // first byte of op stream (past header + snapshot blob)
+	int      registryEnd;      // end of op stream = start of registry block (or size)
+	float    lengthScale;
+	float    previousLengthScale;
+	int      frame;
+	int      frameCount;
+	float    recordedDt;
+	int      recordedSubStepCount;
+	int      recordedWorkerCount; // worker count requested for the replay world
+	b3AABB   bounds;           // accumulated world bounds, decoded from the trailing record
+	bool     atEnd;
+	int      divergeFrame;     // first frame that diverged, -1 until then
+
+	// Outliner body list, indexed by creation ordinal. Holes (null ids) mark destroyed bodies so
+	// later ordinals never shift. Snapshotted into each keyframe and the frame-0 copy, not rebuilt
+	// from the world, so a stored selection survives backward seeks.
+	b3BodyId* bodyIds;
+	int       bodyIdCount;
+	int       bodyIdCap;
+	b3BodyId* frame0BodyIds;
+	int       frame0BodyIdCount;
+
+	// Per-frame query store, reset at the top of each StepFrame and filled by the query dispatchers.
+	// Drawn by b3RecPlayer_DrawFrameQueries and inspected via the public GetFrameQuery API.
+	b3RecDrawQuery*   frameQueries;
+	int               frameQueryCount;
+	int               frameQueryCap;
+	b3RecRecordedHit* frameHits;
+	int               frameHitCount;
+	int               frameHitCap;
+
+	// Host debug-shape callbacks applied to every world the player creates. The 3D
+	// sample renderer builds GPU meshes here, so a replay world without them draws
+	// nothing. Set once via b3RecPlayer_SetDebugShapeCallbacks; persisted so a world
+	// rebuilt under new callbacks keeps drawing.
+	b3CreateDebugShapeCallback*  createDebugShape;
+	b3DestroyDebugShapeCallback* destroyDebugShape;
+	void*                        debugShapeContext;
+
+	b3RecReader rdr;
+
+	// Frame-0 restore image, points into the owned data copy. Restart and backward seek
+	// deserialize this in place so the replay world id stays stable.
+	const uint8_t* frame0Image;
+	int            frame0Size;
+
+	// Keyframe ring
+	b3RecKeyframe* keyframes;
+	int            keyframeCount;
+	int            keyframeCapacity;
+	size_t         keyframeBudget;
+	size_t         keyframeBytes;
+	int            keyframeMinInterval;
+	int            keyframeInterval;
+	int            lastKeyframeFrame;
+
+	// Pre-populated recording used by b3SerializeWorld during keyframe capture.
+	// Its registry mirrors rdr.slots so geometry ids stay stable.
+	b3Recording*   keyframeRec;
+};
+
 // Read primitives
 uint8_t          b3RecR_U8( b3RecReader* rdr );
 uint16_t         b3RecR_U16( b3RecReader* rdr );

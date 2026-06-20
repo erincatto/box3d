@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 // Read primitives
 
@@ -203,26 +204,29 @@ b3QueryFilter b3RecR_QUERYFILTER( b3RecReader* rdr )
 	return f;
 }
 
-// Reserve/grow the reader's proxy-point scratch. Returns false and sets ok=false on a bad count.
-static bool b3RecReserveProxy( b3RecReader* rdr, int need )
+// Reserve reader scratch for a count taken from an untrusted file. Every recorded element
+// consumes at least one byte, so a valid count can never exceed the bytes left in the file.
+// Reject anything larger (or negative, or that would overflow the byte size) by failing the read
+// rather than allocating wildly. Contents are not preserved; callers overwrite before use.
+static bool b3RecReserveScratch( b3RecReader* rdr, void** data, int* cap, int need, int elemSize )
 {
 	int remaining = rdr->size - rdr->cursor;
-	if ( need < 0 || remaining < 0 || need > remaining )
+	if ( need < 0 || remaining < 0 || need > remaining || need > INT_MAX / elemSize )
 	{
 		rdr->ok = false;
 		return false;
 	}
-	if ( need <= rdr->proxyScratchCap )
+	if ( need <= *cap )
 	{
 		return true;
 	}
-	int newCap = need + 8;
-	if ( rdr->proxyScratch != NULL )
+	int newCap = need <= INT_MAX / elemSize - 8 ? need + 8 : need;
+	if ( *data != NULL )
 	{
-		b3Free( rdr->proxyScratch, (size_t)rdr->proxyScratchCap * sizeof( b3Vec3 ) );
+		b3Free( *data, (size_t)*cap * (size_t)elemSize );
 	}
-	rdr->proxyScratch    = (b3Vec3*)b3Alloc( (size_t)newCap * sizeof( b3Vec3 ) );
-	rdr->proxyScratchCap = newCap;
+	*data = b3Alloc( (size_t)newCap * (size_t)elemSize );
+	*cap = newCap;
 	return true;
 }
 
@@ -236,7 +240,7 @@ b3ShapeProxy b3RecR_SHAPEPROXY( b3RecReader* rdr )
 		count = 0;
 	if ( count > B3_MAX_SHAPE_CAST_POINTS )
 		count = B3_MAX_SHAPE_CAST_POINTS;
-	if ( count > 0 && b3RecReserveProxy( rdr, count ) )
+	if ( count > 0 && b3RecReserveScratch( rdr, (void**)&rdr->proxyScratch, &rdr->proxyScratchCap, count, (int)sizeof( b3Vec3 ) ) )
 	{
 		for ( int i = 0; i < count; ++i )
 		{
@@ -428,29 +432,6 @@ b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr )
 	return def;
 }
 
-// Reserve/grow the reader's material scratch. Returns false and sets ok=false on bad count.
-static bool b3RecReserveMat( b3RecReader* rdr, int need )
-{
-	int remaining = rdr->size - rdr->cursor;
-	if ( need < 0 || remaining < 0 || need > remaining )
-	{
-		rdr->ok = false;
-		return false;
-	}
-	if ( need <= rdr->matScratchCap )
-	{
-		return true;
-	}
-	int newCap = need + 8;
-	if ( rdr->matScratch != NULL )
-	{
-		b3Free( rdr->matScratch, (size_t)rdr->matScratchCap * sizeof( b3SurfaceMaterial ) );
-	}
-	rdr->matScratch    = (b3SurfaceMaterial*)b3Alloc( (size_t)newCap * sizeof( b3SurfaceMaterial ) );
-	rdr->matScratchCap = newCap;
-	return true;
-}
-
 b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 {
 	b3ShapeDef def = b3DefaultShapeDef();
@@ -462,7 +443,7 @@ b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 	{
 		matCount = 0;
 	}
-	if ( matCount > 0 && b3RecReserveMat( rdr, matCount ) )
+	if ( matCount > 0 && b3RecReserveScratch( rdr, (void**)&rdr->matScratch, &rdr->matScratchCap, matCount, (int)sizeof( b3SurfaceMaterial ) ) )
 	{
 		for ( int i = 0; i < matCount; ++i )
 		{
@@ -696,7 +677,7 @@ static void b3RecCheckId( b3RecReader* rdr, const char* kind, int gotIndex, unsi
 {
 	if ( gotIndex != recIndex || gotGen != recGen )
 	{
-		printf( "b3ValidateReplay: %s id mismatch (rec index1=%d gen=%u, got index1=%d gen=%u)\n",
+		printf( "b3ReplayFile: %s id mismatch (rec index1=%d gen=%u, got index1=%d gen=%u)\n",
 		        kind, recIndex, recGen, gotIndex, gotGen );
 		rdr->ok = false;
 	}
@@ -1008,7 +989,7 @@ static void b3RecDispatch_CreateHullShape( const b3RecArgs_CreateHullShape* a, b
 	uint32_t id = a->geometryId;
 	if ( id >= (uint32_t)rdr->slotCount )
 	{
-		printf( "b3ValidateReplay: hull geometryId %u out of range\n", id );
+		printf( "b3ReplayFile: hull geometryId %u out of range\n", id );
 		rdr->ok = false;
 		return;
 	}
@@ -1029,7 +1010,7 @@ static void b3RecDispatch_CreateMeshShape( const b3RecArgs_CreateMeshShape* a, b
 	uint32_t id = a->geometryId;
 	if ( id >= (uint32_t)rdr->slotCount )
 	{
-		printf( "b3ValidateReplay: mesh geometryId %u out of range\n", id );
+		printf( "b3ReplayFile: mesh geometryId %u out of range\n", id );
 		rdr->ok = false;
 		return;
 	}
@@ -1050,7 +1031,7 @@ static void b3RecDispatch_CreateHeightFieldShape( const b3RecArgs_CreateHeightFi
 	uint32_t id = a->geometryId;
 	if ( id >= (uint32_t)rdr->slotCount )
 	{
-		printf( "b3ValidateReplay: heightfield geometryId %u out of range\n", id );
+		printf( "b3ReplayFile: heightfield geometryId %u out of range\n", id );
 		rdr->ok = false;
 		return;
 	}
@@ -1071,7 +1052,7 @@ static void b3RecDispatch_CreateCompoundShape( const b3RecArgs_CreateCompoundSha
 	uint32_t id = a->geometryId;
 	if ( id >= (uint32_t)rdr->slotCount )
 	{
-		printf( "b3ValidateReplay: compound geometryId %u out of range\n", id );
+		printf( "b3ReplayFile: compound geometryId %u out of range\n", id );
 		rdr->ok = false;
 		return;
 	}
@@ -1643,20 +1624,22 @@ static void b3RecDispatch_WheelJointSetTargetSteeringAngle( const b3RecArgs_Whee
 static void b3RecDispatch_StateHash( const b3RecArgs_StateHash* a, b3RecReader* rdr )
 {
 	b3World* world = b3GetWorldFromId( rdr->replayWorldId );
-	uint64_t got   = b3HashWorldState( world );
-	if ( got != a->hash )
+	uint64_t computed = b3HashWorldState( world );
+	if ( computed != a->hash )
 	{
-		printf( "b3ValidateReplay: state hash mismatch (recorded=0x%016llX, got=0x%016llX)\n",
-		        (unsigned long long)a->hash, (unsigned long long)got );
+		printf( "b3ReplayFile: StateHash mismatch (recorded=0x%llX, computed=0x%llX)\n",
+		        (unsigned long long)a->hash, (unsigned long long)computed );
 		rdr->diverged = true;
 	}
 }
 
 static void b3RecDispatch_RecordingBounds( const b3RecArgs_RecordingBounds* a, b3RecReader* rdr )
 {
-	(void)a;
-	(void)rdr;
-	// Informational only; ignore during validation.
+	// Primary resolve is the open-time scan, this keeps the value right if it ever moves earlier
+	if ( rdr->owner != NULL )
+	{
+		rdr->owner->bounds = a->bounds;
+	}
 }
 
 // Spatial query replay. The recorded inputs come through the manifest; here the variable-length hit
@@ -1666,18 +1649,13 @@ static void b3RecDispatch_RecordingBounds( const b3RecArgs_RecordingBounds* a, b
 // in this file, so they are forward declared and implemented in Block B below.
 
 static void           b3RecGrow( void** data, int* capacity, int need, int keep, int elemSize );
-static b3RecDrawQuery* b3RecStashQuery( b3RecPlayer* player, int kind, const b3RecRecordedHit* hits, int hitCount );
+static b3RecDrawQuery* b3RecStashQueryBegin( b3RecPlayer* player, int kind, const b3RecRecordedHit* hits, int hitCount );
 
 // Grow the reader's hit scratch to at least n entries, preserving contents. n is bounded by the file
 // size since every recorded hit consumes at least one byte, so a corrupt count fails the read.
 void b3RecEnsureHits( b3RecReader* rdr, int n )
 {
-	if ( n < 0 || n > rdr->size )
-	{
-		rdr->ok = false;
-		return;
-	}
-	b3RecGrow( (void**)&rdr->hits, &rdr->hitCap, n, rdr->hitCap, (int)sizeof( b3RecRecordedHit ) );
+	b3RecReserveScratch( rdr, (void**)&rdr->hits, &rdr->hitCap, n, (int)sizeof( b3RecRecordedHit ) );
 }
 
 // Bitwise float compare so the determinism check is exact, not within a tolerance.
@@ -1816,7 +1794,7 @@ static void b3RecDispatch_QueryOverlapAABB( const b3RecArgs_QueryOverlapAABB* a,
 		rdr->diverged = true;
 	if ( rdr->owner )
 	{
-		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_OVERLAP_AABB, rdr->hits, (int)n );
+		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_OVERLAP_AABB, rdr->hits, (int)n );
 		q->filter = a->filter;
 		q->aabb   = a->aabb;
 	}
@@ -1842,7 +1820,7 @@ static void b3RecDispatch_QueryOverlapShape( const b3RecArgs_QueryOverlapShape* 
 		rdr->diverged = true;
 	if ( rdr->owner )
 	{
-		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_OVERLAP_SHAPE, rdr->hits, (int)n );
+		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_OVERLAP_SHAPE, rdr->hits, (int)n );
 		q->filter = a->filter;
 		q->origin = a->origin;
 		b3RecStashProxy( q, &a->proxy );
@@ -1875,7 +1853,7 @@ static void b3RecDispatch_QueryCastRay( const b3RecArgs_QueryCastRay* a, b3RecRe
 		rdr->diverged = true;
 	if ( rdr->owner )
 	{
-		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_CAST_RAY, rdr->hits, (int)n );
+		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_CAST_RAY, rdr->hits, (int)n );
 		q->filter      = a->filter;
 		q->origin      = a->origin;
 		q->translation = a->translation;
@@ -1908,7 +1886,7 @@ static void b3RecDispatch_QueryCastShape( const b3RecArgs_QueryCastShape* a, b3R
 		rdr->diverged = true;
 	if ( rdr->owner )
 	{
-		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_CAST_SHAPE, rdr->hits, (int)n );
+		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_CAST_SHAPE, rdr->hits, (int)n );
 		q->filter      = a->filter;
 		q->origin      = a->origin;
 		q->translation = a->translation;
@@ -1939,7 +1917,7 @@ static void b3RecDispatch_QueryCastRayClosest( const b3RecArgs_QueryCastRayClose
 		h.point    = rec.point;
 		h.normal   = rec.normal;
 		h.fraction = rec.fraction;
-		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_CAST_RAY_CLOSEST, &h, rec.hit ? 1 : 0 );
+		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_CAST_RAY_CLOSEST, &h, rec.hit ? 1 : 0 );
 		q->filter      = a->filter;
 		q->origin      = a->origin;
 		q->translation = a->translation;
@@ -1968,7 +1946,7 @@ static void b3RecDispatch_QueryCastMover( const b3RecArgs_QueryCastMover* a, b3R
 		rdr->diverged = true;
 	if ( rdr->owner )
 	{
-		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_CAST_MOVER, NULL, 0 );
+		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_CAST_MOVER, NULL, 0 );
 		q->filter       = a->filter;
 		q->origin       = a->origin;
 		q->mover        = a->mover;
@@ -2014,7 +1992,7 @@ static void b3RecDispatch_QueryCollideMover( const b3RecArgs_QueryCollideMover* 
 		rdr->diverged = true;
 	if ( rdr->owner )
 	{
-		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_COLLIDE_MOVER, rdr->hits, total );
+		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_COLLIDE_MOVER, rdr->hits, total );
 		q->filter = a->filter;
 		q->origin = a->origin;
 		q->mover  = a->mover;
@@ -2057,8 +2035,16 @@ static int b3RecDispatchOne( b3RecReader* rdr )
 #undef B3_REC_OP
 #undef ARG
 		default:
-			// Unknown opcode: skip by jumping to the end of the declared payload
-			rdr->cursor = payloadStart + (int)payloadSize;
+			printf( "b3ReplayFile: unknown opcode 0x%02X, skipping %u bytes\n", opcode, payloadSize );
+			// payloadStart is in bounds, so size - payloadStart is the bytes left to skip over
+			if ( payloadSize > (uint32_t)( rdr->size - payloadStart ) )
+			{
+				rdr->ok = false;
+			}
+			else
+			{
+				rdr->cursor = payloadStart + (int)payloadSize;
+			}
 			break;
 	}
 	return (int)(unsigned)opcode;
@@ -2068,231 +2054,22 @@ static int b3RecDispatchOne( b3RecReader* rdr )
 
 bool b3ValidateReplay( const void* data, int size, int workerCount )
 {
-	(void)workerCount;
-
-	if ( data == NULL || size < (int)sizeof( b3RecHeader ) )
+	b3RecPlayer* player = b3RecPlayer_Create( data, size, workerCount );
+	if ( player == NULL )
 	{
-		printf( "b3ValidateReplay: data too small\n" );
 		return false;
 	}
 
-	b3RecHeader hdr;
-	memcpy( &hdr, data, sizeof( hdr ) );
-
-	if ( hdr.magic != B3_REC_MAGIC )
+	while ( b3RecPlayer_StepFrame( player ) )
 	{
-		printf( "b3ValidateReplay: bad magic 0x%08X\n", hdr.magic );
-		return false;
-	}
-	if ( hdr.versionMajor != B3_REC_VERSION_MAJOR || hdr.versionMinor != B3_REC_VERSION_MINOR )
-	{
-		printf( "b3ValidateReplay: version mismatch %u.%u vs %u.%u\n",
-		        hdr.versionMajor, hdr.versionMinor, B3_REC_VERSION_MAJOR, B3_REC_VERSION_MINOR );
-		return false;
-	}
-	if ( hdr.pointerWidth != sizeof( void* ) )
-	{
-		printf( "b3ValidateReplay: pointer width mismatch %u vs %u\n", hdr.pointerWidth, (unsigned)sizeof( void* ) );
-		return false;
-	}
-	if ( hdr.bigEndian != 0 )
-	{
-		printf( "b3ValidateReplay: big-endian recordings not supported\n" );
-		return false;
-	}
-	int headerEnd = (int)sizeof( b3RecHeader );
-	int opEnd     = ( hdr.registryOffset != 0 ) ? (int)hdr.registryOffset : size;
-
-	if ( opEnd < headerEnd || opEnd > size )
-	{
-		printf( "b3ValidateReplay: corrupt registryOffset\n" );
-		return false;
-	}
-
-	// Preload the trailing registry block
-	b3RegistrySlot* slots    = NULL;
-	int             slotCount = 0;
-
-	if ( hdr.registryOffset != 0 && hdr.registryByteCount > 0 )
-	{
-		int regStart = (int)hdr.registryOffset;
-		int regEnd   = regStart + (int)hdr.registryByteCount;
-		if ( regEnd > size )
-		{
-			printf( "b3ValidateReplay: registry block out of bounds\n" );
-			return false;
-		}
-
-		// Parse entry count
-		if ( regStart + 4 > size )
-		{
-			printf( "b3ValidateReplay: registry too small for entry count\n" );
-			return false;
-		}
-		const uint8_t* rp = (const uint8_t*)data + regStart;
-		uint32_t count    = (uint32_t)rp[0] | ( (uint32_t)rp[1] << 8 ) | ( (uint32_t)rp[2] << 16 ) |
-		                    ( (uint32_t)rp[3] << 24 );
-		rp += 4;
-
-		if ( count > 0 )
-		{
-			slots     = (b3RegistrySlot*)b3Alloc( (size_t)count * sizeof( b3RegistrySlot ) );
-			slotCount = (int)count;
-			memset( slots, 0, (size_t)count * sizeof( b3RegistrySlot ) );
-
-			for ( uint32_t i = 0; i < count; ++i )
-			{
-				const uint8_t* dataEnd = (const uint8_t*)data + regEnd;
-				if ( rp + 5 > dataEnd )
-				{
-					printf( "b3ValidateReplay: registry truncated at entry %u\n", i );
-					// Partial cleanup
-					for ( uint32_t j = 0; j < i; ++j )
-					{
-						if ( slots[j].bytes != NULL )
-						{
-							b3Free( slots[j].bytes, (size_t)slots[j].byteCount );
-						}
-					}
-					b3Free( slots, (size_t)count * sizeof( b3RegistrySlot ) );
-					return false;
-				}
-				uint8_t  kind      = rp[0];
-				uint32_t byteCount = (uint32_t)rp[1] | ( (uint32_t)rp[2] << 8 ) | ( (uint32_t)rp[3] << 16 ) |
-				                     ( (uint32_t)rp[4] << 24 );
-				rp += 5;
-				if ( rp + byteCount > dataEnd )
-				{
-					printf( "b3ValidateReplay: registry entry %u bytes out of bounds\n", i );
-					for ( uint32_t j = 0; j < i; ++j )
-					{
-						if ( slots[j].bytes != NULL )
-						{
-							b3Free( slots[j].bytes, (size_t)slots[j].byteCount );
-						}
-					}
-					b3Free( slots, (size_t)count * sizeof( b3RegistrySlot ) );
-					return false;
-				}
-				// Copy into fresh aligned allocation so structs with uint64_t first field are safe
-				uint8_t* bytes = (uint8_t*)b3Alloc( byteCount > 0 ? (size_t)byteCount : 1u );
-				if ( byteCount > 0 )
-				{
-					memcpy( bytes, rp, (size_t)byteCount );
-				}
-				rp += byteCount;
-				slots[i].kind      = (b3GeometryKind)kind;
-				slots[i].byteCount = (int)byteCount;
-				slots[i].bytes     = bytes;
-				slots[i].live      = NULL;
-			}
-		}
-	}
-
-	// Create the replay world
-	b3WorldDef worldDef      = b3DefaultWorldDef();
-	b3WorldId  replayWorldId = b3CreateWorld( &worldDef );
-
-	b3RecReader rdr;
-	memset( &rdr, 0, sizeof( rdr ) );
-	rdr.data          = (const uint8_t*)data;
-	rdr.size          = size;
-	rdr.replayWorldId = replayWorldId;
-	rdr.ok            = true;
-	rdr.diverged      = false;
-	rdr.slots         = slots;
-	rdr.slotCount     = slotCount;
-
-	// When a snapshot seed is present, restore the world from it and set the op cursor
-	// to just past the snapshot blob. Without a snapshot, start from the header end.
-	if ( hdr.snapshotSize > 0 )
-	{
-		int snapStart = headerEnd;
-		int snapSize  = (int)hdr.snapshotSize;
-		if ( snapStart + snapSize > size )
-		{
-			printf( "b3ValidateReplay: snapshot blob out of bounds\n" );
-			rdr.ok = false;
-		}
-		else
-		{
-			b3World* replayWorld = b3GetWorldFromId( replayWorldId );
-			if ( b3DeserializeIntoShell( (const uint8_t*)data + snapStart, snapSize, replayWorld, &rdr ) == false )
-			{
-				printf( "b3ValidateReplay: snapshot deserialization failed\n" );
-				rdr.ok = false;
-			}
-			else
-			{
-				rdr.cursor = snapStart + snapSize;
-			}
-		}
-	}
-	else
-	{
-		rdr.cursor = headerEnd;
-	}
-
-	// Dispatch op stream
-	while ( rdr.cursor < opEnd && rdr.ok )
-	{
-		int op = b3RecDispatchOne( &rdr );
-		if ( op < 0 )
+		if ( player->rdr.diverged )
 		{
 			break;
 		}
 	}
 
-	bool ok = rdr.ok && !rdr.diverged;
-
-	// Tear down replay world before freeing live geometry
-	b3DestroyWorld( replayWorldId );
-
-	// Free live geometry (allocated after world creation, freed after world destruction)
-	for ( int i = 0; i < slotCount; ++i )
-	{
-		b3RegistrySlot* slot = slots + i;
-		if ( slot->live != NULL )
-		{
-			switch ( slot->kind )
-			{
-				case b3_geometryMesh:
-					b3Free( slot->live, (size_t)slot->byteCount );
-					break;
-				case b3_geometryHeightField:
-					b3DestroyHeightField( (b3HeightField*)slot->live );
-					break;
-				case b3_geometryCompound:
-					b3Free( slot->live, (size_t)slot->byteCount );
-					break;
-				default:
-					break;
-			}
-		}
-		if ( slot->bytes != NULL )
-		{
-			b3Free( slot->bytes, slot->byteCount > 0 ? (size_t)slot->byteCount : 1u );
-		}
-	}
-	if ( slots != NULL )
-	{
-		b3Free( slots, (size_t)slotCount * sizeof( b3RegistrySlot ) );
-	}
-
-	// Free reader scratch
-	if ( rdr.matScratch != NULL )
-	{
-		b3Free( rdr.matScratch, (size_t)rdr.matScratchCap * sizeof( b3SurfaceMaterial ) );
-	}
-	if ( rdr.proxyScratch != NULL )
-	{
-		b3Free( rdr.proxyScratch, (size_t)rdr.proxyScratchCap * sizeof( b3Vec3 ) );
-	}
-	if ( rdr.hits != NULL )
-	{
-		b3Free( rdr.hits, (size_t)rdr.hitCap * sizeof( b3RecRecordedHit ) );
-	}
-
+	bool ok = player->rdr.ok && player->rdr.diverged == false;
+	b3RecPlayer_Destroy( player );
 	return ok;
 }
 
@@ -2300,87 +2077,6 @@ bool b3ValidateReplay( const void* data, int size, int workerCount )
 
 #define B3_REC_KEYFRAME_INTERVAL_DEFAULT 16
 #define B3_REC_KEYFRAME_BUDGET_DEFAULT   ( (size_t)512 * 1024 * 1024 )
-
-// Stored snapshot for fast backward seek.
-typedef struct b3RecKeyframe
-{
-	uint8_t* image;       // serialized world image at the end of this frame
-	int      imageSize;
-	int      imageCapacity; // allocation size (may exceed imageSize)
-	int      frame;         // frame index this restores to
-	int      cursor;        // op-stream cursor for the frame AFTER this one
-	int      divergeFrame;  // divergeFrame state at capture
-	bool     diverged;      // rdr.diverged state at capture
-
-	// Outliner body list as it stood at this frame, restored verbatim so ordinals are stable.
-	b3BodyId* bodyIds;
-	int       bodyIdCount;
-} b3RecKeyframe;
-
-struct b3RecPlayer
-{
-	uint8_t* data;             // owned copy of recording bytes
-	int      size;
-	int      headerEnd;        // first byte of op stream (past header + snapshot blob)
-	int      registryEnd;      // end of op stream = start of registry block (or size)
-	float    lengthScale;
-	float    previousLengthScale;
-	int      frame;
-	int      frameCount;
-	float    recordedDt;
-	int      recordedSubStepCount;
-	int      recordedWorkerCount; // worker count requested for the replay world
-	b3AABB   bounds;           // accumulated world bounds, decoded from the trailing record
-	bool     atEnd;
-	int      divergeFrame;     // first frame that diverged, -1 until then
-
-	// Outliner body list, indexed by creation ordinal. Holes (null ids) mark destroyed bodies so
-	// later ordinals never shift. Snapshotted into each keyframe and the frame-0 copy, not rebuilt
-	// from the world, so a stored selection survives backward seeks.
-	b3BodyId* bodyIds;
-	int       bodyIdCount;
-	int       bodyIdCap;
-	b3BodyId* frame0BodyIds;
-	int       frame0BodyIdCount;
-
-	// Per-frame query store, reset at the top of each StepFrame and filled by the query dispatchers.
-	// Drawn by b3RecPlayer_DrawFrameQueries and inspected via the public GetFrameQuery API.
-	b3RecDrawQuery*   frameQueries;
-	int               frameQueryCount;
-	int               frameQueryCap;
-	b3RecRecordedHit* frameHits;
-	int               frameHitCount;
-	int               frameHitCap;
-
-	// Host debug-shape callbacks applied to every world the player creates. The 3D
-	// sample renderer builds GPU meshes here, so a replay world without them draws
-	// nothing. Set once via b3RecPlayer_SetDebugShapeCallbacks; persisted so a world
-	// rebuilt under new callbacks keeps drawing.
-	b3CreateDebugShapeCallback*  createDebugShape;
-	b3DestroyDebugShapeCallback* destroyDebugShape;
-	void*                        debugShapeContext;
-
-	b3RecReader rdr;
-
-	// Frame-0 restore image, points into the owned data copy. Restart and backward seek
-	// deserialize this in place so the replay world id stays stable.
-	const uint8_t* frame0Image;
-	int            frame0Size;
-
-	// Keyframe ring
-	b3RecKeyframe* keyframes;
-	int            keyframeCount;
-	int            keyframeCapacity;
-	size_t         keyframeBudget;
-	size_t         keyframeBytes;
-	int            keyframeMinInterval;
-	int            keyframeInterval;
-	int            lastKeyframeFrame;
-
-	// Pre-populated recording used by b3SerializeWorld during keyframe capture.
-	// Its registry mirrors rdr.slots so geometry ids stay stable.
-	b3Recording*   keyframeRec;
-};
 
 // Overflow-safe growth for the player's accumulating arrays. Counts come from the replay itself,
 // not the file, so this only guards the byte-size multiply. Preserves keep elements.
@@ -2425,7 +2121,7 @@ static void b3RecGrowFrameHits( b3RecPlayer* player, int need )
 
 // Push a draw record for one query and copy its hits into the per-frame store. Ids in hits[] are
 // already remapped to the replay world by the dispatcher.
-static b3RecDrawQuery* b3RecStashQuery( b3RecPlayer* player, int kind, const b3RecRecordedHit* hits, int hitCount )
+static b3RecDrawQuery* b3RecStashQueryBegin( b3RecPlayer* player, int kind, const b3RecRecordedHit* hits, int hitCount )
 {
 	b3RecGrowFrameQueries( player );
 	b3RecDrawQuery* q = &player->frameQueries[player->frameQueryCount];
@@ -2514,12 +2210,12 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 	int regEnd   = regStart + (int)registryByteCount;
 	if ( regEnd > size )
 	{
-		printf( "b3RecPlayer: registry block out of bounds\n" );
+		printf( "b3ReplayFile: registry block out of bounds\n" );
 		return false;
 	}
 	if ( regStart + 4 > size )
 	{
-		printf( "b3RecPlayer: registry too small\n" );
+		printf( "b3ReplayFile: registry too small\n" );
 		return false;
 	}
 
@@ -2542,7 +2238,7 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 	{
 		if ( rp + 5 > dataEnd )
 		{
-			printf( "b3RecPlayer: registry truncated at entry %u\n", i );
+			printf( "b3ReplayFile: registry truncated at entry %u\n", i );
 			for ( uint32_t j = 0; j < i; ++j )
 			{
 				if ( slots[j].bytes != NULL )
@@ -2558,7 +2254,7 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 		rp += 5;
 		if ( rp + byteCount > dataEnd )
 		{
-			printf( "b3RecPlayer: registry entry %u bytes out of bounds\n", i );
+			printf( "b3ReplayFile: registry entry %u bytes out of bounds\n", i );
 			for ( uint32_t j = 0; j < i; ++j )
 			{
 				if ( slots[j].bytes != NULL )
@@ -2664,7 +2360,7 @@ static void b3RecScanFile( b3RecPlayer* player )
 }
 
 // Free one keyframe's heap.
-static void b3RecFreeKeyframe( b3RecKeyframe* kf )
+static void b3FreeKeyframe( b3RecKeyframe* kf )
 {
 	if ( kf->image != NULL )
 	{
@@ -2732,7 +2428,7 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 			}
 			else
 			{
-				b3RecFreeKeyframe( kf );
+				b3FreeKeyframe( kf );
 			}
 		}
 		bool progress    = ( kept < player->keyframeCount );
@@ -2776,7 +2472,7 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 }
 
 // Restore the world in-place from a keyframe image.
-static void b3RecRestoreKeyframe( b3RecPlayer* player, const b3RecKeyframe* kf )
+static void b3RecPlayerRestoreKeyframe( b3RecPlayer* player, const b3RecKeyframe* kf )
 {
 	b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
 	if ( b3DeserializeIntoShell( kf->image, kf->imageSize, world, &player->rdr ) == false )
@@ -2993,7 +2689,7 @@ void b3RecPlayer_Destroy( b3RecPlayer* player )
 	// Free keyframe ring.
 	for ( int i = 0; i < player->keyframeCount; ++i )
 	{
-		b3RecFreeKeyframe( player->keyframes + i );
+		b3FreeKeyframe( player->keyframes + i );
 	}
 	if ( player->keyframes != NULL )
 	{
@@ -3143,7 +2839,7 @@ void b3RecPlayer_SeekFrame( b3RecPlayer* player, int targetFrame )
 		// Backward seek: restore keyframe or restart from frame 0.
 		if ( best != NULL )
 		{
-			b3RecRestoreKeyframe( player, best );
+			b3RecPlayerRestoreKeyframe( player, best );
 		}
 		else
 		{
@@ -3153,7 +2849,7 @@ void b3RecPlayer_SeekFrame( b3RecPlayer* player, int targetFrame )
 	else if ( best != NULL && best->frame > player->frame )
 	{
 		// Forward seek that can skip ahead via a keyframe.
-		b3RecRestoreKeyframe( player, best );
+		b3RecPlayerRestoreKeyframe( player, best );
 	}
 
 	while ( player->frame < targetFrame && b3RecPlayer_StepFrame( player ) )
@@ -3242,7 +2938,7 @@ void b3RecPlayer_SetKeyframePolicy( b3RecPlayer* player, size_t budgetBytes, int
 	// Drop the ring so it repopulates under the new policy on the next replay.
 	for ( int i = 0; i < player->keyframeCount; ++i )
 	{
-		b3RecFreeKeyframe( player->keyframes + i );
+		b3FreeKeyframe( player->keyframes + i );
 	}
 	player->keyframeCount     = 0;
 	player->keyframeBytes     = 0;

@@ -2231,6 +2231,30 @@ int b3World_GetWorkerCount( b3WorldId worldId )
 	return world->workerCount;
 }
 
+void b3World_StartRecording( b3WorldId worldId, b3Recording* recording )
+{
+	// Must be a step boundary, so refuse a locked world
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+
+	if ( world == NULL || recording == NULL || world->recording != NULL )
+	{
+		return;
+	}
+
+	b3StartRecordingIntoBuffer( world, recording );
+}
+
+void b3World_StopRecording( b3WorldId worldId )
+{
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return;
+	}
+
+	b3StopRecordingInternal( world );
+}
+
 static FILE* b3OpenFile( const char* fileName )
 {
 	FILE* file = NULL;

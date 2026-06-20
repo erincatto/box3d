@@ -876,7 +876,9 @@ static void b3FreeLiveSimElements( b3World* world )
 		{
 			continue;
 		}
-		if ( s->materials != NULL )
+		// A compound shape's materials point into its geometry blob (borrowed, not owned), so skip
+		// them exactly as b3DestroyShapeAllocations does. Freeing the interior pointer corrupts the heap.
+		if ( s->materials != NULL && s->type != b3_compoundShape )
 		{
 			b3Free( s->materials, (size_t)s->materialCount * sizeof( b3SurfaceMaterial ) );
 			s->materials   = NULL;

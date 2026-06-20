@@ -513,71 +513,6 @@ void b3RecW_WHEELJOINTDEF( b3RecBuffer* buf, b3WheelJointDef v )
 	b3RecW_F32( buf, v.upperSteeringLimit );
 }
 
-// Record framing
-
-void b3RecBeginRecord( b3Recording* rec, uint8_t opcode )
-{
-	b3RecW_U8( &rec->buffer, opcode );
-	rec->recordStart = rec->buffer.size;
-	// Reserve 3 bytes for the u24 payload size, backpatched in b3RecEndRecord.
-	uint8_t zero[3] = { 0, 0, 0 };
-	b3RecBufAppend( &rec->buffer, zero, 3 );
-}
-
-void b3RecEndRecord( b3Recording* rec )
-{
-	int payloadSize = rec->buffer.size - rec->recordStart - 3;
-	B3_ASSERT( payloadSize >= 0 && payloadSize < ( 1 << 24 ) );
-	uint8_t* p = rec->buffer.data + rec->recordStart;
-	p[0] = (uint8_t)payloadSize;
-	p[1] = (uint8_t)( payloadSize >> 8 );
-	p[2] = (uint8_t)( payloadSize >> 16 );
-}
-
-// Codegen pass 1b: arg writers
-#define ARG( TAG, field ) b3RecW_##TAG( &rec->buffer, a->field );
-#define B3_REC_OP( op, Name, RET, ... )                                                                                          \
-	void b3RecWriteArgs_##Name( b3Recording* rec, const b3RecArgs_##Name* a )                                                    \
-	{                                                                                                                            \
-		__VA_ARGS__                                                                                                              \
-	}
-#include "recording_ops.inl"
-#undef B3_REC_OP
-#undef ARG
-
-// Codegen: full writers
-#define B3_REC_OP( op, Name, RET, ... )                                                                                          \
-	void b3RecWrite_##Name( b3Recording* rec, const b3RecArgs_##Name* a )                                                        \
-	{                                                                                                                            \
-		b3RecBeginRecord( rec, (uint8_t)( op ) );                                                                                \
-		b3RecWriteArgs_##Name( rec, a );                                                                                         \
-		b3RecEndRecord( rec );                                                                                                   \
-	}
-#include "recording_ops.inl"
-#undef B3_REC_OP
-
-// Codegen: create-op writers that append the returned id inside the record
-#define B3_REC_RETWRITE( op, Name, idType, idW )                                                                                 \
-	void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, idType id )                                          \
-	{                                                                                                                            \
-		b3RecBeginRecord( rec, (uint8_t)( op ) );                                                                                \
-		b3RecWriteArgs_##Name( rec, a );                                                                                         \
-		idW( &rec->buffer, id );                                                                                                 \
-		b3RecEndRecord( rec );                                                                                                   \
-	}
-#define B3_REC_RETWRITE_RET_NONE( op, Name )
-#define B3_REC_RETWRITE_RET_BODYID( op, Name )  B3_REC_RETWRITE( op, Name, b3BodyId,  b3RecW_BODYID )
-#define B3_REC_RETWRITE_RET_SHAPEID( op, Name ) B3_REC_RETWRITE( op, Name, b3ShapeId, b3RecW_SHAPEID )
-#define B3_REC_RETWRITE_RET_JOINTID( op, Name ) B3_REC_RETWRITE( op, Name, b3JointId, b3RecW_JOINTID )
-#define B3_REC_OP( op, Name, RET, ... ) B3_REC_RETWRITE_##RET( op, Name )
-#include "recording_ops.inl"
-#undef B3_REC_OP
-#undef B3_REC_RETWRITE_RET_NONE
-#undef B3_REC_RETWRITE_RET_BODYID
-#undef B3_REC_RETWRITE_RET_SHAPEID
-#undef B3_REC_RETWRITE_RET_JOINTID
-#undef B3_REC_RETWRITE
-
 // Query recording. A query collects a variable number of hits through a user callback, so the count
 // is not known until the callback stops firing. The record is built in a local buffer with a
 // reserved hit-count slot, then committed whole under the lock so concurrent query threads never
@@ -672,6 +607,71 @@ bool b3RecPlaneTrampoline( b3ShapeId id, const b3PlaneResult* planes, int planeC
 	w->hitCount++;
 	return ret;
 }
+
+// Record framing
+
+void b3RecBeginRecord( b3Recording* rec, uint8_t opcode )
+{
+	b3RecW_U8( &rec->buffer, opcode );
+	rec->recordStart = rec->buffer.size;
+	// Reserve 3 bytes for the u24 payload size, backpatched in b3RecEndRecord.
+	uint8_t zero[3] = { 0, 0, 0 };
+	b3RecBufAppend( &rec->buffer, zero, 3 );
+}
+
+void b3RecEndRecord( b3Recording* rec )
+{
+	int payloadSize = rec->buffer.size - rec->recordStart - 3;
+	B3_ASSERT( payloadSize >= 0 && payloadSize < ( 1 << 24 ) );
+	uint8_t* p = rec->buffer.data + rec->recordStart;
+	p[0] = (uint8_t)payloadSize;
+	p[1] = (uint8_t)( payloadSize >> 8 );
+	p[2] = (uint8_t)( payloadSize >> 16 );
+}
+
+// Codegen pass 1b: arg writers
+#define ARG( TAG, field ) b3RecW_##TAG( &rec->buffer, a->field );
+#define B3_REC_OP( op, Name, RET, ... )                                                                                          \
+	void b3RecWriteArgs_##Name( b3Recording* rec, const b3RecArgs_##Name* a )                                                    \
+	{                                                                                                                            \
+		__VA_ARGS__                                                                                                              \
+	}
+#include "recording_ops.inl"
+#undef B3_REC_OP
+#undef ARG
+
+// Codegen: full writers
+#define B3_REC_OP( op, Name, RET, ... )                                                                                          \
+	void b3RecWrite_##Name( b3Recording* rec, const b3RecArgs_##Name* a )                                                        \
+	{                                                                                                                            \
+		b3RecBeginRecord( rec, (uint8_t)( op ) );                                                                                \
+		b3RecWriteArgs_##Name( rec, a );                                                                                         \
+		b3RecEndRecord( rec );                                                                                                   \
+	}
+#include "recording_ops.inl"
+#undef B3_REC_OP
+
+// Codegen: create-op writers that append the returned id inside the record
+#define B3_REC_RETWRITE( op, Name, idType, idW )                                                                                 \
+	void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, idType id )                                          \
+	{                                                                                                                            \
+		b3RecBeginRecord( rec, (uint8_t)( op ) );                                                                                \
+		b3RecWriteArgs_##Name( rec, a );                                                                                         \
+		idW( &rec->buffer, id );                                                                                                 \
+		b3RecEndRecord( rec );                                                                                                   \
+	}
+#define B3_REC_RETWRITE_RET_NONE( op, Name )
+#define B3_REC_RETWRITE_RET_BODYID( op, Name )  B3_REC_RETWRITE( op, Name, b3BodyId,  b3RecW_BODYID )
+#define B3_REC_RETWRITE_RET_SHAPEID( op, Name ) B3_REC_RETWRITE( op, Name, b3ShapeId, b3RecW_SHAPEID )
+#define B3_REC_RETWRITE_RET_JOINTID( op, Name ) B3_REC_RETWRITE( op, Name, b3JointId, b3RecW_JOINTID )
+#define B3_REC_OP( op, Name, RET, ... ) B3_REC_RETWRITE_##RET( op, Name )
+#include "recording_ops.inl"
+#undef B3_REC_OP
+#undef B3_REC_RETWRITE_RET_NONE
+#undef B3_REC_RETWRITE_RET_BODYID
+#undef B3_REC_RETWRITE_RET_SHAPEID
+#undef B3_REC_RETWRITE_RET_JOINTID
+#undef B3_REC_RETWRITE
 
 // Geometry registry
 
@@ -1065,63 +1065,45 @@ uint32_t b3RecInternCompound( b3Recording* rec, const b3Compound* compound )
 uint64_t b3HashWorldState( b3World* world )
 {
 	uint64_t hash = B3_SNAP_FNV_INIT;
+	const uint64_t prime = B3_SNAP_FNV_PRIME;
 
-	int bodyCapacity = world->bodies.count;
-	for ( int i = 0; i < bodyCapacity; ++i )
+	int bodyCount = world->bodies.count;
+	for ( int i = 0; i < bodyCount; ++i )
 	{
 		b3Body* body = world->bodies.data + i;
 		if ( body->id != i )
 		{
+			// Free or never-used slot
 			continue;
 		}
 
 		b3BodySim* sim = b3GetBodySim( world, body );
 
-		hash = b3FnvMixPosition( hash, sim->transform.p );
+		uint32_t bits;
 
-		// quaternion: v.x, v.y, v.z, s
-		uint32_t qx, qy, qz, qs;
-		memcpy( &qx, &sim->transform.q.v.x, 4 );
-		memcpy( &qy, &sim->transform.q.v.y, 4 );
-		memcpy( &qz, &sim->transform.q.v.z, 4 );
-		memcpy( &qs, &sim->transform.q.s,   4 );
-		hash = ( hash ^ (uint64_t)qx ) * B3_SNAP_FNV_PRIME;
-		hash = ( hash ^ (uint64_t)qy ) * B3_SNAP_FNV_PRIME;
-		hash = ( hash ^ (uint64_t)qz ) * B3_SNAP_FNV_PRIME;
-		hash = ( hash ^ (uint64_t)qs ) * B3_SNAP_FNV_PRIME;
+#define B3_HASH_FLOAT( f )                                                                                                       \
+	memcpy( &bits, &( f ), 4 );                                                                                                  \
+	hash = ( hash ^ (uint64_t)bits ) * prime;
+
+		hash = b3FnvMixPosition( hash, sim->transform.p );
+		B3_HASH_FLOAT( sim->transform.q.v.x )
+		B3_HASH_FLOAT( sim->transform.q.v.y )
+		B3_HASH_FLOAT( sim->transform.q.v.z )
+		B3_HASH_FLOAT( sim->transform.q.s )
 
 		b3BodyState* state = b3GetBodyState( world, body );
 		if ( state != NULL )
 		{
-			uint32_t lx, ly, lz, ax, ay, az;
-			memcpy( &lx, &state->linearVelocity.x,  4 );
-			memcpy( &ly, &state->linearVelocity.y,  4 );
-			memcpy( &lz, &state->linearVelocity.z,  4 );
-			memcpy( &ax, &state->angularVelocity.x, 4 );
-			memcpy( &ay, &state->angularVelocity.y, 4 );
-			memcpy( &az, &state->angularVelocity.z, 4 );
-			hash = ( hash ^ (uint64_t)lx ) * B3_SNAP_FNV_PRIME;
-			hash = ( hash ^ (uint64_t)ly ) * B3_SNAP_FNV_PRIME;
-			hash = ( hash ^ (uint64_t)lz ) * B3_SNAP_FNV_PRIME;
-			hash = ( hash ^ (uint64_t)ax ) * B3_SNAP_FNV_PRIME;
-			hash = ( hash ^ (uint64_t)ay ) * B3_SNAP_FNV_PRIME;
-			hash = ( hash ^ (uint64_t)az ) * B3_SNAP_FNV_PRIME;
+			B3_HASH_FLOAT( state->linearVelocity.x )
+			B3_HASH_FLOAT( state->linearVelocity.y )
+			B3_HASH_FLOAT( state->linearVelocity.z )
+			B3_HASH_FLOAT( state->angularVelocity.x )
+			B3_HASH_FLOAT( state->angularVelocity.y )
+			B3_HASH_FLOAT( state->angularVelocity.z )
 		}
+
+#undef B3_HASH_FLOAT
 	}
 
 	return hash;
-}
-
-// Public API entry points
-
-void b3World_StartRecording( b3WorldId worldId, b3Recording* recording )
-{
-	b3World* world = b3GetWorldFromId( worldId );
-	b3StartRecordingIntoBuffer( world, recording );
-}
-
-void b3World_StopRecording( b3WorldId worldId )
-{
-	b3World* world = b3GetWorldFromId( worldId );
-	b3StopRecordingInternal( world );
 }
