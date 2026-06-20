@@ -437,22 +437,3 @@ void b3SolveMotorJoint( b3JointSim* base, b3StepContext* context )
 		stateB->angularVelocity = wB;
 	}
 }
-
-#if 0
-void b3DumpMotorJoint()
-{
-	int32 indexA = m_bodyA->m_islandIndex;
-	int32 indexB = m_bodyB->m_islandIndex;
-
-	b3Dump("  b3MotorJointDef jd;\n");
-	b3Dump("  jd.bodyA = sims[%d];\n", indexA);
-	b3Dump("  jd.bodyB = sims[%d];\n", indexB);
-	b3Dump("  jd.collideConnected = bool(%d);\n", m_collideConnected);
-	b3Dump("  jd.localAnchorA.Set(%.9g, %.9g);\n", m_localAnchorA.x, m_localAnchorA.y);
-	b3Dump("  jd.localAnchorB.Set(%.9g, %.9g);\n", m_localAnchorB.x, m_localAnchorB.y);
-	b3Dump("  jd.referenceAngle = %.9g;\n", m_referenceAngle);
-	b3Dump("  jd.stiffness = %.9g;\n", m_stiffness);
-	b3Dump("  jd.damping = %.9g;\n", m_damping);
-	b3Dump("  joints[%d] = m_world->CreateJoint(&jd);\n", m_index);
-}
-#endif

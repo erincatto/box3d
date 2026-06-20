@@ -1683,6 +1683,7 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 			break;
 
 		case b3_motorJoint:
+			draw->DrawSegmentFcn( pA, pB, b3_colorPlum, draw->context );
 			draw->DrawPointFcn( pA, 8.0f, b3_colorYellowGreen, draw->context );
 			draw->DrawPointFcn( pB, 8.0f, b3_colorPlum, draw->context );
 			break;
