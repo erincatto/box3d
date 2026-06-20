@@ -2333,7 +2333,6 @@ struct b3RecPlayer
 	b3AABB   bounds;           // accumulated world bounds, decoded from the trailing record
 	bool     atEnd;
 	int      divergeFrame;     // first frame that diverged, -1 until then
-	bool     snapshotSeeded;   // true when snapshotSize > 0
 
 	// Outliner body list, indexed by creation ordinal. Holes (null ids) mark destroyed bodies so
 	// later ordinals never shift. Snapshotted into each keyframe and the frame-0 copy, not rebuilt
@@ -2355,16 +2354,16 @@ struct b3RecPlayer
 
 	// Host debug-shape callbacks applied to every world the player creates. The 3D
 	// sample renderer builds GPU meshes here, so a replay world without them draws
-	// nothing. Set once via b3RecPlayer_SetDebugShapeCallbacks; persisted so a
-	// from-creation Restart that rebuilds the world keeps drawing.
+	// nothing. Set once via b3RecPlayer_SetDebugShapeCallbacks; persisted so a world
+	// rebuilt under new callbacks keeps drawing.
 	b3CreateDebugShapeCallback*  createDebugShape;
 	b3DestroyDebugShapeCallback* destroyDebugShape;
 	void*                        debugShapeContext;
 
 	b3RecReader rdr;
 
-	// Frame-0 restore image: points into owned data when snapshot-seeded,
-	// or NULL when from-creation (restart rebuilds world from scratch).
+	// Frame-0 restore image, points into the owned data copy. Restart and backward seek
+	// deserialize this in place so the replay world id stays stable.
 	const uint8_t* frame0Image;
 	int            frame0Size;
 
@@ -2848,6 +2847,13 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 		return NULL;
 	}
 
+	// Every recording is snapshot-seeded: the seed blob sits between the header and the op stream.
+	if ( hdr.snapshotSize == 0 )
+	{
+		printf( "b3RecPlayer_Create: missing snapshot seed\n" );
+		return NULL;
+	}
+
 	int headerEnd = (int)sizeof( b3RecHeader ) + (int)hdr.snapshotSize;
 	int registryEnd = ( hdr.registryOffset != 0 ) ? (int)hdr.registryOffset : size;
 
@@ -2870,7 +2876,6 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 	player->registryEnd       = registryEnd;
 	player->lengthScale       = hdr.lengthScale;
 	player->previousLengthScale = b3GetLengthUnitsPerMeter();
-	player->snapshotSeeded    = ( hdr.snapshotSize > 0 );
 	player->frame             = 0;
 	player->frameCount        = 0;
 	player->recordedDt        = 0.0f;
@@ -2914,8 +2919,8 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 		return NULL;
 	}
 
-	// Restore seed snapshot when present; otherwise the world starts empty.
-	if ( player->snapshotSeeded )
+	// Restore the seed snapshot to stand up the replay world. The blob doubles as the frame-0
+	// restore image, owned by the copy held above.
 	{
 		int snapStart = (int)sizeof( b3RecHeader );
 		int snapSize  = (int)hdr.snapshotSize;
@@ -2934,8 +2939,8 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 		player->frame0Size  = snapSize;
 	}
 
-	// Seed the outliner from the seed world (snapshot bodies bypass the create hook) and save the
-	// frame-0 restore copy. For from-creation recordings the world is empty here, so this is a no-op.
+	// Seed the outliner from the restored world (snapshot bodies bypass the create hook) and save
+	// the frame-0 restore copy.
 	b3RecSeedFrame0BodyIds( player );
 
 	// Build the keyframe recording with a pre-seeded registry that mirrors rdr.slots,
@@ -3082,22 +3087,13 @@ bool b3RecPlayer_StepFrame( b3RecPlayer* player )
 
 void b3RecPlayer_Restart( b3RecPlayer* player )
 {
-	if ( player->snapshotSeeded )
+	// Restore the frame-0 image in place so the replay world id stays stable across a restart or
+	// backward scrub. Stepping resumes at the first Step, which rebuilds the body list deterministically.
+	b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
+	if ( b3DeserializeIntoShell( player->frame0Image, player->frame0Size, world, &player->rdr ) == false )
 	{
-		// Restore the frame-0 image in-place; replay world id stays stable.
-		b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
-		if ( b3DeserializeIntoShell( player->frame0Image, player->frame0Size, world, &player->rdr ) == false )
-		{
-			player->rdr.ok = false;
-			return;
-		}
-	}
-	else
-	{
-		// From-creation: destroy and re-create the world. Keep the host debug-shape
-		// callbacks so the rebuilt world still renders.
-		b3DestroyWorld( player->rdr.replayWorldId );
-		player->rdr.replayWorldId = b3RecPlayerCreateWorld( player );
+		player->rdr.ok = false;
+		return;
 	}
 	player->rdr.cursor   = player->headerEnd;
 	player->rdr.ok       = true;
@@ -3537,17 +3533,14 @@ void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShape
 	player->divergeFrame      = -1;
 	player->atEnd             = false;
 
-	// Re-seed a snapshot world so its shapes are recreated through the callbacks.
-	if ( player->snapshotSeeded )
+	// Re-seed the world so its shapes are recreated through the new callbacks.
+	b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
+	if ( b3DeserializeIntoShell( player->frame0Image, player->frame0Size, world, &player->rdr ) == false )
 	{
-		b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
-		if ( b3DeserializeIntoShell( player->frame0Image, player->frame0Size, world, &player->rdr ) == false )
-		{
-			player->rdr.ok = false;
-			return;
-		}
-		player->rdr.cursor = player->headerEnd;
+		player->rdr.ok = false;
+		return;
 	}
+	player->rdr.cursor = player->headerEnd;
 
 	// Rebuild the outliner from the frame-0 world that was just stood up under the new callbacks.
 	b3RecSeedFrame0BodyIds( player );

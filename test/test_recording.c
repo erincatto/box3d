@@ -534,8 +534,8 @@ static int DebugShapeCallbacks( void )
 	ENSURE( counters.created >= 5 );
 	ENSURE( !b3RecPlayer_HasDiverged( player ) );
 
-	// A backward seek rebuilds the world (from-creation) and must keep the callbacks, so re-stepping
-	// then drawing fires more creates.
+	// A backward seek restores the empty seed in place, releasing the live debug shapes, then forward
+	// stepping recreates them through the callbacks, so more creates fire.
 	int createdBefore = counters.created;
 	b3RecPlayer_SeekFrame( player, 0 );
 	b3RecPlayer_SeekFrame( player, totalFrames );
@@ -866,9 +866,62 @@ static int QueryReplay( void )
 	return 0;
 }
 
+// Empty world: recording starts with no bodies and none are ever created. This used to skip the seed
+// snapshot and produce a from-creation player whose Restart destroyed and rebuilt the world, changing
+// its id. The empty world is now serialized like any other, so replay validates and Restart restores
+// in place with a stable world id.
+static int EmptyWorldRoundTrip( void )
+{
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+
+	b3World_StartRecording( worldId, rec );
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	for ( int i = 0; i < 10; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	const uint8_t* data = b3Recording_GetData( rec );
+	int            size = b3Recording_GetSize( rec );
+
+	// The seed snapshot is written even with no bodies.
+	b3RecHeader hdr;
+	memcpy( &hdr, data, sizeof( hdr ) );
+	ENSURE( hdr.snapshotSize > 0 );
+
+	ENSURE( b3ValidateReplay( data, size, 1 ) );
+
+	// Restart restores in place, so the replay world id survives a rewind.
+	b3RecPlayer* player = b3RecPlayer_Create( data, size, 1 );
+	ENSURE( player != NULL );
+
+	uint32_t worldKey = b3StoreWorldId( b3RecPlayer_GetWorldId( player ) );
+	while ( !b3RecPlayer_IsAtEnd( player ) )
+	{
+		b3RecPlayer_StepFrame( player );
+	}
+	b3RecPlayer_Restart( player );
+	ENSURE( b3StoreWorldId( b3RecPlayer_GetWorldId( player ) ) == worldKey );
+	ENSURE( b3RecPlayer_GetFrame( player ) == 0 );
+	ENSURE( !b3RecPlayer_HasDiverged( player ) );
+
+	b3RecPlayer_Destroy( player );
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( SphereRoundTrip );
+	RUN_SUBTEST( EmptyWorldRoundTrip );
 	RUN_SUBTEST( HullDedup );
 	RUN_SUBTEST( MidStreamNoContacts );
 	RUN_SUBTEST( MidStreamContacts );

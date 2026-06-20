@@ -302,9 +302,8 @@ B3_API bool b3SaveRecordingToFile( const b3Recording* recording, const char* pat
 B3_API b3Recording* b3LoadRecordingFromFile( const char* path );
 
 /// Replay a recording from memory and verify it reproduces the same world-state hashes.
-/// Stands up a fresh world, replays every op from the beginning (from-creation recordings only),
-/// and checks each embedded StateHash record. Returns true if replay completed without id
-/// mismatches or hash divergences.
+/// Stands up a fresh world, restores the seed snapshot, replays every op, and checks each embedded
+/// StateHash record. Returns true if replay completed without id mismatches or hash divergences.
 /// @param data pointer to recording bytes
 /// @param size byte count of the recording
 /// @param workerCount reserved for future multithreaded replay; pass 1 for now
