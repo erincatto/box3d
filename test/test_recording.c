@@ -733,6 +733,139 @@ static int KeyframeHandleReuse( void )
 	return 0;
 }
 
+static bool QueryReplayOverlapFcn( b3ShapeId shapeId, void* context )
+{
+	(void)shapeId;
+	(void)context;
+	return true;
+}
+
+static float QueryReplayCastFcn( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+								 int triangleIndex, int childIndex, void* context )
+{
+	(void)shapeId;
+	(void)point;
+	(void)normal;
+	(void)userMaterialId;
+	(void)triangleIndex;
+	(void)childIndex;
+	(void)context;
+	// Return the fraction to keep the closest hit, exercising the recorded user-return path.
+	return fraction;
+}
+
+static bool QueryReplayPlaneFcn( b3ShapeId shapeId, const b3PlaneResult* planes, int planeCount, void* context )
+{
+	(void)shapeId;
+	(void)planes;
+	(void)planeCount;
+	(void)context;
+	return true;
+}
+
+static bool QueryReplayMoverFilterFcn( b3ShapeId shapeId, void* context )
+{
+	(void)shapeId;
+	(void)context;
+	return true;
+}
+
+// Issue all seven world queries each frame, then replay. Every query is re-issued against the replay
+// world and compared to what was recorded, so a clean (non-diverged) replay proves the queries
+// reproduce. Also opens a player and confirms the per-frame query store surfaces all seven.
+static int QueryReplay( void )
+{
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	groundDef.type    = b3_staticBody;
+	b3BodyId  groundId = b3CreateBody( worldId, &groundDef );
+	b3BoxHull groundBox   = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
+	b3ShapeDef groundShape = b3DefaultShapeDef();
+	b3CreateHullShape( groundId, &groundShape, &groundBox.base );
+
+	// A few dynamic spheres for the queries to find.
+	for ( int i = 0; i < 4; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type     = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ (float)i - 1.5f, 3.0f, 0.0f };
+		b3BodyId bodyId  = b3CreateBody( worldId, &bodyDef );
+		b3Sphere sphere  = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+		b3ShapeDef sphereDef = b3DefaultShapeDef();
+		sphereDef.density    = 1.0f;
+		b3CreateSphereShape( bodyId, &sphereDef, &sphere );
+	}
+
+	b3World_StartRecording( worldId, rec );
+
+	b3QueryFilter filter = b3DefaultQueryFilter();
+
+	const int totalFrames = 30;
+	for ( int i = 0; i < totalFrames; ++i )
+	{
+		b3Pos  origin      = { 0.0f, 6.0f, 0.0f };
+		b3Vec3 translation = { 0.0f, -8.0f, 0.0f };
+		b3AABB aabb        = { { -5.0f, -1.0f, -5.0f }, { 5.0f, 6.0f, 5.0f } };
+
+		b3Vec3       proxyPts = { 0.0f, 0.0f, 0.0f };
+		b3ShapeProxy proxy    = { &proxyPts, 1, 0.5f };
+		b3Capsule    mover    = { { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 0.3f };
+
+		b3World_OverlapAABB( worldId, aabb, filter, QueryReplayOverlapFcn, NULL );
+		b3World_OverlapShape( worldId, origin, &proxy, filter, QueryReplayOverlapFcn, NULL );
+		b3World_CastRay( worldId, origin, translation, filter, QueryReplayCastFcn, NULL );
+		b3World_CastRayClosest( worldId, origin, translation, filter );
+		b3World_CastShape( worldId, origin, &proxy, translation, filter, QueryReplayCastFcn, NULL );
+		b3World_CastMover( worldId, origin, &mover, translation, filter, QueryReplayMoverFilterFcn, NULL );
+		b3World_CollideMover( worldId, origin, &mover, filter, QueryReplayPlaneFcn, NULL );
+
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	// Headless validation: re-issues every recorded query and compares the results.
+	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 ) );
+
+	// A different worker count replays the same queries, a cross-thread determinism check.
+	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 4 ) );
+
+	// Player path: seek to a mid frame and confirm the per-frame store holds all seven queries.
+	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
+	ENSURE( player != NULL );
+
+	b3RecPlayer_SeekFrame( player, 15 );
+	ENSURE( !b3RecPlayer_HasDiverged( player ) );
+	ENSURE( b3RecPlayer_GetFrameQueryCount( player ) == 7 );
+
+	b3RecQueryInfo first = b3RecPlayer_GetFrameQuery( player, 0 );
+	ENSURE( first.type == b3_recQueryOverlapAABB );
+
+	// The ray cast should find at least the ground, so its recorded hit list is non-empty.
+	bool sawCastRay = false;
+	for ( int qi = 0; qi < b3RecPlayer_GetFrameQueryCount( player ); ++qi )
+	{
+		b3RecQueryInfo info = b3RecPlayer_GetFrameQuery( player, qi );
+		if ( info.type == b3_recQueryCastRay )
+		{
+			sawCastRay = true;
+			ENSURE( info.hitCount > 0 );
+		}
+	}
+	ENSURE( sawCastRay );
+
+	b3RecPlayer_Destroy( player );
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( SphereRoundTrip );
@@ -744,5 +877,6 @@ int RecordingTest( void )
 	RUN_SUBTEST( DebugShapeCallbacks );
 	RUN_SUBTEST( PlayerAccessors );
 	RUN_SUBTEST( KeyframeHandleReuse );
+	RUN_SUBTEST( QueryReplay );
 	return 0;
 }

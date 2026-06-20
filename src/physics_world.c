@@ -2566,6 +2566,19 @@ b3TreeStats b3World_OverlapAABB( b3WorldId worldId, b3AABB aabb, b3QueryFilter f
 
 	B3_ASSERT( b3IsValidAABB( aabb ) );
 
+	b3RecQueryWriter recWriter = { 0 };
+	if ( world->recording != NULL )
+	{
+		b3RecQueryBegin( &recWriter, context );
+		recWriter.userFcn.overlapFcn = fcn;
+		b3RecW_WORLDID( &recWriter.buf, worldId );
+		b3RecW_AABB( &recWriter.buf, aabb );
+		b3RecW_QUERYFILTER( &recWriter.buf, filter );
+		recWriter.countOffset = b3RecReserveU32( &recWriter.buf );
+		fcn = b3RecOverlapTrampoline;
+		context = &recWriter;
+	}
+
 	WorldQueryContext worldContext = { world, fcn, filter, context };
 
 	for ( int i = 0; i < b3_bodyTypeCount; ++i )
@@ -2575,6 +2588,13 @@ b3TreeStats b3World_OverlapAABB( b3WorldId worldId, b3AABB aabb, b3QueryFilter f
 
 		treeStats.nodeVisits += treeResult.nodeVisits;
 		treeStats.leafVisits += treeResult.leafVisits;
+	}
+
+	if ( world->recording != NULL )
+	{
+		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
+		b3RecW_TREESTATS( &recWriter.buf, treeStats );
+		b3RecQueryCommit( world->recording, 0xE8, &recWriter );
 	}
 
 	return treeStats;
@@ -2636,6 +2656,20 @@ b3TreeStats b3World_OverlapShape( b3WorldId worldId, b3Pos origin, const b3Shape
 
 	B3_ASSERT( b3IsValidPosition( origin ) );
 
+	b3RecQueryWriter recWriter = { 0 };
+	if ( world->recording != NULL )
+	{
+		b3RecQueryBegin( &recWriter, context );
+		recWriter.userFcn.overlapFcn = fcn;
+		b3RecW_WORLDID( &recWriter.buf, worldId );
+		b3RecW_POSITION( &recWriter.buf, origin );
+		b3RecW_SHAPEPROXY( &recWriter.buf, *proxy );
+		b3RecW_QUERYFILTER( &recWriter.buf, filter );
+		recWriter.countOffset = b3RecReserveU32( &recWriter.buf );
+		fcn = b3RecOverlapTrampoline;
+		context = &recWriter;
+	}
+
 	// Bound the proxy in origin relative space then lift to a conservative world float box
 	b3AABB aabb = b3OffsetAABB( b3MakeAABB( proxy->points, proxy->count, proxy->radius ), origin );
 	WorldOverlapContext worldContext = {
@@ -2649,6 +2683,13 @@ b3TreeStats b3World_OverlapShape( b3WorldId worldId, b3Pos origin, const b3Shape
 
 		treeStats.nodeVisits += treeResult.nodeVisits;
 		treeStats.leafVisits += treeResult.leafVisits;
+	}
+
+	if ( world->recording != NULL )
+	{
+		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
+		b3RecW_TREESTATS( &recWriter.buf, treeStats );
+		b3RecQueryCommit( world->recording, 0xE9, &recWriter );
 	}
 
 	return treeStats;
@@ -2712,6 +2753,20 @@ void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mov
 
 	B3_ASSERT( b3IsValidPosition( origin ) );
 
+	b3RecQueryWriter recWriter = { 0 };
+	if ( world->recording != NULL )
+	{
+		b3RecQueryBegin( &recWriter, context );
+		recWriter.userFcn.planeFcn = fcn;
+		b3RecW_WORLDID( &recWriter.buf, worldId );
+		b3RecW_POSITION( &recWriter.buf, origin );
+		b3RecW_CAPSULE( &recWriter.buf, *mover );
+		b3RecW_QUERYFILTER( &recWriter.buf, filter );
+		recWriter.countOffset = b3RecReserveU32( &recWriter.buf );
+		fcn = b3RecPlaneTrampoline;
+		context = &recWriter;
+	}
+
 	b3Vec3 r = { mover->radius, mover->radius, mover->radius };
 
 	// Relative box lifted to world float with outward rounding, conservative for the tree
@@ -2727,6 +2782,13 @@ void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mov
 	for ( int i = 0; i < b3_bodyTypeCount; ++i )
 	{
 		b3DynamicTree_Query( world->broadPhase.trees + i, aabb, filter.maskBits, false, TreeCollideCallback, &worldContext );
+	}
+
+	if ( world->recording != NULL )
+	{
+		// CollideMover returns void: no treestats tail, just the per-shape plane batches.
+		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
+		b3RecQueryCommit( world->recording, 0xEE, &recWriter );
 	}
 }
 
@@ -2805,6 +2867,20 @@ b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation
 	B3_ASSERT( b3IsValidPosition( origin ) );
 	B3_ASSERT( b3IsValidVec3( translation ) );
 
+	b3RecQueryWriter recWriter = { 0 };
+	if ( world->recording != NULL )
+	{
+		b3RecQueryBegin( &recWriter, context );
+		recWriter.userFcn.castFcn = fcn;
+		b3RecW_WORLDID( &recWriter.buf, worldId );
+		b3RecW_POSITION( &recWriter.buf, origin );
+		b3RecW_VEC3( &recWriter.buf, translation );
+		b3RecW_QUERYFILTER( &recWriter.buf, filter );
+		recWriter.countOffset = b3RecReserveU32( &recWriter.buf );
+		fcn = b3RecCastTrampoline;
+		context = &recWriter;
+	}
+
 	// The tree traverses in float relative to the world origin. Each shape is then re-differenced at
 	// full precision against the origin, so a hit stays accurate far from the origin.
 	b3RayCastInput input = { b3ToVec3( origin ), translation, 1.0f };
@@ -2820,10 +2896,17 @@ b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation
 
 		if ( worldContext.fraction == 0.0f )
 		{
-			return treeStats;
+			break;
 		}
 
 		input.maxFraction = worldContext.fraction;
+	}
+
+	if ( world->recording != NULL )
+	{
+		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
+		b3RecW_TREESTATS( &recWriter.buf, treeStats );
+		b3RecQueryCommit( world->recording, 0xEA, &recWriter );
 	}
 
 	return treeStats;
@@ -2885,10 +2968,23 @@ b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Pos origin, b3Vec3 tran
 
 		if ( worldContext.fraction == 0.0f )
 		{
-			return result;
+			break;
 		}
 
 		input.maxFraction = worldContext.fraction;
+	}
+
+	// Closed query, no user callback: record the inputs and the single result for the replay compare.
+	if ( world->recording != NULL )
+	{
+		b3RecQueryWriter recWriter = { 0 };
+		b3RecQueryBegin( &recWriter, NULL );
+		b3RecW_WORLDID( &recWriter.buf, worldId );
+		b3RecW_POSITION( &recWriter.buf, origin );
+		b3RecW_VEC3( &recWriter.buf, translation );
+		b3RecW_QUERYFILTER( &recWriter.buf, filter );
+		b3RecW_RAYRESULT( &recWriter.buf, result );
+		b3RecQueryCommit( world->recording, 0xEC, &recWriter );
 	}
 
 	return result;
@@ -2971,6 +3067,21 @@ b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3ShapePro
 	B3_ASSERT( b3IsValidPosition( origin ) );
 	B3_ASSERT( b3IsValidVec3( translation ) );
 
+	b3RecQueryWriter recWriter = { 0 };
+	if ( world->recording != NULL )
+	{
+		b3RecQueryBegin( &recWriter, context );
+		recWriter.userFcn.castFcn = fcn;
+		b3RecW_WORLDID( &recWriter.buf, worldId );
+		b3RecW_POSITION( &recWriter.buf, origin );
+		b3RecW_SHAPEPROXY( &recWriter.buf, *proxy );
+		b3RecW_VEC3( &recWriter.buf, translation );
+		b3RecW_QUERYFILTER( &recWriter.buf, filter );
+		recWriter.countOffset = b3RecReserveU32( &recWriter.buf );
+		fcn = b3RecCastTrampoline;
+		context = &recWriter;
+	}
+
 	WorldShapeCastContext worldContext = { 0 };
 	worldContext.world = world;
 	worldContext.fcn = fcn;
@@ -2998,10 +3109,17 @@ b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3ShapePro
 
 		if ( worldContext.fraction == 0.0f )
 		{
-			return treeStats;
+			break;
 		}
 
 		treeInput.maxFraction = worldContext.fraction;
+	}
+
+	if ( world->recording != NULL )
+	{
+		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
+		b3RecW_TREESTATS( &recWriter.buf, treeStats );
+		b3RecQueryCommit( world->recording, 0xEB, &recWriter );
 	}
 
 	return treeStats;
@@ -3077,6 +3195,24 @@ float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover
 		return 1.0f;
 	}
 
+	// The mover filter is a per-shape bool(shapeId, ctx) decision, the same shape as an overlap
+	// callback, so the overlap trampoline captures it. Installing it even when the user passed no
+	// filter records an accept-all stream that replays identically.
+	b3RecQueryWriter recWriter = { 0 };
+	if ( world->recording != NULL )
+	{
+		b3RecQueryBegin( &recWriter, context );
+		recWriter.userFcn.moverFilterFcn = fcn;
+		b3RecW_WORLDID( &recWriter.buf, worldId );
+		b3RecW_POSITION( &recWriter.buf, origin );
+		b3RecW_CAPSULE( &recWriter.buf, *mover );
+		b3RecW_VEC3( &recWriter.buf, translation );
+		b3RecW_QUERYFILTER( &recWriter.buf, filter );
+		recWriter.countOffset = b3RecReserveU32( &recWriter.buf );
+		fcn = b3RecOverlapTrampoline;
+		context = &recWriter;
+	}
+
 	WorldMoverCastContext worldContext = {
 		.world = world,
 		.fcn = fcn,
@@ -3101,10 +3237,19 @@ float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover
 
 		if ( worldContext.fraction == 0.0f )
 		{
-			return 0.0f;
+			break;
 		}
 
 		treeInput.maxFraction = worldContext.fraction;
+	}
+
+	if ( world->recording != NULL )
+	{
+		// The mover filter type aliases the overlap trampoline, so the user fcn lands in the same
+		// union slot. Backpatch the accept count, then record the returned fraction as the tail.
+		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
+		b3RecW_F32( &recWriter.buf, worldContext.fraction );
+		b3RecQueryCommit( world->recording, 0xED, &recWriter );
 	}
 
 	return worldContext.fraction;

@@ -171,6 +171,54 @@ void b3RecW_AABB( b3RecBuffer* buf, b3AABB v )
 	b3RecW_VEC3( buf, v.upperBound );
 }
 
+void b3RecW_QUERYFILTER( b3RecBuffer* buf, b3QueryFilter v )
+{
+	b3RecW_U64( buf, v.categoryBits );
+	b3RecW_U64( buf, v.maskBits );
+}
+
+// Variable length: count, then count points, then radius. The point cloud lives behind a pointer so
+// it cannot ride along as POD.
+void b3RecW_SHAPEPROXY( b3RecBuffer* buf, b3ShapeProxy v )
+{
+	int count = v.count;
+	if ( count < 0 )
+		count = 0;
+	if ( count > B3_MAX_SHAPE_CAST_POINTS )
+		count = B3_MAX_SHAPE_CAST_POINTS;
+	b3RecW_I32( buf, count );
+	for ( int i = 0; i < count; ++i )
+	{
+		b3RecW_VEC3( buf, v.points[i] );
+	}
+	b3RecW_F32( buf, v.radius );
+}
+
+void b3RecW_TREESTATS( b3RecBuffer* buf, b3TreeStats v )
+{
+	b3RecW_I32( buf, v.nodeVisits );
+	b3RecW_I32( buf, v.leafVisits );
+}
+
+void b3RecW_RAYRESULT( b3RecBuffer* buf, b3RayResult v )
+{
+	b3RecW_SHAPEID( buf, v.shapeId );
+	b3RecW_POSITION( buf, v.point );
+	b3RecW_VEC3( buf, v.normal );
+	b3RecW_U64( buf, v.userMaterialId );
+	b3RecW_F32( buf, v.fraction );
+	b3RecW_I32( buf, v.triangleIndex );
+	b3RecW_I32( buf, v.childIndex );
+	b3RecW_BOOL( buf, v.hit );
+}
+
+void b3RecW_PLANERESULT( b3RecBuffer* buf, b3PlaneResult v )
+{
+	b3RecW_VEC3( buf, v.plane.normal );
+	b3RecW_F32( buf, v.plane.offset );
+	b3RecW_VEC3( buf, v.point );
+}
+
 void b3RecW_WORLDID( b3RecBuffer* buf, b3WorldId v )
 {
 	b3RecW_U32( buf, b3StoreWorldId( v ) );
@@ -529,6 +577,101 @@ void b3RecEndRecord( b3Recording* rec )
 #undef B3_REC_RETWRITE_RET_SHAPEID
 #undef B3_REC_RETWRITE_RET_JOINTID
 #undef B3_REC_RETWRITE
+
+// Query recording. A query collects a variable number of hits through a user callback, so the count
+// is not known until the callback stops firing. The record is built in a local buffer with a
+// reserved hit-count slot, then committed whole under the lock so concurrent query threads never
+// interleave records in the shared buffer.
+
+int b3RecReserveU32( b3RecBuffer* buf )
+{
+	int offset = buf->size;
+	uint8_t zero[4] = { 0, 0, 0, 0 };
+	b3RecBufAppend( buf, zero, 4 );
+	return offset;
+}
+
+void b3RecPatchU32( b3RecBuffer* buf, int offset, uint32_t v )
+{
+	B3_ASSERT( offset >= 0 && offset + 4 <= buf->size );
+	uint8_t* p = buf->data + offset;
+	p[0] = (uint8_t)v;
+	p[1] = (uint8_t)( v >> 8 );
+	p[2] = (uint8_t)( v >> 16 );
+	p[3] = (uint8_t)( v >> 24 );
+}
+
+void b3RecCommitRecord( b3Recording* rec, uint8_t opcode, const uint8_t* payload, int payloadSize )
+{
+	B3_ASSERT( payloadSize >= 0 && payloadSize < ( 1 << 24 ) );
+	b3LockMutex( rec->lock );
+	b3RecW_U8( &rec->buffer, opcode );
+	uint8_t sz[3] = { (uint8_t)payloadSize, (uint8_t)( payloadSize >> 8 ), (uint8_t)( payloadSize >> 16 ) };
+	b3RecBufAppend( &rec->buffer, sz, 3 );
+	b3RecBufAppend( &rec->buffer, payload, payloadSize );
+	b3UnlockMutex( rec->lock );
+}
+
+void b3RecQueryBegin( b3RecQueryWriter* w, void* context )
+{
+	w->buf = ( b3RecBuffer ){ 0 };
+	w->userFcn.overlapFcn = NULL;
+	w->userContext = context;
+	w->hitCount = 0;
+	w->countOffset = 0;
+}
+
+void b3RecQueryCommit( b3Recording* rec, uint8_t opcode, b3RecQueryWriter* w )
+{
+	b3RecCommitRecord( rec, opcode, w->buf.data, w->buf.size );
+	b3RecBufFree( &w->buf );
+}
+
+bool b3RecOverlapTrampoline( b3ShapeId id, void* ctx )
+{
+	b3RecQueryWriter* w = (b3RecQueryWriter*)ctx;
+	// The user fcn is NULL for an unfiltered mover cast: accept all, still record the decision so
+	// replay reproduces the same per-shape accept stream.
+	bool ret = w->userFcn.overlapFcn != NULL ? w->userFcn.overlapFcn( id, w->userContext ) : true;
+	b3RecW_SHAPEID( &w->buf, id );
+	b3RecW_BOOL( &w->buf, ret );
+	w->hitCount++;
+	return ret;
+}
+
+float b3RecCastTrampoline( b3ShapeId id, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId, int triangleIndex,
+						   int childIndex, void* ctx )
+{
+	b3RecQueryWriter* w = (b3RecQueryWriter*)ctx;
+	float ret = w->userFcn.castFcn( id, point, normal, fraction, userMaterialId, triangleIndex, childIndex, w->userContext );
+	b3RecW_SHAPEID( &w->buf, id );
+	b3RecW_POSITION( &w->buf, point );
+	b3RecW_VEC3( &w->buf, normal );
+	b3RecW_F32( &w->buf, fraction );
+	b3RecW_U64( &w->buf, userMaterialId );
+	b3RecW_I32( &w->buf, triangleIndex );
+	b3RecW_I32( &w->buf, childIndex );
+	b3RecW_F32( &w->buf, ret );
+	w->hitCount++;
+	return ret;
+}
+
+// 3D delivers every plane for one shape in a single call. Record the shape, its plane count, each
+// plane, then the user return so replay reproduces the same per-shape batch. One hit per shape.
+bool b3RecPlaneTrampoline( b3ShapeId id, const b3PlaneResult* planes, int planeCount, void* ctx )
+{
+	b3RecQueryWriter* w = (b3RecQueryWriter*)ctx;
+	bool ret = w->userFcn.planeFcn( id, planes, planeCount, w->userContext );
+	b3RecW_SHAPEID( &w->buf, id );
+	b3RecW_I32( &w->buf, planeCount );
+	for ( int i = 0; i < planeCount; ++i )
+	{
+		b3RecW_PLANERESULT( &w->buf, planes[i] );
+	}
+	b3RecW_BOOL( &w->buf, ret );
+	w->hitCount++;
+	return ret;
+}
 
 // Geometry registry
 

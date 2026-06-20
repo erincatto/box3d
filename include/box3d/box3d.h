@@ -415,6 +415,54 @@ B3_API b3BodyId b3RecPlayer_GetBodyId( const b3RecPlayer* player, int index );
 B3_API void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShapeCallback* createDebugShape,
                                                 b3DestroyDebugShapeCallback* destroyDebugShape, void* context );
 
+/// Draw the spatial queries recorded during the most recently replayed frame, layered on top of the
+/// world. Call after b3World_Draw. NULL draw function pointers are skipped.
+/// @param player a valid player handle
+/// @param draw debug draw callbacks
+/// @param queryIndex index of the frame query to draw, or -1 to draw all of them
+B3_API void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int queryIndex );
+
+/// The kind of a recorded spatial query, matching the public query and cast functions.
+typedef enum b3RecQueryType
+{
+	b3_recQueryOverlapAABB,
+	b3_recQueryOverlapShape,
+	b3_recQueryCastRay,
+	b3_recQueryCastShape,
+	b3_recQueryCastRayClosest,
+	b3_recQueryCastMover,
+	b3_recQueryCollideMover,
+} b3RecQueryType;
+
+/// A spatial query recorded during a replayed frame, exposed for inspection.
+typedef struct b3RecQueryInfo
+{
+	b3RecQueryType type;
+	b3QueryFilter  filter;
+	b3AABB         aabb;        // overlap AABB, world space
+	b3Pos          origin;      // query origin (zero for overlap AABB)
+	b3Vec3         translation; // ray and cast translation
+	int            hitCount;    // number of recorded results
+} b3RecQueryInfo;
+
+/// One result of a recorded spatial query.
+typedef struct b3RecQueryHit
+{
+	b3ShapeId shape;
+	b3Pos     point;
+	b3Vec3    normal;
+	float     fraction;
+} b3RecQueryHit;
+
+/// @return the number of spatial queries recorded for the most recently replayed frame
+B3_API int b3RecPlayer_GetFrameQueryCount( const b3RecPlayer* player );
+
+/// Get a recorded query from the most recently replayed frame by index.
+B3_API b3RecQueryInfo b3RecPlayer_GetFrameQuery( const b3RecPlayer* player, int index );
+
+/// Get one result of a recorded query from the most recently replayed frame.
+B3_API b3RecQueryHit b3RecPlayer_GetFrameQueryHit( const b3RecPlayer* player, int queryIndex, int hitIndex );
+
 /**@}*/ // recording
 
 /** @} */ // world

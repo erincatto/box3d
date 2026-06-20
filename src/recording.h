@@ -45,8 +45,9 @@ typedef struct b3World b3World;
 // Magic 'B3RC' in little-endian: bytes B(0x42) 3(0x33) R(0x52) C(0x43)
 #define B3_REC_MAGIC 0x43523342u
 
+// Minor tracks op-stream additions that keep the 48 byte header shape (e.g. the spatial query ops).
 #define B3_REC_VERSION_MAJOR 1
-#define B3_REC_VERSION_MINOR 0
+#define B3_REC_VERSION_MINOR 1
 
 // File header, fixed 48 bytes, little-endian. Contains the registry locator so the player
 // can load geometry before replaying any ops.
@@ -139,6 +140,8 @@ typedef b3Matrix3        b3RecCType_MATRIX3;
 typedef b3AABB           b3RecCType_AABB;
 typedef b3Sphere         b3RecCType_SPHERE;
 typedef b3Capsule        b3RecCType_CAPSULE;
+typedef b3QueryFilter    b3RecCType_QUERYFILTER;
+typedef b3ShapeProxy     b3RecCType_SHAPEPROXY;
 // Geometry reference: a plain u32 id into the trailing registry
 typedef uint32_t         b3RecCType_GEOMID;
 typedef b3Filter         b3RecCType_FILTER;
@@ -195,6 +198,11 @@ void b3RecW_POSITION( b3RecBuffer* buf, b3Pos v );
 void b3RecW_WORLDXF( b3RecBuffer* buf, b3WorldTransform v );
 void b3RecW_MATRIX3( b3RecBuffer* buf, b3Matrix3 v );
 void b3RecW_AABB( b3RecBuffer* buf, b3AABB v );
+void b3RecW_QUERYFILTER( b3RecBuffer* buf, b3QueryFilter v );
+void b3RecW_SHAPEPROXY( b3RecBuffer* buf, b3ShapeProxy v );
+void b3RecW_TREESTATS( b3RecBuffer* buf, b3TreeStats v );
+void b3RecW_RAYRESULT( b3RecBuffer* buf, b3RayResult v );
+void b3RecW_PLANERESULT( b3RecBuffer* buf, b3PlaneResult v );
 void b3RecW_WORLDID( b3RecBuffer* buf, b3WorldId v );
 void b3RecW_BODYID( b3RecBuffer* buf, b3BodyId v );
 void b3RecW_SHAPEID( b3RecBuffer* buf, b3ShapeId v );
@@ -267,6 +275,39 @@ void b3RecEndRecord( b3Recording* rec );
 		}                                                                                                                        \
 	}                                                                                                                            \
 	while ( 0 )
+
+// Patch helpers for the query hit-count backfill
+int  b3RecReserveU32( b3RecBuffer* buf );
+void b3RecPatchU32( b3RecBuffer* buf, int offset, uint32_t v );
+
+// Commit a finished query record under the lock. The payload buffer stays owned by the caller.
+void b3RecCommitRecord( b3Recording* rec, uint8_t opcode, const uint8_t* payload, int payloadSize );
+
+// Per-query writer context: holds the user fcn+ctx, the local payload buffer, and the hit counter
+typedef struct b3RecQueryWriter
+{
+	union
+	{
+		b3OverlapResultFcn* overlapFcn;
+		b3CastResultFcn*    castFcn;
+		b3PlaneResultFcn*   planeFcn;
+		b3MoverFilterFcn*   moverFilterFcn;
+	} userFcn;
+	void*       userContext;
+	b3RecBuffer buf;         // per-call local payload, heap-backed
+	int         countOffset; // offset of the reserved u32 hit-count slot
+	uint32_t    hitCount;
+} b3RecQueryWriter;
+
+void b3RecQueryBegin( b3RecQueryWriter* w, void* context );
+void b3RecQueryCommit( b3Recording* rec, uint8_t opcode, b3RecQueryWriter* w );
+
+// Recording trampolines: replace the user fcn so hits are captured before dispatch. The overlap
+// trampoline doubles for the mover filter, which has the same bool(shapeId, ctx) shape.
+bool  b3RecOverlapTrampoline( b3ShapeId id, void* ctx );
+float b3RecCastTrampoline( b3ShapeId id, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId, int triangleIndex,
+						   int childIndex, void* ctx );
+bool  b3RecPlaneTrampoline( b3ShapeId id, const b3PlaneResult* planes, int planeCount, void* ctx );
 
 // Geometry registry
 uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,

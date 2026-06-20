@@ -15,7 +15,8 @@
 //   0x40-0x4F  shape create/destroy
 //   0x50-0x6F  shape mutators
 //   0x80       step
-//   0x90-0xDF  joints (create, generic, per-type)
+//   0x90-0xE7  joints (create, generic, per-type)
+//   0xE8-0xEF  spatial queries
 //   0xF0-0xFF  markers
 
 // Recordings are seeded with a world snapshot, not a CreateWorld op. DestroyWorld stays as the
@@ -192,9 +193,8 @@ B3_REC_OP( 0xDD, WheelJointSetSuspensionLimits, RET_NONE, ARG( JOINTID, joint ) 
 B3_REC_OP( 0xDE, WheelJointEnableSpinMotor, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, flag ) )
 B3_REC_OP( 0xDF, WheelJointSetSpinMotorSpeed, RET_NONE, ARG( JOINTID, joint ) ARG( F32, speed ) )
 
-// Wheel joint continued (overflow past 0xDF range; use 0xE0 range for remaining wheel ops)
-// Note: spatial queries occupy 0xE0-0xEF in Box2D; Box3D skips queries in Phase 1 so we reuse
-// that range for remaining wheel joint ops only — these are clearly labeled to avoid confusion.
+// Wheel joint continued, overflow past the 0xDF range. Opcodes are arbitrary and need not match
+// Box2D, so the wheel ops keep 0xE0-0xE7 and queries follow at 0xE8.
 B3_REC_OP( 0xE0, WheelJointSetMaxSpinTorque, RET_NONE, ARG( JOINTID, joint ) ARG( F32, torque ) )
 B3_REC_OP( 0xE1, WheelJointEnableSteering, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, flag ) )
 B3_REC_OP( 0xE2, WheelJointSetSteeringHertz, RET_NONE, ARG( JOINTID, joint ) ARG( F32, hertz ) )
@@ -203,6 +203,25 @@ B3_REC_OP( 0xE4, WheelJointSetMaxSteeringTorque, RET_NONE, ARG( JOINTID, joint )
 B3_REC_OP( 0xE5, WheelJointEnableSteeringLimit, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, flag ) )
 B3_REC_OP( 0xE6, WheelJointSetSteeringLimits, RET_NONE, ARG( JOINTID, joint ) ARG( F32, lower ) ARG( F32, upper ) )
 B3_REC_OP( 0xE7, WheelJointSetTargetSteeringAngle, RET_NONE, ARG( JOINTID, joint ) ARG( F32, radians ) )
+
+// Spatial queries. Inputs flow through the manifest (reader side). The hit tail and result are
+// hand-written in recording.c / recording_replay.c since they are variable length. Query geometry is
+// relative to the origin so a recording reproduces queries far from the world origin. OverlapAABB has
+// no origin in 3D: the box is already world space.
+B3_REC_OP( 0xE8, QueryOverlapAABB, RET_NONE, ARG( WORLDID, world ) ARG( AABB, aabb ) ARG( QUERYFILTER, filter ) )
+B3_REC_OP( 0xE9, QueryOverlapShape, RET_NONE,
+		   ARG( WORLDID, world ) ARG( POSITION, origin ) ARG( SHAPEPROXY, proxy ) ARG( QUERYFILTER, filter ) )
+B3_REC_OP( 0xEA, QueryCastRay, RET_NONE,
+		   ARG( WORLDID, world ) ARG( POSITION, origin ) ARG( VEC3, translation ) ARG( QUERYFILTER, filter ) )
+B3_REC_OP( 0xEB, QueryCastShape, RET_NONE,
+		   ARG( WORLDID, world ) ARG( POSITION, origin ) ARG( SHAPEPROXY, proxy ) ARG( VEC3, translation )
+			   ARG( QUERYFILTER, filter ) )
+B3_REC_OP( 0xEC, QueryCastRayClosest, RET_NONE,
+		   ARG( WORLDID, world ) ARG( POSITION, origin ) ARG( VEC3, translation ) ARG( QUERYFILTER, filter ) )
+B3_REC_OP( 0xED, QueryCastMover, RET_NONE,
+		   ARG( WORLDID, world ) ARG( POSITION, origin ) ARG( CAPSULE, mover ) ARG( VEC3, translation ) ARG( QUERYFILTER, filter ) )
+B3_REC_OP( 0xEE, QueryCollideMover, RET_NONE,
+		   ARG( WORLDID, world ) ARG( POSITION, origin ) ARG( CAPSULE, mover ) ARG( QUERYFILTER, filter ) )
 
 B3_REC_OP( 0xF1, StateHash, RET_NONE, ARG( WORLDID, world ) ARG( U64, hash ) )
 

@@ -195,6 +195,92 @@ b3AABB b3RecR_AABB( b3RecReader* rdr )
 	return v;
 }
 
+b3QueryFilter b3RecR_QUERYFILTER( b3RecReader* rdr )
+{
+	b3QueryFilter f;
+	f.categoryBits = b3RecR_U64( rdr );
+	f.maskBits     = b3RecR_U64( rdr );
+	return f;
+}
+
+// Reserve/grow the reader's proxy-point scratch. Returns false and sets ok=false on a bad count.
+static bool b3RecReserveProxy( b3RecReader* rdr, int need )
+{
+	int remaining = rdr->size - rdr->cursor;
+	if ( need < 0 || remaining < 0 || need > remaining )
+	{
+		rdr->ok = false;
+		return false;
+	}
+	if ( need <= rdr->proxyScratchCap )
+	{
+		return true;
+	}
+	int newCap = need + 8;
+	if ( rdr->proxyScratch != NULL )
+	{
+		b3Free( rdr->proxyScratch, (size_t)rdr->proxyScratchCap * sizeof( b3Vec3 ) );
+	}
+	rdr->proxyScratch    = (b3Vec3*)b3Alloc( (size_t)newCap * sizeof( b3Vec3 ) );
+	rdr->proxyScratchCap = newCap;
+	return true;
+}
+
+// Variable length, mirrors b3RecW_SHAPEPROXY: count, count points, radius. The decoded proxy borrows
+// the reader's scratch for its point cloud, valid until the next proxy read.
+b3ShapeProxy b3RecR_SHAPEPROXY( b3RecReader* rdr )
+{
+	b3ShapeProxy p = { 0 };
+	int count = b3RecR_I32( rdr );
+	if ( count < 0 )
+		count = 0;
+	if ( count > B3_MAX_SHAPE_CAST_POINTS )
+		count = B3_MAX_SHAPE_CAST_POINTS;
+	if ( count > 0 && b3RecReserveProxy( rdr, count ) )
+	{
+		for ( int i = 0; i < count; ++i )
+		{
+			rdr->proxyScratch[i] = b3RecR_VEC3( rdr );
+		}
+		p.points = rdr->proxyScratch;
+		p.count  = count;
+	}
+	p.radius = b3RecR_F32( rdr );
+	return p;
+}
+
+b3TreeStats b3RecR_TREESTATS( b3RecReader* rdr )
+{
+	b3TreeStats v;
+	v.nodeVisits = b3RecR_I32( rdr );
+	v.leafVisits = b3RecR_I32( rdr );
+	return v;
+}
+
+b3RayResult b3RecR_RAYRESULT( b3RecReader* rdr )
+{
+	b3RayResult v = { 0 };
+	// shapeId keeps the recorded world0; b3RecMakeShapeId is applied at compare time
+	v.shapeId        = b3RecR_SHAPEID( rdr );
+	v.point          = b3RecR_POSITION( rdr );
+	v.normal         = b3RecR_VEC3( rdr );
+	v.userMaterialId = b3RecR_U64( rdr );
+	v.fraction       = b3RecR_F32( rdr );
+	v.triangleIndex  = b3RecR_I32( rdr );
+	v.childIndex     = b3RecR_I32( rdr );
+	v.hit            = b3RecR_BOOL( rdr );
+	return v;
+}
+
+b3PlaneResult b3RecR_PLANERESULT( b3RecReader* rdr )
+{
+	b3PlaneResult v;
+	v.plane.normal = b3RecR_VEC3( rdr );
+	v.plane.offset = b3RecR_F32( rdr );
+	v.point        = b3RecR_VEC3( rdr );
+	return v;
+}
+
 b3WorldId b3RecR_WORLDID( b3RecReader* rdr )
 {
 	return b3LoadWorldId( b3RecR_U32( rdr ) );
@@ -1573,6 +1659,368 @@ static void b3RecDispatch_RecordingBounds( const b3RecArgs_RecordingBounds* a, b
 	// Informational only; ignore during validation.
 }
 
+// Spatial query replay. The recorded inputs come through the manifest; here the variable-length hit
+// tail is read back, the query re-issued against the replay world, and each callback hit compared to
+// what was recorded. Any mismatch latches rdr->diverged. When a player owns the reader the hits are
+// also stashed for the viewer overlay. The stash helpers dereference the player struct, defined later
+// in this file, so they are forward declared and implemented in Block B below.
+
+static void           b3RecGrow( void** data, int* capacity, int need, int keep, int elemSize );
+static b3RecDrawQuery* b3RecStashQuery( b3RecPlayer* player, int kind, const b3RecRecordedHit* hits, int hitCount );
+
+// Grow the reader's hit scratch to at least n entries, preserving contents. n is bounded by the file
+// size since every recorded hit consumes at least one byte, so a corrupt count fails the read.
+void b3RecEnsureHits( b3RecReader* rdr, int n )
+{
+	if ( n < 0 || n > rdr->size )
+	{
+		rdr->ok = false;
+		return;
+	}
+	b3RecGrow( (void**)&rdr->hits, &rdr->hitCap, n, rdr->hitCap, (int)sizeof( b3RecRecordedHit ) );
+}
+
+// Bitwise float compare so the determinism check is exact, not within a tolerance.
+static bool b3RecF32Differs( float a, float b )
+{
+	uint32_t ua, ub;
+	memcpy( &ua, &a, 4 );
+	memcpy( &ub, &b, 4 );
+	return ua != ub;
+}
+
+static bool b3RecVec3Differs( b3Vec3 a, b3Vec3 b )
+{
+	return b3RecF32Differs( a.x, b.x ) || b3RecF32Differs( a.y, b.y ) || b3RecF32Differs( a.z, b.z );
+}
+
+// Shared context for the replay trampolines: walks recorded hits in order, flagging any divergence
+// from the re-issued query.
+typedef struct b3RecReplayQueryCtx
+{
+	b3RecReader*            rdr;
+	const b3RecRecordedHit* hits;
+	int                     count;
+	int                     cursor;
+} b3RecReplayQueryCtx;
+
+static bool b3RecReplayOverlapTrampoline( b3ShapeId id, void* ctx )
+{
+	b3RecReplayQueryCtx* rc = ctx;
+	if ( rc->cursor >= rc->count )
+	{
+		rc->rdr->diverged = true;
+		return false;
+	}
+	const b3RecRecordedHit* h = &rc->hits[rc->cursor++];
+	if ( id.index1 != h->id.index1 || id.generation != h->id.generation )
+	{
+		rc->rdr->diverged = true;
+	}
+	return h->userReturnB;
+}
+
+// The mover filter has the same bool(shapeId, ctx) shape as an overlap callback, so it replays the
+// same way. A distinct typed wrapper keeps the function-pointer types clean.
+static bool b3RecReplayMoverFilterTrampoline( b3ShapeId id, void* ctx )
+{
+	return b3RecReplayOverlapTrampoline( id, ctx );
+}
+
+static float b3RecReplayCastTrampoline( b3ShapeId id, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+										int triangleIndex, int childIndex, void* ctx )
+{
+	b3RecReplayQueryCtx* rc = ctx;
+	if ( rc->cursor >= rc->count )
+	{
+		rc->rdr->diverged = true;
+		return 0.0f;
+	}
+	const b3RecRecordedHit* h = &rc->hits[rc->cursor++];
+	// Positions compared through a full-width delta, truncating both sides would pass vacuously far
+	// from the origin.
+	if ( id.index1 != h->id.index1 || id.generation != h->id.generation ||
+		 b3RecVec3Differs( b3SubPos( point, h->point ), b3Vec3_zero ) || b3RecVec3Differs( normal, h->normal ) ||
+		 b3RecF32Differs( fraction, h->fraction ) || userMaterialId != h->userMaterialId || triangleIndex != h->triangleIndex ||
+		 childIndex != h->childIndex )
+	{
+		rc->rdr->diverged = true;
+	}
+	return h->userReturnF;
+}
+
+// 3D delivers a whole shape's planes in one call. The recorded group starts at the cursor with its
+// plane count and user return replicated on each hit, so compare the batch and advance by the
+// recorded count to stay aligned with the stream even when the count itself diverged.
+static bool b3RecReplayPlaneTrampoline( b3ShapeId id, const b3PlaneResult* planes, int planeCount, void* ctx )
+{
+	b3RecReplayQueryCtx* rc = ctx;
+	if ( rc->cursor >= rc->count )
+	{
+		rc->rdr->diverged = true;
+		return true;
+	}
+	const b3RecRecordedHit* head = &rc->hits[rc->cursor];
+	int  recordedCount = head->planeCount;
+	bool ret           = head->userReturnB;
+	if ( id.index1 != head->id.index1 || id.generation != head->id.generation || recordedCount != planeCount )
+	{
+		rc->rdr->diverged = true;
+	}
+	int n = recordedCount < planeCount ? recordedCount : planeCount;
+	for ( int i = 0; i < n; ++i )
+	{
+		const b3RecRecordedHit* h = &rc->hits[rc->cursor + i];
+		if ( b3RecVec3Differs( h->plane.plane.normal, planes[i].plane.normal ) ||
+			 b3RecF32Differs( h->plane.plane.offset, planes[i].plane.offset ) ||
+			 b3RecVec3Differs( h->plane.point, planes[i].point ) )
+		{
+			rc->rdr->diverged = true;
+		}
+	}
+	rc->cursor += recordedCount;
+	return ret;
+}
+
+// Copy a decoded proxy's points into a draw record so the overlay does not depend on reader scratch.
+static void b3RecStashProxy( b3RecDrawQuery* q, const b3ShapeProxy* proxy )
+{
+	int count = proxy->count;
+	if ( count > B3_MAX_SHAPE_CAST_POINTS )
+		count = B3_MAX_SHAPE_CAST_POINTS;
+	q->proxyCount  = count;
+	q->proxyRadius = proxy->radius;
+	for ( int i = 0; i < count; ++i )
+	{
+		q->proxyPoints[i] = proxy->points[i];
+	}
+}
+
+static void b3RecDispatch_QueryOverlapAABB( const b3RecArgs_QueryOverlapAABB* a, b3RecReader* rdr )
+{
+	uint32_t n = b3RecR_U32( rdr );
+	b3RecEnsureHits( rdr, (int)n );
+	if ( !rdr->ok )
+		return;
+	for ( uint32_t i = 0; i < n; ++i )
+	{
+		rdr->hits[i].id          = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].userReturnB = b3RecR_BOOL( rdr );
+	}
+	(void)b3RecR_TREESTATS( rdr );
+	if ( !rdr->ok )
+		return;
+	b3RecReplayQueryCtx rc = { rdr, rdr->hits, (int)n, 0 };
+	b3World_OverlapAABB( rdr->replayWorldId, a->aabb, a->filter, b3RecReplayOverlapTrampoline, &rc );
+	if ( rc.cursor != (int)n )
+		rdr->diverged = true;
+	if ( rdr->owner )
+	{
+		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_OVERLAP_AABB, rdr->hits, (int)n );
+		q->filter = a->filter;
+		q->aabb   = a->aabb;
+	}
+}
+
+static void b3RecDispatch_QueryOverlapShape( const b3RecArgs_QueryOverlapShape* a, b3RecReader* rdr )
+{
+	uint32_t n = b3RecR_U32( rdr );
+	b3RecEnsureHits( rdr, (int)n );
+	if ( !rdr->ok )
+		return;
+	for ( uint32_t i = 0; i < n; ++i )
+	{
+		rdr->hits[i].id          = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].userReturnB = b3RecR_BOOL( rdr );
+	}
+	(void)b3RecR_TREESTATS( rdr );
+	if ( !rdr->ok )
+		return;
+	b3RecReplayQueryCtx rc = { rdr, rdr->hits, (int)n, 0 };
+	b3World_OverlapShape( rdr->replayWorldId, a->origin, &a->proxy, a->filter, b3RecReplayOverlapTrampoline, &rc );
+	if ( rc.cursor != (int)n )
+		rdr->diverged = true;
+	if ( rdr->owner )
+	{
+		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_OVERLAP_SHAPE, rdr->hits, (int)n );
+		q->filter = a->filter;
+		q->origin = a->origin;
+		b3RecStashProxy( q, &a->proxy );
+	}
+}
+
+static void b3RecDispatch_QueryCastRay( const b3RecArgs_QueryCastRay* a, b3RecReader* rdr )
+{
+	uint32_t n = b3RecR_U32( rdr );
+	b3RecEnsureHits( rdr, (int)n );
+	if ( !rdr->ok )
+		return;
+	for ( uint32_t i = 0; i < n; ++i )
+	{
+		rdr->hits[i].id             = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].point          = b3RecR_POSITION( rdr );
+		rdr->hits[i].normal         = b3RecR_VEC3( rdr );
+		rdr->hits[i].fraction       = b3RecR_F32( rdr );
+		rdr->hits[i].userMaterialId = b3RecR_U64( rdr );
+		rdr->hits[i].triangleIndex  = b3RecR_I32( rdr );
+		rdr->hits[i].childIndex     = b3RecR_I32( rdr );
+		rdr->hits[i].userReturnF    = b3RecR_F32( rdr );
+	}
+	(void)b3RecR_TREESTATS( rdr );
+	if ( !rdr->ok )
+		return;
+	b3RecReplayQueryCtx rc = { rdr, rdr->hits, (int)n, 0 };
+	b3World_CastRay( rdr->replayWorldId, a->origin, a->translation, a->filter, b3RecReplayCastTrampoline, &rc );
+	if ( rc.cursor != (int)n )
+		rdr->diverged = true;
+	if ( rdr->owner )
+	{
+		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_CAST_RAY, rdr->hits, (int)n );
+		q->filter      = a->filter;
+		q->origin      = a->origin;
+		q->translation = a->translation;
+	}
+}
+
+static void b3RecDispatch_QueryCastShape( const b3RecArgs_QueryCastShape* a, b3RecReader* rdr )
+{
+	uint32_t n = b3RecR_U32( rdr );
+	b3RecEnsureHits( rdr, (int)n );
+	if ( !rdr->ok )
+		return;
+	for ( uint32_t i = 0; i < n; ++i )
+	{
+		rdr->hits[i].id             = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].point          = b3RecR_POSITION( rdr );
+		rdr->hits[i].normal         = b3RecR_VEC3( rdr );
+		rdr->hits[i].fraction       = b3RecR_F32( rdr );
+		rdr->hits[i].userMaterialId = b3RecR_U64( rdr );
+		rdr->hits[i].triangleIndex  = b3RecR_I32( rdr );
+		rdr->hits[i].childIndex     = b3RecR_I32( rdr );
+		rdr->hits[i].userReturnF    = b3RecR_F32( rdr );
+	}
+	(void)b3RecR_TREESTATS( rdr );
+	if ( !rdr->ok )
+		return;
+	b3RecReplayQueryCtx rc = { rdr, rdr->hits, (int)n, 0 };
+	b3World_CastShape( rdr->replayWorldId, a->origin, &a->proxy, a->translation, a->filter, b3RecReplayCastTrampoline, &rc );
+	if ( rc.cursor != (int)n )
+		rdr->diverged = true;
+	if ( rdr->owner )
+	{
+		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_CAST_SHAPE, rdr->hits, (int)n );
+		q->filter      = a->filter;
+		q->origin      = a->origin;
+		q->translation = a->translation;
+		b3RecStashProxy( q, &a->proxy );
+	}
+}
+
+static void b3RecDispatch_QueryCastRayClosest( const b3RecArgs_QueryCastRayClosest* a, b3RecReader* rdr )
+{
+	b3RayResult rec = b3RecR_RAYRESULT( rdr );
+	if ( !rdr->ok )
+		return;
+	b3RayResult got   = b3World_CastRayClosest( rdr->replayWorldId, a->origin, a->translation, a->filter );
+	b3ShapeId   recId = b3RecMakeShapeId( rdr, rec.shapeId );
+	if ( got.hit != rec.hit ||
+		 ( got.hit && ( got.shapeId.index1 != recId.index1 || got.shapeId.generation != recId.generation ||
+						b3RecVec3Differs( b3SubPos( got.point, rec.point ), b3Vec3_zero ) ||
+						b3RecVec3Differs( got.normal, rec.normal ) || b3RecF32Differs( got.fraction, rec.fraction ) ||
+						got.userMaterialId != rec.userMaterialId ) ) )
+	{
+		rdr->diverged = true;
+	}
+	if ( rdr->owner )
+	{
+		// Stash the closest result as a single pooled hit so the shared draw loop renders its point.
+		b3RecRecordedHit h = { 0 };
+		h.id       = recId;
+		h.point    = rec.point;
+		h.normal   = rec.normal;
+		h.fraction = rec.fraction;
+		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_CAST_RAY_CLOSEST, &h, rec.hit ? 1 : 0 );
+		q->filter      = a->filter;
+		q->origin      = a->origin;
+		q->translation = a->translation;
+		q->rayResult   = rec;
+	}
+}
+
+static void b3RecDispatch_QueryCastMover( const b3RecArgs_QueryCastMover* a, b3RecReader* rdr )
+{
+	uint32_t n = b3RecR_U32( rdr );
+	b3RecEnsureHits( rdr, (int)n );
+	if ( !rdr->ok )
+		return;
+	for ( uint32_t i = 0; i < n; ++i )
+	{
+		rdr->hits[i].id          = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].userReturnB = b3RecR_BOOL( rdr );
+	}
+	float recFraction = b3RecR_F32( rdr );
+	if ( !rdr->ok )
+		return;
+	b3RecReplayQueryCtx rc = { rdr, rdr->hits, (int)n, 0 };
+	float got = b3World_CastMover( rdr->replayWorldId, a->origin, &a->mover, a->translation, a->filter,
+								   b3RecReplayMoverFilterTrampoline, &rc );
+	if ( rc.cursor != (int)n || b3RecF32Differs( got, recFraction ) )
+		rdr->diverged = true;
+	if ( rdr->owner )
+	{
+		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_CAST_MOVER, NULL, 0 );
+		q->filter       = a->filter;
+		q->origin       = a->origin;
+		q->mover        = a->mover;
+		q->translation  = a->translation;
+		q->castFraction = recFraction;
+	}
+}
+
+static void b3RecDispatch_QueryCollideMover( const b3RecArgs_QueryCollideMover* a, b3RecReader* rdr )
+{
+	// Recorded as shapeCount groups, each: shapeId, planeCount, planeCount planes, user return. Flatten
+	// into one hit per plane with the group's count and return replicated, so the replay walker can
+	// re-group per shape.
+	uint32_t shapeCount = b3RecR_U32( rdr );
+	int      total      = 0;
+	for ( uint32_t s = 0; s < shapeCount; ++s )
+	{
+		b3ShapeId id         = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		int       planeCount = b3RecR_I32( rdr );
+		if ( planeCount < 0 )
+			planeCount = 0;
+		b3RecEnsureHits( rdr, total + planeCount );
+		if ( !rdr->ok )
+			return;
+		for ( int i = 0; i < planeCount; ++i )
+		{
+			rdr->hits[total + i].plane = b3RecR_PLANERESULT( rdr );
+		}
+		bool ret = b3RecR_BOOL( rdr );
+		for ( int i = 0; i < planeCount; ++i )
+		{
+			rdr->hits[total + i].id          = id;
+			rdr->hits[total + i].planeCount  = planeCount;
+			rdr->hits[total + i].userReturnB = ret;
+		}
+		total += planeCount;
+	}
+	if ( !rdr->ok )
+		return;
+	b3RecReplayQueryCtx rc = { rdr, rdr->hits, total, 0 };
+	b3World_CollideMover( rdr->replayWorldId, a->origin, &a->mover, a->filter, b3RecReplayPlaneTrampoline, &rc );
+	if ( rc.cursor != total )
+		rdr->diverged = true;
+	if ( rdr->owner )
+	{
+		b3RecDrawQuery* q = b3RecStashQuery( rdr->owner, B3_RECQ_COLLIDE_MOVER, rdr->hits, total );
+		q->filter = a->filter;
+		q->origin = a->origin;
+		q->mover  = a->mover;
+	}
+}
+
 // X-macro dispatch switch: read opcode+u24 payloadSize, dispatch, skip unknown ops.
 // Returns the opcode dispatched, or -1 when the stream is exhausted or broken.
 
@@ -1836,6 +2284,14 @@ bool b3ValidateReplay( const void* data, int size, int workerCount )
 	{
 		b3Free( rdr.matScratch, (size_t)rdr.matScratchCap * sizeof( b3SurfaceMaterial ) );
 	}
+	if ( rdr.proxyScratch != NULL )
+	{
+		b3Free( rdr.proxyScratch, (size_t)rdr.proxyScratchCap * sizeof( b3Vec3 ) );
+	}
+	if ( rdr.hits != NULL )
+	{
+		b3Free( rdr.hits, (size_t)rdr.hitCap * sizeof( b3RecRecordedHit ) );
+	}
 
 	return ok;
 }
@@ -1887,6 +2343,15 @@ struct b3RecPlayer
 	int       bodyIdCap;
 	b3BodyId* frame0BodyIds;
 	int       frame0BodyIdCount;
+
+	// Per-frame query store, reset at the top of each StepFrame and filled by the query dispatchers.
+	// Drawn by b3RecPlayer_DrawFrameQueries and inspected via the public GetFrameQuery API.
+	b3RecDrawQuery*   frameQueries;
+	int               frameQueryCount;
+	int               frameQueryCap;
+	b3RecRecordedHit* frameHits;
+	int               frameHitCount;
+	int               frameHitCap;
 
 	// Host debug-shape callbacks applied to every world the player creates. The 3D
 	// sample renderer builds GPU meshes here, so a replay world without them draws
@@ -1942,6 +2407,41 @@ static void b3RecGrow( void** data, int* capacity, int need, int keep, int elemS
 	}
 	*data     = grown;
 	*capacity = newCap;
+}
+
+// Block B: per-frame query store helpers. Forward declared above the query dispatchers, which run
+// before the player struct is defined, so the player-dereferencing code lives here.
+
+static void b3RecGrowFrameQueries( b3RecPlayer* player )
+{
+	b3RecGrow( (void**)&player->frameQueries, &player->frameQueryCap, player->frameQueryCount + 1, player->frameQueryCount,
+			   (int)sizeof( b3RecDrawQuery ) );
+}
+
+static void b3RecGrowFrameHits( b3RecPlayer* player, int need )
+{
+	b3RecGrow( (void**)&player->frameHits, &player->frameHitCap, player->frameHitCount + need, player->frameHitCount,
+			   (int)sizeof( b3RecRecordedHit ) );
+}
+
+// Push a draw record for one query and copy its hits into the per-frame store. Ids in hits[] are
+// already remapped to the replay world by the dispatcher.
+static b3RecDrawQuery* b3RecStashQuery( b3RecPlayer* player, int kind, const b3RecRecordedHit* hits, int hitCount )
+{
+	b3RecGrowFrameQueries( player );
+	b3RecDrawQuery* q = &player->frameQueries[player->frameQueryCount];
+	memset( q, 0, sizeof( *q ) );
+	q->kind     = kind;
+	q->hitStart = player->frameHitCount;
+	q->hitCount = hitCount;
+	b3RecGrowFrameHits( player, hitCount );
+	for ( int i = 0; i < hitCount; ++i )
+	{
+		player->frameHits[player->frameHitCount + i] = hits[i];
+	}
+	player->frameHitCount += hitCount;
+	player->frameQueryCount++;
+	return q;
 }
 
 // Append a created body to the outliner list. Ordinals are creation order and never reused.
@@ -2466,6 +2966,24 @@ void b3RecPlayer_Destroy( b3RecPlayer* player )
 	{
 		b3Free( player->rdr.matScratch, (size_t)player->rdr.matScratchCap * sizeof( b3SurfaceMaterial ) );
 	}
+	if ( player->rdr.proxyScratch != NULL )
+	{
+		b3Free( player->rdr.proxyScratch, (size_t)player->rdr.proxyScratchCap * sizeof( b3Vec3 ) );
+	}
+	if ( player->rdr.hits != NULL )
+	{
+		b3Free( player->rdr.hits, (size_t)player->rdr.hitCap * sizeof( b3RecRecordedHit ) );
+	}
+
+	// Free the per-frame query store.
+	if ( player->frameQueries != NULL )
+	{
+		b3Free( player->frameQueries, (size_t)player->frameQueryCap * sizeof( b3RecDrawQuery ) );
+	}
+	if ( player->frameHits != NULL )
+	{
+		b3Free( player->frameHits, (size_t)player->frameHitCap * sizeof( b3RecRecordedHit ) );
+	}
 
 	// Free keyframe ring.
 	for ( int i = 0; i < player->keyframeCount; ++i )
@@ -2510,6 +3028,13 @@ bool b3RecPlayer_StepFrame( b3RecPlayer* player )
 		return false;
 	}
 
+	// Reset the per-frame query store before this frame's records are dispatched.
+	player->frameQueryCount = 0;
+	player->frameHitCount   = 0;
+
+	// A frame is its leading inputs (queries and between-step mutators), one Step, and the Step's
+	// trailing StateHash. Queries are recorded before the Step they belong to, so they stash here
+	// against the world state they were computed for.
 	bool stepped = false;
 	for ( ;; )
 	{
@@ -2519,9 +3044,10 @@ bool b3RecPlayer_StepFrame( b3RecPlayer* player )
 			return stepped;
 		}
 
-		// Peek the opcode. If we've already stepped and the next op is another Step, this
-		// frame is complete. Capture a keyframe here before returning.
-		if ( stepped && player->rdr.data[player->rdr.cursor] == 0x80 )
+		// Once stepped, the StateHash is the only record still belonging to this frame. Anything else
+		// begins the next frame, so stop and let the next StepFrame consume it. Capture a keyframe at
+		// the boundary.
+		if ( stepped && player->rdr.data[player->rdr.cursor] != 0xF1 )
 		{
 			if ( player->frame > player->lastKeyframeFrame && player->frame % player->keyframeInterval == 0 )
 			{
@@ -2579,6 +3105,11 @@ void b3RecPlayer_Restart( b3RecPlayer* player )
 	player->frame        = 0;
 	player->divergeFrame = -1;
 	player->atEnd        = false;
+
+	// Frame 0 is the pre-step snapshot with no recorded queries, so clear the per-frame store. This
+	// keeps the last stepped frame's queries from lingering on a restart or a backward scrub to 0.
+	player->frameQueryCount = 0;
+	player->frameHitCount   = 0;
 
 	// Roll the outliner body list back to its frame-0 contents.
 	b3RecGrow( (void**)&player->bodyIds, &player->bodyIdCap, player->frame0BodyIdCount, 0, (int)sizeof( b3BodyId ) );
@@ -2755,6 +3286,194 @@ b3BodyId b3RecPlayer_GetBodyId( const b3RecPlayer* player, int index )
 		return b3_nullBodyId;
 	}
 	return player->bodyIds[index];
+}
+
+// Highlight each reported overlap shape by its AABB. Skip any destroyed since the query, per the
+// b3Shape_GetAABB contract that overlap results may contain stale shapes.
+static void b3RecDrawHitBounds( const b3RecPlayer* player, const b3RecDrawQuery* q, b3DebugDraw* draw )
+{
+	if ( draw->DrawBoundsFcn == NULL )
+	{
+		return;
+	}
+	for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
+	{
+		b3ShapeId id = player->frameHits[hi].id;
+		if ( b3Shape_IsValid( id ) == false )
+		{
+			continue;
+		}
+		draw->DrawBoundsFcn( b3Shape_GetAABB( id ), b3_colorMagenta, draw->context );
+	}
+}
+
+void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int queryIndex )
+{
+	if ( player == NULL || draw == NULL )
+	{
+		return;
+	}
+
+	// queryIndex < 0 draws every query, otherwise just the one selected in the viewer.
+	for ( int qi = 0; qi < player->frameQueryCount; ++qi )
+	{
+		if ( queryIndex >= 0 && qi != queryIndex )
+		{
+			continue;
+		}
+
+		const b3RecDrawQuery* q = &player->frameQueries[qi];
+
+		switch ( q->kind )
+		{
+			case B3_RECQ_CAST_RAY:
+			case B3_RECQ_CAST_RAY_CLOSEST:
+			{
+				b3Pos origin = q->origin;
+				b3Pos end    = b3OffsetPos( origin, q->translation );
+				if ( draw->DrawSegmentFcn )
+				{
+					draw->DrawSegmentFcn( origin, end, b3_colorYellow, draw->context );
+				}
+				for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
+				{
+					const b3RecRecordedHit* h = &player->frameHits[hi];
+					if ( draw->DrawPointFcn )
+					{
+						draw->DrawPointFcn( h->point, 4.0f, b3_colorYellow, draw->context );
+					}
+					if ( draw->DrawSegmentFcn )
+					{
+						draw->DrawSegmentFcn( h->point, b3OffsetPos( h->point, b3MulSV( 0.2f, h->normal ) ), b3_colorYellowGreen,
+											  draw->context );
+					}
+				}
+				break;
+			}
+			case B3_RECQ_CAST_SHAPE:
+			{
+				for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
+				{
+					const b3RecRecordedHit* h = &player->frameHits[hi];
+					if ( draw->DrawPointFcn )
+					{
+						draw->DrawPointFcn( h->point, 4.0f, b3_colorSkyBlue, draw->context );
+					}
+					if ( draw->DrawSegmentFcn )
+					{
+						draw->DrawSegmentFcn( h->point, b3OffsetPos( h->point, b3MulSV( 0.2f, h->normal ) ),
+											  b3_colorLightSkyBlue, draw->context );
+					}
+				}
+				break;
+			}
+			case B3_RECQ_CAST_MOVER:
+			case B3_RECQ_COLLIDE_MOVER:
+			{
+				// 3D debug draw has no solid capsule, so draw the mover axis and its end caps.
+				b3Pos      c1 = b3OffsetPos( q->origin, q->mover.center1 );
+				b3Pos      c2 = b3OffsetPos( q->origin, q->mover.center2 );
+				b3HexColor c  = q->kind == B3_RECQ_CAST_MOVER ? b3_colorLightSkyBlue : b3_colorTan;
+				if ( draw->DrawSegmentFcn )
+				{
+					draw->DrawSegmentFcn( c1, c2, c, draw->context );
+				}
+				if ( draw->DrawPointFcn )
+				{
+					draw->DrawPointFcn( c1, 4.0f, c, draw->context );
+					draw->DrawPointFcn( c2, 4.0f, c, draw->context );
+				}
+				// Collide-mover stashes one hit per collision plane, origin relative. Cast-mover stashes
+				// no hits, so this loop is a no-op there.
+				for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
+				{
+					const b3RecRecordedHit* h     = &player->frameHits[hi];
+					b3Pos                   point = b3OffsetPos( q->origin, h->plane.point );
+					if ( draw->DrawSegmentFcn )
+					{
+						draw->DrawSegmentFcn( point, b3OffsetPos( point, b3MulSV( 0.2f, h->plane.plane.normal ) ),
+											  b3_colorOrange, draw->context );
+					}
+				}
+				break;
+			}
+			case B3_RECQ_OVERLAP_AABB:
+			{
+				if ( draw->DrawBoundsFcn )
+				{
+					draw->DrawBoundsFcn( q->aabb, b3_colorLimeGreen, draw->context );
+				}
+				b3RecDrawHitBounds( player, q, draw );
+				break;
+			}
+			case B3_RECQ_OVERLAP_SHAPE:
+			{
+				// The proxy points are origin relative; draw them as a point cloud.
+				if ( draw->DrawPointFcn )
+				{
+					for ( int i = 0; i < q->proxyCount; ++i )
+					{
+						draw->DrawPointFcn( b3OffsetPos( q->origin, q->proxyPoints[i] ), 4.0f, b3_colorLimeGreen,
+											draw->context );
+					}
+				}
+				b3RecDrawHitBounds( player, q, draw );
+				break;
+			}
+			default:
+				break;
+		}
+	}
+}
+
+// The internal b3RecQueryKind values match the public b3RecQueryType, so the kind copies across as a
+// plain cast. Pin the first and last kinds to catch enum drift.
+_Static_assert( b3_recQueryOverlapAABB == 0 && B3_RECQ_OVERLAP_AABB == 0, "query type enum drift" );
+_Static_assert( b3_recQueryCollideMover == 6 && B3_RECQ_COLLIDE_MOVER == 6, "query type enum drift" );
+
+int b3RecPlayer_GetFrameQueryCount( const b3RecPlayer* player )
+{
+	return player != NULL ? player->frameQueryCount : 0;
+}
+
+b3RecQueryInfo b3RecPlayer_GetFrameQuery( const b3RecPlayer* player, int index )
+{
+	b3RecQueryInfo info = { 0 };
+	if ( player == NULL || index < 0 || index >= player->frameQueryCount )
+	{
+		return info;
+	}
+
+	const b3RecDrawQuery* q = &player->frameQueries[index];
+	info.type        = (b3RecQueryType)q->kind;
+	info.filter      = q->filter;
+	info.aabb        = q->aabb;
+	info.origin      = q->origin;
+	info.translation = q->translation;
+	info.hitCount    = q->hitCount;
+	return info;
+}
+
+b3RecQueryHit b3RecPlayer_GetFrameQueryHit( const b3RecPlayer* player, int queryIndex, int hitIndex )
+{
+	b3RecQueryHit hit = { 0 };
+	if ( player == NULL || queryIndex < 0 || queryIndex >= player->frameQueryCount )
+	{
+		return hit;
+	}
+
+	const b3RecDrawQuery* q = &player->frameQueries[queryIndex];
+	if ( hitIndex < 0 || hitIndex >= q->hitCount )
+	{
+		return hit;
+	}
+
+	const b3RecRecordedHit* h = &player->frameHits[q->hitStart + hitIndex];
+	hit.shape    = h->id;
+	hit.point    = h->point;
+	hit.normal   = h->normal;
+	hit.fraction = h->fraction;
+	return hit;
 }
 
 void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShapeCallback* createDebugShape,

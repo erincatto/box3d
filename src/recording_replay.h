@@ -10,6 +10,57 @@
 
 typedef struct b3RecPlayer b3RecPlayer;
 
+// A single recorded callback hit, used both as reader scratch during a query replay and as the
+// per-frame draw store. For collide-mover, one hit is one plane, with planeCount and userReturnB
+// replicated across a shape's planes so the replay walker can re-group and compare per shape.
+typedef struct b3RecRecordedHit
+{
+	b3ShapeId     id;
+	b3Pos         point;
+	b3Vec3        normal;
+	float         fraction;
+	uint64_t      userMaterialId;
+	int           triangleIndex;
+	int           childIndex;
+	b3PlaneResult plane;       // collide-mover: this plane
+	int           planeCount;  // collide-mover: planes in this hit's shape group (replicated)
+	float         userReturnF; // cast queries
+	bool          userReturnB; // overlap / collide-mover (per shape, replicated)
+} b3RecRecordedHit;
+
+// Recorded query kind, matching the public b3RecQueryType order.
+typedef enum b3RecQueryKind
+{
+	B3_RECQ_OVERLAP_AABB,
+	B3_RECQ_OVERLAP_SHAPE,
+	B3_RECQ_CAST_RAY,
+	B3_RECQ_CAST_SHAPE,
+	B3_RECQ_CAST_RAY_CLOSEST,
+	B3_RECQ_CAST_MOVER,
+	B3_RECQ_COLLIDE_MOVER,
+} b3RecQueryKind;
+
+// Per-frame draw record for one query call. Self-contained (no aliased pointers) so the player's
+// frameQueries array can grow with a plain memcpy. Geometry is origin relative except the overlap
+// AABB, which is world space in 3D.
+typedef struct b3RecDrawQuery
+{
+	int           kind;
+	b3QueryFilter filter;
+	b3AABB        aabb;                              // overlap AABB, world space
+	b3Vec3        proxyPoints[B3_MAX_SHAPE_CAST_POINTS]; // overlap/cast shape proxy, origin relative
+	int           proxyCount;
+	float         proxyRadius;
+	b3Capsule     mover;                             // cast/collide mover, origin relative
+	b3Pos         origin;
+	b3Vec3        translation;
+	float         castFraction;                      // cast-mover result fraction
+	b3RayResult   rayResult;                         // cast-ray-closest result
+	b3ShapeId     shape;
+	int           hitStart;                          // first hit in the player's frameHits store
+	int           hitCount;
+} b3RecDrawQuery;
+
 // One slot in the preloaded geometry registry. Loaded from the trailing block before any
 // ops run; live pointer built lazily on first shape create that references the id.
 typedef struct b3RegistrySlot
@@ -45,6 +96,15 @@ typedef struct b3RecReader
 	// Preloaded geometry registry
 	b3RegistrySlot* slots;
 	int             slotCount;
+
+	// Scratch for recorded query hits; grown on demand, freed with the player.
+	b3RecRecordedHit* hits;
+	int               hitCap;
+
+	// Scratch for a shape-proxy point cloud read from the stream. b3ShapeProxy holds the points
+	// behind a pointer, so a decoded proxy borrows this until the next proxy read or teardown.
+	b3Vec3* proxyScratch;
+	int     proxyScratchCap;
 } b3RecReader;
 
 // Read primitives
@@ -88,3 +148,12 @@ b3RevoluteJointDef  b3RecR_REVOLUTEJOINTDEF( b3RecReader* rdr );
 b3SphericalJointDef b3RecR_SPHERICALJOINTDEF( b3RecReader* rdr );
 b3WeldJointDef      b3RecR_WELDJOINTDEF( b3RecReader* rdr );
 b3WheelJointDef     b3RecR_WHEELJOINTDEF( b3RecReader* rdr );
+b3QueryFilter       b3RecR_QUERYFILTER( b3RecReader* rdr );
+b3ShapeProxy        b3RecR_SHAPEPROXY( b3RecReader* rdr );
+b3TreeStats         b3RecR_TREESTATS( b3RecReader* rdr );
+b3RayResult         b3RecR_RAYRESULT( b3RecReader* rdr );
+b3PlaneResult       b3RecR_PLANERESULT( b3RecReader* rdr );
+
+// Grow the reader's hit scratch to at least n entries, preserving contents. n is bounded by the
+// file size since every recorded hit consumes at least one byte.
+void b3RecEnsureHits( b3RecReader* rdr, int n );

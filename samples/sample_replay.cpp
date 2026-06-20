@@ -78,6 +78,29 @@ static const char* ReplayJointTypeName( b3JointType type )
 	}
 }
 
+static const char* ReplayQueryTypeName( b3RecQueryType type )
+{
+	switch ( type )
+	{
+		case b3_recQueryOverlapAABB:
+			return "overlap AABB";
+		case b3_recQueryOverlapShape:
+			return "overlap shape";
+		case b3_recQueryCastRay:
+			return "cast ray";
+		case b3_recQueryCastShape:
+			return "cast shape";
+		case b3_recQueryCastRayClosest:
+			return "cast ray closest";
+		case b3_recQueryCastMover:
+			return "cast mover";
+		case b3_recQueryCollideMover:
+			return "collide mover";
+		default:
+			return "?";
+	}
+}
+
 // b3HexColor to an opaque ImVec4 for panel text
 static ImVec4 PanelColor( b3HexColor hexColor )
 {
@@ -103,6 +126,7 @@ public:
 		SelBody,
 		SelShape,
 		SelJoint,
+		SelQuery,
 	};
 
 	explicit ReplayViewer( SampleContext* context )
@@ -117,6 +141,7 @@ public:
 		m_selKind = SelNone;
 		m_selBodyOrdinal = -1;
 		m_selSlot = -1;
+		m_selQuery = -1;
 		m_revealSelection = false;
 		m_requestLoadPopup = false;
 		m_generating = false;
@@ -178,6 +203,7 @@ public:
 		m_selKind = SelNone;
 		m_selBodyOrdinal = -1;
 		m_selSlot = -1;
+		m_selQuery = -1;
 	}
 
 	// Load m_path into a fresh player and adopt its world. Sets m_status on any failure: missing
@@ -432,6 +458,12 @@ public:
 		b3World_Draw( m_replayWorldId, &debugDraw, B3_DEFAULT_MASK_BITS );
 
 		DrawSelectionHighlight();
+
+		// Overlay the selected query's geometry and recorded hits on top of the world.
+		if ( m_selKind == SelQuery )
+		{
+			b3RecPlayer_DrawFrameQueries( m_player, &debugDraw, m_selQuery );
+		}
 	}
 
 	// A replay re-runs recorded inputs, so the live solver sliders would do nothing. This also hides
@@ -824,6 +856,34 @@ public:
 			ImGui::TreePop();
 		}
 
+		// Spatial queries recorded for the current frame. Selecting one overlays its geometry and
+		// recorded hits on the world. The list is rebuilt each frame, so a selection is by index only.
+		int  qn = b3RecPlayer_GetFrameQueryCount( m_player );
+		char ql[32];
+		snprintf( ql, sizeof( ql ), "Queries (%d)###queries", qn );
+		if ( ImGui::TreeNodeEx( ql, ImGuiTreeNodeFlags_SpanAvailWidth ) )
+		{
+			for ( int i = 0; i < qn; ++i )
+			{
+				b3RecQueryInfo q = b3RecPlayer_GetFrameQuery( m_player, i );
+				char qi[64];
+				snprintf( qi, sizeof( qi ), "%s  (%d)###q%d", ReplayQueryTypeName( q.type ), q.hitCount, i );
+				ImGuiTreeNodeFlags lf =
+					ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+				if ( m_selKind == SelQuery && m_selQuery == i )
+				{
+					lf |= ImGuiTreeNodeFlags_Selected;
+				}
+				ImGui::TreeNodeEx( qi, lf );
+				if ( ImGui::IsItemClicked() )
+				{
+					m_selKind = SelQuery;
+					m_selQuery = i;
+				}
+			}
+			ImGui::TreePop();
+		}
+
 		m_revealSelection = false;
 	}
 
@@ -842,6 +902,12 @@ public:
 				ImGui::Text( "bodies %d  shapes %d", c.bodyCount, c.shapeCount );
 				ImGui::Text( "contacts %d  joints %d", c.contactCount, c.jointCount );
 			}
+			return;
+		}
+
+		if ( m_selKind == SelQuery )
+		{
+			DrawQueryDetail();
 			return;
 		}
 
@@ -990,6 +1056,45 @@ public:
 				break;
 			default:
 				break;
+		}
+	}
+
+	// Detail for the selected recorded query: type, filter, origin, and the recorded hit shapes.
+	void DrawQueryDetail()
+	{
+		int count = b3RecPlayer_GetFrameQueryCount( m_player );
+		if ( m_selQuery < 0 || m_selQuery >= count )
+		{
+			ImGui::TextDisabled( "Query not present at this frame." );
+			return;
+		}
+
+		b3RecQueryInfo q = b3RecPlayer_GetFrameQuery( m_player, m_selQuery );
+		if ( ImGui::CollapsingHeader( "Query", ImGuiTreeNodeFlags_DefaultOpen ) == false )
+		{
+			return;
+		}
+
+		ImGui::Text( "type     %s", ReplayQueryTypeName( q.type ) );
+		ImGui::Text( "category 0x%016llx", (unsigned long long)q.filter.categoryBits );
+		ImGui::Text( "mask     0x%016llx", (unsigned long long)q.filter.maskBits );
+		if ( q.type != b3_recQueryOverlapAABB )
+		{
+			ImGui::Text( "origin   (%.2f, %.2f, %.2f)", q.origin.x, q.origin.y, q.origin.z );
+		}
+		ImGui::Text( "hits     %d", q.hitCount );
+
+		// Hit shape ids as one wrapped list so a many-hit query stays compact.
+		char line[256];
+		int  len = 0;
+		for ( int h = 0; h < q.hitCount && len < (int)sizeof( line ) - 12; ++h )
+		{
+			b3RecQueryHit hit = b3RecPlayer_GetFrameQueryHit( m_player, m_selQuery, h );
+			len += snprintf( line + len, sizeof( line ) - len, "%d ", hit.shape.index1 );
+		}
+		if ( q.hitCount > 0 )
+		{
+			ImGui::TextWrapped( "hit shapes: %s", line );
 		}
 	}
 
@@ -1143,6 +1248,7 @@ public:
 	SelKind m_selKind;
 	int m_selBodyOrdinal;
 	int m_selSlot;            // shape or joint slot within the selected body
+	int m_selQuery;           // query index, only meaningful for the current frame
 	bool m_revealSelection;   // one-shot: expand and scroll the tree to a viewport pick
 };
 
