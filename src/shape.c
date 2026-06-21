@@ -126,7 +126,7 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 			// Compounds must be a static and not a sensor
 			B3_ASSERT( body->type == b3_staticBody );
 			B3_ASSERT( def->isSensor == false );
-			shape->compound = (b3Compound*)geometry;
+			shape->compound = (b3CompoundData*)geometry;
 			break;
 
 		case b3_sphereShape:
@@ -419,7 +419,7 @@ b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* def, cons
 	return shapeId;
 }
 
-b3ShapeId b3CreateCompoundShape( b3BodyId bodyId, b3ShapeDef* def, const b3Compound* compound )
+b3ShapeId b3CreateCompoundShape( b3BodyId bodyId, b3ShapeDef* def, const b3CompoundData* compound )
 {
 	b3ShapeId shapeId = b3CreateShape( bodyId, def, compound, b3_compoundShape, b3Transform_identity, b3Vec3_one, false );
 	if ( shapeId.index1 != 0 )
@@ -2125,7 +2125,7 @@ typedef struct b3CompoundImpactContext
 } b3CompoundImpactContext;
 
 // Implements b3CompoundQueryFcn
-static bool b3CompoundTimeOfImpactFcn( const b3Compound* compound, int childIndex, void* context )
+static bool b3CompoundTimeOfImpactFcn( const b3CompoundData* compound, int childIndex, void* context )
 {
 	b3CompoundImpactContext* toiContext = (b3CompoundImpactContext*)context;
 

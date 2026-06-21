@@ -2398,7 +2398,7 @@ typedef struct b3CompoundDef
 /// into the world as a single shape in the runtime broad-phase.
 /// This data structure has data living off the end and must be accessed using offsets.
 /// Accessors are provided for user relevant data.
-typedef struct b3Compound
+typedef struct b3CompoundData
 {
 	/// The compound version is always first.
 	uint64_t version;
@@ -2447,7 +2447,7 @@ typedef struct b3Compound
 
 	/// The number of spheres.
 	int sphereCount;
-} b3Compound;
+} b3CompoundData;
 
 /// A capsule that lives in a compound.
 typedef struct b3CompoundCapsule
@@ -2525,7 +2525,7 @@ typedef struct b3ChildShape
 } b3ChildShape;
 
 /// Callback for compound overlap queries.
-typedef bool b3CompoundQueryFcn( const b3Compound* compound, int childIndex, void* context );
+typedef bool b3CompoundQueryFcn( const b3CompoundData* compound, int childIndex, void* context );
 
 /**@}*/ // compound
 
@@ -2921,7 +2921,7 @@ typedef struct b3DebugShape
 	union
 	{
 		const b3Capsule* capsule;		  ///< Capsule shape.
-		const b3Compound* compound;		  ///< Compound shape.
+		const b3CompoundData* compound;		  ///< Compound shape.
 		const b3HeightFieldData* heightField; ///< Height-field shape.
 		const b3HullData* hull;			  ///< Convex hull shape.
 		const b3Mesh* mesh;				  ///< Mesh shape with scale.

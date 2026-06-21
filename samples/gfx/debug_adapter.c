@@ -601,7 +601,7 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 
 		// Flatten the children once. The fixed pool never relocates, so the
 		// parent pointer stays valid while children are allocated.
-		const b3Compound* compound = debugShape->compound;
+		const b3CompoundData* compound = debugShape->compound;
 		const int total = compound->capsuleCount + compound->hullCount + compound->meshCount + compound->sphereCount;
 		int prev = -1;
 		for ( int i = 0; i < total; ++i )

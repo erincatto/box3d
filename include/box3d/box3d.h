@@ -812,7 +812,7 @@ B3_API b3ShapeId b3CreateMeshShape( b3BodyId bodyId, const b3ShapeDef* def, cons
 B3_API b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HeightFieldData* heightField );
 
 /// Compound shapes are only allowed on static bodies.
-B3_API b3ShapeId b3CreateCompoundShape( b3BodyId bodyId, b3ShapeDef* def, const b3Compound* compound );
+B3_API b3ShapeId b3CreateCompoundShape( b3BodyId bodyId, b3ShapeDef* def, const b3CompoundData* compound );
 
 /// Destroy a shape. You may defer the body mass update which can improve performance if several shapes on a
 ///	body are destroyed at once.

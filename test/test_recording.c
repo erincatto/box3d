@@ -1044,7 +1044,7 @@ static int AllOps( void )
 	memset( &compoundDef, 0, sizeof( compoundDef ) );
 	compoundDef.spheres = &compSphere;
 	compoundDef.sphereCount = 1;
-	b3Compound* compound = b3CreateCompound( &compoundDef );
+	b3CompoundData* compound = b3CreateCompound( &compoundDef );
 	ENSURE( compound != NULL );
 	b3ShapeDef compoundShapeDef = b3DefaultShapeDef();
 	b3CreateCompoundShape( compoundBodyId, &compoundShapeDef, compound );

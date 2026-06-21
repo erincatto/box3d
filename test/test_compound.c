@@ -62,10 +62,10 @@ static int CompoundCreateMixed( void )
 		.sphereCount = 2,
 	};
 
-	b3Compound* compound = b3CreateCompound( &def );
+	b3CompoundData* compound = b3CreateCompound( &def );
 	ENSURE( compound != NULL );
 	ENSURE( compound->version == B3_COMPOUND_VERSION );
-	ENSURE( compound->byteCount > (int)sizeof( b3Compound ) );
+	ENSURE( compound->byteCount > (int)sizeof( b3CompoundData ) );
 
 	ENSURE( compound->capsuleCount == 1 );
 	ENSURE( compound->hullCount == 1 );
@@ -92,7 +92,7 @@ static int CompoundCreateSingleType( void )
 	{
 		b3CompoundCapsuleDef cap = { .capsule = { { 0, 0, 0 }, { 1, 0, 0 }, 0.5f }, .material = mat };
 		b3CompoundDef def = { .capsules = &cap, .capsuleCount = 1 };
-		b3Compound* c = b3CreateCompound( &def );
+		b3CompoundData* c = b3CreateCompound( &def );
 		ENSURE( c != NULL && c->capsuleCount == 1 && c->hullCount == 0 && c->meshCount == 0 && c->sphereCount == 0 );
 		b3DestroyCompound( c );
 	}
@@ -102,7 +102,7 @@ static int CompoundCreateSingleType( void )
 		b3BoxHull box = b3MakeBoxHull( 1, 1, 1 );
 		b3CompoundHullDef h = { .hull = &box.base, .transform = b3Transform_identity, .material = mat };
 		b3CompoundDef def = { .hulls = &h, .hullCount = 1 };
-		b3Compound* c = b3CreateCompound( &def );
+		b3CompoundData* c = b3CreateCompound( &def );
 		ENSURE( c != NULL && c->hullCount == 1 && c->sharedHullCount == 1 && c->capsuleCount == 0 );
 		b3DestroyCompound( c );
 	}
@@ -118,7 +118,7 @@ static int CompoundCreateSingleType( void )
 			.materialCount = 1,
 		};
 		b3CompoundDef def = { .meshes = &m, .meshCount = 1 };
-		b3Compound* c = b3CreateCompound( &def );
+		b3CompoundData* c = b3CreateCompound( &def );
 		ENSURE( c != NULL && c->meshCount == 1 && c->sharedMeshCount == 1 );
 		b3DestroyCompound( c );
 		b3DestroyMesh( md );
@@ -128,7 +128,7 @@ static int CompoundCreateSingleType( void )
 	{
 		b3CompoundSphereDef s = { .sphere = { { 0, 0, 0 }, 1.0f }, .material = mat };
 		b3CompoundDef def = { .spheres = &s, .sphereCount = 1 };
-		b3Compound* c = b3CreateCompound( &def );
+		b3CompoundData* c = b3CreateCompound( &def );
 		ENSURE( c != NULL && c->sphereCount == 1 );
 		b3DestroyCompound( c );
 	}
@@ -148,7 +148,7 @@ static int CompoundMaterialDedup( void )
 	}
 
 	b3CompoundDef def = { .capsules = caps, .capsuleCount = 3 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->materialCount == 1 );
 	for ( int i = 0; i < 3; ++i )
 	{
@@ -169,7 +169,7 @@ static int CompoundMaterialDistinct( void )
 	}
 
 	b3CompoundDef def = { .capsules = caps, .capsuleCount = 3 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->materialCount == 3 );
 
 	const b3SurfaceMaterial* mats = b3GetCompoundMaterials( c );
@@ -204,7 +204,7 @@ static int CompoundMaterialCrossShape( void )
 		.spheres = &sph,
 		.sphereCount = 1,
 	};
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->materialCount == 1 );
 
 	ENSURE( b3GetCompoundCapsule( c, 0 ).materialIndex == 0 );
@@ -241,7 +241,7 @@ static int CompoundMaterialMeshShared( void )
 		.spheres = &sph,
 		.sphereCount = 1,
 	};
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->materialCount == 1 );
 
 	b3DestroyCompound( c );
@@ -268,7 +268,7 @@ static int CompoundHullSharingPointer( void )
 	}
 
 	b3CompoundDef def = { .hulls = hulls, .hullCount = 3 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->hullCount == 3 );
 	ENSURE( c->sharedHullCount == 1 );
 	b3DestroyCompound( c );
@@ -292,7 +292,7 @@ static int CompoundHullSharingContent( void )
 	hulls[1].transform.p.x = 5.0f;
 
 	b3CompoundDef def = { .hulls = hulls, .hullCount = 2 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->sharedHullCount == 1 );
 	b3DestroyCompound( c );
 	return 0;
@@ -311,7 +311,7 @@ static int CompoundHullDistinct( void )
 	hulls[1].transform.p.x = 5.0f;
 
 	b3CompoundDef def = { .hulls = hulls, .hullCount = 2 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->sharedHullCount == 2 );
 	b3DestroyCompound( c );
 	return 0;
@@ -334,7 +334,7 @@ static int CompoundMeshSharingPointer( void )
 	}
 
 	b3CompoundDef def = { .meshes = meshes, .meshCount = 3 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->meshCount == 3 );
 	ENSURE( c->sharedMeshCount == 1 );
 
@@ -357,7 +357,7 @@ static int CompoundMeshSharingContent( void )
 	meshes[1].transform.p.x = 5.0f;
 
 	b3CompoundDef def = { .meshes = meshes, .meshCount = 2 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->sharedMeshCount == 1 );
 
 	b3DestroyCompound( c );
@@ -379,7 +379,7 @@ static int CompoundMeshDistinct( void )
 	meshes[1].transform.p.x = 5.0f;
 
 	b3CompoundDef def = { .meshes = meshes, .meshCount = 2 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 	ENSURE( c->sharedMeshCount == 2 );
 
 	b3DestroyCompound( c );
@@ -420,7 +420,7 @@ static int CompoundChildDispatch( void )
 		.spheres = spheres,
 		.sphereCount = 1,
 	};
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 
 	// Index ordering is capsules → hulls → meshes → spheres.
 	ENSURE( b3GetCompoundChild( c, 0 ).type == b3_capsuleShape );
@@ -462,7 +462,7 @@ static int CompoundAABBContainsChildren( void )
 		{ .sphere = { { 4, 0, 0 }, 0.5f }, .material = mat },
 	};
 	b3CompoundDef def = { .spheres = spheres, .sphereCount = 2 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 
 	b3AABB local = b3ComputeCompoundAABB( c, b3Transform_identity );
 	ENSURE( local.lowerBound.x <= -4.0f + 1e-5f );
@@ -486,7 +486,7 @@ static int CompoundRayCastMiss( void )
 	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
 	b3CompoundSphereDef sph = { .sphere = { { 0, 0, 0 }, 0.5f }, .material = mat };
 	b3CompoundDef def = { .spheres = &sph, .sphereCount = 1 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 
 	// Ray well above the sphere on a parallel path.
 	b3RayCastInput input = { .origin = { -5, 5, 0 }, .translation = { 10, 0, 0 }, .maxFraction = 1.0f };
@@ -508,7 +508,7 @@ static int CompoundRayCastClosest( void )
 		{ .sphere = { { 10, 0, 0 }, 1.0f }, .material = matB },
 	};
 	b3CompoundDef def = { .spheres = spheres, .sphereCount = 2 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 
 	b3RayCastInput input = { .origin = { 0, 0, 0 }, .translation = { 20, 0, 0 }, .maxFraction = 1.0f };
 	b3CastOutput out = b3RayCastCompound( c, &input );
@@ -541,7 +541,7 @@ static int CompoundRayCastHullNormalRotation( void )
 		.material = mat,
 	};
 	b3CompoundDef def = { .hulls = &hull, .hullCount = 1 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 
 	b3RayCastInput input = { .origin = { 0, 0, 0 }, .translation = { 20, 0, 0 }, .maxFraction = 1.0f };
 	b3CastOutput out = b3RayCastCompound( c, &input );
@@ -564,7 +564,7 @@ static int CompoundShapeCastClosest( void )
 		{ .sphere = { { 10, 0, 0 }, 1.0f }, .material = mat },
 	};
 	b3CompoundDef def = { .spheres = spheres, .sphereCount = 2 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 
 	b3Vec3 point = { 0, 0, 0 };
 	b3ShapeCastInput input = {
@@ -591,7 +591,7 @@ static int CompoundOverlap( void )
 		{ .sphere = { { 3, 0, 0 }, 0.5f }, .material = mat },
 	};
 	b3CompoundDef def = { .spheres = spheres, .sphereCount = 2 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 
 	// Proxy at the origin lies in the gap between the two spheres.
 	b3Vec3 origin = { 0, 0, 0 };
@@ -614,7 +614,7 @@ struct QueryAccumulator
 	int stopAfter; // -1 = never stop early
 };
 
-static bool QueryCallback( const b3Compound* compound, int childIndex, void* context )
+static bool QueryCallback( const b3CompoundData* compound, int childIndex, void* context )
 {
 	(void)compound;
 	struct QueryAccumulator* acc = context;
@@ -638,7 +638,7 @@ static int CompoundQuery( void )
 		{ .sphere = { { 10, 0, 0 }, 0.5f }, .material = mat },
 	};
 	b3CompoundDef def = { .spheres = spheres, .sphereCount = 3 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 
 	// Tight box around the middle sphere — only it should be reported.
 	b3AABB middle = { { -1, -1, -1 }, { 1, 1, 1 } };
@@ -673,7 +673,7 @@ static int CompoundMover( void )
 		{ .hull = &box.base, .transform = { .p = { 1.0f, 0, 0 }, .q = b3Quat_identity }, .material = mat },
 	};
 	b3CompoundDef def = { .hulls = hulls, .hullCount = 2 };
-	b3Compound* c = b3CreateCompound( &def );
+	b3CompoundData* c = b3CreateCompound( &def );
 
 	// Small capsule mover sitting on top of the boxes, low enough to penetrate both.
 	b3Capsule mover = { { -1.0f, 0.6f, 0 }, { 1.0f, 0.6f, 0 }, 0.2f };
@@ -704,7 +704,7 @@ static int CompoundMover( void )
 	return 0;
 }
 
-static b3Compound* BuildSerializableCompound( b3MeshData* md )
+static b3CompoundData* BuildSerializableCompound( b3MeshData* md )
 {
 	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
 	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
@@ -736,7 +736,7 @@ static b3Compound* BuildSerializableCompound( b3MeshData* md )
 static int CompoundSerializeRoundtrip( void )
 {
 	b3MeshData* md = b3CreateBoxMesh( b3Vec3_zero, (b3Vec3){ 0.5f, 0.5f, 0.5f }, false );
-	b3Compound* a = BuildSerializableCompound( md );
+	b3CompoundData* a = BuildSerializableCompound( md );
 
 	// Snapshot a few queries on the original.
 	b3AABB aabbA = b3ComputeCompoundAABB( a, b3Transform_identity );
@@ -752,7 +752,7 @@ static int CompoundSerializeRoundtrip( void )
 	memcpy( buffer, serialized, (size_t)byteCount );
 	b3DestroyCompound( a );
 
-	b3Compound* b = b3ConvertBytesToCompound( buffer, byteCount );
+	b3CompoundData* b = b3ConvertBytesToCompound( buffer, byteCount );
 	ENSURE( b != NULL );
 	ENSURE( b->byteCount == byteCount );
 	ENSURE( b->capsuleCount == 1 );
@@ -779,7 +779,7 @@ static int CompoundSerializeRoundtrip( void )
 static int CompoundSerializeBadVersion( void )
 {
 	b3MeshData* md = b3CreateBoxMesh( b3Vec3_zero, (b3Vec3){ 0.5f, 0.5f, 0.5f }, false );
-	b3Compound* a = BuildSerializableCompound( md );
+	b3CompoundData* a = BuildSerializableCompound( md );
 
 	int byteCount = a->byteCount;
 	uint8_t* buffer = (uint8_t*)malloc( (size_t)byteCount );
@@ -787,9 +787,9 @@ static int CompoundSerializeBadVersion( void )
 	b3DestroyCompound( a );
 
 	// Corrupt the version word (first 8 bytes of b3Compound).
-	( (b3Compound*)buffer )->version ^= 0x1ull;
+	( (b3CompoundData*)buffer )->version ^= 0x1ull;
 
-	b3Compound* b = b3ConvertBytesToCompound( buffer, byteCount );
+	b3CompoundData* b = b3ConvertBytesToCompound( buffer, byteCount );
 	ENSURE( b == NULL );
 
 	free( buffer );
@@ -800,7 +800,7 @@ static int CompoundSerializeBadVersion( void )
 static int CompoundSerializeWrongByteCount( void )
 {
 	b3MeshData* md = b3CreateBoxMesh( b3Vec3_zero, (b3Vec3){ 0.5f, 0.5f, 0.5f }, false );
-	b3Compound* a = BuildSerializableCompound( md );
+	b3CompoundData* a = BuildSerializableCompound( md );
 
 	int byteCount = a->byteCount;
 	uint8_t* buffer = (uint8_t*)malloc( (size_t)byteCount );
@@ -808,7 +808,7 @@ static int CompoundSerializeWrongByteCount( void )
 	b3DestroyCompound( a );
 
 	// Off-by-one in the declared length is rejected.
-	b3Compound* b = b3ConvertBytesToCompound( buffer, byteCount + 1 );
+	b3CompoundData* b = b3ConvertBytesToCompound( buffer, byteCount + 1 );
 	ENSURE( b == NULL );
 
 	free( buffer );

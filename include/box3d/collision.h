@@ -403,41 +403,41 @@ B3_API b3HeightFieldData* b3LoadHeightField( const char* fileName );
  */
 
 /// Get a child shape of a compound.
-B3_API b3ChildShape b3GetCompoundChild( const b3Compound* compound, int childIndex );
+B3_API b3ChildShape b3GetCompoundChild( const b3CompoundData* compound, int childIndex );
 
 /// Query a compound shape for children that overlap an AABB.
-B3_API void b3QueryCompound( const b3Compound* compound, b3AABB aabb, b3CompoundQueryFcn* fcn, void* context );
+B3_API void b3QueryCompound( const b3CompoundData* compound, b3AABB aabb, b3CompoundQueryFcn* fcn, void* context );
 
 /// Access a child capsule by index.
-B3_API b3CompoundCapsule b3GetCompoundCapsule( const b3Compound* compound, int index );
+B3_API b3CompoundCapsule b3GetCompoundCapsule( const b3CompoundData* compound, int index );
 
 /// Access a child hull by index.
-B3_API b3CompoundHull b3GetCompoundHull( const b3Compound* compound, int index );
+B3_API b3CompoundHull b3GetCompoundHull( const b3CompoundData* compound, int index );
 
 /// Access a child mesh by index.
-B3_API b3CompoundMesh b3GetCompoundMesh( const b3Compound* compound, int index );
+B3_API b3CompoundMesh b3GetCompoundMesh( const b3CompoundData* compound, int index );
 
 /// Access a child sphere by index.
-B3_API b3CompoundSphere b3GetCompoundSphere( const b3Compound* compound, int index );
+B3_API b3CompoundSphere b3GetCompoundSphere( const b3CompoundData* compound, int index );
 
 /// Access the compound material array.
-B3_API const b3SurfaceMaterial* b3GetCompoundMaterials( const b3Compound* compound );
+B3_API const b3SurfaceMaterial* b3GetCompoundMaterials( const b3CompoundData* compound );
 
 /// Create a compound shape. All input data in the definition is cloned into the resulting compound.
-B3_API b3Compound* b3CreateCompound( const b3CompoundDef* def );
+B3_API b3CompoundData* b3CreateCompound( const b3CompoundDef* def );
 
 /// Destroy a compound shape.
-B3_API void b3DestroyCompound( b3Compound* compound );
+B3_API void b3DestroyCompound( b3CompoundData* compound );
 
 /// If bytes is null then this returns the number of required bytes. This clones all the
 /// data into the bytes buffer. This is expected to run offline or asynchronously.
 /// This mutates the compound to nullify pointers, leaving the compound in an unusable state.
-B3_API uint8_t* b3ConvertCompoundToBytes( b3Compound* compound );
+B3_API uint8_t* b3ConvertCompoundToBytes( b3CompoundData* compound );
 
 /// Convert bytes to compound. This does not clone. The bytes must remain in scope while the
 /// compound is used. This is done to improve run-time performance and allow for instancing.
 /// The bytes are mutated to fixup pointers.
-B3_API b3Compound* b3ConvertBytesToCompound( uint8_t* bytes, int byteCount );
+B3_API b3CompoundData* b3ConvertBytesToCompound( uint8_t* bytes, int byteCount );
 
 /**@}*/ // compound
 
@@ -471,7 +471,7 @@ B3_API b3AABB b3ComputeMeshAABB( const b3MeshData* shape, b3Transform transform,
 B3_API b3AABB b3ComputeHeightFieldAABB( const b3HeightFieldData* shape, b3Transform transform );
 
 /// Compute the bounding box of a compound
-B3_API b3AABB b3ComputeCompoundAABB( const b3Compound* shape, b3Transform transform );
+B3_API b3AABB b3ComputeCompoundAABB( const b3CompoundData* shape, b3Transform transform );
 
 /**@}*/ // geometry
 
@@ -487,7 +487,7 @@ B3_API bool b3IsValidRay( const b3RayCastInput* input );
 B3_API bool b3OverlapCapsule( const b3Capsule* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
 
 /// Overlap shape versus compound
-B3_API bool b3OverlapCompound( const b3Compound* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
+B3_API bool b3OverlapCompound( const b3CompoundData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
 
 /// Overlap shape versus height field
 B3_API bool b3OverlapHeightField( const b3HeightFieldData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
@@ -511,7 +511,7 @@ B3_API b3CastOutput b3RayCastHollowSphere( const b3Sphere* shape, const b3RayCas
 B3_API b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* input );
 
 /// Ray cast versus compound in local space. Initial overlap is treated as a miss.
-B3_API b3CastOutput b3RayCastCompound( const b3Compound* shape, const b3RayCastInput* input );
+B3_API b3CastOutput b3RayCastCompound( const b3CompoundData* shape, const b3RayCastInput* input );
 
 /// Ray cast versus hull shape in local space. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3RayCastHull( const b3HullData* shape, const b3RayCastInput* input );
@@ -529,7 +529,7 @@ B3_API b3CastOutput b3ShapeCastSphere( const b3Sphere* shape, const b3ShapeCastI
 B3_API b3CastOutput b3ShapeCastCapsule( const b3Capsule* shape, const b3ShapeCastInput* input );
 
 /// Shape cast versus compound. Initial overlap is treated as a miss.
-B3_API b3CastOutput b3ShapeCastCompound( const b3Compound* shape, const b3ShapeCastInput* input );
+B3_API b3CastOutput b3ShapeCastCompound( const b3CompoundData* shape, const b3ShapeCastInput* input );
 
 /// Shape cast versus a hull. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3ShapeCastHull( const b3HullData* shape, const b3ShapeCastInput* input );

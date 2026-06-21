@@ -707,7 +707,7 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 					memcpy( slot->live, slot->bytes, (size_t)slot->byteCount );
 					b3ConvertBytesToCompound( (uint8_t*)slot->live, slot->byteCount );
 				}
-				dst->compound = (const b3Compound*)slot->live;
+				dst->compound = (const b3CompoundData*)slot->live;
 				break;
 			}
 			default:

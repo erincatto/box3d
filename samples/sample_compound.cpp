@@ -100,7 +100,7 @@ public:
 		return new SimpleCompound( context );
 	}
 
-	b3Compound* m_compound;
+	b3CompoundData* m_compound;
 };
 
 static int sampleSimple = RegisterSample( "Compound", "Simple", SimpleCompound::Create );
@@ -161,7 +161,7 @@ public:
 	}
 
 	static constexpr int m_count = 20;
-	b3Compound* m_compound;
+	b3CompoundData* m_compound;
 };
 
 static int sampleCompoundSpheres = RegisterSample( "Compound", "Spheres", CompoundSpheres::Create );
@@ -235,7 +235,7 @@ public:
 	}
 
 	static constexpr int m_count = 20;
-	b3Compound* m_compound;
+	b3CompoundData* m_compound;
 };
 
 static int sampleCompoundHulls = RegisterSample( "Compound", "Hulls", CompoundHulls::Create );
@@ -353,7 +353,7 @@ public:
 		return new TileFloor( context );
 	}
 
-	b3Compound* m_compound;
+	b3CompoundData* m_compound;
 };
 
 static int sampleTileFloor = RegisterSample( "Compound", "Tile Floor", TileFloor::Create );
@@ -469,7 +469,7 @@ public:
 		return new MeshTile( context );
 	}
 
-	b3Compound* m_compound;
+	b3CompoundData* m_compound;
 };
 
 static int sampleCompoundMesh = RegisterSample( "Compound", "Mesh Tile", MeshTile::Create );
@@ -789,7 +789,7 @@ public:
 		return new Village( context );
 	}
 
-	b3Compound* m_compound;
+	b3CompoundData* m_compound;
 	CharacterMover m_mover;
 	float m_worldWidth;
 	b3Pos m_rayOrigin;

@@ -330,7 +330,7 @@ void     b3RecWriteRegistry( b3Recording* rec );
 uint32_t b3RecInternHull( b3Recording* rec, const b3HullData* hull );
 uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh );
 uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightFieldData* hf );
-uint32_t b3RecInternCompound( b3Recording* rec, const b3Compound* compound );
+uint32_t b3RecInternCompound( b3Recording* rec, const b3CompoundData* compound );
 
 uint64_t b3Hash64Blob( const uint8_t* bytes, int n );
 

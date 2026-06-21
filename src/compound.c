@@ -42,7 +42,7 @@ typedef struct b3MeshInstance
 	uint32_t materialIndices[B3_MAX_COMPOUND_MESH_MATERIALS];
 } b3MeshInstance;
 
-static inline b3TreeNode* b3GetCompoundNodes( b3Compound* compound )
+static inline b3TreeNode* b3GetCompoundNodes( b3CompoundData* compound )
 {
 	if ( compound->nodeOffset == 0 )
 	{
@@ -52,7 +52,7 @@ static inline b3TreeNode* b3GetCompoundNodes( b3Compound* compound )
 	return (b3TreeNode*)( (intptr_t)compound + compound->nodeOffset );
 }
 
-const b3SurfaceMaterial* b3GetCompoundMaterials( const b3Compound* compound )
+const b3SurfaceMaterial* b3GetCompoundMaterials( const b3CompoundData* compound )
 {
 	if ( compound->materialOffset == 0 )
 	{
@@ -62,7 +62,7 @@ const b3SurfaceMaterial* b3GetCompoundMaterials( const b3Compound* compound )
 	return (b3SurfaceMaterial*)( (intptr_t)compound + compound->materialOffset );
 }
 
-b3CompoundCapsule b3GetCompoundCapsule( const b3Compound* compound, int index )
+b3CompoundCapsule b3GetCompoundCapsule( const b3CompoundData* compound, int index )
 {
 	B3_ASSERT( 0 <= index && index < compound->capsuleCount && compound->capsuleOffset > 0 );
 
@@ -76,7 +76,7 @@ b3CompoundCapsule b3GetCompoundCapsule( const b3Compound* compound, int index )
 	return capsules[index];
 }
 
-b3CompoundHull b3GetCompoundHull( const b3Compound* compound, int index )
+b3CompoundHull b3GetCompoundHull( const b3CompoundData* compound, int index )
 {
 	B3_ASSERT( 0 <= index && index < compound->hullCount && compound->hullOffset > 0 );
 
@@ -95,7 +95,7 @@ b3CompoundHull b3GetCompoundHull( const b3Compound* compound, int index )
 	return result;
 }
 
-b3CompoundMesh b3GetCompoundMesh( const b3Compound* compound, int index )
+b3CompoundMesh b3GetCompoundMesh( const b3CompoundData* compound, int index )
 {
 	B3_ASSERT( 0 <= index && index < compound->meshCount && compound->meshOffset > 0 );
 
@@ -118,7 +118,7 @@ b3CompoundMesh b3GetCompoundMesh( const b3Compound* compound, int index )
 	return result;
 }
 
-b3CompoundSphere b3GetCompoundSphere( const b3Compound* compound, int index )
+b3CompoundSphere b3GetCompoundSphere( const b3CompoundData* compound, int index )
 {
 	B3_ASSERT( 0 <= index && index < compound->sphereCount && compound->sphereOffset > 0 );
 
@@ -132,7 +132,7 @@ b3CompoundSphere b3GetCompoundSphere( const b3Compound* compound, int index )
 	return spheres[index];
 }
 
-b3ChildShape b3GetCompoundChild( const b3Compound* compound, int childIndex )
+b3ChildShape b3GetCompoundChild( const b3CompoundData* compound, int childIndex )
 {
 	// Capsule?
 	if ( 0 <= childIndex && childIndex < compound->capsuleCount )
@@ -251,7 +251,7 @@ static bool b3CompareMaterials( const b3SurfaceMaterial* mat1, const b3SurfaceMa
 #define FREE_FN b3Free
 #include "verstable.h"
 
-b3Compound* b3CreateCompound( const b3CompoundDef* def )
+b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 {
 	int convexCount = def->capsuleCount + def->hullCount + def->sphereCount;
 	int shapeCount = convexCount + def->meshCount;
@@ -467,7 +467,7 @@ b3Compound* b3CreateCompound( const b3CompoundDef* def )
 
 	b3DynamicTree_Rebuild( &tree, true );
 
-	int byteCount = sizeof( b3Compound );
+	int byteCount = sizeof( b3CompoundData );
 
 	// Tree nodes - todo 64 byte alignment
 	int nodeOffset = byteCount;
@@ -514,7 +514,7 @@ b3Compound* b3CreateCompound( const b3CompoundDef* def )
 	int sphereOffset = byteCount;
 	byteCount += def->sphereCount * sizeof( b3CompoundSphere );
 
-	b3Compound* compound = b3Alloc( byteCount );
+	b3CompoundData* compound = b3Alloc( byteCount );
 	memset( compound, 0, byteCount );
 
 	compound->version = B3_COMPOUND_VERSION;
@@ -626,27 +626,27 @@ b3Compound* b3CreateCompound( const b3CompoundDef* def )
 	return compound;
 }
 
-void b3DestroyCompound( b3Compound* compound )
+void b3DestroyCompound( b3CompoundData* compound )
 {
 	b3Free( compound, compound->byteCount );
 }
 
-uint8_t* b3ConvertCompoundToBytes( b3Compound* compound )
+uint8_t* b3ConvertCompoundToBytes( b3CompoundData* compound )
 {
 	// scrub this pointer before serialization
 	compound->tree.nodes = NULL;
 	return (uint8_t*)compound;
 }
 
-b3Compound* b3ConvertBytesToCompound( uint8_t* bytes, int byteCount )
+b3CompoundData* b3ConvertBytesToCompound( uint8_t* bytes, int byteCount )
 {
-	b3Compound* compound = (b3Compound*)bytes;
+	b3CompoundData* compound = (b3CompoundData*)bytes;
 	if ( compound->version != B3_COMPOUND_VERSION )
 	{
 		return NULL;
 	}
 
-	if ( compound->byteCount < (int)sizeof( b3Compound ) )
+	if ( compound->byteCount < (int)sizeof( b3CompoundData ) )
 	{
 		return NULL;
 	}
@@ -666,7 +666,7 @@ b3Compound* b3ConvertBytesToCompound( uint8_t* bytes, int byteCount )
 	return compound;
 }
 
-b3AABB b3ComputeCompoundAABB( const b3Compound* shape, b3Transform transform )
+b3AABB b3ComputeCompoundAABB( const b3CompoundData* shape, b3Transform transform )
 {
 	B3_ASSERT( shape->nodeOffset > 0 );
 
@@ -678,7 +678,7 @@ b3AABB b3ComputeCompoundAABB( const b3Compound* shape, b3Transform transform )
 
 struct b3CompoundOverlapContext
 {
-	const b3Compound* compound;
+	const b3CompoundData* compound;
 	// transform of the compound
 	b3Transform transform;
 	b3ShapeProxy proxy;
@@ -730,7 +730,7 @@ static bool b3CompoundOverlapCallback( int proxyId, uint64_t userData, void* con
 	return true;
 }
 
-bool b3OverlapCompound( const b3Compound* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
+bool b3OverlapCompound( const b3CompoundData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
 {
 	struct b3CompoundOverlapContext context = {
 		.compound = shape,
@@ -757,7 +757,7 @@ bool b3OverlapCompound( const b3Compound* shape, b3Transform shapeTransform, con
 
 struct b3CompoundCastContext
 {
-	const b3Compound* compound;
+	const b3CompoundData* compound;
 	b3CastOutput* output;
 	// origin of the shape cast, the box cast callback only carries the advancing fraction
 	const b3ShapeCastInput* shapeInput;
@@ -768,7 +768,7 @@ static float b3CompoundRayCastCallback( const b3RayCastInput* input, int proxyId
 	B3_UNUSED( proxyId );
 
 	struct b3CompoundCastContext* castContext = context;
-	const b3Compound* compound = castContext->compound;
+	const b3CompoundData* compound = castContext->compound;
 
 	int childIndex = (int)userData;
 
@@ -823,7 +823,7 @@ static float b3CompoundRayCastCallback( const b3RayCastInput* input, int proxyId
 	return input->maxFraction;
 }
 
-b3CastOutput b3RayCastCompound( const b3Compound* shape, const b3RayCastInput* input )
+b3CastOutput b3RayCastCompound( const b3CompoundData* shape, const b3RayCastInput* input )
 {
 	b3CastOutput result = { 0 };
 
@@ -840,7 +840,7 @@ static float b3CompoundShapeCastCallback( const b3BoxCastInput* input, int proxy
 	B3_UNUSED( proxyId );
 
 	struct b3CompoundCastContext* castContext = context;
-	const b3Compound* compound = castContext->compound;
+	const b3CompoundData* compound = castContext->compound;
 	const b3ShapeCastInput* shapeInput = castContext->shapeInput;
 
 	int childIndex = (int)userData;
@@ -910,7 +910,7 @@ static float b3CompoundShapeCastCallback( const b3BoxCastInput* input, int proxy
 	return input->maxFraction;
 }
 
-b3CastOutput b3ShapeCastCompound( const b3Compound* shape, const b3ShapeCastInput* input )
+b3CastOutput b3ShapeCastCompound( const b3CompoundData* shape, const b3ShapeCastInput* input )
 {
 	b3CastOutput result = { 0 };
 
@@ -934,7 +934,7 @@ b3CastOutput b3ShapeCastCompound( const b3Compound* shape, const b3ShapeCastInpu
 
 struct b3CompoundQueryContext
 {
-	const b3Compound* compound;
+	const b3CompoundData* compound;
 	b3CompoundQueryFcn* fcn;
 	void* userContext;
 };
@@ -946,7 +946,7 @@ static bool TreeQueryCallbackFcn( int proxyId, uint64_t userData, void* treeCont
 	return context->fcn( context->compound, (int)userData, context->userContext );
 }
 
-void b3QueryCompound( const b3Compound* compound, b3AABB aabb, b3CompoundQueryFcn* fcn, void* context )
+void b3QueryCompound( const b3CompoundData* compound, b3AABB aabb, b3CompoundQueryFcn* fcn, void* context )
 {
 	struct b3CompoundQueryContext compoundContext = {
 		.compound = compound,
@@ -972,7 +972,7 @@ struct b3CompoundImpactContext
 	float fallbackRadius;
 };
 
-static bool b3CompoundTimeOfImpactFcn( const b3Compound* compound, int childIndex, void* context )
+static bool b3CompoundTimeOfImpactFcn( const b3CompoundData* compound, int childIndex, void* context )
 {
 	b3CompoundImpactContext* toiContext = (b3CompoundImpactContext*)context;
 
@@ -1063,7 +1063,7 @@ static bool b3CompoundTimeOfImpactFcn( const b3Compound* compound, int childInde
 	return true;
 }
 
-b3TOIOutput b3CompoundTimeOfImpact(const b3Compound* compound, b3Transform transform, const b3ShapeProxy* proxy,
+b3TOIOutput b3CompoundTimeOfImpact(const b3CompoundData* compound, b3Transform transform, const b3ShapeProxy* proxy,
 	const b3Sweep* sweep, float maxFraction)
 {
 	b3CompoundImpactContext context = {0};
@@ -1110,7 +1110,7 @@ b3Sweep b3MakeCompoundChildSweep( b3Transform compoundTransform, b3Transform chi
 
 struct b3CompoundMoverContext
 {
-	const b3Compound* compound;
+	const b3CompoundData* compound;
 	b3PlaneResult* planes;
 	int planeCapacity;
 	int planeCount;
@@ -1173,7 +1173,7 @@ static bool b3CompoundMoverCallback( int proxyId, uint64_t userData, void* conte
 	return moverContext->planeCount < moverContext->planeCapacity;
 }
 
-int b3CollideMoverAndCompound( b3PlaneResult* planes, int capacity, const b3Compound* shape, const b3Capsule* mover )
+int b3CollideMoverAndCompound( b3PlaneResult* planes, int capacity, const b3CompoundData* shape, const b3Capsule* mover )
 {
 	struct b3CompoundMoverContext context = {
 		.compound = shape,

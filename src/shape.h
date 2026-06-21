@@ -53,7 +53,7 @@ typedef struct b3Shape
 		const b3HullData* hull;
 		b3Mesh mesh;
 		const b3HeightFieldData* heightField;
-		const b3Compound* compound;
+		const b3CompoundData* compound;
 	};
 
 } b3Shape;

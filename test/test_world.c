@@ -562,7 +562,7 @@ static int TestCompoundHitEvents( void )
 		b3CompoundDef compoundDef = { 0 };
 		compoundDef.hulls = hulls;
 		compoundDef.hullCount = 2;
-		b3Compound* compound = b3CreateCompound( &compoundDef );
+		b3CompoundData* compound = b3CreateCompound( &compoundDef );
 		ENSURE( compound != NULL );
 
 		// Static body holds the compound
