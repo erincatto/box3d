@@ -36,7 +36,7 @@
 #include <stdio.h>
 
 // This allows the user to change the length units at runtime
-float b3_lengthUnitsPerMeter = 1.0f;
+static float b3_lengthUnitsPerMeter = 1.0f;
 
 void b3SetLengthUnitsPerMeter( float lengthUnits )
 {
@@ -47,6 +47,19 @@ void b3SetLengthUnitsPerMeter( float lengthUnits )
 float b3GetLengthUnitsPerMeter( void )
 {
 	return b3_lengthUnitsPerMeter;
+}
+
+static float b3_stallThreshold = FLT_MAX;
+
+void b3SetStallThreshold(float seconds)
+{
+	B3_ASSERT( b3IsValidFloat( seconds ) && seconds > 0.0f );
+	b3_stallThreshold = seconds;
+}
+
+float b3GetStallThreshold(void)
+{
+	return b3_stallThreshold;
 }
 
 static int b3DefaultAssertFcn( const char* condition, const char* fileName, int lineNumber )

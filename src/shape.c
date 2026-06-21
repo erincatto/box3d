@@ -2050,13 +2050,17 @@ typedef struct b3MeshImpactContext
 	b3Vec3 meshLocalCentroidB1, meshLocalCentroidB2;
 	float fallbackRadius;
 	bool isSensor;
+
+	int visitCount;
 } b3MeshImpactContext;
 
 static bool b3MeshTimeOfImpactFcn( b3Vec3 a, b3Vec3 b, b3Vec3 c, int triangleIndex, void* context )
 {
 	B3_UNUSED( triangleIndex );
 
-	b3MeshImpactContext* toiContext = (b3MeshImpactContext*)context;
+	b3MeshImpactContext* toiContext = context;
+
+	toiContext->visitCount += 1;
 
 	// Early out for parallel movement
 	b3Vec3 c1 = toiContext->meshLocalCentroidB1;
@@ -2257,6 +2261,8 @@ b3TOIOutput b3ShapeTimeOfImpact( b3Shape* shapeA, b3Shape* shapeB, b3Sweep* swee
 		// todo implement b3MeshTimeOfImpact and b3HeightFieldTimeOfImpact
 		// Note: assuming mesh is static
 
+		uint64_t ticks = b3GetTicks();
+
 		b3MeshImpactContext context = { 0 };
 		context.toiInput.sweepA = *sweepA;
 		context.toiInput.proxyA.count = 3;
@@ -2284,11 +2290,6 @@ b3TOIOutput b3ShapeTimeOfImpact( b3Shape* shapeA, b3Shape* shapeB, b3Sweep* swee
 			.q = sweepB->q2,
 		};
 
-		// b3Vec3 centroidB1 = b3InvRotateVector( xfA.q, b3RotateVector( sweepB->q1, localCentroidB - sweepB->localCenter ) +
-		//											   ( sweepB->c1 - xfA.p ) );
-		// b3Vec3 centroidB2 = b3InvRotateVector( xfA.q, b3RotateVector( sweepB->q2, localCentroidB - sweepB->localCenter ) +
-		//												  ( sweepB->c2 - xfA.p ) );
-
 		context.meshLocalCentroidB1 = b3InvTransformPoint( xfA, b3TransformPoint( xfB1, localCentroidB ) );
 		context.meshLocalCentroidB2 = b3InvTransformPoint( xfA, b3TransformPoint( xfB2, localCentroidB ) );
 
@@ -2309,6 +2310,12 @@ b3TOIOutput b3ShapeTimeOfImpact( b3Shape* shapeA, b3Shape* shapeB, b3Sweep* swee
 		else if ( typeA == b3_heightShape )
 		{
 			b3QueryHeightField( shapeA->heightField, localBounds, b3MeshTimeOfImpactFcn, &context );
+		}
+
+		float ms = b3GetMilliseconds( ticks );
+		if ( ms > 1000.0f * b3GetStallThreshold() )
+		{
+			b3Log( "CCD stall: visited %d triangles", context.visitCount );
 		}
 
 		return context.toiOutput;

@@ -14,6 +14,12 @@ B3_API void b3SetLengthUnitsPerMeter( float lengthUnits );
 /// Get the current length units per meter.
 B3_API float b3GetLengthUnitsPerMeter( void );
 
+/// Set the threshold for logging stalls.
+B3_API void b3SetStallThreshold( float seconds );
+
+/// Get the threshold for logging stalls.
+B3_API float b3GetStallThreshold( void );
+
 // Used to detect bad values. In float mode positions greater than about 16km have precision
 // problems, so 100km is a safe limit. Large world mode keeps coordinates accurate much farther
 // from the origin, so the sanity limit widens to keep valid far-field positions from tripping it.

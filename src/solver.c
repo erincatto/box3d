@@ -326,6 +326,8 @@ typedef struct b3ContinuousContext
 	float sensorFractions[B2_MAX_CONTINUOUS_SENSOR_HITS];
 	int sensorCount;
 
+	int visitCount;
+
 	int distanceIterations;
 	int pushBackIterations;
 	int rootIterations;
@@ -337,7 +339,9 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 	B3_UNUSED( proxyId );
 
 	int shapeId = (int)userData;
-	b3ContinuousContext* continuousContext = (b3ContinuousContext*)context;
+	b3ContinuousContext* continuousContext = context;
+	continuousContext->visitCount += 1;
+
 	b3Shape* fastShape = continuousContext->fastShape;
 	b3BodySim* fastBodySim = continuousContext->fastBodySim;
 
@@ -407,6 +411,8 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 		}
 	}
 
+	uint64_t ticks = b3GetTicks();
+
 	// todo does having a sweep on shapeA help with bullets?
 	b3Sweep sweepA = b3MakeRelativeSweep( bodySim, continuousContext->base );
 
@@ -452,6 +458,12 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 		}
 	}
 
+	float ms = b3GetMilliseconds( ticks );
+	if ( ms > 1000.0f * b3GetStallThreshold() )
+	{
+		b3Log( "CCD stall: duration %.1f ms for %s versus %s", ms, fastBody->name, body->name );
+	}
+
 	// Continue query
 	return true;
 }
@@ -460,6 +472,8 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* taskContext )
 {
 	b3TracyCZoneNC( ccd, "CCD", b3_colorDarkGoldenRod, true );
+
+	uint64_t ticks = b3GetTicks();
 
 	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
 	b3BodySim* fastBodySim = b3Array_Get( awakeSet->bodySims, bodySimIndex );
@@ -620,6 +634,16 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	taskContext->distanceIterations = b3MaxInt( taskContext->distanceIterations, context.distanceIterations );
 	taskContext->pushBackIterations = b3MaxInt( taskContext->pushBackIterations, context.pushBackIterations );
 	taskContext->rootIterations = b3MaxInt( taskContext->rootIterations, context.rootIterations );
+
+	float ms = b3GetMilliseconds( ticks );
+	if ( ms > 1000.0f * b3GetStallThreshold() )
+	{
+		b3Vec3 c1 = sweep.c1;
+		b3Vec3 c2 = sweep.c2;
+		int vc = context.visitCount;
+		b3Log( "CCD stall: duration %.1f ms and visit count %d for %s: c1 = (%g, %g, %g), c2 = (%g, %g, %g)", ms, vc,
+			   fastBody->name, c1.x, c1.y, c1.z, c2.x, c2.y, c2.z );
+	}
 
 	b3TracyCZoneEnd( ccd );
 }
