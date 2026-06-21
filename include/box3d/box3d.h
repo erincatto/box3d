@@ -809,7 +809,7 @@ B3_API b3ShapeId b3CreateMeshShape( b3BodyId bodyId, const b3ShapeDef* def, cons
 /// Height field is only allowed on static bodies.
 /// @warning this holds reference to the input height field which must remain valid for the lifetime of this shape
 /// @return the shape id for accessing the shape
-B3_API b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HeightField* heightField );
+B3_API b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HeightFieldData* heightField );
 
 /// Compound shapes are only allowed on static bodies.
 B3_API b3ShapeId b3CreateCompoundShape( b3BodyId bodyId, b3ShapeDef* def, const b3Compound* compound );
@@ -938,7 +938,7 @@ B3_API const b3HullData* b3Shape_GetHull( b3ShapeId shapeId );
 B3_API b3Mesh b3Shape_GetMesh( b3ShapeId shapeId );
 
 /// Get the shape's height field. Asserts the type is correct.
-B3_API const b3HeightField* b3Shape_GetHeightField( b3ShapeId shapeId );
+B3_API const b3HeightFieldData* b3Shape_GetHeightField( b3ShapeId shapeId );
 
 /// Allows you to change a shape to be a sphere or update the current sphere.
 /// This does not modify the mass properties.

@@ -2394,8 +2394,7 @@ public:
 
 		// b3DestroyHull( hull );
 
-		m_camera->m_thirdPerson = true;
-		sapp_lock_mouse( true );
+		m_camera->m_thirdPerson = false;
 
 		m_haveMouseLast = false;
 		m_mouseLast = { 0.0f, 0.0f };
@@ -2404,36 +2403,13 @@ public:
 
 	~Driving() override
 	{
-		m_camera->m_thirdPerson = false;
-		sapp_lock_mouse( false );
+		if (m_camera->m_thirdPerson)
+		{
+			m_camera->m_thirdPerson = false;
+			sapp_lock_mouse( false );
+		}
 		b3DestroyHeightField( m_heightField );
 	}
-
-#if 0
-	void MouseMove( b3Vec2 p ) override
-	{
-		if ( m_camera->m_thirdPerson )
-		{
-			if ( m_haveMouseLast == false )
-			{
-				m_mouseLast = p;
-				m_haveMouseLast = true;
-			}
-			else
-			{
-				m_mouseDelta = { p.x - m_mouseLast.x, p.y - m_mouseLast.y };
-				m_mouseLast = p;
-			}
-
-			const float sensitivity = 0.05f;
-			m_camera->m_yaw -= 2.0f * sensitivity * m_mouseDelta.x;
-			m_camera->m_pitch += sensitivity * m_mouseDelta.y;
-			m_camera->m_pitch = b3ClampFloat( m_camera->m_pitch, -85.0f, 85.0f );
-		}
-
-		Sample::MouseMove( p );
-	}
-#endif
 
 	void Keyboard( int key, int action, int mods ) override
 	{
@@ -2620,7 +2596,7 @@ public:
 		return new Driving( context );
 	}
 
-	b3HeightField* m_heightField;
+	b3HeightFieldData* m_heightField;
 	b3BodyId m_chassisId;
 	b3JointId m_frontLeftId;
 	b3JointId m_frontRightId;

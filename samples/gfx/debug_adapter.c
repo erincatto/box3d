@@ -567,7 +567,7 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 
 	if ( debugShape->type == b3_heightShape )
 	{
-		const b3HeightField* hf = debugShape->heightField;
+		const b3HeightFieldData* hf = debugShape->heightField;
 		const MeshHandle handle = FindOrAddHeightField( hf );
 		if ( !IsMeshHandleValid( handle ) )
 		{

@@ -2240,26 +2240,19 @@ typedef struct b3HeightFieldDef
 #define B3_HEIGHT_FIELD_HOLE 0xFF
 
 /// 64-bit height-field version. Useful for validating serialized data.
-#define B3_HEIGHT_FIELD_VERSION 0xB6E83F1D947A28C5ull
+#define B3_HEIGHT_FIELD_VERSION 0x3D9A1F6C24E87B05ull
 
 /// A height field with compressed storage.
-typedef struct b3HeightField
+/// @note This data structure has data hanging off the end and cannot be directly copied.
+typedef struct b3HeightFieldData
 {
-	/// Version must be first
+	/// Version must be first and match B3_HEIGHT_FIELD_VERSION
 	uint64_t version;
 
-	/// The compressed height values.
-	uint16_t* compressedHeights;
-
-	/// Material indices, one for each cell.
-	uint8_t* materialIndices;
-
-	/// Flags per cell.
-	uint8_t* flags;
+	/// The total number of bytes for this height field.
+	int byteCount;
 
 	/// Hash of this height field (this field is zero when the hash is computed).
-	/// Pointer values above are skipped; the bulk arrays they reference and the
-	/// scalar block below are folded in at construction time.
 	uint32_t hash;
 
 	/// The local axis-aligned bounding box.
@@ -2283,9 +2276,25 @@ typedef struct b3HeightField
 	/// The number of grid rows along the local z-axis.
 	int rowCount;
 
+	/// Offset of the compressed height array in bytes from the struct address.
+	/// uint16_t, one per grid point.
+	int heightsOffset;
+
+	/// Offset of the material index array in bytes from the struct address.
+	/// uint8_t, one per cell.
+	int materialOffset;
+
+	/// Offset of the flag array in bytes from the struct address.
+	/// uint8_t, one per triangle.
+	int flagsOffset;
+
 	/// Triangle winding.
 	bool clockwise;
-} b3HeightField;
+
+	/// Explicit padding. Identity is a content hash over raw bytes, so there must
+	/// be no unnamed padding for struct copies to scramble.
+	uint8_t padding[3];
+} b3HeightFieldData;
 
 /**@}*/ // height_field
 
@@ -2913,7 +2922,7 @@ typedef struct b3DebugShape
 	{
 		const b3Capsule* capsule;		  ///< Capsule shape.
 		const b3Compound* compound;		  ///< Compound shape.
-		const b3HeightField* heightField; ///< Height-field shape.
+		const b3HeightFieldData* heightField; ///< Height-field shape.
 		const b3HullData* hull;			  ///< Convex hull shape.
 		const b3Mesh* mesh;				  ///< Mesh shape with scale.
 		const b3Sphere* sphere;			  ///< Sphere shape.

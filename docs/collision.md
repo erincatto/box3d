@@ -196,7 +196,7 @@ def.scale      = (b3Vec3){1.0f, 1.0f, 1.0f};
 def.globalMinimumHeight = -10.0f;
 def.globalMaximumHeight =  50.0f;
 
-b3HeightField* hf = b3CreateHeightField(&def);
+b3HeightFieldData* hf = b3CreateHeightField(&def);
 b3ShapeId id = b3CreateHeightFieldShape(bodyId, &shapeDef, hf);
 ```
 

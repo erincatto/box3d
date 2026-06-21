@@ -454,7 +454,7 @@ public:
 	}
 
 	b3MeshData* m_boxMesh;
-	b3HeightField* m_heightField;
+	b3HeightFieldData* m_heightField;
 	b3MeshData* m_gridMesh;
 };
 

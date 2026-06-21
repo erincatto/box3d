@@ -162,7 +162,7 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 		break;
 
 		case b3_heightShape:
-			shape->heightField = (b3HeightField*)geometry;
+			shape->heightField = (b3HeightFieldData*)geometry;
 			break;
 
 		default:
@@ -402,7 +402,7 @@ b3ShapeId b3CreateMeshShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Mes
 	return shapeId;
 }
 
-b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HeightField* heightField )
+b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HeightFieldData* heightField )
 {
 	B3_VALIDATE( heightField->hash != 0 );
 	b3ShapeId shapeId = b3CreateShape( bodyId, def, heightField, b3_heightShape, b3Transform_identity, b3Vec3_one, false );
@@ -1527,7 +1527,7 @@ b3Mesh b3Shape_GetMesh( b3ShapeId shapeId )
 	return shape->mesh;
 }
 
-const b3HeightField* b3Shape_GetHeightField( b3ShapeId shapeId )
+const b3HeightFieldData* b3Shape_GetHeightField( b3ShapeId shapeId )
 {
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );

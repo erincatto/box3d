@@ -1028,7 +1028,7 @@ static int AllOps( void )
 	hfBodyDef.type = b3_staticBody;
 	hfBodyDef.position = (b3Pos){ -20.0f, 0.0f, 0.0f };
 	b3BodyId hfBodyId = b3CreateBody( worldId, &hfBodyDef );
-	b3HeightField* hf = b3CreateGrid( 4, 4, (b3Vec3){ 2.0f, 1.0f, 2.0f }, false );
+	b3HeightFieldData* hf = b3CreateGrid( 4, 4, (b3Vec3){ 2.0f, 1.0f, 2.0f }, false );
 	ENSURE( hf != NULL );
 	b3ShapeDef hfShapeDef = b3DefaultShapeDef();
 	b3CreateHeightFieldShape( hfBodyId, &hfShapeDef, hf );

@@ -985,7 +985,7 @@ public:
 	b3Vec3 m_scale;
 	b3Vec3 m_rayOrigin;
 	b3Vec3 m_rayTranslation;
-	b3HeightField* m_heightField;
+	b3HeightFieldData* m_heightField;
 	float m_radius;
 	int m_rowCount;
 	int m_columnCount;

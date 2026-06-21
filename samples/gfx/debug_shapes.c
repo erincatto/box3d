@@ -543,10 +543,10 @@ static MeshHandle BuildMeshData( const b3MeshData* meshData )
 	return h;
 }
 
-static b3Vec3 HeightFieldSample( const b3HeightField* hf, int row, int col )
+static b3Vec3 HeightFieldSample( const b3HeightFieldData* hf, int row, int col )
 {
 	int index = row * hf->columnCount + col;
-	float decoded = hf->minHeight + hf->heightScale * (float)hf->compressedHeights[index];
+	float decoded = hf->minHeight + hf->heightScale * (float)b3GetHeightFieldCompressedHeights( hf )[index];
 	b3Vec3 scale = hf->scale;
 	b3Vec3 v;
 	v.x = scale.x * (float)col;
@@ -555,9 +555,9 @@ static b3Vec3 HeightFieldSample( const b3HeightField* hf, int row, int col )
 	return v;
 }
 
-static MeshHandle BuildHeightField( const b3HeightField* hf )
+static MeshHandle BuildHeightField( const b3HeightFieldData* hf )
 {
-	if ( hf->columnCount < 2 || hf->rowCount < 2 || !hf->compressedHeights )
+	if ( hf->columnCount < 2 || hf->rowCount < 2 )
 	{
 		fprintf( stderr, "error: heightfield degenerate (hash=0x%08x)\n", hf->hash );
 		return InvalidMeshHandle();
@@ -568,8 +568,8 @@ static MeshHandle BuildHeightField( const b3HeightField* hf )
 
 	const int cols = hf->columnCount;
 	const int rows = hf->rowCount;
-	const uint8_t* materials = hf->materialIndices; // may be NULL if all solid
-	const uint8_t* edgeFlags = hf->flags;			// per-triangle concave bits
+	const uint8_t* materials = b3GetHeightFieldMaterialIndices( hf ); // may be NULL if all solid
+	const uint8_t* edgeFlags = b3GetHeightFieldFlags( hf );			 // per-triangle concave bits
 	const bool clockwise = hf->clockwise;
 
 	// Build a (rows x cols) grid vertex array up front. Triangle emission
@@ -593,7 +593,7 @@ static MeshHandle BuildHeightField( const b3HeightField* hf )
 	// Each cell (row, col) covers world rectangle:
 	//   x in [scale.x * col,     scale.x * (col + 1)]
 	//   z in [scale.z * row,     scale.z * (row + 1)]
-	// with corner heights at the four grid corners. b3HeightField holds
+	// with corner heights at the four grid corners. b3HeightFieldData holds
 	// per-cell material. B3_HEIGHT_FIELD_HOLE (0xFF) marks a hole, skip
 	// both triangles for that cell. Triangulation matches Box3D's collision
 	// triangulation (see height_field.c line 228+):
@@ -823,7 +823,7 @@ MeshHandle FindOrAddMesh( const b3MeshData* meshData )
 	return BuildMeshData( meshData );
 }
 
-MeshHandle FindOrAddHeightField( const b3HeightField* heightField )
+MeshHandle FindOrAddHeightField( const b3HeightFieldData* heightField )
 {
 	if ( !heightField || heightField->hash == 0u )
 	{

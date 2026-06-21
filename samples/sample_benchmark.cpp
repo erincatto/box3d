@@ -654,7 +654,7 @@ public:
 		return new BenchmarkHeightField( context );
 	}
 
-	b3HeightField* m_heightField;
+	b3HeightFieldData* m_heightField;
 	int m_columnCount;
 	int m_rowCount;
 	float m_radius;

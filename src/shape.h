@@ -52,7 +52,7 @@ typedef struct b3Shape
 		b3Sphere sphere;
 		const b3HullData* hull;
 		b3Mesh mesh;
-		const b3HeightField* heightField;
+		const b3HeightFieldData* heightField;
 		const b3Compound* compound;
 	};
 
@@ -104,7 +104,7 @@ int b3CollideMoverAndSphere( b3PlaneResult* result, const b3Sphere* shape, const
 int b3CollideMoverAndCapsule( b3PlaneResult* result, const b3Capsule* shape, const b3Capsule* mover );
 int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, const b3Capsule* mover );
 int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* shape, const b3Capsule* mover );
-int b3CollideMoverAndHeightField( b3PlaneResult* results, int capacity, const b3HeightField* shape, const b3Capsule* mover );
+int b3CollideMoverAndHeightField( b3PlaneResult* results, int capacity, const b3HeightFieldData* shape, const b3Capsule* mover );
 int b3CollideMover( b3PlaneResult* planes, int planeCapacity, const b3Shape* shape, b3Transform transform,
 					const b3Capsule* mover );
 
@@ -117,10 +117,10 @@ b3ShapeExtent b3ComputeHullExtent( const b3HullData* hull, b3Vec3 origin );
 float b3ComputeHullProjectedArea( const b3HullData* hull, b3Vec3 direction );
 
 // Height field
-b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int triangleIndex );
-int b3GetHeightFieldMaterial( const b3HeightField* heightField, int triangleIndex );
+b3Triangle b3GetHeightFieldTriangle( const b3HeightFieldData* heightField, int triangleIndex );
+int b3GetHeightFieldMaterial( const b3HeightFieldData* heightField, int triangleIndex );
 
-static inline int b3GetHeightFieldTriangleCount( const b3HeightField* heightField )
+static inline int b3GetHeightFieldTriangleCount( const b3HeightFieldData* heightField )
 {
 	int cellCount = ( heightField->rowCount - 1 ) * ( heightField->columnCount - 1 );
 	return 2 * cellCount;

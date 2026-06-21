@@ -711,12 +711,9 @@ static void* b3RecGetLiveMesh( b3RegistrySlot* slot )
 
 static void* b3RecGetLiveHeightField( b3RegistrySlot* slot )
 {
-	if ( slot->live != NULL )
-	{
-		return slot->live;
-	}
-	slot->live = b3UnpackHeightField( slot->bytes, slot->byteCount );
-	return slot->live;
+	// Self-contained blob used by reference, like b3RecGetLiveMesh. The bytes already are a
+	// valid b3HeightFieldData with no pointer fixup, so hand them back directly.
+	return slot->bytes;
 }
 
 static void* b3RecGetLiveCompound( b3RegistrySlot* slot )
@@ -1034,7 +1031,7 @@ static void b3RecDispatch_CreateHeightFieldShape( const b3RecArgs_CreateHeightFi
 		return;
 	}
 	b3RegistrySlot* slot         = rdr->slots + id;
-	const b3HeightField* hf      = (const b3HeightField*)b3RecGetLiveHeightField( slot );
+	const b3HeightFieldData* hf      = (const b3HeightFieldData*)b3RecGetLiveHeightField( slot );
 	if ( hf == NULL )
 	{
 		printf( "b3ReplayFile: heightfield geometry %u is corrupt\n", id );
@@ -2300,10 +2297,7 @@ static void b3RecFreeSlots( b3RegistrySlot* slots, int slotCount )
 		{
 			switch ( slot->kind )
 			{
-				// Mesh has no separate live object; it borrows the bytes freed below.
-				case b3_geometryHeightField:
-					b3DestroyHeightField( (b3HeightField*)slot->live );
-					break;
+				// Mesh and height field have no separate live object; they borrow the bytes freed below.
 				case b3_geometryCompound:
 					b3Free( slot->live, (size_t)slot->byteCount );
 					break;

@@ -810,120 +810,6 @@ void b3RecWriteRegistry( b3Recording* rec )
 	}
 }
 
-// HeightField codec. Derives array sizes from the scalar block exactly as height_field.c does.
-// Pack layout: [scalar block: offsetof(hash)..end of struct][heights u16][materials u8][flags u8]
-// The block starts at the hash field, not aabb, so the stored hash rides along and unpack can verify
-// the arrays round-tripped. The stale pointers ahead of the hash are not serialized.
-uint8_t* b3PackHeightField( const b3HeightField* hf, int* outByteCount )
-{
-	int heightCount  = hf->columnCount * hf->rowCount;
-	int cellCount    = ( hf->columnCount - 1 ) * ( hf->rowCount - 1 );
-	int triangleCount = 2 * cellCount;
-
-	int scalarSize   = (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, hash ) );
-	int heightBytes  = heightCount * (int)sizeof( uint16_t );
-	int matBytes     = cellCount * (int)sizeof( uint8_t );
-	int flagBytes    = triangleCount * (int)sizeof( uint8_t );
-	int total        = scalarSize + heightBytes + matBytes + flagBytes;
-
-	uint8_t* buf = (uint8_t*)b3Alloc( (size_t)total );
-
-	memcpy( buf, (const uint8_t*)hf + offsetof( b3HeightField, hash ), (size_t)scalarSize );
-
-	// Arrays
-	memcpy( buf + scalarSize,                        hf->compressedHeights, (size_t)heightBytes );
-	memcpy( buf + scalarSize + heightBytes,          hf->materialIndices,   (size_t)matBytes );
-	memcpy( buf + scalarSize + heightBytes + matBytes, hf->flags,           (size_t)flagBytes );
-
-	*outByteCount = total;
-	return buf;
-}
-
-// Rebuild a height field from packed bytes. The input is untrusted (it comes from a recording file),
-// so every array size is derived from the scalar block and validated against the byte count before
-// any allocation or copy. Returns NULL on a corrupt or truncated blob; the caller must handle it.
-b3HeightField* b3UnpackHeightField( const uint8_t* bytes, int byteCount )
-{
-	int scalarSize = (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, hash ) );
-
-	// Need at least the scalar block to read the dimensions.
-	if ( bytes == NULL || byteCount < scalarSize )
-	{
-		return NULL;
-	}
-
-	b3HeightField* hf = (b3HeightField*)b3AllocZeroed( sizeof( b3HeightField ) );
-	memcpy( (uint8_t*)hf + offsetof( b3HeightField, hash ), bytes, (size_t)scalarSize );
-
-	// Pointers ahead of the hash field were not serialized; rebuild below.
-	hf->compressedHeights = NULL;
-	hf->materialIndices   = NULL;
-	hf->flags             = NULL;
-
-	// Dimensions come from the file. Compute in 64 bit so a hostile columnCount/rowCount cannot
-	// overflow the size math, then require an exact match against the blob. An exact match bounds
-	// every array inside byteCount and rejects truncated or padded data. Minimum 2x2 matches the
-	// engine, which needs at least one cell.
-	int64_t columnCount = hf->columnCount;
-	int64_t rowCount    = hf->rowCount;
-	if ( columnCount < 2 || rowCount < 2 )
-	{
-		b3Free( hf, sizeof( b3HeightField ) );
-		return NULL;
-	}
-
-	int64_t heightCount   = columnCount * rowCount;
-	int64_t cellCount     = ( columnCount - 1 ) * ( rowCount - 1 );
-	int64_t triangleCount = 2 * cellCount;
-
-	int64_t heightBytes = heightCount * (int64_t)sizeof( uint16_t );
-	int64_t matBytes    = cellCount * (int64_t)sizeof( uint8_t );
-	int64_t flagBytes   = triangleCount * (int64_t)sizeof( uint8_t );
-	int64_t total       = (int64_t)scalarSize + heightBytes + matBytes + flagBytes;
-
-	if ( total != (int64_t)byteCount )
-	{
-		b3Free( hf, sizeof( b3HeightField ) );
-		return NULL;
-	}
-
-	hf->compressedHeights = (uint16_t*)b3Alloc( (size_t)heightBytes );
-	hf->materialIndices   = (uint8_t*)b3Alloc( (size_t)matBytes );
-	hf->flags             = (uint8_t*)b3Alloc( (size_t)flagBytes );
-
-	const uint8_t* src = bytes + scalarSize;
-	memcpy( hf->compressedHeights, src, (size_t)heightBytes );
-	src += heightBytes;
-	memcpy( hf->materialIndices, src, (size_t)matBytes );
-	src += matBytes;
-	memcpy( hf->flags, src, (size_t)flagBytes );
-
-	hf->version = B3_HEIGHT_FIELD_VERSION;
-
-	// Recompute the content hash and require it to match the stored one. This catches silent
-	// corruption that still has the right byte count. Scheme matches b3CreateHeightField.
-	uint32_t expectedHash = hf->hash;
-	hf->hash = 0;
-	uint32_t h = B3_HASH_INIT;
-	h = b3Hash( h, (const uint8_t*)hf->compressedHeights, (int)heightBytes );
-	h = b3Hash( h, (const uint8_t*)hf->materialIndices,   (int)matBytes );
-	h = b3Hash( h, (const uint8_t*)hf->flags,             (int)flagBytes );
-	h = b3Hash( h, (const uint8_t*)hf + offsetof( b3HeightField, aabb ),
-	            (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, aabb ) ) );
-	hf->hash = b3NonZeroHash( h );
-
-	if ( hf->hash != expectedHash )
-	{
-		b3Free( hf->compressedHeights, (size_t)heightBytes );
-		b3Free( hf->materialIndices, (size_t)matBytes );
-		b3Free( hf->flags, (size_t)flagBytes );
-		b3Free( hf, sizeof( b3HeightField ) );
-		return NULL;
-	}
-
-	return hf;
-}
-
 // Lifecycle
 
 b3Recording* b3CreateRecording( int byteCapacity )
@@ -1140,10 +1026,11 @@ uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh )
 	return b3InternGeometry( &rec->registry, b3_geometryMesh, h, bytes, byteCount );
 }
 
-uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightField* hf )
+uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightFieldData* hf )
 {
-	int byteCount = 0;
-	uint8_t* bytes = b3PackHeightField( hf, &byteCount );
+	int byteCount = hf->byteCount;
+	uint8_t* bytes = (uint8_t*)b3Alloc( (size_t)byteCount );
+	memcpy( bytes, hf, (size_t)byteCount );
 	uint64_t h = b3Hash64Blob( bytes, byteCount );
 	return b3InternGeometry( &rec->registry, b3_geometryHeightField, h, bytes, byteCount );
 }

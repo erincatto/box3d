@@ -16,7 +16,7 @@
 static int HeightFieldCreate( void )
 {
 	b3Vec3 scale = { 1.0f, 1.0f, 1.0f };
-	b3HeightField* hf = b3CreateGrid( 4, 4, scale, false );
+	b3HeightFieldData* hf = b3CreateGrid( 4, 4, scale, false );
 
 	ENSURE( hf->rowCount == 4 );
 	ENSURE( hf->columnCount == 4 );
@@ -42,7 +42,7 @@ static int HeightFieldTriangleIndex( void )
 	int rowCount = 4;
 	int columnCount = 5;
 	b3Vec3 scale = { 1.0f, 1.0f, 1.0f };
-	b3HeightField* hf = b3CreateGrid( rowCount, columnCount, scale, false );
+	b3HeightFieldData* hf = b3CreateGrid( rowCount, columnCount, scale, false );
 
 	int triangleCount = 2 * ( rowCount - 1 ) * ( columnCount - 1 );
 
@@ -97,10 +97,10 @@ static int HeightFieldWinding( void )
 	def.globalMaximumHeight = 1.0f;
 
 	def.clockwiseWinding = false;
-	b3HeightField* ccw = b3CreateHeightField( &def );
+	b3HeightFieldData* ccw = b3CreateHeightField( &def );
 
 	def.clockwiseWinding = true;
-	b3HeightField* cw = b3CreateHeightField( &def );
+	b3HeightFieldData* cw = b3CreateHeightField( &def );
 
 	b3Triangle ta = b3GetHeightFieldTriangle( ccw, 0 );
 	b3Triangle tb = b3GetHeightFieldTriangle( cw, 0 );
@@ -141,7 +141,7 @@ static int RayCastFlatField( void )
 	def.globalMaximumHeight = 1.0f;
 	def.clockwiseWinding = false;
 
-	b3HeightField* hf = b3CreateHeightField( &def );
+	b3HeightFieldData* hf = b3CreateHeightField( &def );
 
 	// Origin sits clearly inside triangle 0 of cell (1, 1) — off the cell
 	// diagonal x+z = 3. The translation overshoots the surface so the hit
@@ -166,7 +166,7 @@ static int RayCastFlatField( void )
 static int OverlapAtSurface( void )
 {
 	b3Vec3 scale = { 1.0f, 1.0f, 1.0f };
-	b3HeightField* hf = b3CreateGrid( 4, 4, scale, false );
+	b3HeightFieldData* hf = b3CreateGrid( 4, 4, scale, false );
 
 	// Sphere center 1.0 above the surface, radius 0.5 — clear gap.
 	b3Vec3 above = { 1.5f, 1.0f, 1.5f };
@@ -202,7 +202,7 @@ static int FileRoundtrip( void )
 	const char* path = "test_height_field_roundtrip.dat";
 	b3DumpHeightData( &def, path );
 
-	b3HeightField* loaded = b3LoadHeightField( path );
+	b3HeightFieldData* loaded = b3LoadHeightField( path );
 	remove( path );
 
 	ENSURE( loaded != NULL );
@@ -219,14 +219,14 @@ static int FileRoundtrip( void )
 	int cellCount = ( def.countX - 1 ) * ( def.countZ - 1 );
 	for ( int i = 0; i < cellCount; ++i )
 	{
-		ENSURE( loaded->materialIndices[i] == materials[i] );
+		ENSURE( b3GetHeightFieldMaterialIndices( loaded )[i] == materials[i] );
 	}
 
 	// Recovered heights round-trip within the quantization tolerance.
 	float quantum = ( def.globalMaximumHeight - def.globalMinimumHeight ) / (float)UINT16_MAX;
 	for ( int i = 0; i < def.countX * def.countZ; ++i )
 	{
-		float recovered = loaded->minHeight + loaded->heightScale * loaded->compressedHeights[i];
+		float recovered = loaded->minHeight + loaded->heightScale * b3GetHeightFieldCompressedHeights( loaded )[i];
 		ENSURE_SMALL( recovered - heights[i], 2.0f * quantum );
 	}
 
@@ -256,7 +256,7 @@ static int ShapeCastVerticalStraddle( void )
 	def.globalMaximumHeight = 1.0f;
 	def.clockwiseWinding = false;
 
-	b3HeightField* hf = b3CreateHeightField( &def );
+	b3HeightFieldData* hf = b3CreateHeightField( &def );
 
 	// Solid cell (0,0) spans x,z in [0,1]. Radius 0.3 with the center 0.05 past a
 	// boundary still reaches back into the solid cell.
@@ -311,7 +311,7 @@ static int ShapeCastVerticalStraddle( void )
 
 // Brute-force shape cast: cast the proxy against every (non-hole) triangle and
 // keep the closest hit. This is the ground truth for b3ShapeCastHeightField.
-static b3CastOutput BruteForceShapeCast( const b3HeightField* hf, const b3ShapeCastInput* input )
+static b3CastOutput BruteForceShapeCast( const b3HeightFieldData* hf, const b3ShapeCastInput* input )
 {
 	b3CastOutput best = { 0 };
 	float bestFraction = input->maxFraction;
@@ -320,7 +320,7 @@ static b3CastOutput BruteForceShapeCast( const b3HeightField* hf, const b3ShapeC
 	for ( int t = 0; t < triangleCount; ++t )
 	{
 		int cellIndex = t >> 1;
-		if ( hf->materialIndices[cellIndex] == B3_HEIGHT_FIELD_HOLE )
+		if ( b3GetHeightFieldMaterialIndices( hf )[cellIndex] == B3_HEIGHT_FIELD_HOLE )
 		{
 			continue;
 		}
@@ -353,7 +353,7 @@ static int ShapeCastBruteForce( void )
 	// against every triangle is the ground truth. The grid walk must never miss a
 	// closer hit, regardless of cast direction, origin or radius.
 	b3Vec3 scale = { 2.0f, 1.5f, 2.0f };
-	b3HeightField* hf = b3CreateWave( 10, 10, scale, 0.1f, 0.03333f, false );
+	b3HeightFieldData* hf = b3CreateWave( 10, 10, scale, 0.1f, 0.03333f, false );
 
 	// Documented repro from sample/sample_mesh.cpp "Height Field": a sphere cast
 	// that moves only in z (and y). Body at (-9,0,-9), world origin (5.5,4,2.913)
@@ -432,7 +432,7 @@ static int ShapeCastBruteForce( void )
 // the closest hit. b3GetHeightFieldTriangle returns vertices in the same winding
 // order that b3ShapeCastHeightField feeds to b3IntersectRayTriangle, so this is a
 // pure traversal/culling check — the per-triangle math is identical.
-static b3CastOutput BruteForceRayCast( const b3HeightField* hf, const b3RayCastInput* input )
+static b3CastOutput BruteForceRayCast( const b3HeightFieldData* hf, const b3RayCastInput* input )
 {
 	b3CastOutput best = { 0 };
 	float bestFraction = input->maxFraction;
@@ -444,7 +444,7 @@ static b3CastOutput BruteForceRayCast( const b3HeightField* hf, const b3RayCastI
 	for ( int t = 0; t < triangleCount; ++t )
 	{
 		int cellIndex = t >> 1;
-		if ( hf->materialIndices[cellIndex] == B3_HEIGHT_FIELD_HOLE )
+		if ( b3GetHeightFieldMaterialIndices( hf )[cellIndex] == B3_HEIGHT_FIELD_HOLE )
 		{
 			continue;
 		}
@@ -474,7 +474,7 @@ static int RayCastBruteForce( void )
 	// (radius-zero point proxy), so it is subject to the same early-termination
 	// bug. The brute-force cast against every triangle is the ground truth.
 	b3Vec3 scale = { 2.0f, 1.5f, 2.0f };
-	b3HeightField* hf = b3CreateWave( 10, 10, scale, 0.1f, 0.03333f, false );
+	b3HeightFieldData* hf = b3CreateWave( 10, 10, scale, 0.1f, 0.03333f, false );
 
 	const b3Vec3 deltas[] = {
 		{ 0.0f, -8.0f, 0.0f },	  // straight down

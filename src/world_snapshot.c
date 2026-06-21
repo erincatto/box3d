@@ -684,16 +684,8 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 					break;
 				}
 				b3RegistrySlot* slot = rdr->slots + gid;
-				if ( slot->live == NULL )
-				{
-					slot->live = b3UnpackHeightField( slot->bytes, slot->byteCount );
-				}
-				if ( slot->live == NULL )
-				{
-					r->ok = false;
-					break;
-				}
-				dst->heightField = (const b3HeightField*)slot->live;
+				// Self-contained blob used by reference; point straight at the pristine bytes.
+				dst->heightField = (const b3HeightFieldData*)slot->bytes;
 				break;
 			}
 			case b3_compoundShape:

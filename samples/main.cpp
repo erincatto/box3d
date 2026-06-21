@@ -103,18 +103,22 @@ static void OnEvent( const sapp_event* e )
 		return;
 	}
 
-	const bool imguiCaptured = HandleEvent( e );
+	bool uiCaptured = false;
+	if (s_context.camera.m_thirdPerson == false)
+	{
+		uiCaptured = HandleEvent( e );
+	}
 
 	// The camera must always see button releases and focus loss, even when the UI
 	// captures the event. Otherwise a release over an ImGui panel never clears the
 	// drag flag and the camera keeps orbiting.
 	const bool releaseOrUnfocus = e->type == SAPP_EVENTTYPE_MOUSE_UP || e->type == SAPP_EVENTTYPE_UNFOCUSED;
-	if ( imguiCaptured == false || releaseOrUnfocus )
+	if ( uiCaptured == false || releaseOrUnfocus )
 	{
 		s_context.camera.OnEvent( e );
 	}
 
-	if ( imguiCaptured )
+	if ( uiCaptured )
 	{
 		return;
 	}

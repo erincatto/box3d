@@ -39,11 +39,11 @@ MeshHandle FindOrAddHull( const b3HullData* hull );
 // draw time. Two b3Mesh sharing the same b3MeshData share one entry.
 MeshHandle FindOrAddMesh( const b3MeshData* meshData );
 
-// Acquire for b3HeightField. The `scale` vector is part of the height
+// Acquire for b3HeightFieldData. The `scale` vector is part of the height
 // field's hash (folded into construction), so two heightfields with
 // different scales hash to different entries, per-instance scale stays
 // at (1, 1, 1) for heightfield draws.
-MeshHandle FindOrAddHeightField( const b3HeightField* heightField );
+MeshHandle FindOrAddHeightField( const b3HeightFieldData* heightField );
 
 #ifdef __cplusplus
 } // extern "C"

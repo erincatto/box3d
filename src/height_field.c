@@ -99,23 +99,45 @@
 	   21  3  22
  */
 
-b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
+b3HeightFieldData* b3CreateHeightField( const b3HeightFieldDef* data )
 {
-	// Zero-init so the trailing pad after `clockwise` is defined — the construction-time
-	// hash below sweeps raw struct bytes and would otherwise pick up uninitialized padding.
-	b3HeightField* hf = (b3HeightField*)b3AllocZeroed( sizeof( b3HeightField ) );
-
 	int columnCount = data->countX;
 	int rowCount = data->countZ;
-
-	hf->scale = data->scale;
-	hf->columnCount = columnCount;
-	hf->rowCount = rowCount;
 
 	int heightCount = columnCount * rowCount;
 	B3_ASSERT( heightCount >= 4 );
 
-	hf->compressedHeights = (uint16_t*)b3Alloc( heightCount * sizeof( uint16_t ) );
+	int cellCount = ( columnCount - 1 ) * ( rowCount - 1 );
+	int triangleCount = 2 * cellCount;
+
+	// Single blob: struct followed by the height, material, and flag arrays. Layout
+	// mirrors b3HullData/b3MeshData so the recording path can copy it with one memcpy.
+	size_t byteCount = b3AlignUp8( sizeof( b3HeightFieldData ) );
+	int heightsOffset = (int)byteCount;
+	byteCount += b3AlignUp8( heightCount * sizeof( uint16_t ) );
+	int materialOffset = (int)byteCount;
+	byteCount += b3AlignUp8( cellCount * sizeof( uint8_t ) );
+	int flagsOffset = (int)byteCount;
+	byteCount += b3AlignUp8( triangleCount * sizeof( uint8_t ) );
+
+	// Zero the whole blob so alignment padding is defined. The construction-time hash
+	// sweeps raw bytes and would otherwise pick up uninitialized padding.
+	b3HeightFieldData* hf = (b3HeightFieldData*)b3Alloc( byteCount );
+	memset( hf, 0, byteCount );
+
+	hf->version = B3_HEIGHT_FIELD_VERSION;
+	hf->byteCount = (int)byteCount;
+	hf->scale = data->scale;
+	hf->columnCount = columnCount;
+	hf->rowCount = rowCount;
+	hf->heightsOffset = heightsOffset;
+	hf->materialOffset = materialOffset;
+	hf->flagsOffset = flagsOffset;
+	hf->clockwise = data->clockwiseWinding;
+
+	uint16_t* compressedHeights = (uint16_t*)( (intptr_t)hf + heightsOffset );
+	uint8_t* materialIndices = (uint8_t*)( (intptr_t)hf + materialOffset );
+	uint8_t* flags = (uint8_t*)( (intptr_t)hf + flagsOffset );
 
 	const float* heights = data->heights;
 
@@ -134,7 +156,7 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 	{
 		float clampedHeight = b3ClampFloat( heights[i], hf->minHeight, hf->maxHeight );
 		float scaledHeight = ( clampedHeight - hf->minHeight ) * invHeightScale;
-		hf->compressedHeights[i] = (uint16_t)( b3MinFloat( scaledHeight, (float)UINT16_MAX ) );
+		compressedHeights[i] = (uint16_t)( b3MinFloat( scaledHeight, (float)UINT16_MAX ) );
 
 		lowerHeightBound = b3MinFloat( lowerHeightBound, clampedHeight );
 		upperHeightBound = b3MaxFloat( upperHeightBound, clampedHeight );
@@ -144,41 +166,28 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 	float* decompressedHeights = (float*)b3Alloc( heightCount * sizeof( float ) );
 	for ( int i = 0; i < heightCount; ++i )
 	{
-		decompressedHeights[i] = hf->minHeight + hf->heightScale * hf->compressedHeights[i];
+		decompressedHeights[i] = hf->minHeight + hf->heightScale * compressedHeights[i];
 	}
 	heights = decompressedHeights;
-
-	int cellCount = ( hf->columnCount - 1 ) * ( hf->rowCount - 1 );
-
-	hf->materialIndices = (uint8_t*)b3Alloc( cellCount * sizeof( uint8_t ) );
 
 	if ( data->materialIndices != NULL )
 	{
 		for ( int i = 0; i < cellCount; ++i )
 		{
-			hf->materialIndices[i] = data->materialIndices[i];
+			materialIndices[i] = data->materialIndices[i];
 		}
 	}
 	else
 	{
 		for ( int i = 0; i < cellCount; ++i )
 		{
-			hf->materialIndices[i] = 0;
+			materialIndices[i] = 0;
 		}
 	}
 
 	hf->aabb.lowerBound = (b3Vec3){ 0.0f, hf->scale.y * lowerHeightBound, 0.0f };
 	hf->aabb.upperBound =
 		(b3Vec3){ hf->scale.x * ( hf->columnCount - 1 ), hf->scale.y * upperHeightBound, hf->scale.z * ( hf->rowCount - 1 ) };
-
-	hf->version = B3_HEIGHT_FIELD_VERSION;
-
-	hf->clockwise = data->clockwiseWinding;
-
-	int triangleCount = 2 * cellCount;
-	hf->flags = (uint8_t*)b3Alloc( triangleCount * sizeof( uint8_t ) );
-
-	memset( hf->flags, 0, triangleCount * sizeof( uint8_t ) );
 
 	float cos5Deg = 0.9962f;
 	b3Vec3 scale = hf->scale;
@@ -200,7 +209,7 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 
 			int cellIndex = row * ( columnCount - 1 ) + column;
 
-			if ( hf->materialIndices[cellIndex] == B3_HEIGHT_FIELD_HOLE )
+			if ( materialIndices[cellIndex] == B3_HEIGHT_FIELD_HOLE )
 			{
 				continue;
 			}
@@ -264,7 +273,7 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 
 			// top
 			int topCellIndex = ( row - 1 ) * ( columnCount - 1 ) + column;
-			if ( row > 0 && hf->materialIndices[topCellIndex] != B3_HEIGHT_FIELD_HOLE )
+			if ( row > 0 && materialIndices[topCellIndex] != B3_HEIGHT_FIELD_HOLE )
 			{
 				B3_ASSERT( 0 <= topCellIndex && topCellIndex < cellCount );
 
@@ -310,7 +319,7 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 			}
 
 			int bottomCellIndex = ( row + 1 ) * ( columnCount - 1 ) + column;
-			if ( row + 1 < rowCount - 1 && hf->materialIndices[bottomCellIndex] != B3_HEIGHT_FIELD_HOLE )
+			if ( row + 1 < rowCount - 1 && materialIndices[bottomCellIndex] != B3_HEIGHT_FIELD_HOLE )
 			{
 				B3_ASSERT( 0 <= bottomCellIndex && bottomCellIndex < cellCount );
 
@@ -356,7 +365,7 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 			}
 
 			int leftCellIndex = row * ( columnCount - 1 ) + column - 1;
-			if ( column - 1 >= 0 && hf->materialIndices[leftCellIndex] != B3_HEIGHT_FIELD_HOLE )
+			if ( column - 1 >= 0 && materialIndices[leftCellIndex] != B3_HEIGHT_FIELD_HOLE )
 			{
 				B3_ASSERT( 0 <= leftCellIndex && leftCellIndex < cellCount );
 
@@ -402,7 +411,7 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 			}
 
 			int rightCellIndex = row * ( columnCount - 1 ) + column + 1;
-			if ( column + 1 < columnCount - 1 && hf->materialIndices[rightCellIndex] != B3_HEIGHT_FIELD_HOLE )
+			if ( column + 1 < columnCount - 1 && materialIndices[rightCellIndex] != B3_HEIGHT_FIELD_HOLE )
 			{
 				B3_ASSERT( 0 <= rightCellIndex && rightCellIndex < cellCount );
 
@@ -450,8 +459,8 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 			B3_ASSERT( 0 <= flags1 && flags1 <= UINT8_MAX );
 			B3_ASSERT( 0 <= flags2 && flags2 <= UINT8_MAX );
 
-			hf->flags[triangleIndex1] = (uint8_t)flags1;
-			hf->flags[triangleIndex2] = (uint8_t)flags2;
+			flags[triangleIndex1] = (uint8_t)flags1;
+			flags[triangleIndex2] = (uint8_t)flags2;
 		}
 	}
 
@@ -459,13 +468,9 @@ b3HeightField* b3CreateHeightField( const b3HeightFieldDef* data )
 
 	b3Free( decompressedHeights, heightCount * sizeof( float ) );
 
+	// Content hash over the whole blob with the hash field zeroed, like b3HullData/b3MeshData.
 	hf->hash = 0;
-	uint32_t h = B3_HASH_INIT;
-	h = b3Hash( h, (const uint8_t*)hf->compressedHeights, heightCount * (int)sizeof( uint16_t ) );
-	h = b3Hash( h, (const uint8_t*)hf->materialIndices, cellCount * (int)sizeof( uint8_t ) );
-	h = b3Hash( h, (const uint8_t*)hf->flags, triangleCount * (int)sizeof( uint8_t ) );
-	h = b3Hash( h, (const uint8_t*)&hf->aabb, (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, aabb ) ) );
-	hf->hash = b3NonZeroHash( h );
+	hf->hash = b3NonZeroHash( b3Hash( B3_HASH_INIT, (const uint8_t*)hf, hf->byteCount ) );
 
 	return hf;
 }
@@ -477,7 +482,7 @@ _Static_assert( b3_inverseConcaveEdge3 == 4 * b3_inverseConcaveEdge1, "bit math"
 // Output order matches the index naming used throughout this file:
 // corners[0] = (column, row), corners[1] = (column + 1, row),
 // corners[2] = (column, row + 1), corners[3] = (column + 1, row + 1).
-static inline void b3GetHeightFieldCellCorners( const b3HeightField* hf, int row, int column, b3Vec3 corners[4] )
+static inline void b3GetHeightFieldCellCorners( const b3HeightFieldData* hf, int row, int column, b3Vec3 corners[4] )
 {
 	B3_ASSERT( 0 <= row && row < hf->rowCount - 1 && 0 <= column && column < hf->columnCount - 1 );
 
@@ -489,7 +494,7 @@ static inline void b3GetHeightFieldCellCorners( const b3HeightField* hf, int row
 
 	float minHeight = hf->minHeight;
 	float heightScale = hf->heightScale;
-	const uint16_t* heights = hf->compressedHeights;
+	const uint16_t* heights = b3GetHeightFieldCompressedHeights( hf );
 
 	float height11 = minHeight + heightScale * heights[index11];
 	float height12 = minHeight + heightScale * heights[index12];
@@ -508,13 +513,13 @@ static inline void b3GetHeightFieldCellCorners( const b3HeightField* hf, int row
 	corners[3] = b3Mul( scale, (b3Vec3){ x2, height22, z2 } );
 }
 
-b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int triangleIndex )
+b3Triangle b3GetHeightFieldTriangle( const b3HeightFieldData* heightField, int triangleIndex )
 {
 	B3_ASSERT( 0 <= triangleIndex );
 	B3_ASSERT( triangleIndex < 2 * ( heightField->columnCount - 1 ) * ( heightField->rowCount - 1 ) );
 
 	b3Triangle triangle;
-	triangle.flags = heightField->flags[triangleIndex];
+	triangle.flags = b3GetHeightFieldFlags( heightField )[triangleIndex];
 
 	int columnCount = heightField->columnCount;
 	int quadIndex = triangleIndex >> 1;
@@ -529,7 +534,7 @@ b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int trian
 	int cellIndex = row * ( columnCount - 1 ) + column;
 
 	B3_ASSERT( quadIndex == cellIndex );
-	B3_ASSERT( heightField->materialIndices[cellIndex] != B3_HEIGHT_FIELD_HOLE );
+	B3_ASSERT( b3GetHeightFieldMaterialIndices( heightField )[cellIndex] != B3_HEIGHT_FIELD_HOLE );
 	B3_UNUSED( cellIndex );
 
 	b3Vec3 corners[4];
@@ -572,21 +577,21 @@ b3Triangle b3GetHeightFieldTriangle( const b3HeightField* heightField, int trian
 	return triangle;
 }
 
-int b3GetHeightFieldMaterial( const b3HeightField* heightField, int triangleIndex )
+int b3GetHeightFieldMaterial( const b3HeightFieldData* heightField, int triangleIndex )
 {
 	B3_ASSERT( 0 <= triangleIndex );
 	B3_ASSERT( triangleIndex < 2 * ( heightField->columnCount - 1 ) * ( heightField->rowCount - 1 ) );
 
 	int cellIndex = triangleIndex >> 1;
-	return heightField->materialIndices[cellIndex];
+	return b3GetHeightFieldMaterialIndices( heightField )[cellIndex];
 }
 
-b3AABB b3ComputeHeightFieldAABB( const b3HeightField* shape, b3Transform transform )
+b3AABB b3ComputeHeightFieldAABB( const b3HeightFieldData* shape, b3Transform transform )
 {
 	return b3AABB_Transform( transform, shape->aabb );
 }
 
-b3CastOutput b3RayCastHeightField( const b3HeightField* heightField, const b3RayCastInput* input )
+b3CastOutput b3RayCastHeightField( const b3HeightFieldData* heightField, const b3RayCastInput* input )
 {
 	b3ShapeCastInput shapeCastInput = { 0 };
 	shapeCastInput.proxy = (b3ShapeProxy){ &input->origin, 1, 0.0f };
@@ -598,7 +603,7 @@ b3CastOutput b3RayCastHeightField( const b3HeightField* heightField, const b3Ray
 
 // todo advance cast to the grid border immediately if it starts outside the row/column range
 // todo terminate the cast immediately if it leaves the row/column range
-b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3ShapeCastInput* input )
+b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const b3ShapeCastInput* input )
 {
 	b3AABB shapeBounds = b3MakeAABB( input->proxy.points, input->proxy.count, input->proxy.radius );
 	b3Vec3 shapeTranslation = input->translation;
@@ -810,7 +815,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 				int cellIndex = row * ( columnCount - 1 ) + column;
 				B3_ASSERT( cellIndex < cellCount );
 
-				uint8_t materialIndex = heightField->materialIndices[cellIndex];
+				uint8_t materialIndex = b3GetHeightFieldMaterialIndices( heightField )[cellIndex];
 				if ( materialIndex == B3_HEIGHT_FIELD_HOLE )
 				{
 					continue;
@@ -1027,7 +1032,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightField* heightField, const b3S
 	return result;
 }
 
-bool b3OverlapHeightField( const b3HeightField* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
+bool b3OverlapHeightField( const b3HeightFieldData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
 {
 	b3Vec3 buffer[B3_MAX_SHAPE_CAST_POINTS];
 	b3ShapeProxy localProxy = b3MakeLocalProxy( proxy, shapeTransform, buffer );
@@ -1069,7 +1074,7 @@ bool b3OverlapHeightField( const b3HeightField* shape, b3Transform shapeTransfor
 
 			int cellIndex = row * ( shape->columnCount - 1 ) + column;
 			B3_ASSERT( cellIndex < ( shape->rowCount - 1 ) * ( shape->columnCount - 1 ) );
-			uint8_t material = shape->materialIndices[cellIndex];
+			uint8_t material = b3GetHeightFieldMaterialIndices( shape )[cellIndex];
 			if ( material == B3_HEIGHT_FIELD_HOLE )
 			{
 				continue;
@@ -1130,7 +1135,7 @@ bool b3OverlapHeightField( const b3HeightField* shape, b3Transform shapeTransfor
 	return false;
 }
 
-void b3QueryHeightField( const b3HeightField* heightField, b3AABB bounds, b3MeshQueryFcn* fcn, void* context )
+void b3QueryHeightField( const b3HeightFieldData* heightField, b3AABB bounds, b3MeshQueryFcn* fcn, void* context )
 {
 	b3Vec3 scale = heightField->scale;
 
@@ -1157,7 +1162,7 @@ void b3QueryHeightField( const b3HeightField* heightField, b3AABB bounds, b3Mesh
 
 			int cellIndex = row * ( heightField->columnCount - 1 ) + column;
 			B3_ASSERT( cellIndex < ( heightField->rowCount - 1 ) * ( heightField->columnCount - 1 ) );
-			uint8_t material = heightField->materialIndices[cellIndex];
+			uint8_t material = b3GetHeightFieldMaterialIndices( heightField )[cellIndex];
 			if ( material == B3_HEIGHT_FIELD_HOLE )
 			{
 				continue;
@@ -1196,7 +1201,7 @@ void b3QueryHeightField( const b3HeightField* heightField, b3AABB bounds, b3Mesh
 	}
 }
 
-int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3HeightField* shape, const b3Capsule* mover )
+int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3HeightFieldData* shape, const b3Capsule* mover )
 {
 	b3DistanceInput distanceInput = { 0 };
 	distanceInput.proxyB = (b3ShapeProxy){ &mover->center1, 2, 0.0f };
@@ -1245,7 +1250,7 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 
 			int cellIndex = row * ( shape->columnCount - 1 ) + column;
 			B3_ASSERT( cellIndex < ( shape->rowCount - 1 ) * ( shape->columnCount - 1 ) );
-			uint8_t material = shape->materialIndices[cellIndex];
+			uint8_t material = b3GetHeightFieldMaterialIndices( shape )[cellIndex];
 			if ( material == B3_HEIGHT_FIELD_HOLE )
 			{
 				continue;
@@ -1324,7 +1329,7 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 	return planeCount;
 }
 
-b3HeightField* b3CreateGrid( int rowCount, int columnCount, b3Vec3 scale, bool makeHoles )
+b3HeightFieldData* b3CreateGrid( int rowCount, int columnCount, b3Vec3 scale, bool makeHoles )
 {
 	int heightCount = rowCount * columnCount;
 	float* heights = (float*)b3Alloc( heightCount * sizeof( float ) );
@@ -1368,7 +1373,7 @@ b3HeightField* b3CreateGrid( int rowCount, int columnCount, b3Vec3 scale, bool m
 	data.globalMaximumHeight = 256.0f;
 	data.clockwiseWinding = false;
 
-	b3HeightField* heightField = b3CreateHeightField( &data );
+	b3HeightFieldData* heightField = b3CreateHeightField( &data );
 
 	b3Free( heights, heightCount * sizeof( float ) );
 	b3Free( materialIndices, cellCount * sizeof( uint8_t ) );
@@ -1376,7 +1381,7 @@ b3HeightField* b3CreateGrid( int rowCount, int columnCount, b3Vec3 scale, bool m
 	return heightField;
 }
 
-b3HeightField* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, float rowFrequency, float columnFrequency,
+b3HeightFieldData* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, float rowFrequency, float columnFrequency,
 							 bool makeHoles )
 {
 	int heightCount = rowCount * columnCount;
@@ -1427,7 +1432,7 @@ b3HeightField* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, float 
 	data.globalMaximumHeight = 256.0f;
 	data.clockwiseWinding = false;
 
-	b3HeightField* heightField = b3CreateHeightField( &data );
+	b3HeightFieldData* heightField = b3CreateHeightField( &data );
 
 	b3Free( heights, heightCount * sizeof( float ) );
 	b3Free( materialIndices, cellCount * sizeof( uint8_t ) );
@@ -1435,18 +1440,9 @@ b3HeightField* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, float 
 	return heightField;
 }
 
-void b3DestroyHeightField( b3HeightField* heightField )
+void b3DestroyHeightField( b3HeightFieldData* heightField )
 {
-	int heightCount = heightField->rowCount * heightField->columnCount;
-	b3Free( heightField->compressedHeights, heightCount * sizeof( uint16_t ) );
-
-	int cellCount = ( heightField->rowCount - 1 ) * ( heightField->columnCount - 1 );
-	b3Free( heightField->materialIndices, cellCount * sizeof( uint8_t ) );
-
-	int triangleCount = 2 * cellCount;
-	b3Free( heightField->flags, triangleCount * sizeof( uint8_t ) );
-
-	b3Free( heightField, sizeof( b3HeightField ) );
+	b3Free( heightField, heightField->byteCount );
 }
 
 void b3DumpHeightData( const b3HeightFieldDef* data, const char* fileName )
@@ -1493,7 +1489,7 @@ void b3DumpHeightData( const b3HeightFieldDef* data, const char* fileName )
 #define B3_FILE_SCAN fscanf
 #endif
 
-b3HeightField* b3LoadHeightField( const char* fileName )
+b3HeightFieldData* b3LoadHeightField( const char* fileName )
 {
 	FILE* file = NULL;
 
@@ -1577,7 +1573,7 @@ b3HeightField* b3LoadHeightField( const char* fileName )
 	fclose( file );
 
 	// Create height field from loaded data
-	b3HeightField* heightField = b3CreateHeightField( &data );
+	b3HeightFieldData* heightField = b3CreateHeightField( &data );
 
 	// Clean up temporary allocations
 	b3Free( data.heights, heightCount * sizeof( float ) );

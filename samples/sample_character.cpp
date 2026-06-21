@@ -582,7 +582,7 @@ public:
 	b3MeshData* m_levelMesh;
 	b3MeshData* m_stairs;
 	b3MeshData* m_torus;
-	b3HeightField* m_heightField;
+	b3HeightFieldData* m_heightField;
 	b3ShapeId m_ignoreShapeId;
 	bool m_clipVelocity;
 };
@@ -1664,7 +1664,7 @@ public:
 	b3MeshData* m_building;
 	b3MeshData* m_voxel01;
 	b3MeshData* m_voxel02;
-	b3HeightField* m_heightField;
+	b3HeightFieldData* m_heightField;
 	bool m_showDebug;
 };
 

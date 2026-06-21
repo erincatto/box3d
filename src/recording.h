@@ -329,14 +329,10 @@ void     b3RecWriteRegistry( b3Recording* rec );
 // Caller does NOT free bytes; b3InternGeometry takes ownership (frees on duplicate).
 uint32_t b3RecInternHull( b3Recording* rec, const b3HullData* hull );
 uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh );
-uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightField* hf );
+uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightFieldData* hf );
 uint32_t b3RecInternCompound( b3Recording* rec, const b3Compound* compound );
 
 uint64_t b3Hash64Blob( const uint8_t* bytes, int n );
-
-// HeightField codec
-uint8_t*       b3PackHeightField( const b3HeightField* hf, int* outByteCount );
-b3HeightField* b3UnpackHeightField( const uint8_t* bytes, int byteCount );
 
 // Lifecycle engine-side hooks
 void b3StartRecordingIntoBuffer( b3World* world, b3Recording* recording );

@@ -752,7 +752,7 @@ public:
 	b3Sphere m_sphere;
 	b3BoxHull m_box;
 	b3MeshData* m_mesh;
-	b3HeightField* m_heightField;
+	b3HeightFieldData* m_heightField;
 
 	b3BodyId m_bodies[m_maxCount];
 	int m_bodyIndex;
@@ -1326,7 +1326,7 @@ public:
 
 	b3BoxHull m_box;
 	b3MeshData* m_mesh;
-	b3HeightField* m_heightField;
+	b3HeightFieldData* m_heightField;
 	int m_baseX;
 	float m_castOffset;
 	bool m_tracking;

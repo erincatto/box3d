@@ -62,7 +62,7 @@ static int b3QueryMeshTriangles( int* indices, int capacity, const b3Mesh* mesh,
 	return context.count;
 }
 
-static int b3QueryHeightFieldTriangles( int* indices, int capacity, const b3HeightField* heightField, b3AABB bounds )
+static int b3QueryHeightFieldTriangles( int* indices, int capacity, const b3HeightFieldData* heightField, b3AABB bounds )
 {
 	b3TriangleQueryContext context = {
 		.indices = indices,
@@ -1102,7 +1102,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 		}
 		else
 		{
-			materialIndices = shapeA->heightField->materialIndices;
+			materialIndices = b3GetHeightFieldMaterialIndices( shapeA->heightField );
 		}
 
 		for ( int i = 0; i < clusterCount; ++i )
