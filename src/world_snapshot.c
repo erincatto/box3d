@@ -435,8 +435,9 @@ static void b3DesWorldConfig( b3SnapReader* r, b3World* world )
 	world->enableSpeculative  = ( flags & 0x08u ) != 0;
 }
 
-// Shapes carry pointer fields: materials, name, userData, userShape, and geometry union.
-// Serialize the POD scalars with pointers nulled, then the materials array, then geometry.
+// Shapes carry pointer fields: materials, userData, userShape, and the geometry union.
+// Serialize the POD scalars with pointers nulled, then the owned materials array, then geometry.
+// A single material lives inline in the struct image. The name is a fixed array, also inline.
 // Hull/mesh/heightField/compound are interned into the recording registry; sphere/capsule inline.
 static void b3SerShapes( b3RecBuffer* buf, b3World* world, b3Recording* rec )
 {
@@ -450,7 +451,6 @@ static void b3SerShapes( b3RecBuffer* buf, b3World* world, b3Recording* rec )
 
 		// Null out pointer fields before writing the raw struct
 		shape.materials  = NULL;
-		shape.name       = NULL;
 		shape.userData   = NULL;
 		shape.userShape  = NULL;
 		// Zero the geometry union so free-slot images have deterministic bytes
@@ -468,12 +468,17 @@ static void b3SerShapes( b3RecBuffer* buf, b3World* world, b3Recording* rec )
 			continue;
 		}
 
-		// Materials
+		// Owned material array. Only multi material meshes and compounds have one. A single material
+		// already rode along inline in the struct image, so write a zero length for it.
 		const b3Shape* src = world->shapes.data + i;
-		b3SnapW_I32( buf, src->materialCount );
-		if ( src->materialCount > 0 && src->materials != NULL )
+		if ( src->materials != NULL )
 		{
+			b3SnapW_I32( buf, src->materialCount );
 			b3SnapW_Bytes( buf, src->materials, src->materialCount * (int)sizeof( b3SurfaceMaterial ) );
+		}
+		else
+		{
+			b3SnapW_I32( buf, 0 );
 		}
 
 		// Geometry
@@ -517,6 +522,9 @@ static void b3SerShapes( b3RecBuffer* buf, b3World* world, b3Recording* rec )
 				break;
 			}
 			default:
+				// A live shape must have a known geometry type. Fail loudly rather than emit a shape
+				// with no geometry that would silently lose its collision on restore.
+				B3_ASSERT( false );
 				b3SnapW_I32( buf, -1 );
 				break;
 		}
@@ -566,7 +574,6 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 		b3SnapR_Bytes( r, dst, sizeof( b3Shape ) );
 		// Pointer fields were written as NULL; set them cleanly
 		dst->materials = NULL;
-		dst->name      = NULL;
 		dst->userData  = NULL;
 		dst->userShape = NULL;
 		memset( &dst->capsule, 0, sizeof( dst->capsule ) );
@@ -598,7 +605,8 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 			continue;
 		}
 
-		// Materials (written before geoKind in serializer)
+		// Owned material array (written before geoKind in serializer). A zero length means the single
+		// material is already inline in the restored struct image, so leave materialCount as restored.
 		if ( matCount > 0 )
 		{
 			if ( b3SnapCheckCount( r, matCount, (int)sizeof( b3SurfaceMaterial ), (int)sizeof( b3SurfaceMaterial ) ) == false )
@@ -612,8 +620,7 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 		}
 		else
 		{
-			dst->materialCount = 0;
-			dst->materials     = NULL;
+			dst->materials = NULL;
 		}
 
 		int geoKind = b3SnapR_I32( r );
@@ -659,12 +666,8 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 					break;
 				}
 				b3RegistrySlot* slot = rdr->slots + gid;
-				if ( slot->live == NULL )
-				{
-					slot->live = b3Alloc( (size_t)slot->byteCount );
-					memcpy( slot->live, slot->bytes, (size_t)slot->byteCount );
-				}
-				dst->mesh.data  = (const b3MeshData*)slot->live;
+				// Mesh is a self-contained blob used by reference; point straight at the pristine bytes.
+				dst->mesh.data  = (const b3MeshData*)slot->bytes;
 				dst->mesh.scale = scale;
 				break;
 			}
@@ -684,6 +687,11 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 				if ( slot->live == NULL )
 				{
 					slot->live = b3UnpackHeightField( slot->bytes, slot->byteCount );
+				}
+				if ( slot->live == NULL )
+				{
+					r->ok = false;
+					break;
 				}
 				dst->heightField = (const b3HeightField*)slot->live;
 				break;
@@ -711,7 +719,9 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 				break;
 			}
 			default:
-				// Unknown or sentinel — no geometry
+				// Unknown geometry kind means a corrupt or unsupported snapshot. Fail the load instead
+				// of leaving a shape with no geometry.
+				r->ok = false;
 				break;
 		}
 	}
@@ -876,9 +886,9 @@ static void b3FreeLiveSimElements( b3World* world )
 		{
 			continue;
 		}
-		// A compound shape's materials point into its geometry blob (borrowed, not owned), so skip
-		// them exactly as b3DestroyShapeAllocations does. Freeing the interior pointer corrupts the heap.
-		if ( s->materials != NULL && s->type != b3_compoundShape )
+		// A single material lives inline (materials == NULL). Multi material meshes and compounds own
+		// the array, so free it exactly as b3DestroyShapeAllocations does.
+		if ( s->materials != NULL )
 		{
 			b3Free( s->materials, (size_t)s->materialCount * sizeof( b3SurfaceMaterial ) );
 			s->materials   = NULL;

@@ -869,10 +869,9 @@ static int QueryReplay( void )
 	return 0;
 }
 
-// Empty world: recording starts with no bodies and none are ever created. This used to skip the seed
-// snapshot and produce a from-creation player whose Restart destroyed and rebuilt the world, changing
-// its id. The empty world is now serialized like any other, so replay validates and Restart restores
-// in place with a stable world id.
+// Empty world: recording starts with no bodies and none are ever created. The empty world is still
+// seed-serialized like any other, so replay validates and Restart restores in place with a stable
+// world id rather than tearing down and rebuilding the world.
 static int EmptyWorldRoundTrip( void )
 {
 	b3Recording* rec = b3CreateRecording( 0 );

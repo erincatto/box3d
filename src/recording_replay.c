@@ -703,14 +703,10 @@ static void b3RecCheckJointId( b3RecReader* rdr, b3JointId got, b3JointId rec )
 
 static void* b3RecGetLiveMesh( b3RegistrySlot* slot )
 {
-	if ( slot->live != NULL )
-	{
-		return slot->live;
-	}
-	// Mesh is stored by reference: must outlive the world.
-	slot->live = b3Alloc( (size_t)slot->byteCount );
-	memcpy( slot->live, slot->bytes, (size_t)slot->byteCount );
-	return slot->live;
+	// Mesh is a self-contained blob used by reference, with no pointer fixup. Hand back the pristine
+	// bytes directly: they already outlive the world and are freed at teardown, so a copy would just
+	// double the memory. Compound can't do this, see b3RecGetLiveCompound.
+	return slot->bytes;
 }
 
 static void* b3RecGetLiveHeightField( b3RegistrySlot* slot )
@@ -729,7 +725,9 @@ static void* b3RecGetLiveCompound( b3RegistrySlot* slot )
 	{
 		return slot->live;
 	}
-	// b3ConvertBytesToCompound mutates its input; give it a writable copy.
+	// The copy is unavoidable here: b3ConvertBytesToCompound rewrites its input in place, while the
+	// pristine bytes must survive for keyframe registry seeding (b3RecSeedKeyframeRegistry). So we
+	// keep both the serialized bytes and a separate converted live object.
 	slot->live = b3Alloc( (size_t)slot->byteCount );
 	memcpy( slot->live, slot->bytes, (size_t)slot->byteCount );
 	b3ConvertBytesToCompound( (uint8_t*)slot->live, slot->byteCount );
@@ -1037,6 +1035,12 @@ static void b3RecDispatch_CreateHeightFieldShape( const b3RecArgs_CreateHeightFi
 	}
 	b3RegistrySlot* slot         = rdr->slots + id;
 	const b3HeightField* hf      = (const b3HeightField*)b3RecGetLiveHeightField( slot );
+	if ( hf == NULL )
+	{
+		printf( "b3ReplayFile: heightfield geometry %u is corrupt\n", id );
+		rdr->ok = false;
+		return;
+	}
 	b3BodyId bodyId              = b3RecMakeBodyId( rdr, a->body );
 	b3ShapeId gotId              = b3CreateHeightFieldShape( bodyId, &a->def, hf );
 	b3RecCheckShapeId( rdr, gotId, recId );
@@ -2296,9 +2300,7 @@ static void b3RecFreeSlots( b3RegistrySlot* slots, int slotCount )
 		{
 			switch ( slot->kind )
 			{
-				case b3_geometryMesh:
-					b3Free( slot->live, (size_t)slot->byteCount );
-					break;
+				// Mesh has no separate live object; it borrows the bytes freed below.
 				case b3_geometryHeightField:
 					b3DestroyHeightField( (b3HeightField*)slot->live );
 					break;
@@ -2335,7 +2337,7 @@ static void b3RecScanFile( b3RecPlayer* player )
 		{
 			break;
 		}
-		if ( opcode == 0x80 ) // Step
+		if ( opcode == b3_recOpStep )
 		{
 			frameCount += 1;
 			if ( !gotStep && payloadSize >= 12 )
@@ -2526,7 +2528,9 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 		printf( "b3RecPlayer_Create: bad magic 0x%08X\n", hdr.magic );
 		return NULL;
 	}
-	if ( hdr.versionMajor != B3_REC_VERSION_MAJOR || hdr.versionMinor != B3_REC_VERSION_MINOR )
+	// Only the major version is breaking. Minor bumps are additive op-stream changes that keep the
+	// header shape, and the dispatcher skips opcodes it doesn't know, so a minor mismatch still loads.
+	if ( hdr.versionMajor != B3_REC_VERSION_MAJOR )
 	{
 		printf( "b3RecPlayer_Create: version mismatch %u.%u vs %u.%u\n",
 		        hdr.versionMajor, hdr.versionMinor, B3_REC_VERSION_MAJOR, B3_REC_VERSION_MINOR );
@@ -2550,14 +2554,19 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 		return NULL;
 	}
 
-	int headerEnd = (int)sizeof( b3RecHeader ) + (int)hdr.snapshotSize;
-	int registryEnd = ( hdr.registryOffset != 0 ) ? (int)hdr.registryOffset : size;
+	// snapshotSize and registryOffset are 64-bit and come from the file. Validate in 64-bit so a
+	// hostile value can't wrap when narrowed to int, then narrow once the bounds are known good.
+	uint64_t headerEnd64   = (uint64_t)sizeof( b3RecHeader ) + hdr.snapshotSize;
+	uint64_t registryEnd64 = ( hdr.registryOffset != 0 ) ? hdr.registryOffset : (uint64_t)size;
 
-	if ( headerEnd < (int)sizeof( b3RecHeader ) || headerEnd > registryEnd || registryEnd > size )
+	if ( headerEnd64 < sizeof( b3RecHeader ) || headerEnd64 > registryEnd64 || registryEnd64 > (uint64_t)size )
 	{
 		printf( "b3RecPlayer_Create: corrupt offsets\n" );
 		return NULL;
 	}
+
+	int headerEnd   = (int)headerEnd64;
+	int registryEnd = (int)registryEnd64;
 
 	// Own a private copy so the caller can free their buffer right away.
 	uint8_t* copy = (uint8_t*)b3Alloc( (size_t)size );
@@ -2748,7 +2757,7 @@ bool b3RecPlayer_StepFrame( b3RecPlayer* player )
 		// Once stepped, the StateHash is the only record still belonging to this frame. Anything else
 		// begins the next frame, so stop and let the next StepFrame consume it. Capture a keyframe at
 		// the boundary.
-		if ( stepped && player->rdr.data[player->rdr.cursor] != 0xF1 )
+		if ( stepped && player->rdr.data[player->rdr.cursor] != b3_recOpStateHash )
 		{
 			if ( player->frame > player->lastKeyframeFrame && player->frame % player->keyframeInterval == 0 )
 			{
@@ -2763,16 +2772,20 @@ bool b3RecPlayer_StepFrame( b3RecPlayer* player )
 			player->atEnd = true;
 			return stepped;
 		}
-		if ( op == 0x01 ) // DestroyWorld — end of recording
+		if ( op == b3_recOpDestroyWorld ) // end of recording
 		{
 			player->atEnd = true;
 			return stepped;
 		}
-		if ( op == 0x80 ) // Step
+		if ( op == b3_recOpStep )
 		{
 			player->frame += 1;
 			stepped = true;
-			// Latch the first frame that diverged.
+		}
+		else if ( op == b3_recOpStateHash ) // trailing record of the frame just stepped
+		{
+			// Latch the first frame whose state hash diverged. The hash belongs to the frame Step just
+			// advanced, so latch against the current frame, not the next Step which would be one late.
 			if ( player->divergeFrame < 0 && player->rdr.diverged )
 			{
 				player->divergeFrame = player->frame;

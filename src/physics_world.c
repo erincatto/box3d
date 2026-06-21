@@ -407,9 +407,8 @@ void b3DestroyWorld( b3WorldId worldId )
 
 	world->locked = true;
 
-	// Detach any live recording so the buffer handle is not freed with the world.
-	// The caller still owns the b3Recording and must destroy it separately.
-	world->recording = NULL;
+	// Detach any recording before teardown. The user owns and frees the recording buffer.
+	b3StopRecordingInternal( world );
 
 	if ( world->scheduler != NULL )
 	{
@@ -1225,10 +1224,11 @@ static bool DrawQueryCallback( int proxyId, uint64_t userData, void* context )
 
 		b3HexColor color;
 
-		if ( shape->materials[0].customColor != 0 )
+		const b3SurfaceMaterial* surfaceMaterial = b3GetShapeMaterials( shape );
+		if ( surfaceMaterial[0].customColor != 0 )
 		{
 			// May already carry a packed material preset, pass through unchanged
-			color = (b3HexColor)shape->materials[0].customColor;
+			color = (b3HexColor)surfaceMaterial[0].customColor;
 		}
 		else
 		{
@@ -2618,7 +2618,7 @@ b3TreeStats b3World_OverlapAABB( b3WorldId worldId, b3AABB aabb, b3QueryFilter f
 	{
 		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
 		b3RecW_TREESTATS( &recWriter.buf, treeStats );
-		b3RecQueryCommit( world->recording, 0xE8, &recWriter );
+		b3RecQueryCommit( world->recording, b3_recOpQueryOverlapAABB, &recWriter );
 	}
 
 	return treeStats;
@@ -2713,7 +2713,7 @@ b3TreeStats b3World_OverlapShape( b3WorldId worldId, b3Pos origin, const b3Shape
 	{
 		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
 		b3RecW_TREESTATS( &recWriter.buf, treeStats );
-		b3RecQueryCommit( world->recording, 0xE9, &recWriter );
+		b3RecQueryCommit( world->recording, b3_recOpQueryOverlapShape, &recWriter );
 	}
 
 	return treeStats;
@@ -2812,7 +2812,7 @@ void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mov
 	{
 		// CollideMover returns void: no treestats tail, just the per-shape plane batches.
 		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
-		b3RecQueryCommit( world->recording, 0xEE, &recWriter );
+		b3RecQueryCommit( world->recording, b3_recOpQueryCollideMover, &recWriter );
 	}
 }
 
@@ -2858,7 +2858,7 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 		b3ShapeId id = { shapeId + 1, world->worldId, shape->generation };
 		b3Pos point = b3OffsetPos( worldContext->origin, output.point );
 		int materialIndex = b3ClampInt( output.materialIndex, 0, shape->materialCount - 1 );
-		uint64_t userMaterialId = shape->materials[materialIndex].userMaterialId;
+		uint64_t userMaterialId = b3GetShapeMaterials( shape )[materialIndex].userMaterialId;
 
 		int triangleIndex = output.triangleIndex;
 		int childIndex = output.childIndex;
@@ -2930,7 +2930,7 @@ b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation
 	{
 		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
 		b3RecW_TREESTATS( &recWriter.buf, treeStats );
-		b3RecQueryCommit( world->recording, 0xEA, &recWriter );
+		b3RecQueryCommit( world->recording, b3_recOpQueryCastRay, &recWriter );
 	}
 
 	return treeStats;
@@ -3008,7 +3008,7 @@ b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Pos origin, b3Vec3 tran
 		b3RecW_VEC3( &recWriter.buf, translation );
 		b3RecW_QUERYFILTER( &recWriter.buf, filter );
 		b3RecW_RAYRESULT( &recWriter.buf, result );
-		b3RecQueryCommit( world->recording, 0xEC, &recWriter );
+		b3RecQueryCommit( world->recording, b3_recOpQueryCastRayClosest, &recWriter );
 	}
 
 	return result;
@@ -3058,7 +3058,7 @@ static float b3ShapeCastCallback( const b3BoxCastInput* input, int proxyId, uint
 	{
 		b3ShapeId id = { shapeId + 1, world->worldId, shape->generation };
 		int materialIndex = b3ClampInt( output.materialIndex, 0, shape->materialCount - 1 );
-		uint64_t userMaterialId = shape->materials[materialIndex].userMaterialId;
+		uint64_t userMaterialId = b3GetShapeMaterials( shape )[materialIndex].userMaterialId;
 
 		int triangleIndex = output.triangleIndex;
 		int childIndex = output.childIndex;
@@ -3143,7 +3143,7 @@ b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3ShapePro
 	{
 		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
 		b3RecW_TREESTATS( &recWriter.buf, treeStats );
-		b3RecQueryCommit( world->recording, 0xEB, &recWriter );
+		b3RecQueryCommit( world->recording, b3_recOpQueryCastShape, &recWriter );
 	}
 
 	return treeStats;
@@ -3273,7 +3273,7 @@ float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover
 		// union slot. Backpatch the accept count, then record the returned fraction as the tail.
 		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
 		b3RecW_F32( &recWriter.buf, worldContext.fraction );
-		b3RecQueryCommit( world->recording, 0xED, &recWriter );
+		b3RecQueryCommit( world->recording, b3_recOpQueryCastMover, &recWriter );
 	}
 
 	return worldContext.fraction;

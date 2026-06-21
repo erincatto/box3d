@@ -311,6 +311,35 @@ void b3RecW_STR( b3RecBuffer* buf, const char* s )
 // Hand-written def helpers. Zero pointer and cookie fields before serializing.
 // Readers call b3Default*Def() first to get the cookie, then overwrite fields.
 
+// Tripwire: each def serializer below is paired with a reader in recording_replay.c, and the two must
+// stay field-for-field in sync. Add a field to a def and the size changes, firing the matching assert
+// so the writer and reader both get updated. Only enforced on the 64-bit target; each def lists the
+// single-precision and double-precision sizes (equal for most), so either build configuration passes.
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3ExplosionDef ) == 32 || sizeof( b3ExplosionDef ) == 48,
+                "b3ExplosionDef changed: update b3RecW_EXPLOSIONDEF and b3RecR_EXPLOSIONDEF together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3BodyDef ) == 104 || sizeof( b3BodyDef ) == 120,
+                "b3BodyDef changed: update b3RecW_BODYDEF and b3RecR_BODYDEF together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3ShapeDef ) == 120,
+                "b3ShapeDef changed: update b3RecW_SHAPEDEF and b3RecR_SHAPEDEF together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3ParallelJointDef ) == 128,
+                "b3ParallelJointDef changed: update b3RecW_PARALLELJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3DistanceJointDef ) == 160,
+                "b3DistanceJointDef changed: update b3RecW_DISTANCEJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3FilterJointDef ) == 112,
+                "b3FilterJointDef changed: update b3RecW_FILTERJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3MotorJointDef ) == 168,
+                "b3MotorJointDef changed: update b3RecW_MOTORJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3PrismaticJointDef ) == 152,
+                "b3PrismaticJointDef changed: update b3RecW_PRISMATICJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3RevoluteJointDef ) == 152,
+                "b3RevoluteJointDef changed: update b3RecW_REVOLUTEJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3SphericalJointDef ) == 184,
+                "b3SphericalJointDef changed: update b3RecW_SPHERICALJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3WeldJointDef ) == 128,
+                "b3WeldJointDef changed: update b3RecW_WELDJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3WheelJointDef ) == 184,
+                "b3WheelJointDef changed: update b3RecW_WHEELJOINTDEF and its reader together" );
+
 void b3RecW_EXPLOSIONDEF( b3RecBuffer* buf, b3ExplosionDef v )
 {
 	b3RecW_U64( buf, v.maskBits );
@@ -682,19 +711,42 @@ uint64_t b3Hash64Blob( const uint8_t* bytes, int n )
 	return (uint64_t)h | ( (uint64_t)b3NonZeroHash( ~h ) << 32 );
 }
 
+// Content hash to entry id, so dedup is O(1) average instead of a linear scan. A 64-bit content-hash
+// collision between distinct blobs is still caught by the byteCount + memcmp check, so it can never
+// return the wrong id; the worst case is a missed dedup in that astronomically unlikely event.
+#define NAME b3GeometryHashMap
+#define KEY_TY uint64_t
+#define VAL_TY uint32_t
+#define HASH_FN vt_hash_integer
+#define CMPR_FN vt_cmpr_integer
+#define MALLOC_FN b3Alloc
+#define FREE_FN b3Free
+#include "verstable.h"
+
 uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
                            uint8_t* bytes, int byteCount )
 {
-	// Linear scan for a matching blob (TODO: replace with a hash map)
-	for ( int i = 0; i < reg->count; ++i )
+	if ( reg->dedupMap == NULL )
 	{
-		b3GeometryEntry* e = reg->entries + i;
-		if ( e->contentHash == contentHash && e->byteCount == byteCount && memcmp( e->bytes, bytes, (size_t)byteCount ) == 0 )
+		b3GeometryHashMap* fresh = (b3GeometryHashMap*)b3Alloc( sizeof( b3GeometryHashMap ) );
+		b3GeometryHashMap_init( fresh );
+		reg->dedupMap = fresh;
+	}
+	b3GeometryHashMap* map = (b3GeometryHashMap*)reg->dedupMap;
+
+	b3GeometryHashMap_itr itr = b3GeometryHashMap_get( map, contentHash );
+	bool hashPresent = b3GeometryHashMap_is_end( itr ) == false;
+	if ( hashPresent )
+	{
+		b3GeometryEntry* e = reg->entries + itr.data->val;
+		if ( e->byteCount == byteCount && memcmp( e->bytes, bytes, (size_t)byteCount ) == 0 )
 		{
 			// Duplicate: the caller transferred ownership; return existing id
 			b3Free( bytes, (size_t)byteCount );
 			return e->id;
 		}
+		// Same hash, different bytes: a 64-bit collision. Store a new entry and leave the map pointing
+		// at the first, so only a later blob identical to this rare one would miss dedup.
 	}
 
 	// New entry — grow the array if needed
@@ -715,6 +767,12 @@ uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_
 	entry->byteCount   = byteCount;
 	entry->bytes       = bytes; // take ownership
 	reg->count++;
+
+	// Only the first entry for a given hash goes in the map; a hash hit is verified by memcmp above.
+	if ( hashPresent == false )
+	{
+		b3GeometryHashMap_insert( map, contentHash, id );
+	}
 	return id;
 }
 
@@ -728,9 +786,15 @@ void b3FreeRegistry( b3GeometryRegistry* reg )
 	{
 		b3Free( reg->entries, (size_t)( reg->capacity * (int)sizeof( b3GeometryEntry ) ) );
 	}
+	if ( reg->dedupMap != NULL )
+	{
+		b3GeometryHashMap_cleanup( (b3GeometryHashMap*)reg->dedupMap );
+		b3Free( reg->dedupMap, sizeof( b3GeometryHashMap ) );
+	}
 	reg->entries  = NULL;
 	reg->count    = 0;
 	reg->capacity = 0;
+	reg->dedupMap = NULL;
 }
 
 // Write the trailing registry block: u32 entryCount then per-entry { u8 kind, u32 byteCount, bytes }.
@@ -747,14 +811,16 @@ void b3RecWriteRegistry( b3Recording* rec )
 }
 
 // HeightField codec. Derives array sizes from the scalar block exactly as height_field.c does.
-// Pack layout: [scalar block: offsetof(aabb)..end of struct][heights u16][materials u8][flags u8]
+// Pack layout: [scalar block: offsetof(hash)..end of struct][heights u16][materials u8][flags u8]
+// The block starts at the hash field, not aabb, so the stored hash rides along and unpack can verify
+// the arrays round-tripped. The stale pointers ahead of the hash are not serialized.
 uint8_t* b3PackHeightField( const b3HeightField* hf, int* outByteCount )
 {
 	int heightCount  = hf->columnCount * hf->rowCount;
 	int cellCount    = ( hf->columnCount - 1 ) * ( hf->rowCount - 1 );
 	int triangleCount = 2 * cellCount;
 
-	int scalarSize   = (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, aabb ) );
+	int scalarSize   = (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, hash ) );
 	int heightBytes  = heightCount * (int)sizeof( uint16_t );
 	int matBytes     = cellCount * (int)sizeof( uint8_t );
 	int flagBytes    = triangleCount * (int)sizeof( uint8_t );
@@ -762,8 +828,7 @@ uint8_t* b3PackHeightField( const b3HeightField* hf, int* outByteCount )
 
 	uint8_t* buf = (uint8_t*)b3Alloc( (size_t)total );
 
-	// Scalar block (hash field is included as stored: it will be re-asserted on unpack)
-	memcpy( buf, (const uint8_t*)hf + offsetof( b3HeightField, aabb ), (size_t)scalarSize );
+	memcpy( buf, (const uint8_t*)hf + offsetof( b3HeightField, hash ), (size_t)scalarSize );
 
 	// Arrays
 	memcpy( buf + scalarSize,                        hf->compressedHeights, (size_t)heightBytes );
@@ -774,27 +839,53 @@ uint8_t* b3PackHeightField( const b3HeightField* hf, int* outByteCount )
 	return buf;
 }
 
+// Rebuild a height field from packed bytes. The input is untrusted (it comes from a recording file),
+// so every array size is derived from the scalar block and validated against the byte count before
+// any allocation or copy. Returns NULL on a corrupt or truncated blob; the caller must handle it.
 b3HeightField* b3UnpackHeightField( const uint8_t* bytes, int byteCount )
 {
-	(void)byteCount;
+	int scalarSize = (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, hash ) );
+
+	// Need at least the scalar block to read the dimensions.
+	if ( bytes == NULL || byteCount < scalarSize )
+	{
+		return NULL;
+	}
 
 	b3HeightField* hf = (b3HeightField*)b3AllocZeroed( sizeof( b3HeightField ) );
+	memcpy( (uint8_t*)hf + offsetof( b3HeightField, hash ), bytes, (size_t)scalarSize );
 
-	int scalarSize = (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, aabb ) );
-	memcpy( (uint8_t*)hf + offsetof( b3HeightField, aabb ), bytes, (size_t)scalarSize );
-
-	// Pointers from the scalar block are stale; rebuild below.
+	// Pointers ahead of the hash field were not serialized; rebuild below.
 	hf->compressedHeights = NULL;
 	hf->materialIndices   = NULL;
 	hf->flags             = NULL;
 
-	int heightCount   = hf->columnCount * hf->rowCount;
-	int cellCount     = ( hf->columnCount - 1 ) * ( hf->rowCount - 1 );
-	int triangleCount = 2 * cellCount;
+	// Dimensions come from the file. Compute in 64 bit so a hostile columnCount/rowCount cannot
+	// overflow the size math, then require an exact match against the blob. An exact match bounds
+	// every array inside byteCount and rejects truncated or padded data. Minimum 2x2 matches the
+	// engine, which needs at least one cell.
+	int64_t columnCount = hf->columnCount;
+	int64_t rowCount    = hf->rowCount;
+	if ( columnCount < 2 || rowCount < 2 )
+	{
+		b3Free( hf, sizeof( b3HeightField ) );
+		return NULL;
+	}
 
-	int heightBytes  = heightCount * (int)sizeof( uint16_t );
-	int matBytes     = cellCount * (int)sizeof( uint8_t );
-	int flagBytes    = triangleCount * (int)sizeof( uint8_t );
+	int64_t heightCount   = columnCount * rowCount;
+	int64_t cellCount     = ( columnCount - 1 ) * ( rowCount - 1 );
+	int64_t triangleCount = 2 * cellCount;
+
+	int64_t heightBytes = heightCount * (int64_t)sizeof( uint16_t );
+	int64_t matBytes    = cellCount * (int64_t)sizeof( uint8_t );
+	int64_t flagBytes   = triangleCount * (int64_t)sizeof( uint8_t );
+	int64_t total       = (int64_t)scalarSize + heightBytes + matBytes + flagBytes;
+
+	if ( total != (int64_t)byteCount )
+	{
+		b3Free( hf, sizeof( b3HeightField ) );
+		return NULL;
+	}
 
 	hf->compressedHeights = (uint16_t*)b3Alloc( (size_t)heightBytes );
 	hf->materialIndices   = (uint8_t*)b3Alloc( (size_t)matBytes );
@@ -809,19 +900,26 @@ b3HeightField* b3UnpackHeightField( const uint8_t* bytes, int byteCount )
 
 	hf->version = B3_HEIGHT_FIELD_VERSION;
 
-	// Recompute and assert hash matches to catch any pack/unpack mismatch.
+	// Recompute the content hash and require it to match the stored one. This catches silent
+	// corruption that still has the right byte count. Scheme matches b3CreateHeightField.
 	uint32_t expectedHash = hf->hash;
 	hf->hash = 0;
 	uint32_t h = B3_HASH_INIT;
-	h = b3Hash( h, (const uint8_t*)hf->compressedHeights, heightCount * (int)sizeof( uint16_t ) );
-	h = b3Hash( h, (const uint8_t*)hf->materialIndices,   cellCount * (int)sizeof( uint8_t ) );
-	h = b3Hash( h, (const uint8_t*)hf->flags,             triangleCount * (int)sizeof( uint8_t ) );
+	h = b3Hash( h, (const uint8_t*)hf->compressedHeights, (int)heightBytes );
+	h = b3Hash( h, (const uint8_t*)hf->materialIndices,   (int)matBytes );
+	h = b3Hash( h, (const uint8_t*)hf->flags,             (int)flagBytes );
 	h = b3Hash( h, (const uint8_t*)hf + offsetof( b3HeightField, aabb ),
 	            (int)( sizeof( b3HeightField ) - offsetof( b3HeightField, aabb ) ) );
 	hf->hash = b3NonZeroHash( h );
 
-	// TODO: verify hash recompute in Phase 2 (assert matches expectedHash)
-	(void)expectedHash;
+	if ( hf->hash != expectedHash )
+	{
+		b3Free( hf->compressedHeights, (size_t)heightBytes );
+		b3Free( hf->materialIndices, (size_t)matBytes );
+		b3Free( hf->flags, (size_t)flagBytes );
+		b3Free( hf, sizeof( b3HeightField ) );
+		return NULL;
+	}
 
 	return hf;
 }

@@ -1084,7 +1084,8 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 		}
 	}
 
-	const b3SurfaceMaterial* materialB = shapeB->materials + 0;
+	const b3SurfaceMaterial* materialsA = b3GetShapeMaterials( shapeA );
+	const b3SurfaceMaterial* materialB = b3GetShapeMaterials( shapeB );
 	b3Vec3 tangentVelocityA = b3Vec3_zero;
 
 	// Update friction and restitution if the mesh has per triangle material
@@ -1127,7 +1128,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 				}
 
 				materialIndex = b3ClampInt( materialIndex, 0, shapeA->materialCount - 1 );
-				b3SurfaceMaterial material = shapeA->materials[materialIndex];
+				b3SurfaceMaterial material = materialsA[materialIndex];
 				friction += world->frictionCallback( material.friction, material.userMaterialId, materialB->friction,
 													 materialB->userMaterialId );
 				restitution += world->restitutionCallback( material.restitution, material.userMaterialId, materialB->restitution,
@@ -1153,11 +1154,11 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	else
 	{
 		// Keep these updated in case the values on the shapes are modified
-		contact->friction = world->frictionCallback( shapeA->materials[0].friction, shapeA->materials[0].userMaterialId,
-													 materialB->friction, materialB->userMaterialId );
-		contact->restitution = world->restitutionCallback( shapeA->materials[0].restitution, shapeA->materials[0].userMaterialId,
+		contact->friction = world->frictionCallback( materialsA[0].friction, materialsA[0].userMaterialId, materialB->friction,
+													 materialB->userMaterialId );
+		contact->restitution = world->restitutionCallback( materialsA[0].restitution, materialsA[0].userMaterialId,
 														   materialB->restitution, materialB->userMaterialId );
-		tangentVelocityA = shapeA->materials[0].tangentVelocity;
+		tangentVelocityA = materialsA[0].tangentVelocity;
 	}
 
 	tangentVelocityA = b3RotateVector( xfA.q, tangentVelocityA );
@@ -1176,7 +1177,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 		radiusB = shapeB->hull->innerRadius;
 	}
 
-	contact->rollingResistance = shapeB->materials[0].rollingResistance * radiusB;
+	contact->rollingResistance = materialB->rollingResistance * radiusB;
 
 	b3Vec3 tangentVelocityB = b3RotateVector( xfB.q, materialB->tangentVelocity );
 	contact->tangentVelocity = b3Sub( tangentVelocityA, tangentVelocityB );

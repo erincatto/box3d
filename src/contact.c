@@ -314,7 +314,8 @@ void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int chil
 
 	// Assuming the rolling resistance doesn't change
 	contact->rollingResistance =
-		b3MaxFloat( shapeA->materials[0].rollingResistance, shapeB->materials[0].rollingResistance ) * maxRadius;
+		b3MaxFloat( b3GetShapeMaterials( shapeA )[0].rollingResistance, b3GetShapeMaterials( shapeB )[0].rollingResistance ) *
+		maxRadius;
 
 	if ( shapeA->enablePreSolveEvents || shapeB->enablePreSolveEvents )
 	{
@@ -633,8 +634,8 @@ static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* c
 		}
 	}
 
-	const b3SurfaceMaterial* materialA = shapeA->materials + 0;
-	const b3SurfaceMaterial* materialB = shapeB->materials + 0;
+	const b3SurfaceMaterial* materialA = b3GetShapeMaterials( shapeA );
+	const b3SurfaceMaterial* materialB = b3GetShapeMaterials( shapeB );
 
 	// Keep these updated in case the values on the shapes are modified
 	contact->friction =

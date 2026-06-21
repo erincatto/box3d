@@ -99,13 +99,14 @@ typedef struct b3GeometryEntry
 	uint8_t*       bytes;
 } b3GeometryEntry;
 
-// Simple growable array of geometry entries. Dedup is a linear scan for Phase 1.
-// TODO: replace linear dedup scan with a hash map
+// Growable array of geometry entries. Ids are array indices, so the array is serialized in order.
+// dedupMap maps content hash to entry id for O(1) dedup; it is opaque here and owned by recording.c.
 typedef struct b3GeometryRegistry
 {
 	b3GeometryEntry* entries;
 	int              count;
 	int              capacity;
+	void*            dedupMap;
 } b3GeometryRegistry;
 
 // User-owned recording buffer. The world appends into it while active; the host saves and
@@ -176,6 +177,15 @@ typedef b3WheelJointDef     b3RecCType_WHEELJOINTDEF;
 #include "recording_ops.inl"
 #undef B3_REC_OP
 #undef ARG
+
+// Opcode constants generated from the manifest, so call sites name an op instead of a raw byte and
+// can't drift from the manifest if an op is renumbered.
+enum
+{
+#define B3_REC_OP( op, Name, RET, ... ) b3_recOp##Name = ( op ),
+#include "recording_ops.inl"
+#undef B3_REC_OP
+};
 
 // Low-level buffer helpers
 void b3RecBufAppend( b3RecBuffer* buf, const void* data, int size );

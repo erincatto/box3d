@@ -29,13 +29,14 @@ typedef struct b3Shape
 	b3AABB fatAABB;
 	b3Vec3 localCentroid;
 
+	b3SurfaceMaterial material;
 	int materialCount;
 	b3SurfaceMaterial* materials;
 
 	b3Filter filter;
-	char* name;
 	void* userData;
 	void* userShape;
+	char name[B3_NAME_LENGTH + 1];
 
 	uint16_t generation;
 	bool enableSensorEvents;
@@ -56,6 +57,14 @@ typedef struct b3Shape
 	};
 
 } b3Shape;
+
+// A single material shape keeps its material inline. Multi material meshes and compounds own a heap
+// array. Reach the materials the same way for both: a single material shape presents its inline
+// material as a one element array. Do not cache the pointer, the shapes array can move.
+static inline b3SurfaceMaterial* b3GetShapeMaterials( const b3Shape* shape )
+{
+	return shape->materials != NULL ? shape->materials : (b3SurfaceMaterial*)&shape->material;
+}
 
 void b3CreateShapeProxy( b3Shape* shape, b3BroadPhase* bp, b3BodyType type, b3WorldTransform transform, bool forcePairCreation );
 void b3DestroyShapeProxy( b3Shape* shape, b3BroadPhase* bp );
