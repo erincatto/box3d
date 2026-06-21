@@ -2400,6 +2400,8 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 	b3RecBuffer buf  = { 0 };
 
 	int regCountBefore = player->keyframeRec->registry.count;
+	B3_UNUSED( regCountBefore );
+
 	b3SerializeWorld( world, &buf, player->keyframeRec );
 	// Registry must not grow: all geometry was pre-seeded.
 	B3_ASSERT( player->keyframeRec->registry.count == regCountBefore );

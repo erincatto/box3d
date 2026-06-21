@@ -345,11 +345,6 @@ b3Quat b3ComputeQuatBetweenUnitVectors( b3Vec3 v1, b3Vec3 v2 )
 	return b3NormalizeQuat( out );
 }
 
-//--------------------------------------------------------------------------------------------------
-// Collision utilities
-//--------------------------------------------------------------------------------------------------
-
-//--------------------------------------------------------------------------------------------------
 b3SegmentDistanceResult b3LineDistance( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2, b3Vec3 d2 )
 {
 	b3SegmentDistanceResult result;
@@ -389,7 +384,6 @@ b3SegmentDistanceResult b3LineDistance( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2, b3Vec3 
 	return result;
 }
 
-//--------------------------------------------------------------------------------------------------
 b3SegmentDistanceResult b3SegmentDistance( b3Vec3 p1, b3Vec3 q1, b3Vec3 p2, b3Vec3 q2 )
 {
 	b3SegmentDistanceResult result;

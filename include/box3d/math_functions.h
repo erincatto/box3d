@@ -562,6 +562,28 @@ B3_API b3Quat b3MakeQuatFromMatrix( const b3Matrix3* m );
 /// Find a quaternion that rotates one vector to another.
 B3_API b3Quat b3ComputeQuatBetweenUnitVectors( b3Vec3 v1, b3Vec3 v2 );
 
+// Twist angle around the z-axis, used for twist limit and revolute angle limit
+B3_INLINE float b3GetTwistAngle( b3Quat q )
+{
+	// Account for polarity to keep the twist angle in range.
+	// This is simpler than asking the user to check polarity or unwinding.
+	float twist = q.s < 0.0f ? b3Atan2( -q.v.z, -q.s ) : b3Atan2( q.v.z, q.s );
+	twist *= 2.0f;
+	B3_ASSERT( -B3_PI <= twist && twist <= B3_PI );
+	return twist;
+}
+
+// Swing angle used for cone limit
+B3_INLINE float b3GetSwingAngle( b3Quat q )
+{
+	// Polarity should not matter because all terms are squared.
+	float x = sqrtf( q.v.z * q.v.z + q.s * q.s );
+	float y = sqrtf( q.v.x * q.v.x + q.v.y * q.v.y );
+	float swing = 2.0f * b3Atan2( y, x );
+	B3_ASSERT( 0.0f <= swing && swing <= B3_PI );
+	return swing;
+}
+
 /// Linearly interpolate and normalize between two quaternions
 B3_INLINE b3Quat b3NLerp( b3Quat q1, b3Quat q2, float alpha )
 {
@@ -1032,6 +1054,24 @@ B3_INLINE b3Vec3 b3ClosestPointToAABB( b3Vec3 point, b3AABB a )
 {
 	return b3Clamp( point, a.lowerBound, a.upperBound );
 }
+
+/// The closest points between to segments or infinite lines.
+typedef struct b3SegmentDistanceResult
+{
+	b3Vec3 point1;
+	float fraction1;
+	b3Vec3 point2;
+	float fraction2;
+} b3SegmentDistanceResult;
+
+/// Compute the closest point on the segment a-b to the target q.
+B3_API b3Vec3 b3PointToSegmentDistance( b3Vec3 a, b3Vec3 b, b3Vec3 q );
+
+/// Compute the closest points on two infinite lines.
+B3_API b3SegmentDistanceResult b3LineDistance( b3Vec3 p1, b3Vec3 d1, b3Vec3 p2, b3Vec3 d2 );
+
+/// Compute the closest points on two line segments.
+B3_API b3SegmentDistanceResult b3SegmentDistance( b3Vec3 p1, b3Vec3 q1, b3Vec3 p2, b3Vec3 q2 );
 
 /// Is this a valid number? Not NaN or infinity.
 B3_API bool b3IsValidFloat( float a );

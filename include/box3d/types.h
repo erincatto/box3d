@@ -1449,6 +1449,7 @@ typedef struct b3WorldCastOutput
 
 #else
 
+/// Same type in single precision.
 typedef b3CastOutput b3WorldCastOutput;
 
 #endif

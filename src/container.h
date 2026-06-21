@@ -43,7 +43,7 @@
 #define b3Array_CreateN( a, n )                                                                                                  \
 	do                                                                                                                           \
 	{                                                                                                                            \
-		( a ).data = ( n ) > 0 ? (B3_TYPE_OF( ( a ).data ))b3GrowAlloc( NULL, 0, ( n ) * sizeof( *( a ).data ) ) : NULL;         \
+		( a ).data = ( n ) > 0 ? b3GrowAlloc( NULL, 0, ( n ) * sizeof( *( a ).data ) ) : NULL;         \
 		( a ).count = 0;                                                                                                         \
 		( a ).capacity = ( n );                                                                                                  \
 	}                                                                                                                            \
@@ -66,7 +66,7 @@
 		{                                                                                                                        \
 			int oldSize = ( a ).capacity * sizeof( *( a ).data );                                                                \
 			int newSize = ( n ) * sizeof( *( a ).data );                                                                         \
-			( a ).data = (B3_TYPE_OF( ( a ).data ))b3GrowAlloc( ( a ).data, oldSize, newSize );                                  \
+			( a ).data = b3GrowAlloc( ( a ).data, oldSize, newSize );                                  \
 			( a ).capacity = ( n );                                                                                              \
 		}                                                                                                                        \
 	}                                                                                                                            \
@@ -89,7 +89,7 @@
 			int oldSize = ( a ).capacity * sizeof( *( a ).data );                                                                \
 			int newCapacity = ( a ).capacity == 0 ? 8 : 2 * ( a ).capacity;                                                      \
 			int newSize = newCapacity * sizeof( *( a ).data );                                                                   \
-			( a ).data = (B3_TYPE_OF( ( a ).data ))b3GrowAlloc( ( a ).data, oldSize, newSize );                                  \
+			( a ).data = b3GrowAlloc( ( a ).data, oldSize, newSize );                                  \
 			( a ).capacity = newCapacity;                                                                                        \
 		}                                                                                                                        \
 		( a ).data[( a ).count++] = ( value );                                                                                   \
@@ -101,7 +101,7 @@
 
 // Create a new uninitialized element and return a pointer to it
 #define b3Array_Emplace( a )                                                                                                     \
-	( (B3_TYPE_OF( ( a ).data ))b3EmplaceHelper( (void**)&( a ).data, &( a ).count, &( a ).capacity, sizeof( *( a ).data ) ) )
+	( b3EmplaceHelper( (void**)&( a ).data, &( a ).count, &( a ).capacity, sizeof( *( a ).data ) ) )
 
 // Remove the last element and return it by value.
 #define b3Array_Pop( a ) ( B3_ASSERT( 0 < ( a ).count ), ( a ).data[-1 + ( a ).count--] )
@@ -121,7 +121,7 @@
 			int newCapacity = req > 2 ? req + ( req >> 1 ) : 8;                                                                  \
 			int oldSize = ( a ).capacity * sizeof( *( a ).data );                                                                \
 			int newSize = newCapacity * sizeof( *( a ).data );                                                                   \
-			( a ).data = (B3_TYPE_OF( ( a ).data ))b3GrowAlloc( ( a ).data, oldSize, newSize );                                  \
+			( a ).data = b3GrowAlloc( ( a ).data, oldSize, newSize );                                  \
 			( a ).capacity = newCapacity;                                                                                        \
 		}                                                                                                                        \
 		memcpy( ( a ).data + ( a ).count, ( src ), _n * sizeof( *( a ).data ) );                                                 \

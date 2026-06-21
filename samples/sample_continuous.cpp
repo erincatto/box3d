@@ -1010,7 +1010,7 @@ public:
 			m_camera->SetView( 60.0f, 40.0f, 60.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
-		AddGroundBox( 500.0 );
+		AddGroundBox( 500.0f );
 
 		{
 			m_mesh = b3CreateTorusMesh( 200, 200, 2.0f, 1.0f );
