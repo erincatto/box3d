@@ -387,10 +387,13 @@ b3ShapeId b3CreateTransformedHullShape( b3BodyId bodyId, const b3ShapeDef* def, 
 		b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 		if ( world != NULL && world->recording != NULL )
 		{
-			// Intern the untransformed hull and record the transform, so replay re-bakes the same data.
-			uint32_t geometryId = b3RecInternHull( world->recording, hull );
-			b3RecArgs_CreateTransformedHullShape createArgs = { bodyId, *def, geometryId, transform, scale };
-			b3RecWriteRet_CreateTransformedHullShape( world->recording, &createArgs, shapeId );
+			// The transform and scale are baked into fresh hull data at create time. Record the baked hull
+			// as a plain hull shape so replay rebuilds identical geometry with no rebake, and the keyframe
+			// registry, which interns the live baked hull, stays seeded.
+			b3Shape* shape = b3Array_Get( world->shapes, shapeId.index1 - 1 );
+			uint32_t geometryId = b3RecInternHull( world->recording, shape->hull );
+			b3RecArgs_CreateHullShape createArgs = { bodyId, *def, geometryId };
+			b3RecWriteRet_CreateHullShape( world->recording, &createArgs, shapeId );
 		}
 	}
 	return shapeId;

@@ -1490,7 +1490,9 @@ static int TransformedHullRoundTrip( void )
 		ENSURE( b3Shape_IsValid( sid ) );
 	}
 
-	for ( int i = 0; i < 5; ++i )
+	// Step past the keyframe interval so replay captures a keyframe. That path re-serializes the live
+	// world and interns the baked hull, which must already be in the pre-seeded registry.
+	for ( int i = 0; i < 20; ++i )
 	{
 		b3World_Step( worldId, 1.0f / 60.0f, 4 );
 	}
