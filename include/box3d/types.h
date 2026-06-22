@@ -1700,7 +1700,7 @@ typedef struct b3TreeNode
 } b3TreeNode;
 
 /// Dynamic tree version for compatibility testing.
-#define B3_DYNAMIC_TREE_VERSION 0x8E867C390754064Bull
+#define B3_DYNAMIC_TREE_VERSION 0x93EDAF889FD30B4Aull
 
 /// The dynamic tree structure. This should be considered private data.
 /// It is placed here for performance reasons.
@@ -1945,7 +1945,7 @@ typedef struct b3HullFace
 } b3HullFace;
 
 /// 64-bit hull version. Useful for validating serialized data.
-#define B3_HULL_VERSION 0x8F5034CF987D4FD9ull
+#define B3_HULL_VERSION 0x9D4716CE3793900Eull
 
 /// A convex hull.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -2063,7 +2063,7 @@ typedef struct b3MeshDef
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.
-#define B3_MESH_VERSION 0x4A1E7B2C8D5F3091ull
+#define B3_MESH_VERSION 0xABD11AB62A6E886Dull
 
 /// Triangle mesh edge flags.
 typedef enum b3MeshEdgeFlags
@@ -2241,7 +2241,7 @@ typedef struct b3HeightFieldDef
 #define B3_HEIGHT_FIELD_HOLE 0xFF
 
 /// 64-bit height-field version. Useful for validating serialized data.
-#define B3_HEIGHT_FIELD_VERSION 0x3D9A1F6C24E87B05ull
+#define B3_HEIGHT_FIELD_VERSION 0x8B18CBD138A6BC84ull
 
 /// A height field with compressed storage.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -2388,7 +2388,7 @@ typedef struct b3CompoundDef
 } b3CompoundDef;
 
 /// The compound version depends on the tree, mesh, and hull versions.
-#define B3_COMPOUND_VERSION ( 0x902AC5D34D9BD452ull ^ B3_DYNAMIC_TREE_VERSION ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
+#define B3_COMPOUND_VERSION ( 0x830778DB07086EB4ull ^ B3_DYNAMIC_TREE_VERSION ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
 
 /// Meshes used in compounds have limited space for materials. If you have
 /// a mesh with many materials, you can use it outside of the compound.

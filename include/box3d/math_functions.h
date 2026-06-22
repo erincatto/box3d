@@ -562,7 +562,7 @@ B3_API b3Quat b3MakeQuatFromMatrix( const b3Matrix3* m );
 /// Find a quaternion that rotates one vector to another.
 B3_API b3Quat b3ComputeQuatBetweenUnitVectors( b3Vec3 v1, b3Vec3 v2 );
 
-// Twist angle around the z-axis, used for twist limit and revolute angle limit
+/// Twist angle around the z-axis, used for twist limit and revolute angle limit
 B3_INLINE float b3GetTwistAngle( b3Quat q )
 {
 	// Account for polarity to keep the twist angle in range.
@@ -573,7 +573,7 @@ B3_INLINE float b3GetTwistAngle( b3Quat q )
 	return twist;
 }
 
-// Swing angle used for cone limit
+/// Swing angle used for cone limit
 B3_INLINE float b3GetSwingAngle( b3Quat q )
 {
 	// Polarity should not matter because all terms are squared.
