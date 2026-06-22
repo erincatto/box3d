@@ -2950,6 +2950,9 @@ typedef struct b3DebugDraw
 	/// Draw a sphere.
 	void ( *DrawSphereFcn )( b3Pos p, float radius, b3HexColor color, float alpha, void* context );
 
+	/// Draw a capsule.
+	void ( *DrawCapsuleFcn )( b3Pos p1, b3Pos p2, float radius, b3HexColor color, float alpha, void* context );
+
 	/// Draw a bounding box.
 	void ( *DrawBoundsFcn )( b3AABB aabb, b3HexColor color, void* context );
 

@@ -50,7 +50,7 @@ void DrawSphereEx( b3WorldTransform transform, float radius, Vec4 baseColor, flo
 // axis becomes the world long axis, rotation about local +X drives the
 // cylinder/cap surface pattern so roll is visible) and the center
 // (translation). halfLength is the distance from center to either cap
-// center along local +X. radius is the cap radius.
+// center along local +X.
 void DrawCapsule( b3WorldTransform transform, float halfLength, float radius, Vec4 baseColor );
 void DrawCapsuleEx( b3WorldTransform transform, float halfLength, float radius, Vec4 baseColor, float metallic, float roughness,
 					TransparentShadowCast shadowCast );

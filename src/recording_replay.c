@@ -14,9 +14,9 @@
 
 #include "box3d/box3d.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
-#include <limits.h>
 
 // Read primitives
 
@@ -70,7 +70,7 @@ uint32_t b3RecR_U24( b3RecReader* rdr )
 		return 0;
 	}
 	uint32_t v = (uint32_t)rdr->data[rdr->cursor] | ( (uint32_t)rdr->data[rdr->cursor + 1] << 8 ) |
-	             ( (uint32_t)rdr->data[rdr->cursor + 2] << 16 );
+				 ( (uint32_t)rdr->data[rdr->cursor + 2] << 16 );
 	rdr->cursor += 3;
 	return v;
 }
@@ -83,7 +83,7 @@ uint32_t b3RecR_U32( b3RecReader* rdr )
 		return 0;
 	}
 	uint32_t v = (uint32_t)rdr->data[rdr->cursor] | ( (uint32_t)rdr->data[rdr->cursor + 1] << 8 ) |
-	             ( (uint32_t)rdr->data[rdr->cursor + 2] << 16 ) | ( (uint32_t)rdr->data[rdr->cursor + 3] << 24 );
+				 ( (uint32_t)rdr->data[rdr->cursor + 2] << 16 ) | ( (uint32_t)rdr->data[rdr->cursor + 3] << 24 );
 	rdr->cursor += 4;
 	return v;
 }
@@ -96,9 +96,9 @@ uint64_t b3RecR_U64( b3RecReader* rdr )
 		return 0;
 	}
 	uint64_t v = (uint64_t)rdr->data[rdr->cursor] | ( (uint64_t)rdr->data[rdr->cursor + 1] << 8 ) |
-	             ( (uint64_t)rdr->data[rdr->cursor + 2] << 16 ) | ( (uint64_t)rdr->data[rdr->cursor + 3] << 24 ) |
-	             ( (uint64_t)rdr->data[rdr->cursor + 4] << 32 ) | ( (uint64_t)rdr->data[rdr->cursor + 5] << 40 ) |
-	             ( (uint64_t)rdr->data[rdr->cursor + 6] << 48 ) | ( (uint64_t)rdr->data[rdr->cursor + 7] << 56 );
+				 ( (uint64_t)rdr->data[rdr->cursor + 2] << 16 ) | ( (uint64_t)rdr->data[rdr->cursor + 3] << 24 ) |
+				 ( (uint64_t)rdr->data[rdr->cursor + 4] << 32 ) | ( (uint64_t)rdr->data[rdr->cursor + 5] << 40 ) |
+				 ( (uint64_t)rdr->data[rdr->cursor + 6] << 48 ) | ( (uint64_t)rdr->data[rdr->cursor + 7] << 56 );
 	rdr->cursor += 8;
 	return v;
 }
@@ -144,7 +144,7 @@ b3Quat b3RecR_QUAT( b3RecReader* rdr )
 	q.v.x = b3RecR_F32( rdr );
 	q.v.y = b3RecR_F32( rdr );
 	q.v.z = b3RecR_F32( rdr );
-	q.s   = b3RecR_F32( rdr );
+	q.s = b3RecR_F32( rdr );
 	return q;
 }
 
@@ -200,7 +200,7 @@ b3QueryFilter b3RecR_QUERYFILTER( b3RecReader* rdr )
 {
 	b3QueryFilter f;
 	f.categoryBits = b3RecR_U64( rdr );
-	f.maskBits     = b3RecR_U64( rdr );
+	f.maskBits = b3RecR_U64( rdr );
 	return f;
 }
 
@@ -240,14 +240,15 @@ b3ShapeProxy b3RecR_SHAPEPROXY( b3RecReader* rdr )
 		count = 0;
 	if ( count > B3_MAX_SHAPE_CAST_POINTS )
 		count = B3_MAX_SHAPE_CAST_POINTS;
-	if ( count > 0 && b3RecReserveScratch( rdr, (void**)&rdr->proxyScratch, &rdr->proxyScratchCap, count, (int)sizeof( b3Vec3 ) ) )
+	if ( count > 0 &&
+		 b3RecReserveScratch( rdr, (void**)&rdr->proxyScratch, &rdr->proxyScratchCap, count, (int)sizeof( b3Vec3 ) ) )
 	{
 		for ( int i = 0; i < count; ++i )
 		{
 			rdr->proxyScratch[i] = b3RecR_VEC3( rdr );
 		}
 		p.points = rdr->proxyScratch;
-		p.count  = count;
+		p.count = count;
 	}
 	p.radius = b3RecR_F32( rdr );
 	return p;
@@ -265,14 +266,14 @@ b3RayResult b3RecR_RAYRESULT( b3RecReader* rdr )
 {
 	b3RayResult v = { 0 };
 	// shapeId keeps the recorded world0; b3RecMakeShapeId is applied at compare time
-	v.shapeId        = b3RecR_SHAPEID( rdr );
-	v.point          = b3RecR_POSITION( rdr );
-	v.normal         = b3RecR_VEC3( rdr );
+	v.shapeId = b3RecR_SHAPEID( rdr );
+	v.point = b3RecR_POSITION( rdr );
+	v.normal = b3RecR_VEC3( rdr );
 	v.userMaterialId = b3RecR_U64( rdr );
-	v.fraction       = b3RecR_F32( rdr );
-	v.triangleIndex  = b3RecR_I32( rdr );
-	v.childIndex     = b3RecR_I32( rdr );
-	v.hit            = b3RecR_BOOL( rdr );
+	v.fraction = b3RecR_F32( rdr );
+	v.triangleIndex = b3RecR_I32( rdr );
+	v.childIndex = b3RecR_I32( rdr );
+	v.hit = b3RecR_BOOL( rdr );
 	return v;
 }
 
@@ -281,7 +282,7 @@ b3PlaneResult b3RecR_PLANERESULT( b3RecReader* rdr )
 	b3PlaneResult v;
 	v.plane.normal = b3RecR_VEC3( rdr );
 	v.plane.offset = b3RecR_F32( rdr );
-	v.point        = b3RecR_VEC3( rdr );
+	v.point = b3RecR_VEC3( rdr );
 	return v;
 }
 
@@ -328,28 +329,28 @@ b3Filter b3RecR_FILTER( b3RecReader* rdr )
 {
 	b3Filter f;
 	f.categoryBits = b3RecR_U64( rdr );
-	f.maskBits     = b3RecR_U64( rdr );
-	f.groupIndex   = b3RecR_I32( rdr );
+	f.maskBits = b3RecR_U64( rdr );
+	f.groupIndex = b3RecR_I32( rdr );
 	return f;
 }
 
 b3SurfaceMaterial b3RecR_MATERIAL( b3RecReader* rdr )
 {
 	b3SurfaceMaterial m = b3DefaultSurfaceMaterial();
-	m.friction          = b3RecR_F32( rdr );
-	m.restitution       = b3RecR_F32( rdr );
+	m.friction = b3RecR_F32( rdr );
+	m.restitution = b3RecR_F32( rdr );
 	m.rollingResistance = b3RecR_F32( rdr );
-	m.tangentVelocity   = b3RecR_VEC3( rdr );
-	m.userMaterialId    = b3RecR_U64( rdr );
-	m.customColor       = b3RecR_U32( rdr );
+	m.tangentVelocity = b3RecR_VEC3( rdr );
+	m.userMaterialId = b3RecR_U64( rdr );
+	m.customColor = b3RecR_U32( rdr );
 	return m;
 }
 
 b3MassData b3RecR_MASSDATA( b3RecReader* rdr )
 {
 	b3MassData md;
-	md.mass    = b3RecR_F32( rdr );
-	md.center  = b3RecR_VEC3( rdr );
+	md.mass = b3RecR_F32( rdr );
+	md.center = b3RecR_VEC3( rdr );
 	md.inertia = b3RecR_MATRIX3( rdr );
 	return md;
 }
@@ -357,9 +358,9 @@ b3MassData b3RecR_MASSDATA( b3RecReader* rdr )
 b3MotionLocks b3RecR_LOCKS( b3RecReader* rdr )
 {
 	b3MotionLocks locks;
-	locks.linearX  = b3RecR_BOOL( rdr );
-	locks.linearY  = b3RecR_BOOL( rdr );
-	locks.linearZ  = b3RecR_BOOL( rdr );
+	locks.linearX = b3RecR_BOOL( rdr );
+	locks.linearY = b3RecR_BOOL( rdr );
+	locks.linearZ = b3RecR_BOOL( rdr );
 	locks.angularX = b3RecR_BOOL( rdr );
 	locks.angularY = b3RecR_BOOL( rdr );
 	locks.angularZ = b3RecR_BOOL( rdr );
@@ -369,7 +370,7 @@ b3MotionLocks b3RecR_LOCKS( b3RecReader* rdr )
 // Rotating set of static string buffers, valid until the next 4 STR reads.
 const char* b3RecR_STR( b3RecReader* rdr )
 {
-	char* buf    = rdr->strBufs[rdr->strNext];
+	char* buf = rdr->strBufs[rdr->strNext];
 	rdr->strNext = ( rdr->strNext + 1 ) & 3;
 
 	uint16_t len = b3RecR_U16( rdr );
@@ -399,10 +400,10 @@ const char* b3RecR_STR( b3RecReader* rdr )
 b3ExplosionDef b3RecR_EXPLOSIONDEF( b3RecReader* rdr )
 {
 	b3ExplosionDef def = b3DefaultExplosionDef();
-	def.maskBits       = b3RecR_U64( rdr );
-	def.position       = b3RecR_POSITION( rdr );
-	def.radius         = b3RecR_F32( rdr );
-	def.falloff        = b3RecR_F32( rdr );
+	def.maskBits = b3RecR_U64( rdr );
+	def.position = b3RecR_POSITION( rdr );
+	def.radius = b3RecR_F32( rdr );
+	def.falloff = b3RecR_F32( rdr );
 	def.impulsePerArea = b3RecR_F32( rdr );
 	return def;
 }
@@ -410,32 +411,32 @@ b3ExplosionDef b3RecR_EXPLOSIONDEF( b3RecReader* rdr )
 b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr )
 {
 	b3BodyDef def = b3DefaultBodyDef();
-	def.type             = (b3BodyType)b3RecR_I32( rdr );
-	def.position         = b3RecR_POSITION( rdr );
-	def.rotation         = b3RecR_QUAT( rdr );
-	def.linearVelocity   = b3RecR_VEC3( rdr );
-	def.angularVelocity  = b3RecR_VEC3( rdr );
-	def.linearDamping    = b3RecR_F32( rdr );
-	def.angularDamping   = b3RecR_F32( rdr );
-	def.gravityScale     = b3RecR_F32( rdr );
-	def.sleepThreshold   = b3RecR_F32( rdr );
-	def.name             = b3RecR_STR( rdr );
+	def.type = (b3BodyType)b3RecR_I32( rdr );
+	def.position = b3RecR_POSITION( rdr );
+	def.rotation = b3RecR_QUAT( rdr );
+	def.linearVelocity = b3RecR_VEC3( rdr );
+	def.angularVelocity = b3RecR_VEC3( rdr );
+	def.linearDamping = b3RecR_F32( rdr );
+	def.angularDamping = b3RecR_F32( rdr );
+	def.gravityScale = b3RecR_F32( rdr );
+	def.sleepThreshold = b3RecR_F32( rdr );
+	def.name = b3RecR_STR( rdr );
 	(void)b3RecR_U64( rdr ); // userData placeholder
-	def.motionLocks            = b3RecR_LOCKS( rdr );
-	def.enableSleep            = b3RecR_BOOL( rdr );
-	def.isAwake                = b3RecR_BOOL( rdr );
-	def.isBullet               = b3RecR_BOOL( rdr );
-	def.isEnabled              = b3RecR_BOOL( rdr );
-	def.allowFastRotation      = b3RecR_BOOL( rdr );
+	def.motionLocks = b3RecR_LOCKS( rdr );
+	def.enableSleep = b3RecR_BOOL( rdr );
+	def.isAwake = b3RecR_BOOL( rdr );
+	def.isBullet = b3RecR_BOOL( rdr );
+	def.isEnabled = b3RecR_BOOL( rdr );
+	def.allowFastRotation = b3RecR_BOOL( rdr );
 	def.enableContactRecycling = b3RecR_BOOL( rdr );
-	def.userData               = NULL;
+	def.userData = NULL;
 	return def;
 }
 
 b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 {
 	b3ShapeDef def = b3DefaultShapeDef();
-	def.name         = b3RecR_STR( rdr );
+	def.name = b3RecR_STR( rdr );
 	(void)b3RecR_U64( rdr ); // userData placeholder
 
 	int matCount = b3RecR_I32( rdr );
@@ -443,13 +444,14 @@ b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 	{
 		matCount = 0;
 	}
-	if ( matCount > 0 && b3RecReserveScratch( rdr, (void**)&rdr->matScratch, &rdr->matScratchCap, matCount, (int)sizeof( b3SurfaceMaterial ) ) )
+	if ( matCount > 0 &&
+		 b3RecReserveScratch( rdr, (void**)&rdr->matScratch, &rdr->matScratchCap, matCount, (int)sizeof( b3SurfaceMaterial ) ) )
 	{
 		for ( int i = 0; i < matCount; ++i )
 		{
 			rdr->matScratch[i] = b3RecR_MATERIAL( rdr );
 		}
-		def.materials    = rdr->matScratch;
+		def.materials = rdr->matScratch;
 		def.materialCount = matCount;
 	}
 	else
@@ -458,23 +460,23 @@ b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 		{
 			(void)b3RecR_MATERIAL( rdr );
 		}
-		def.materials    = NULL;
+		def.materials = NULL;
 		def.materialCount = 0;
 	}
 
-	def.baseMaterial          = b3RecR_MATERIAL( rdr );
-	def.density               = b3RecR_F32( rdr );
-	def.explosionScale        = b3RecR_F32( rdr );
-	def.filter                = b3RecR_FILTER( rdr );
+	def.baseMaterial = b3RecR_MATERIAL( rdr );
+	def.density = b3RecR_F32( rdr );
+	def.explosionScale = b3RecR_F32( rdr );
+	def.filter = b3RecR_FILTER( rdr );
 	def.enableCustomFiltering = b3RecR_BOOL( rdr );
-	def.isSensor              = b3RecR_BOOL( rdr );
-	def.enableSensorEvents    = b3RecR_BOOL( rdr );
-	def.enableContactEvents   = b3RecR_BOOL( rdr );
-	def.enableHitEvents       = b3RecR_BOOL( rdr );
-	def.enablePreSolveEvents  = b3RecR_BOOL( rdr );
+	def.isSensor = b3RecR_BOOL( rdr );
+	def.enableSensorEvents = b3RecR_BOOL( rdr );
+	def.enableContactEvents = b3RecR_BOOL( rdr );
+	def.enableHitEvents = b3RecR_BOOL( rdr );
+	def.enablePreSolveEvents = b3RecR_BOOL( rdr );
 	def.invokeContactCreation = b3RecR_BOOL( rdr );
-	def.updateBodyMass        = b3RecR_BOOL( rdr );
-	def.userData              = NULL;
+	def.updateBodyMass = b3RecR_BOOL( rdr );
+	def.userData = NULL;
 	return def;
 }
 
@@ -482,26 +484,26 @@ b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 static void b3RecR_JointBase( b3RecReader* rdr, b3JointDef* base )
 {
 	(void)b3RecR_U64( rdr ); // userData
-	base->bodyIdA             = b3RecR_BODYID( rdr );
-	base->bodyIdB             = b3RecR_BODYID( rdr );
-	base->localFrameA         = b3RecR_TRANSFORM( rdr );
-	base->localFrameB         = b3RecR_TRANSFORM( rdr );
-	base->forceThreshold      = b3RecR_F32( rdr );
-	base->torqueThreshold     = b3RecR_F32( rdr );
-	base->constraintHertz     = b3RecR_F32( rdr );
+	base->bodyIdA = b3RecR_BODYID( rdr );
+	base->bodyIdB = b3RecR_BODYID( rdr );
+	base->localFrameA = b3RecR_TRANSFORM( rdr );
+	base->localFrameB = b3RecR_TRANSFORM( rdr );
+	base->forceThreshold = b3RecR_F32( rdr );
+	base->torqueThreshold = b3RecR_F32( rdr );
+	base->constraintHertz = b3RecR_F32( rdr );
 	base->constraintDampingRatio = b3RecR_F32( rdr );
-	base->drawScale           = b3RecR_F32( rdr );
-	base->collideConnected    = b3RecR_BOOL( rdr );
-	base->userData            = NULL;
+	base->drawScale = b3RecR_F32( rdr );
+	base->collideConnected = b3RecR_BOOL( rdr );
+	base->userData = NULL;
 }
 
 b3ParallelJointDef b3RecR_PARALLELJOINTDEF( b3RecReader* rdr )
 {
 	b3ParallelJointDef def = b3DefaultParallelJointDef();
 	b3RecR_JointBase( rdr, &def.base );
-	def.hertz        = b3RecR_F32( rdr );
+	def.hertz = b3RecR_F32( rdr );
 	def.dampingRatio = b3RecR_F32( rdr );
-	def.maxTorque    = b3RecR_F32( rdr );
+	def.maxTorque = b3RecR_F32( rdr );
 	return def;
 }
 
@@ -509,18 +511,18 @@ b3DistanceJointDef b3RecR_DISTANCEJOINTDEF( b3RecReader* rdr )
 {
 	b3DistanceJointDef def = b3DefaultDistanceJointDef();
 	b3RecR_JointBase( rdr, &def.base );
-	def.length            = b3RecR_F32( rdr );
-	def.enableSpring      = b3RecR_BOOL( rdr );
-	def.lowerSpringForce  = b3RecR_F32( rdr );
-	def.upperSpringForce  = b3RecR_F32( rdr );
-	def.hertz             = b3RecR_F32( rdr );
-	def.dampingRatio      = b3RecR_F32( rdr );
-	def.enableLimit       = b3RecR_BOOL( rdr );
-	def.minLength         = b3RecR_F32( rdr );
-	def.maxLength         = b3RecR_F32( rdr );
-	def.enableMotor       = b3RecR_BOOL( rdr );
-	def.maxMotorForce     = b3RecR_F32( rdr );
-	def.motorSpeed        = b3RecR_F32( rdr );
+	def.length = b3RecR_F32( rdr );
+	def.enableSpring = b3RecR_BOOL( rdr );
+	def.lowerSpringForce = b3RecR_F32( rdr );
+	def.upperSpringForce = b3RecR_F32( rdr );
+	def.hertz = b3RecR_F32( rdr );
+	def.dampingRatio = b3RecR_F32( rdr );
+	def.enableLimit = b3RecR_BOOL( rdr );
+	def.minLength = b3RecR_F32( rdr );
+	def.maxLength = b3RecR_F32( rdr );
+	def.enableMotor = b3RecR_BOOL( rdr );
+	def.maxMotorForce = b3RecR_F32( rdr );
+	def.motorSpeed = b3RecR_F32( rdr );
 	return def;
 }
 
@@ -535,16 +537,16 @@ b3MotorJointDef b3RecR_MOTORJOINTDEF( b3RecReader* rdr )
 {
 	b3MotorJointDef def = b3DefaultMotorJointDef();
 	b3RecR_JointBase( rdr, &def.base );
-	def.linearVelocity      = b3RecR_VEC3( rdr );
-	def.maxVelocityForce    = b3RecR_F32( rdr );
-	def.angularVelocity     = b3RecR_VEC3( rdr );
-	def.maxVelocityTorque   = b3RecR_F32( rdr );
-	def.linearHertz         = b3RecR_F32( rdr );
-	def.linearDampingRatio  = b3RecR_F32( rdr );
-	def.maxSpringForce      = b3RecR_F32( rdr );
-	def.angularHertz        = b3RecR_F32( rdr );
+	def.linearVelocity = b3RecR_VEC3( rdr );
+	def.maxVelocityForce = b3RecR_F32( rdr );
+	def.angularVelocity = b3RecR_VEC3( rdr );
+	def.maxVelocityTorque = b3RecR_F32( rdr );
+	def.linearHertz = b3RecR_F32( rdr );
+	def.linearDampingRatio = b3RecR_F32( rdr );
+	def.maxSpringForce = b3RecR_F32( rdr );
+	def.angularHertz = b3RecR_F32( rdr );
 	def.angularDampingRatio = b3RecR_F32( rdr );
-	def.maxSpringTorque     = b3RecR_F32( rdr );
+	def.maxSpringTorque = b3RecR_F32( rdr );
 	return def;
 }
 
@@ -552,16 +554,16 @@ b3PrismaticJointDef b3RecR_PRISMATICJOINTDEF( b3RecReader* rdr )
 {
 	b3PrismaticJointDef def = b3DefaultPrismaticJointDef();
 	b3RecR_JointBase( rdr, &def.base );
-	def.enableSpring       = b3RecR_BOOL( rdr );
-	def.hertz              = b3RecR_F32( rdr );
-	def.dampingRatio       = b3RecR_F32( rdr );
-	def.targetTranslation  = b3RecR_F32( rdr );
-	def.enableLimit        = b3RecR_BOOL( rdr );
-	def.lowerTranslation   = b3RecR_F32( rdr );
-	def.upperTranslation   = b3RecR_F32( rdr );
-	def.enableMotor        = b3RecR_BOOL( rdr );
-	def.maxMotorForce      = b3RecR_F32( rdr );
-	def.motorSpeed         = b3RecR_F32( rdr );
+	def.enableSpring = b3RecR_BOOL( rdr );
+	def.hertz = b3RecR_F32( rdr );
+	def.dampingRatio = b3RecR_F32( rdr );
+	def.targetTranslation = b3RecR_F32( rdr );
+	def.enableLimit = b3RecR_BOOL( rdr );
+	def.lowerTranslation = b3RecR_F32( rdr );
+	def.upperTranslation = b3RecR_F32( rdr );
+	def.enableMotor = b3RecR_BOOL( rdr );
+	def.maxMotorForce = b3RecR_F32( rdr );
+	def.motorSpeed = b3RecR_F32( rdr );
 	return def;
 }
 
@@ -569,16 +571,16 @@ b3RevoluteJointDef b3RecR_REVOLUTEJOINTDEF( b3RecReader* rdr )
 {
 	b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
 	b3RecR_JointBase( rdr, &def.base );
-	def.targetAngle    = b3RecR_F32( rdr );
-	def.enableSpring   = b3RecR_BOOL( rdr );
-	def.hertz          = b3RecR_F32( rdr );
-	def.dampingRatio   = b3RecR_F32( rdr );
-	def.enableLimit    = b3RecR_BOOL( rdr );
-	def.lowerAngle     = b3RecR_F32( rdr );
-	def.upperAngle     = b3RecR_F32( rdr );
-	def.enableMotor    = b3RecR_BOOL( rdr );
+	def.targetAngle = b3RecR_F32( rdr );
+	def.enableSpring = b3RecR_BOOL( rdr );
+	def.hertz = b3RecR_F32( rdr );
+	def.dampingRatio = b3RecR_F32( rdr );
+	def.enableLimit = b3RecR_BOOL( rdr );
+	def.lowerAngle = b3RecR_F32( rdr );
+	def.upperAngle = b3RecR_F32( rdr );
+	def.enableMotor = b3RecR_BOOL( rdr );
 	def.maxMotorTorque = b3RecR_F32( rdr );
-	def.motorSpeed     = b3RecR_F32( rdr );
+	def.motorSpeed = b3RecR_F32( rdr );
 	return def;
 }
 
@@ -586,18 +588,18 @@ b3SphericalJointDef b3RecR_SPHERICALJOINTDEF( b3RecReader* rdr )
 {
 	b3SphericalJointDef def = b3DefaultSphericalJointDef();
 	b3RecR_JointBase( rdr, &def.base );
-	def.enableSpring     = b3RecR_BOOL( rdr );
-	def.hertz            = b3RecR_F32( rdr );
-	def.dampingRatio     = b3RecR_F32( rdr );
-	def.targetRotation   = b3RecR_QUAT( rdr );
-	def.enableConeLimit  = b3RecR_BOOL( rdr );
-	def.coneAngle        = b3RecR_F32( rdr );
+	def.enableSpring = b3RecR_BOOL( rdr );
+	def.hertz = b3RecR_F32( rdr );
+	def.dampingRatio = b3RecR_F32( rdr );
+	def.targetRotation = b3RecR_QUAT( rdr );
+	def.enableConeLimit = b3RecR_BOOL( rdr );
+	def.coneAngle = b3RecR_F32( rdr );
 	def.enableTwistLimit = b3RecR_BOOL( rdr );
-	def.lowerTwistAngle  = b3RecR_F32( rdr );
-	def.upperTwistAngle  = b3RecR_F32( rdr );
-	def.enableMotor      = b3RecR_BOOL( rdr );
-	def.maxMotorTorque   = b3RecR_F32( rdr );
-	def.motorVelocity    = b3RecR_VEC3( rdr );
+	def.lowerTwistAngle = b3RecR_F32( rdr );
+	def.upperTwistAngle = b3RecR_F32( rdr );
+	def.enableMotor = b3RecR_BOOL( rdr );
+	def.maxMotorTorque = b3RecR_F32( rdr );
+	def.motorVelocity = b3RecR_VEC3( rdr );
 	return def;
 }
 
@@ -605,9 +607,9 @@ b3WeldJointDef b3RecR_WELDJOINTDEF( b3RecReader* rdr )
 {
 	b3WeldJointDef def = b3DefaultWeldJointDef();
 	b3RecR_JointBase( rdr, &def.base );
-	def.linearHertz         = b3RecR_F32( rdr );
-	def.angularHertz        = b3RecR_F32( rdr );
-	def.linearDampingRatio  = b3RecR_F32( rdr );
+	def.linearHertz = b3RecR_F32( rdr );
+	def.angularHertz = b3RecR_F32( rdr );
+	def.linearDampingRatio = b3RecR_F32( rdr );
 	def.angularDampingRatio = b3RecR_F32( rdr );
 	return def;
 }
@@ -616,23 +618,23 @@ b3WheelJointDef b3RecR_WHEELJOINTDEF( b3RecReader* rdr )
 {
 	b3WheelJointDef def = b3DefaultWheelJointDef();
 	b3RecR_JointBase( rdr, &def.base );
-	def.enableSuspensionSpring  = b3RecR_BOOL( rdr );
-	def.suspensionHertz         = b3RecR_F32( rdr );
-	def.suspensionDampingRatio  = b3RecR_F32( rdr );
-	def.enableSuspensionLimit   = b3RecR_BOOL( rdr );
-	def.lowerSuspensionLimit    = b3RecR_F32( rdr );
-	def.upperSuspensionLimit    = b3RecR_F32( rdr );
-	def.enableSpinMotor         = b3RecR_BOOL( rdr );
-	def.maxSpinTorque           = b3RecR_F32( rdr );
-	def.spinSpeed               = b3RecR_F32( rdr );
-	def.enableSteering          = b3RecR_BOOL( rdr );
-	def.steeringHertz           = b3RecR_F32( rdr );
-	def.steeringDampingRatio    = b3RecR_F32( rdr );
-	def.targetSteeringAngle     = b3RecR_F32( rdr );
-	def.maxSteeringTorque       = b3RecR_F32( rdr );
-	def.enableSteeringLimit     = b3RecR_BOOL( rdr );
-	def.lowerSteeringLimit      = b3RecR_F32( rdr );
-	def.upperSteeringLimit      = b3RecR_F32( rdr );
+	def.enableSuspensionSpring = b3RecR_BOOL( rdr );
+	def.suspensionHertz = b3RecR_F32( rdr );
+	def.suspensionDampingRatio = b3RecR_F32( rdr );
+	def.enableSuspensionLimit = b3RecR_BOOL( rdr );
+	def.lowerSuspensionLimit = b3RecR_F32( rdr );
+	def.upperSuspensionLimit = b3RecR_F32( rdr );
+	def.enableSpinMotor = b3RecR_BOOL( rdr );
+	def.maxSpinTorque = b3RecR_F32( rdr );
+	def.spinSpeed = b3RecR_F32( rdr );
+	def.enableSteering = b3RecR_BOOL( rdr );
+	def.steeringHertz = b3RecR_F32( rdr );
+	def.steeringDampingRatio = b3RecR_F32( rdr );
+	def.targetSteeringAngle = b3RecR_F32( rdr );
+	def.maxSteeringTorque = b3RecR_F32( rdr );
+	def.enableSteeringLimit = b3RecR_BOOL( rdr );
+	def.lowerSteeringLimit = b3RecR_F32( rdr );
+	def.upperSteeringLimit = b3RecR_F32( rdr );
 	return def;
 }
 
@@ -646,8 +648,8 @@ static void b3RecTrackBodyDestroy( b3RecPlayer* player, b3BodyId id );
 static b3BodyId b3RecMakeBodyId( b3RecReader* rdr, b3BodyId recorded )
 {
 	b3BodyId id;
-	id.index1    = recorded.index1;
-	id.world0    = (uint16_t)( rdr->replayWorldId.index1 - 1u );
+	id.index1 = recorded.index1;
+	id.world0 = (uint16_t)( rdr->replayWorldId.index1 - 1u );
 	id.generation = recorded.generation;
 	return id;
 }
@@ -655,8 +657,8 @@ static b3BodyId b3RecMakeBodyId( b3RecReader* rdr, b3BodyId recorded )
 static b3ShapeId b3RecMakeShapeId( b3RecReader* rdr, b3ShapeId recorded )
 {
 	b3ShapeId id;
-	id.index1    = recorded.index1;
-	id.world0    = (uint16_t)( rdr->replayWorldId.index1 - 1u );
+	id.index1 = recorded.index1;
+	id.world0 = (uint16_t)( rdr->replayWorldId.index1 - 1u );
 	id.generation = recorded.generation;
 	return id;
 }
@@ -664,21 +666,20 @@ static b3ShapeId b3RecMakeShapeId( b3RecReader* rdr, b3ShapeId recorded )
 static b3JointId b3RecMakeJointId( b3RecReader* rdr, b3JointId recorded )
 {
 	b3JointId id;
-	id.index1    = recorded.index1;
-	id.world0    = (uint16_t)( rdr->replayWorldId.index1 - 1u );
+	id.index1 = recorded.index1;
+	id.world0 = (uint16_t)( rdr->replayWorldId.index1 - 1u );
 	id.generation = recorded.generation;
 	return id;
 }
 
 // A create op appends the returned id after args. index1 and generation must match;
 // world0 always differs so we ignore it.
-static void b3RecCheckId( b3RecReader* rdr, const char* kind, int gotIndex, unsigned gotGen,
-                          int recIndex, unsigned recGen )
+static void b3RecCheckId( b3RecReader* rdr, const char* kind, int gotIndex, unsigned gotGen, int recIndex, unsigned recGen )
 {
 	if ( gotIndex != recIndex || gotGen != recGen )
 	{
-		printf( "b3ReplayFile: %s id mismatch (rec index1=%d gen=%u, got index1=%d gen=%u)\n",
-		        kind, recIndex, recGen, gotIndex, gotGen );
+		printf( "b3ReplayFile: %s id mismatch (rec index1=%d gen=%u, got index1=%d gen=%u)\n", kind, recIndex, recGen, gotIndex,
+				gotGen );
 		rdr->ok = false;
 	}
 }
@@ -961,16 +962,16 @@ static void b3RecDispatch_BodyEnableHitEvents( const b3RecArgs_BodyEnableHitEven
 static void b3RecDispatch_CreateSphereShape( const b3RecArgs_CreateSphereShape* a, b3RecReader* rdr )
 {
 	b3ShapeId recId = b3RecR_SHAPEID( rdr );
-	b3BodyId  bodyId = b3RecMakeBodyId( rdr, a->body );
-	b3ShapeId gotId  = b3CreateSphereShape( bodyId, &a->def, &a->sphere );
+	b3BodyId bodyId = b3RecMakeBodyId( rdr, a->body );
+	b3ShapeId gotId = b3CreateSphereShape( bodyId, &a->def, &a->sphere );
 	b3RecCheckShapeId( rdr, gotId, recId );
 }
 
 static void b3RecDispatch_CreateCapsuleShape( const b3RecArgs_CreateCapsuleShape* a, b3RecReader* rdr )
 {
 	b3ShapeId recId = b3RecR_SHAPEID( rdr );
-	b3BodyId  bodyId = b3RecMakeBodyId( rdr, a->body );
-	b3ShapeId gotId  = b3CreateCapsuleShape( bodyId, &a->def, &a->capsule );
+	b3BodyId bodyId = b3RecMakeBodyId( rdr, a->body );
+	b3ShapeId gotId = b3CreateCapsuleShape( bodyId, &a->def, &a->capsule );
 	b3RecCheckShapeId( rdr, gotId, recId );
 }
 
@@ -1009,10 +1010,10 @@ static void b3RecDispatch_CreateMeshShape( const b3RecArgs_CreateMeshShape* a, b
 		rdr->ok = false;
 		return;
 	}
-	b3RegistrySlot* slot   = rdr->slots + id;
+	b3RegistrySlot* slot = rdr->slots + id;
 	const b3MeshData* mesh = (const b3MeshData*)b3RecGetLiveMesh( slot );
-	b3BodyId bodyId        = b3RecMakeBodyId( rdr, a->body );
-	b3ShapeId gotId        = b3CreateMeshShape( bodyId, &a->def, mesh, a->scale );
+	b3BodyId bodyId = b3RecMakeBodyId( rdr, a->body );
+	b3ShapeId gotId = b3CreateMeshShape( bodyId, &a->def, mesh, a->scale );
 	b3RecCheckShapeId( rdr, gotId, recId );
 }
 
@@ -1030,16 +1031,16 @@ static void b3RecDispatch_CreateHeightFieldShape( const b3RecArgs_CreateHeightFi
 		rdr->ok = false;
 		return;
 	}
-	b3RegistrySlot* slot         = rdr->slots + id;
-	const b3HeightFieldData* hf      = (const b3HeightFieldData*)b3RecGetLiveHeightField( slot );
+	b3RegistrySlot* slot = rdr->slots + id;
+	const b3HeightFieldData* hf = (const b3HeightFieldData*)b3RecGetLiveHeightField( slot );
 	if ( hf == NULL )
 	{
 		printf( "b3ReplayFile: heightfield geometry %u is corrupt\n", id );
 		rdr->ok = false;
 		return;
 	}
-	b3BodyId bodyId              = b3RecMakeBodyId( rdr, a->body );
-	b3ShapeId gotId              = b3CreateHeightFieldShape( bodyId, &a->def, hf );
+	b3BodyId bodyId = b3RecMakeBodyId( rdr, a->body );
+	b3ShapeId gotId = b3CreateHeightFieldShape( bodyId, &a->def, hf );
 	b3RecCheckShapeId( rdr, gotId, recId );
 }
 
@@ -1057,12 +1058,12 @@ static void b3RecDispatch_CreateCompoundShape( const b3RecArgs_CreateCompoundSha
 		rdr->ok = false;
 		return;
 	}
-	b3RegistrySlot* slot      = rdr->slots + id;
+	b3RegistrySlot* slot = rdr->slots + id;
 	const b3CompoundData* compound = (const b3CompoundData*)b3RecGetLiveCompound( slot );
-	b3BodyId bodyId            = b3RecMakeBodyId( rdr, a->body );
+	b3BodyId bodyId = b3RecMakeBodyId( rdr, a->body );
 	// b3CreateCompoundShape takes a non-const def pointer; cast away const for the scratch def
 	b3ShapeDef shapeDef = a->def;
-	b3ShapeId gotId     = b3CreateCompoundShape( bodyId, &shapeDef, compound );
+	b3ShapeId gotId = b3CreateCompoundShape( bodyId, &shapeDef, compound );
 	b3RecCheckShapeId( rdr, gotId, recId );
 }
 
@@ -1135,8 +1136,8 @@ static void b3RecDispatch_ShapeApplyWind( const b3RecArgs_ShapeApplyWind* a, b3R
 
 static void b3RecDispatch_CreateParallelJoint( const b3RecArgs_CreateParallelJoint* a, b3RecReader* rdr )
 {
-	b3JointId recId          = b3RecR_JOINTID( rdr );
-	b3ParallelJointDef def   = a->def;
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3ParallelJointDef def = a->def;
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateParallelJoint( rdr->replayWorldId, &def ), recId );
@@ -1144,8 +1145,8 @@ static void b3RecDispatch_CreateParallelJoint( const b3RecArgs_CreateParallelJoi
 
 static void b3RecDispatch_CreateDistanceJoint( const b3RecArgs_CreateDistanceJoint* a, b3RecReader* rdr )
 {
-	b3JointId recId           = b3RecR_JOINTID( rdr );
-	b3DistanceJointDef def    = a->def;
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3DistanceJointDef def = a->def;
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateDistanceJoint( rdr->replayWorldId, &def ), recId );
@@ -1153,8 +1154,8 @@ static void b3RecDispatch_CreateDistanceJoint( const b3RecArgs_CreateDistanceJoi
 
 static void b3RecDispatch_CreateFilterJoint( const b3RecArgs_CreateFilterJoint* a, b3RecReader* rdr )
 {
-	b3JointId recId         = b3RecR_JOINTID( rdr );
-	b3FilterJointDef def    = a->def;
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3FilterJointDef def = a->def;
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateFilterJoint( rdr->replayWorldId, &def ), recId );
@@ -1162,8 +1163,8 @@ static void b3RecDispatch_CreateFilterJoint( const b3RecArgs_CreateFilterJoint* 
 
 static void b3RecDispatch_CreateMotorJoint( const b3RecArgs_CreateMotorJoint* a, b3RecReader* rdr )
 {
-	b3JointId recId         = b3RecR_JOINTID( rdr );
-	b3MotorJointDef def     = a->def;
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3MotorJointDef def = a->def;
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateMotorJoint( rdr->replayWorldId, &def ), recId );
@@ -1171,8 +1172,8 @@ static void b3RecDispatch_CreateMotorJoint( const b3RecArgs_CreateMotorJoint* a,
 
 static void b3RecDispatch_CreatePrismaticJoint( const b3RecArgs_CreatePrismaticJoint* a, b3RecReader* rdr )
 {
-	b3JointId recId             = b3RecR_JOINTID( rdr );
-	b3PrismaticJointDef def     = a->def;
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3PrismaticJointDef def = a->def;
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreatePrismaticJoint( rdr->replayWorldId, &def ), recId );
@@ -1180,8 +1181,8 @@ static void b3RecDispatch_CreatePrismaticJoint( const b3RecArgs_CreatePrismaticJ
 
 static void b3RecDispatch_CreateRevoluteJoint( const b3RecArgs_CreateRevoluteJoint* a, b3RecReader* rdr )
 {
-	b3JointId recId            = b3RecR_JOINTID( rdr );
-	b3RevoluteJointDef def     = a->def;
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3RevoluteJointDef def = a->def;
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateRevoluteJoint( rdr->replayWorldId, &def ), recId );
@@ -1189,8 +1190,8 @@ static void b3RecDispatch_CreateRevoluteJoint( const b3RecArgs_CreateRevoluteJoi
 
 static void b3RecDispatch_CreateSphericalJoint( const b3RecArgs_CreateSphericalJoint* a, b3RecReader* rdr )
 {
-	b3JointId recId             = b3RecR_JOINTID( rdr );
-	b3SphericalJointDef def     = a->def;
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3SphericalJointDef def = a->def;
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateSphericalJoint( rdr->replayWorldId, &def ), recId );
@@ -1198,8 +1199,8 @@ static void b3RecDispatch_CreateSphericalJoint( const b3RecArgs_CreateSphericalJ
 
 static void b3RecDispatch_CreateWeldJoint( const b3RecArgs_CreateWeldJoint* a, b3RecReader* rdr )
 {
-	b3JointId recId        = b3RecR_JOINTID( rdr );
-	b3WeldJointDef def     = a->def;
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3WeldJointDef def = a->def;
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateWeldJoint( rdr->replayWorldId, &def ), recId );
@@ -1207,8 +1208,8 @@ static void b3RecDispatch_CreateWeldJoint( const b3RecArgs_CreateWeldJoint* a, b
 
 static void b3RecDispatch_CreateWheelJoint( const b3RecArgs_CreateWheelJoint* a, b3RecReader* rdr )
 {
-	b3JointId recId        = b3RecR_JOINTID( rdr );
-	b3WheelJointDef def    = a->def;
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3WheelJointDef def = a->def;
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateWheelJoint( rdr->replayWorldId, &def ), recId );
@@ -1260,7 +1261,7 @@ static void b3RecDispatch_ParallelJointSetSpringHertz( const b3RecArgs_ParallelJ
 }
 
 static void b3RecDispatch_ParallelJointSetSpringDampingRatio( const b3RecArgs_ParallelJointSetSpringDampingRatio* a,
-                                                              b3RecReader* rdr )
+															  b3RecReader* rdr )
 {
 	b3ParallelJoint_SetSpringDampingRatio( b3RecMakeJointId( rdr, a->joint ), a->dampingRatio );
 }
@@ -1281,7 +1282,7 @@ static void b3RecDispatch_DistanceJointEnableSpring( const b3RecArgs_DistanceJoi
 }
 
 static void b3RecDispatch_DistanceJointSetSpringForceRange( const b3RecArgs_DistanceJointSetSpringForceRange* a,
-                                                            b3RecReader* rdr )
+															b3RecReader* rdr )
 {
 	b3DistanceJoint_SetSpringForceRange( b3RecMakeJointId( rdr, a->joint ), a->lowerForce, a->upperForce );
 }
@@ -1292,7 +1293,7 @@ static void b3RecDispatch_DistanceJointSetSpringHertz( const b3RecArgs_DistanceJ
 }
 
 static void b3RecDispatch_DistanceJointSetSpringDampingRatio( const b3RecArgs_DistanceJointSetSpringDampingRatio* a,
-                                                              b3RecReader* rdr )
+															  b3RecReader* rdr )
 {
 	b3DistanceJoint_SetSpringDampingRatio( b3RecMakeJointId( rdr, a->joint ), a->dampingRatio );
 }
@@ -1358,7 +1359,7 @@ static void b3RecDispatch_MotorJointSetAngularHertz( const b3RecArgs_MotorJointS
 }
 
 static void b3RecDispatch_MotorJointSetAngularDampingRatio( const b3RecArgs_MotorJointSetAngularDampingRatio* a,
-                                                            b3RecReader* rdr )
+															b3RecReader* rdr )
 {
 	b3MotorJoint_SetAngularDampingRatio( b3RecMakeJointId( rdr, a->joint ), a->damping );
 }
@@ -1384,13 +1385,13 @@ static void b3RecDispatch_PrismaticJointSetSpringHertz( const b3RecArgs_Prismati
 }
 
 static void b3RecDispatch_PrismaticJointSetSpringDampingRatio( const b3RecArgs_PrismaticJointSetSpringDampingRatio* a,
-                                                               b3RecReader* rdr )
+															   b3RecReader* rdr )
 {
 	b3PrismaticJoint_SetSpringDampingRatio( b3RecMakeJointId( rdr, a->joint ), a->dampingRatio );
 }
 
 static void b3RecDispatch_PrismaticJointSetTargetTranslation( const b3RecArgs_PrismaticJointSetTargetTranslation* a,
-                                                              b3RecReader* rdr )
+															  b3RecReader* rdr )
 {
 	b3PrismaticJoint_SetTargetTranslation( b3RecMakeJointId( rdr, a->joint ), a->translation );
 }
@@ -1431,7 +1432,7 @@ static void b3RecDispatch_RevoluteJointSetSpringHertz( const b3RecArgs_RevoluteJ
 }
 
 static void b3RecDispatch_RevoluteJointSetSpringDampingRatio( const b3RecArgs_RevoluteJointSetSpringDampingRatio* a,
-                                                              b3RecReader* rdr )
+															  b3RecReader* rdr )
 {
 	b3RevoluteJoint_SetSpringDampingRatio( b3RecMakeJointId( rdr, a->joint ), a->dampingRatio );
 }
@@ -1497,13 +1498,12 @@ static void b3RecDispatch_SphericalJointSetSpringHertz( const b3RecArgs_Spherica
 }
 
 static void b3RecDispatch_SphericalJointSetSpringDampingRatio( const b3RecArgs_SphericalJointSetSpringDampingRatio* a,
-                                                               b3RecReader* rdr )
+															   b3RecReader* rdr )
 {
 	b3SphericalJoint_SetSpringDampingRatio( b3RecMakeJointId( rdr, a->joint ), a->dampingRatio );
 }
 
-static void b3RecDispatch_SphericalJointSetTargetRotation( const b3RecArgs_SphericalJointSetTargetRotation* a,
-                                                           b3RecReader* rdr )
+static void b3RecDispatch_SphericalJointSetTargetRotation( const b3RecArgs_SphericalJointSetTargetRotation* a, b3RecReader* rdr )
 {
 	b3SphericalJoint_SetTargetRotation( b3RecMakeJointId( rdr, a->joint ), a->targetRotation );
 }
@@ -1554,13 +1554,12 @@ static void b3RecDispatch_WheelJointSetSuspensionHertz( const b3RecArgs_WheelJoi
 }
 
 static void b3RecDispatch_WheelJointSetSuspensionDampingRatio( const b3RecArgs_WheelJointSetSuspensionDampingRatio* a,
-                                                               b3RecReader* rdr )
+															   b3RecReader* rdr )
 {
 	b3WheelJoint_SetSuspensionDampingRatio( b3RecMakeJointId( rdr, a->joint ), a->dampingRatio );
 }
 
-static void b3RecDispatch_WheelJointEnableSuspensionLimit( const b3RecArgs_WheelJointEnableSuspensionLimit* a,
-                                                           b3RecReader* rdr )
+static void b3RecDispatch_WheelJointEnableSuspensionLimit( const b3RecArgs_WheelJointEnableSuspensionLimit* a, b3RecReader* rdr )
 {
 	b3WheelJoint_EnableSuspensionLimit( b3RecMakeJointId( rdr, a->joint ), a->flag );
 }
@@ -1596,7 +1595,7 @@ static void b3RecDispatch_WheelJointSetSteeringHertz( const b3RecArgs_WheelJoint
 }
 
 static void b3RecDispatch_WheelJointSetSteeringDampingRatio( const b3RecArgs_WheelJointSetSteeringDampingRatio* a,
-                                                             b3RecReader* rdr )
+															 b3RecReader* rdr )
 {
 	b3WheelJoint_SetSteeringDampingRatio( b3RecMakeJointId( rdr, a->joint ), a->dampingRatio );
 }
@@ -1617,7 +1616,7 @@ static void b3RecDispatch_WheelJointSetSteeringLimits( const b3RecArgs_WheelJoin
 }
 
 static void b3RecDispatch_WheelJointSetTargetSteeringAngle( const b3RecArgs_WheelJointSetTargetSteeringAngle* a,
-                                                            b3RecReader* rdr )
+															b3RecReader* rdr )
 {
 	b3WheelJoint_SetTargetSteeringAngle( b3RecMakeJointId( rdr, a->joint ), a->radians );
 }
@@ -1628,8 +1627,8 @@ static void b3RecDispatch_StateHash( const b3RecArgs_StateHash* a, b3RecReader* 
 	uint64_t computed = b3HashWorldState( world );
 	if ( computed != a->hash )
 	{
-		printf( "b3ReplayFile: StateHash mismatch (recorded=0x%llX, computed=0x%llX)\n",
-		        (unsigned long long)a->hash, (unsigned long long)computed );
+		printf( "b3ReplayFile: StateHash mismatch (recorded=0x%llX, computed=0x%llX)\n", (unsigned long long)a->hash,
+				(unsigned long long)computed );
 		rdr->diverged = true;
 	}
 }
@@ -1649,7 +1648,7 @@ static void b3RecDispatch_RecordingBounds( const b3RecArgs_RecordingBounds* a, b
 // also stashed for the viewer overlay. The stash helpers dereference the player struct, defined later
 // in this file, so they are forward declared and implemented in Block B below.
 
-static void           b3RecGrow( void** data, int* capacity, int need, int keep, int elemSize );
+static void b3RecGrow( void** data, int* capacity, int need, int keep, int elemSize );
 static b3RecDrawQuery* b3RecStashQueryBegin( b3RecPlayer* player, int kind, const b3RecRecordedHit* hits, int hitCount );
 
 // Grow the reader's hit scratch to at least n entries, preserving contents. n is bounded by the file
@@ -1677,10 +1676,10 @@ static bool b3RecVec3Differs( b3Vec3 a, b3Vec3 b )
 // from the re-issued query.
 typedef struct b3RecReplayQueryCtx
 {
-	b3RecReader*            rdr;
+	b3RecReader* rdr;
 	const b3RecRecordedHit* hits;
-	int                     count;
-	int                     cursor;
+	int count;
+	int cursor;
 } b3RecReplayQueryCtx;
 
 static bool b3RecReplayOverlapTrampoline( b3ShapeId id, void* ctx )
@@ -1740,8 +1739,8 @@ static bool b3RecReplayPlaneTrampoline( b3ShapeId id, const b3PlaneResult* plane
 		return true;
 	}
 	const b3RecRecordedHit* head = &rc->hits[rc->cursor];
-	int  recordedCount = head->planeCount;
-	bool ret           = head->userReturnB;
+	int recordedCount = head->planeCount;
+	bool ret = head->userReturnB;
 	if ( id.index1 != head->id.index1 || id.generation != head->id.generation || recordedCount != planeCount )
 	{
 		rc->rdr->diverged = true;
@@ -1767,7 +1766,7 @@ static void b3RecStashProxy( b3RecDrawQuery* q, const b3ShapeProxy* proxy )
 	int count = proxy->count;
 	if ( count > B3_MAX_SHAPE_CAST_POINTS )
 		count = B3_MAX_SHAPE_CAST_POINTS;
-	q->proxyCount  = count;
+	q->proxyCount = count;
 	q->proxyRadius = proxy->radius;
 	for ( int i = 0; i < count; ++i )
 	{
@@ -1783,7 +1782,7 @@ static void b3RecDispatch_QueryOverlapAABB( const b3RecArgs_QueryOverlapAABB* a,
 		return;
 	for ( uint32_t i = 0; i < n; ++i )
 	{
-		rdr->hits[i].id          = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].id = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
 		rdr->hits[i].userReturnB = b3RecR_BOOL( rdr );
 	}
 	(void)b3RecR_TREESTATS( rdr );
@@ -1797,7 +1796,7 @@ static void b3RecDispatch_QueryOverlapAABB( const b3RecArgs_QueryOverlapAABB* a,
 	{
 		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_OVERLAP_AABB, rdr->hits, (int)n );
 		q->filter = a->filter;
-		q->aabb   = a->aabb;
+		q->aabb = a->aabb;
 	}
 }
 
@@ -1809,7 +1808,7 @@ static void b3RecDispatch_QueryOverlapShape( const b3RecArgs_QueryOverlapShape* 
 		return;
 	for ( uint32_t i = 0; i < n; ++i )
 	{
-		rdr->hits[i].id          = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].id = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
 		rdr->hits[i].userReturnB = b3RecR_BOOL( rdr );
 	}
 	(void)b3RecR_TREESTATS( rdr );
@@ -1836,14 +1835,14 @@ static void b3RecDispatch_QueryCastRay( const b3RecArgs_QueryCastRay* a, b3RecRe
 		return;
 	for ( uint32_t i = 0; i < n; ++i )
 	{
-		rdr->hits[i].id             = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
-		rdr->hits[i].point          = b3RecR_POSITION( rdr );
-		rdr->hits[i].normal         = b3RecR_VEC3( rdr );
-		rdr->hits[i].fraction       = b3RecR_F32( rdr );
+		rdr->hits[i].id = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].point = b3RecR_POSITION( rdr );
+		rdr->hits[i].normal = b3RecR_VEC3( rdr );
+		rdr->hits[i].fraction = b3RecR_F32( rdr );
 		rdr->hits[i].userMaterialId = b3RecR_U64( rdr );
-		rdr->hits[i].triangleIndex  = b3RecR_I32( rdr );
-		rdr->hits[i].childIndex     = b3RecR_I32( rdr );
-		rdr->hits[i].userReturnF    = b3RecR_F32( rdr );
+		rdr->hits[i].triangleIndex = b3RecR_I32( rdr );
+		rdr->hits[i].childIndex = b3RecR_I32( rdr );
+		rdr->hits[i].userReturnF = b3RecR_F32( rdr );
 	}
 	(void)b3RecR_TREESTATS( rdr );
 	if ( !rdr->ok )
@@ -1855,8 +1854,8 @@ static void b3RecDispatch_QueryCastRay( const b3RecArgs_QueryCastRay* a, b3RecRe
 	if ( rdr->owner )
 	{
 		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_CAST_RAY, rdr->hits, (int)n );
-		q->filter      = a->filter;
-		q->origin      = a->origin;
+		q->filter = a->filter;
+		q->origin = a->origin;
 		q->translation = a->translation;
 	}
 }
@@ -1869,14 +1868,14 @@ static void b3RecDispatch_QueryCastShape( const b3RecArgs_QueryCastShape* a, b3R
 		return;
 	for ( uint32_t i = 0; i < n; ++i )
 	{
-		rdr->hits[i].id             = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
-		rdr->hits[i].point          = b3RecR_POSITION( rdr );
-		rdr->hits[i].normal         = b3RecR_VEC3( rdr );
-		rdr->hits[i].fraction       = b3RecR_F32( rdr );
+		rdr->hits[i].id = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].point = b3RecR_POSITION( rdr );
+		rdr->hits[i].normal = b3RecR_VEC3( rdr );
+		rdr->hits[i].fraction = b3RecR_F32( rdr );
 		rdr->hits[i].userMaterialId = b3RecR_U64( rdr );
-		rdr->hits[i].triangleIndex  = b3RecR_I32( rdr );
-		rdr->hits[i].childIndex     = b3RecR_I32( rdr );
-		rdr->hits[i].userReturnF    = b3RecR_F32( rdr );
+		rdr->hits[i].triangleIndex = b3RecR_I32( rdr );
+		rdr->hits[i].childIndex = b3RecR_I32( rdr );
+		rdr->hits[i].userReturnF = b3RecR_F32( rdr );
 	}
 	(void)b3RecR_TREESTATS( rdr );
 	if ( !rdr->ok )
@@ -1888,8 +1887,8 @@ static void b3RecDispatch_QueryCastShape( const b3RecArgs_QueryCastShape* a, b3R
 	if ( rdr->owner )
 	{
 		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_CAST_SHAPE, rdr->hits, (int)n );
-		q->filter      = a->filter;
-		q->origin      = a->origin;
+		q->filter = a->filter;
+		q->origin = a->origin;
 		q->translation = a->translation;
 		b3RecStashProxy( q, &a->proxy );
 	}
@@ -1900,13 +1899,13 @@ static void b3RecDispatch_QueryCastRayClosest( const b3RecArgs_QueryCastRayClose
 	b3RayResult rec = b3RecR_RAYRESULT( rdr );
 	if ( !rdr->ok )
 		return;
-	b3RayResult got   = b3World_CastRayClosest( rdr->replayWorldId, a->origin, a->translation, a->filter );
-	b3ShapeId   recId = b3RecMakeShapeId( rdr, rec.shapeId );
+	b3RayResult got = b3World_CastRayClosest( rdr->replayWorldId, a->origin, a->translation, a->filter );
+	b3ShapeId recId = b3RecMakeShapeId( rdr, rec.shapeId );
 	if ( got.hit != rec.hit ||
-		 ( got.hit && ( got.shapeId.index1 != recId.index1 || got.shapeId.generation != recId.generation ||
-						b3RecVec3Differs( b3SubPos( got.point, rec.point ), b3Vec3_zero ) ||
-						b3RecVec3Differs( got.normal, rec.normal ) || b3RecF32Differs( got.fraction, rec.fraction ) ||
-						got.userMaterialId != rec.userMaterialId ) ) )
+		 ( got.hit &&
+		   ( got.shapeId.index1 != recId.index1 || got.shapeId.generation != recId.generation ||
+			 b3RecVec3Differs( b3SubPos( got.point, rec.point ), b3Vec3_zero ) || b3RecVec3Differs( got.normal, rec.normal ) ||
+			 b3RecF32Differs( got.fraction, rec.fraction ) || got.userMaterialId != rec.userMaterialId ) ) )
 	{
 		rdr->diverged = true;
 	}
@@ -1914,15 +1913,15 @@ static void b3RecDispatch_QueryCastRayClosest( const b3RecArgs_QueryCastRayClose
 	{
 		// Stash the closest result as a single pooled hit so the shared draw loop renders its point.
 		b3RecRecordedHit h = { 0 };
-		h.id       = recId;
-		h.point    = rec.point;
-		h.normal   = rec.normal;
+		h.id = recId;
+		h.point = rec.point;
+		h.normal = rec.normal;
 		h.fraction = rec.fraction;
 		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_CAST_RAY_CLOSEST, &h, rec.hit ? 1 : 0 );
-		q->filter      = a->filter;
-		q->origin      = a->origin;
+		q->filter = a->filter;
+		q->origin = a->origin;
 		q->translation = a->translation;
-		q->rayResult   = rec;
+		q->rayResult = rec;
 	}
 }
 
@@ -1934,7 +1933,7 @@ static void b3RecDispatch_QueryCastMover( const b3RecArgs_QueryCastMover* a, b3R
 		return;
 	for ( uint32_t i = 0; i < n; ++i )
 	{
-		rdr->hits[i].id          = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		rdr->hits[i].id = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
 		rdr->hits[i].userReturnB = b3RecR_BOOL( rdr );
 	}
 	float recFraction = b3RecR_F32( rdr );
@@ -1948,10 +1947,10 @@ static void b3RecDispatch_QueryCastMover( const b3RecArgs_QueryCastMover* a, b3R
 	if ( rdr->owner )
 	{
 		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_CAST_MOVER, NULL, 0 );
-		q->filter       = a->filter;
-		q->origin       = a->origin;
-		q->mover        = a->mover;
-		q->translation  = a->translation;
+		q->filter = a->filter;
+		q->origin = a->origin;
+		q->mover = a->mover;
+		q->translation = a->translation;
 		q->castFraction = recFraction;
 	}
 }
@@ -1962,11 +1961,11 @@ static void b3RecDispatch_QueryCollideMover( const b3RecArgs_QueryCollideMover* 
 	// into one hit per plane with the group's count and return replicated, so the replay walker can
 	// re-group per shape.
 	uint32_t shapeCount = b3RecR_U32( rdr );
-	int      total      = 0;
+	int total = 0;
 	for ( uint32_t s = 0; s < shapeCount; ++s )
 	{
-		b3ShapeId id         = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
-		int       planeCount = b3RecR_I32( rdr );
+		b3ShapeId id = b3RecMakeShapeId( rdr, b3RecR_SHAPEID( rdr ) );
+		int planeCount = b3RecR_I32( rdr );
 		if ( planeCount < 0 )
 			planeCount = 0;
 		b3RecEnsureHits( rdr, total + planeCount );
@@ -1979,8 +1978,8 @@ static void b3RecDispatch_QueryCollideMover( const b3RecArgs_QueryCollideMover* 
 		bool ret = b3RecR_BOOL( rdr );
 		for ( int i = 0; i < planeCount; ++i )
 		{
-			rdr->hits[total + i].id          = id;
-			rdr->hits[total + i].planeCount  = planeCount;
+			rdr->hits[total + i].id = id;
+			rdr->hits[total + i].planeCount = planeCount;
 			rdr->hits[total + i].userReturnB = ret;
 		}
 		total += planeCount;
@@ -1996,7 +1995,7 @@ static void b3RecDispatch_QueryCollideMover( const b3RecArgs_QueryCollideMover* 
 		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_COLLIDE_MOVER, rdr->hits, total );
 		q->filter = a->filter;
 		q->origin = a->origin;
-		q->mover  = a->mover;
+		q->mover = a->mover;
 	}
 }
 
@@ -2009,7 +2008,7 @@ static int b3RecDispatchOne( b3RecReader* rdr )
 	{
 		return -1;
 	}
-	uint8_t  opcode      = b3RecR_U8( rdr );
+	uint8_t opcode = b3RecR_U8( rdr );
 	uint32_t payloadSize = b3RecR_U24( rdr );
 	if ( !rdr->ok )
 	{
@@ -2021,17 +2020,17 @@ static int b3RecDispatchOne( b3RecReader* rdr )
 	{
 #define ARG( TAG, field ) a.field = b3RecR_##TAG( rdr );
 #define B3_REC_OP( op, Name, RET, ... )                                                                                          \
-		case op:                                                                                                                     \
-		{                                                                                                                             \
-			b3RecArgs_##Name a;                                                                                                       \
-			memset( &a, 0, sizeof( a ) );                                                                                             \
-			__VA_ARGS__                                                                                                               \
-			if ( rdr->ok )                                                                                                            \
-			{                                                                                                                         \
-				b3RecDispatch_##Name( &a, rdr );                                                                                      \
-			}                                                                                                                         \
-			break;                                                                                                                    \
-		}
+	case op:                                                                                                                     \
+	{                                                                                                                            \
+		b3RecArgs_##Name a;                                                                                                      \
+		memset( &a, 0, sizeof( a ) );                                                                                            \
+		__VA_ARGS__                                                                                                              \
+		if ( rdr->ok )                                                                                                           \
+		{                                                                                                                        \
+			b3RecDispatch_##Name( &a, rdr );                                                                                     \
+		}                                                                                                                        \
+		break;                                                                                                                   \
+	}
 #include "recording_ops.inl"
 #undef B3_REC_OP
 #undef ARG
@@ -2077,7 +2076,7 @@ bool b3ValidateReplay( const void* data, int size, int workerCount )
 // b3RecPlayer implementation
 
 #define B3_REC_KEYFRAME_INTERVAL_DEFAULT 16
-#define B3_REC_KEYFRAME_BUDGET_DEFAULT   ( (size_t)512 * 1024 * 1024 )
+#define B3_REC_KEYFRAME_BUDGET_DEFAULT ( (size_t)512 * 1024 * 1024 )
 
 // Overflow-safe growth for the player's accumulating arrays. Counts come from the replay itself,
 // not the file, so this only guards the byte-size multiply. Preserves keep elements.
@@ -2101,7 +2100,7 @@ static void b3RecGrow( void** data, int* capacity, int need, int keep, int elemS
 		}
 		b3Free( *data, (size_t)*capacity * (size_t)elemSize );
 	}
-	*data     = grown;
+	*data = grown;
 	*capacity = newCap;
 }
 
@@ -2127,7 +2126,7 @@ static b3RecDrawQuery* b3RecStashQueryBegin( b3RecPlayer* player, int kind, cons
 	b3RecGrowFrameQueries( player );
 	b3RecDrawQuery* q = &player->frameQueries[player->frameQueryCount];
 	memset( q, 0, sizeof( *q ) );
-	q->kind     = kind;
+	q->kind = kind;
 	q->hitStart = player->frameHitCount;
 	q->hitCount = hitCount;
 	b3RecGrowFrameHits( player, hitCount );
@@ -2144,7 +2143,7 @@ static b3RecDrawQuery* b3RecStashQueryBegin( b3RecPlayer* player, int kind, cons
 static void b3RecTrackBodyCreate( b3RecPlayer* player, b3BodyId id )
 {
 	b3RecGrow( (void**)&player->bodyIds, &player->bodyIdCap, player->bodyIdCount + 1, player->bodyIdCount,
-	           (int)sizeof( b3BodyId ) );
+			   (int)sizeof( b3BodyId ) );
 	player->bodyIds[player->bodyIdCount] = id;
 	player->bodyIdCount += 1;
 }
@@ -2166,9 +2165,9 @@ static void b3RecTrackBodyDestroy( b3RecPlayer* player, b3BodyId id )
 // on, so the seed world must be walked once to populate the outliner list. Slot order is stable.
 static void b3RecSeedBodyIds( b3RecPlayer* player )
 {
-	b3World* world      = b3GetWorldFromId( player->rdr.replayWorldId );
+	b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
 	player->bodyIdCount = 0;
-	int count           = world->bodies.count;
+	int count = world->bodies.count;
 	for ( int i = 0; i < count; ++i )
 	{
 		if ( world->bodies.data[i].id != i )
@@ -2202,13 +2201,13 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 {
 	if ( registryOffset == 0 || registryByteCount == 0 )
 	{
-		rdr->slots     = NULL;
+		rdr->slots = NULL;
 		rdr->slotCount = 0;
 		return true;
 	}
 
 	int regStart = (int)registryOffset;
-	int regEnd   = regStart + (int)registryByteCount;
+	int regEnd = regStart + (int)registryByteCount;
 	if ( regEnd > size )
 	{
 		printf( "b3ReplayFile: registry block out of bounds\n" );
@@ -2220,13 +2219,13 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 		return false;
 	}
 
-	const uint8_t* rp    = (const uint8_t*)data + regStart;
-	uint32_t       count = (uint32_t)rp[0] | ( (uint32_t)rp[1] << 8 ) | ( (uint32_t)rp[2] << 16 ) | ( (uint32_t)rp[3] << 24 );
+	const uint8_t* rp = (const uint8_t*)data + regStart;
+	uint32_t count = (uint32_t)rp[0] | ( (uint32_t)rp[1] << 8 ) | ( (uint32_t)rp[2] << 16 ) | ( (uint32_t)rp[3] << 24 );
 	rp += 4;
 
 	if ( count == 0 )
 	{
-		rdr->slots     = NULL;
+		rdr->slots = NULL;
 		rdr->slotCount = 0;
 		return true;
 	}
@@ -2250,7 +2249,7 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 			b3Free( slots, (size_t)count * sizeof( b3RegistrySlot ) );
 			return false;
 		}
-		uint8_t  kind      = rp[0];
+		uint8_t kind = rp[0];
 		uint32_t byteCount = (uint32_t)rp[1] | ( (uint32_t)rp[2] << 8 ) | ( (uint32_t)rp[3] << 16 ) | ( (uint32_t)rp[4] << 24 );
 		rp += 5;
 		if ( rp + byteCount > dataEnd )
@@ -2272,13 +2271,13 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 			memcpy( bytes, rp, (size_t)byteCount );
 		}
 		rp += byteCount;
-		slots[i].kind      = (b3GeometryKind)kind;
+		slots[i].kind = (b3GeometryKind)kind;
 		slots[i].byteCount = (int)byteCount;
-		slots[i].bytes     = bytes;
-		slots[i].live      = NULL;
+		slots[i].bytes = bytes;
+		slots[i].live = NULL;
 	}
 
-	rdr->slots     = slots;
+	rdr->slots = slots;
 	rdr->slotCount = (int)count;
 	return true;
 }
@@ -2316,17 +2315,18 @@ static void b3RecFreeSlots( b3RegistrySlot* slots, int slotCount )
 // Walk the op stream once without dispatching: count Step ops and grab the first step's tuning.
 static void b3RecScanFile( b3RecPlayer* player )
 {
-	const uint8_t* data   = player->data;
-	int            size   = player->registryEnd;
-	int            cursor = player->headerEnd;
-	int            frameCount = 0;
-	bool           gotStep   = false;
+	const uint8_t* data = player->data;
+	int size = player->registryEnd;
+	int cursor = player->headerEnd;
+	int frameCount = 0;
+	bool gotStep = false;
 
 	while ( cursor + 4 <= size )
 	{
-		uint8_t  opcode      = data[cursor];
-		uint32_t payloadSize = (uint32_t)data[cursor + 1] | ( (uint32_t)data[cursor + 2] << 8 ) | ( (uint32_t)data[cursor + 3] << 16 );
-		int      payloadStart = cursor + 4;
+		uint8_t opcode = data[cursor];
+		uint32_t payloadSize =
+			(uint32_t)data[cursor + 1] | ( (uint32_t)data[cursor + 2] << 8 ) | ( (uint32_t)data[cursor + 3] << 16 );
+		int payloadStart = cursor + 4;
 		if ( payloadStart + (int)payloadSize > size )
 		{
 			break;
@@ -2337,10 +2337,11 @@ static void b3RecScanFile( b3RecPlayer* player )
 			if ( !gotStep && payloadSize >= 12 )
 			{
 				uint32_t dtBits = (uint32_t)data[payloadStart + 4] | ( (uint32_t)data[payloadStart + 5] << 8 ) |
-				                  ( (uint32_t)data[payloadStart + 6] << 16 ) | ( (uint32_t)data[payloadStart + 7] << 24 );
+								  ( (uint32_t)data[payloadStart + 6] << 16 ) | ( (uint32_t)data[payloadStart + 7] << 24 );
 				memcpy( &player->recordedDt, &dtBits, 4 );
-				player->recordedSubStepCount = (int)( (uint32_t)data[payloadStart + 8] | ( (uint32_t)data[payloadStart + 9] << 8 ) |
-				                                      ( (uint32_t)data[payloadStart + 10] << 16 ) | ( (uint32_t)data[payloadStart + 11] << 24 ) );
+				player->recordedSubStepCount =
+					(int)( (uint32_t)data[payloadStart + 8] | ( (uint32_t)data[payloadStart + 9] << 8 ) |
+						   ( (uint32_t)data[payloadStart + 10] << 16 ) | ( (uint32_t)data[payloadStart + 11] << 24 ) );
 				gotStep = true;
 			}
 		}
@@ -2378,13 +2379,13 @@ static void b3RecSeedKeyframeRegistry( b3RecPlayer* player )
 		b3RegistrySlot* slot = player->rdr.slots + i;
 		// Copy so b3InternGeometry can take ownership (it frees on dedup, which won't happen
 		// since we're inserting fresh entries in order).
-		int      n    = slot->byteCount > 0 ? slot->byteCount : 1;
+		int n = slot->byteCount > 0 ? slot->byteCount : 1;
 		uint8_t* copy = (uint8_t*)b3Alloc( (size_t)n );
 		if ( slot->byteCount > 0 )
 		{
 			memcpy( copy, slot->bytes, (size_t)slot->byteCount );
 		}
-		uint64_t h  = b3Hash64Blob( slot->bytes, slot->byteCount );
+		uint64_t h = b3Hash64Blob( slot->bytes, slot->byteCount );
 		uint32_t id = b3InternGeometry( reg, slot->kind, h, copy, slot->byteCount );
 		// Each slot should get id == its index since we seed in order.
 		B3_ASSERT( id == (uint32_t)i );
@@ -2396,8 +2397,8 @@ static void b3RecSeedKeyframeRegistry( b3RecPlayer* player )
 // the next frame's Step op.
 static void b3RecCaptureKeyframe( b3RecPlayer* player )
 {
-	b3World*   world = b3GetWorldFromId( player->rdr.replayWorldId );
-	b3RecBuffer buf  = { 0 };
+	b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
+	b3RecBuffer buf = { 0 };
 
 	int regCountBefore = player->keyframeRec->registry.count;
 	B3_UNUSED( regCountBefore );
@@ -2407,13 +2408,13 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 	B3_ASSERT( player->keyframeRec->registry.count == regCountBefore );
 
 	size_t bodyBytes = (size_t)player->bodyIdCount * sizeof( b3BodyId );
-	size_t newBytes  = (size_t)buf.capacity + bodyBytes;
+	size_t newBytes = (size_t)buf.capacity + bodyBytes;
 
 	// Make room under the budget by doubling the spacing and evicting off-grid keyframes.
 	while ( player->keyframeCount > 0 && player->keyframeBytes + newBytes > player->keyframeBudget )
 	{
 		player->keyframeInterval *= 2;
-		int    kept      = 0;
+		int kept = 0;
 		size_t keptBytes = 0;
 		for ( int i = 0; i < player->keyframeCount; ++i )
 		{
@@ -2429,7 +2430,7 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 				b3FreeKeyframe( kf );
 			}
 		}
-		bool progress    = ( kept < player->keyframeCount );
+		bool progress = ( kept < player->keyframeCount );
 		player->keyframeCount = kept;
 		player->keyframeBytes = keptBytes;
 		if ( !progress )
@@ -2442,22 +2443,21 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 	if ( player->keyframeCount >= player->keyframeCapacity )
 	{
 		int newCap = player->keyframeCapacity < 8 ? 8 : player->keyframeCapacity * 2;
-		player->keyframes = (b3RecKeyframe*)b3GrowAlloc( player->keyframes,
-		                                                  player->keyframeCapacity * (int)sizeof( b3RecKeyframe ),
-		                                                  newCap * (int)sizeof( b3RecKeyframe ) );
+		player->keyframes = (b3RecKeyframe*)b3GrowAlloc(
+			player->keyframes, player->keyframeCapacity * (int)sizeof( b3RecKeyframe ), newCap * (int)sizeof( b3RecKeyframe ) );
 		player->keyframeCapacity = newCap;
 	}
 
 	b3RecKeyframe* kf = player->keyframes + player->keyframeCount;
-	kf->image         = buf.data;
-	kf->imageSize     = buf.size;
+	kf->image = buf.data;
+	kf->imageSize = buf.size;
 	kf->imageCapacity = buf.capacity;
-	kf->frame         = player->frame;
-	kf->cursor        = player->rdr.cursor;
-	kf->divergeFrame  = player->divergeFrame;
-	kf->diverged      = player->rdr.diverged;
-	kf->bodyIdCount   = player->bodyIdCount;
-	kf->bodyIds       = NULL;
+	kf->frame = player->frame;
+	kf->cursor = player->rdr.cursor;
+	kf->divergeFrame = player->divergeFrame;
+	kf->diverged = player->rdr.diverged;
+	kf->bodyIdCount = player->bodyIdCount;
+	kf->bodyIds = NULL;
 	if ( bodyBytes > 0 )
 	{
 		kf->bodyIds = (b3BodyId*)b3Alloc( bodyBytes );
@@ -2478,12 +2478,12 @@ static void b3RecPlayerRestoreKeyframe( b3RecPlayer* player, const b3RecKeyframe
 		player->rdr.ok = false;
 		return;
 	}
-	player->rdr.cursor   = kf->cursor;
-	player->rdr.ok       = true;
+	player->rdr.cursor = kf->cursor;
+	player->rdr.ok = true;
 	player->rdr.diverged = kf->diverged;
-	player->frame        = kf->frame;
+	player->frame = kf->frame;
 	player->divergeFrame = kf->divergeFrame;
-	player->atEnd        = false;
+	player->atEnd = false;
 
 	// Restore the outliner list verbatim so ordinals match this frame.
 	b3RecGrow( (void**)&player->bodyIds, &player->bodyIdCap, kf->bodyIdCount, 0, (int)sizeof( b3BodyId ) );
@@ -2498,9 +2498,9 @@ static void b3RecPlayerRestoreKeyframe( b3RecPlayer* player, const b3RecKeyframe
 // stands up funnels through here so the sample renderer can draw replayed shapes.
 static b3WorldId b3RecPlayerCreateWorld( const b3RecPlayer* player )
 {
-	b3WorldDef worldDef            = b3DefaultWorldDef();
-	worldDef.createDebugShape      = player->createDebugShape;
-	worldDef.destroyDebugShape     = player->destroyDebugShape;
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.createDebugShape = player->createDebugShape;
+	worldDef.destroyDebugShape = player->destroyDebugShape;
 	worldDef.userDebugShapeContext = player->debugShapeContext;
 	// Carry the requested worker count so a rebuild on Restart or backward seek keeps the same
 	// graph partitioning. Replaying at a different count than recorded is a determinism check.
@@ -2528,8 +2528,8 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 	// header shape, and the dispatcher skips opcodes it doesn't know, so a minor mismatch still loads.
 	if ( hdr.versionMajor != B3_REC_VERSION_MAJOR )
 	{
-		printf( "b3RecPlayer_Create: version mismatch %u.%u vs %u.%u\n",
-		        hdr.versionMajor, hdr.versionMinor, B3_REC_VERSION_MAJOR, B3_REC_VERSION_MINOR );
+		printf( "b3RecPlayer_Create: version mismatch %u.%u vs %u.%u\n", hdr.versionMajor, hdr.versionMinor, B3_REC_VERSION_MAJOR,
+				B3_REC_VERSION_MINOR );
 		return NULL;
 	}
 	if ( hdr.pointerWidth != (uint8_t)sizeof( void* ) )
@@ -2552,7 +2552,7 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 
 	// snapshotSize and registryOffset are 64-bit and come from the file. Validate in 64-bit so a
 	// hostile value can't wrap when narrowed to int, then narrow once the bounds are known good.
-	uint64_t headerEnd64   = (uint64_t)sizeof( b3RecHeader ) + hdr.snapshotSize;
+	uint64_t headerEnd64 = (uint64_t)sizeof( b3RecHeader ) + hdr.snapshotSize;
 	uint64_t registryEnd64 = ( hdr.registryOffset != 0 ) ? hdr.registryOffset : (uint64_t)size;
 
 	if ( headerEnd64 < sizeof( b3RecHeader ) || headerEnd64 > registryEnd64 || registryEnd64 > (uint64_t)size )
@@ -2561,7 +2561,7 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 		return NULL;
 	}
 
-	int headerEnd   = (int)headerEnd64;
+	int headerEnd = (int)headerEnd64;
 	int registryEnd = (int)registryEnd64;
 
 	// Own a private copy so the caller can free their buffer right away.
@@ -2571,23 +2571,23 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 	b3RecPlayer* player = (b3RecPlayer*)b3Alloc( sizeof( b3RecPlayer ) );
 	memset( player, 0, sizeof( b3RecPlayer ) );
 
-	player->data              = copy;
-	player->size              = size;
-	player->headerEnd         = headerEnd;
-	player->registryEnd       = registryEnd;
-	player->lengthScale       = hdr.lengthScale;
+	player->data = copy;
+	player->size = size;
+	player->headerEnd = headerEnd;
+	player->registryEnd = registryEnd;
+	player->lengthScale = hdr.lengthScale;
 	player->previousLengthScale = b3GetLengthUnitsPerMeter();
-	player->frame             = 0;
-	player->frameCount        = 0;
-	player->recordedDt        = 0.0f;
+	player->frame = 0;
+	player->frameCount = 0;
+	player->recordedDt = 0.0f;
 	player->recordedSubStepCount = 0;
-	player->recordedWorkerCount  = workerCount;
-	player->atEnd             = false;
-	player->divergeFrame      = -1;
+	player->recordedWorkerCount = workerCount;
+	player->atEnd = false;
+	player->divergeFrame = -1;
 	player->keyframeMinInterval = B3_REC_KEYFRAME_INTERVAL_DEFAULT;
-	player->keyframeInterval    = B3_REC_KEYFRAME_INTERVAL_DEFAULT;
-	player->keyframeBudget      = B3_REC_KEYFRAME_BUDGET_DEFAULT;
-	player->lastKeyframeFrame   = 0;
+	player->keyframeInterval = B3_REC_KEYFRAME_INTERVAL_DEFAULT;
+	player->keyframeBudget = B3_REC_KEYFRAME_BUDGET_DEFAULT;
+	player->lastKeyframeFrame = 0;
 
 	// Set length scale so replay reproduces the same tuning constants.
 	if ( hdr.lengthScale > 0.0f )
@@ -2603,13 +2603,13 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 	b3WorldId worldId = b3RecPlayerCreateWorld( player );
 
 	// Initialize the reader.
-	player->rdr.data          = copy;
-	player->rdr.size          = size;
-	player->rdr.cursor        = headerEnd;
+	player->rdr.data = copy;
+	player->rdr.size = size;
+	player->rdr.cursor = headerEnd;
 	player->rdr.replayWorldId = worldId;
-	player->rdr.ok            = true;
-	player->rdr.diverged      = false;
-	player->rdr.owner         = player;
+	player->rdr.ok = true;
+	player->rdr.diverged = false;
+	player->rdr.owner = player;
 
 	// Load the trailing geometry registry.
 	if ( !b3RecLoadSlots( &player->rdr, copy, size, hdr.registryOffset, hdr.registryByteCount ) )
@@ -2624,7 +2624,7 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 	// restore image, owned by the copy held above.
 	{
 		int snapStart = (int)sizeof( b3RecHeader );
-		int snapSize  = (int)hdr.snapshotSize;
+		int snapSize = (int)hdr.snapshotSize;
 		b3World* replayWorld = b3GetWorldFromId( worldId );
 		if ( b3DeserializeIntoShell( copy + snapStart, snapSize, replayWorld, &player->rdr ) == false )
 		{
@@ -2635,9 +2635,9 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 			b3Free( player, sizeof( b3RecPlayer ) );
 			return NULL;
 		}
-		player->rdr.cursor  = headerEnd;
+		player->rdr.cursor = headerEnd;
 		player->frame0Image = copy + snapStart;
-		player->frame0Size  = snapSize;
+		player->frame0Size = snapSize;
 	}
 
 	// Seed the outliner from the restored world (snapshot bodies bypass the create hook) and save
@@ -2736,7 +2736,7 @@ bool b3RecPlayer_StepFrame( b3RecPlayer* player )
 
 	// Reset the per-frame query store before this frame's records are dispatched.
 	player->frameQueryCount = 0;
-	player->frameHitCount   = 0;
+	player->frameHitCount = 0;
 
 	// A frame is its leading inputs (queries and between-step mutators), one Step, and the Step's
 	// trailing StateHash. Queries are recorded before the Step they belong to, so they stash here
@@ -2800,17 +2800,17 @@ void b3RecPlayer_Restart( b3RecPlayer* player )
 		player->rdr.ok = false;
 		return;
 	}
-	player->rdr.cursor   = player->headerEnd;
-	player->rdr.ok       = true;
+	player->rdr.cursor = player->headerEnd;
+	player->rdr.ok = true;
 	player->rdr.diverged = false;
-	player->frame        = 0;
+	player->frame = 0;
 	player->divergeFrame = -1;
-	player->atEnd        = false;
+	player->atEnd = false;
 
 	// Frame 0 is the pre-step snapshot with no recorded queries, so clear the per-frame store. This
 	// keeps the last stepped frame's queries from lingering on a restart or a backward scrub to 0.
 	player->frameQueryCount = 0;
-	player->frameHitCount   = 0;
+	player->frameHitCount = 0;
 
 	// Roll the outliner body list back to its frame-0 contents.
 	b3RecGrow( (void**)&player->bodyIds, &player->bodyIdCap, player->frame0BodyIdCount, 0, (int)sizeof( b3BodyId ) );
@@ -2896,12 +2896,12 @@ b3RecPlayerInfo b3RecPlayer_GetInfo( const b3RecPlayer* player )
 	b3RecPlayerInfo info = { 0 };
 	if ( player != NULL )
 	{
-		info.frameCount   = player->frameCount;
-		info.workerCount  = player->recordedWorkerCount;
-		info.timeStep     = player->recordedDt;
+		info.frameCount = player->frameCount;
+		info.workerCount = player->recordedWorkerCount;
+		info.timeStep = player->recordedDt;
 		info.subStepCount = player->recordedSubStepCount;
-		info.lengthScale  = player->lengthScale;
-		info.bounds       = player->bounds;
+		info.lengthScale = player->lengthScale;
+		info.bounds = player->bounds;
 	}
 	return info;
 }
@@ -2949,9 +2949,9 @@ void b3RecPlayer_SetKeyframePolicy( b3RecPlayer* player, size_t budgetBytes, int
 	{
 		b3FreeKeyframe( player->keyframes + i );
 	}
-	player->keyframeCount     = 0;
-	player->keyframeBytes     = 0;
-	player->keyframeInterval  = player->keyframeMinInterval;
+	player->keyframeCount = 0;
+	player->keyframeBytes = 0;
+	player->keyframeInterval = player->keyframeMinInterval;
 	player->lastKeyframeFrame = 0;
 }
 
@@ -3028,6 +3028,15 @@ static void b3RecDrawProxy( b3DebugDraw* draw, b3Pos basePos, const b3RecDrawQue
 			draw->DrawPointFcn( p, 10.0f, color, draw->context );
 		}
 	}
+	else if ( q->proxyCount == 2 && q->proxyRadius > 0.0f )
+	{
+		if ( draw->DrawCapsuleFcn )
+		{
+			b3Pos p1 = b3OffsetPos( basePos, q->proxyPoints[0] );
+			b3Pos p2 = b3OffsetPos( basePos, q->proxyPoints[1] );
+			draw->DrawCapsuleFcn( p1, p2, q->proxyRadius, color, 0.5f, draw->context );
+		}
+	}
 	else if ( q->proxyCount >= 2 && draw->DrawPointFcn )
 	{
 		for ( int i = 0; i < q->proxyCount; ++i )
@@ -3060,7 +3069,7 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 			case B3_RECQ_CAST_RAY_CLOSEST:
 			{
 				b3Pos origin = q->origin;
-				b3Pos end    = b3OffsetPos( origin, q->translation );
+				b3Pos end = b3OffsetPos( origin, q->translation );
 				if ( draw->DrawSegmentFcn )
 				{
 					draw->DrawSegmentFcn( origin, end, b3_colorYellow, draw->context );
@@ -3085,8 +3094,7 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 				// Draw the cast line and the proxy at its start, then each hit point and normal.
 				if ( draw->DrawSegmentFcn )
 				{
-					draw->DrawSegmentFcn( q->origin, b3OffsetPos( q->origin, q->translation ), b3_colorSkyBlue,
-										  draw->context );
+					draw->DrawSegmentFcn( q->origin, b3OffsetPos( q->origin, q->translation ), b3_colorSkyBlue, draw->context );
 				}
 				b3RecDrawProxy( draw, q->origin, q, b3_colorLightGreen );
 				for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
@@ -3098,12 +3106,12 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 					}
 					if ( draw->DrawSegmentFcn )
 					{
-						draw->DrawSegmentFcn( h->point, b3OffsetPos( h->point, b3MulSV( 0.2f, h->normal ) ),
-											  b3_colorLightSkyBlue, draw->context );
+						draw->DrawSegmentFcn( h->point, b3OffsetPos( h->point, b3MulSV( 0.2f, h->normal ) ), b3_colorLightSkyBlue,
+											  draw->context );
 					}
-					if (draw->DrawSphereFcn)
+					if ( draw->DrawSphereFcn )
 					{
-						b3Pos p = b3OffsetPos(q->origin, b3MulSV(h->fraction, q->translation));
+						b3Pos p = b3OffsetPos( q->origin, b3MulSV( h->fraction, q->translation ) );
 						b3RecDrawProxy( draw, p, q, b3_colorSkyBlue );
 					}
 				}
@@ -3113,28 +3121,28 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 			case B3_RECQ_COLLIDE_MOVER:
 			{
 				// 3D debug draw has no solid capsule, so draw the mover axis and its end caps.
-				b3Pos      c1 = b3OffsetPos( q->origin, q->mover.center1 );
-				b3Pos      c2 = b3OffsetPos( q->origin, q->mover.center2 );
-				b3HexColor c  = q->kind == B3_RECQ_CAST_MOVER ? b3_colorLightSkyBlue : b3_colorTan;
-				if ( draw->DrawSegmentFcn )
+				b3Pos c1 = b3OffsetPos( q->origin, q->mover.center1 );
+				b3Pos c2 = b3OffsetPos( q->origin, q->mover.center2 );
+				b3HexColor c = q->kind == B3_RECQ_CAST_MOVER ? b3_colorLightSkyBlue : b3_colorTan;
+				if ( draw->DrawCapsuleFcn )
 				{
-					draw->DrawSegmentFcn( c1, c2, c, draw->context );
+					draw->DrawCapsuleFcn( c1, c2, q->mover.radius, c, 0.5f, draw->context );
 				}
-				if ( draw->DrawPointFcn )
-				{
-					draw->DrawPointFcn( c1, 4.0f, c, draw->context );
-					draw->DrawPointFcn( c2, 4.0f, c, draw->context );
-				}
+				//if ( draw->DrawPointFcn )
+				//{
+				//	draw->DrawPointFcn( c1, 4.0f, c, draw->context );
+				//	draw->DrawPointFcn( c2, 4.0f, c, draw->context );
+				//}
 				// Collide-mover stashes one hit per collision plane, origin relative. Cast-mover stashes
 				// no hits, so this loop is a no-op there.
 				for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
 				{
-					const b3RecRecordedHit* h     = &player->frameHits[hi];
-					b3Pos                   point = b3OffsetPos( q->origin, h->plane.point );
+					const b3RecRecordedHit* h = &player->frameHits[hi];
+					b3Pos point = b3OffsetPos( q->origin, h->plane.point );
 					if ( draw->DrawSegmentFcn )
 					{
-						draw->DrawSegmentFcn( point, b3OffsetPos( point, b3MulSV( 0.2f, h->plane.plane.normal ) ),
-											  b3_colorOrange, draw->context );
+						draw->DrawSegmentFcn( point, b3OffsetPos( point, b3MulSV( 0.2f, h->plane.plane.normal ) ), b3_colorOrange,
+											  draw->context );
 					}
 				}
 				break;
@@ -3180,12 +3188,12 @@ b3RecQueryInfo b3RecPlayer_GetFrameQuery( const b3RecPlayer* player, int index )
 	}
 
 	const b3RecDrawQuery* q = &player->frameQueries[index];
-	info.type        = (b3RecQueryType)q->kind;
-	info.filter      = q->filter;
-	info.aabb        = q->aabb;
-	info.origin      = q->origin;
+	info.type = (b3RecQueryType)q->kind;
+	info.filter = q->filter;
+	info.aabb = q->aabb;
+	info.origin = q->origin;
 	info.translation = q->translation;
-	info.hitCount    = q->hitCount;
+	info.hitCount = q->hitCount;
 	return info;
 }
 
@@ -3204,22 +3212,22 @@ b3RecQueryHit b3RecPlayer_GetFrameQueryHit( const b3RecPlayer* player, int query
 	}
 
 	const b3RecRecordedHit* h = &player->frameHits[q->hitStart + hitIndex];
-	hit.shape    = h->id;
-	hit.point    = h->point;
-	hit.normal   = h->normal;
+	hit.shape = h->id;
+	hit.point = h->point;
+	hit.normal = h->normal;
 	hit.fraction = h->fraction;
 	return hit;
 }
 
 void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShapeCallback* createDebugShape,
-                                         b3DestroyDebugShapeCallback* destroyDebugShape, void* context )
+										 b3DestroyDebugShapeCallback* destroyDebugShape, void* context )
 {
 	if ( player == NULL )
 	{
 		return;
 	}
 
-	player->createDebugShape  = createDebugShape;
+	player->createDebugShape = createDebugShape;
 	player->destroyDebugShape = destroyDebugShape;
 	player->debugShapeContext = context;
 
@@ -3231,12 +3239,12 @@ void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShape
 		b3DestroyWorld( player->rdr.replayWorldId );
 	}
 	player->rdr.replayWorldId = b3RecPlayerCreateWorld( player );
-	player->rdr.cursor        = player->headerEnd;
-	player->rdr.ok            = true;
-	player->rdr.diverged      = false;
-	player->frame             = 0;
-	player->divergeFrame      = -1;
-	player->atEnd             = false;
+	player->rdr.cursor = player->headerEnd;
+	player->rdr.ok = true;
+	player->rdr.diverged = false;
+	player->frame = 0;
+	player->divergeFrame = -1;
+	player->atEnd = false;
 
 	// Re-seed the world so its shapes are recreated through the new callbacks.
 	b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );

@@ -819,6 +819,28 @@ static void DrawSphereFcn( b3Pos p, float radius, b3HexColor color, float alpha,
 				  DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_NONE );
 }
 
+static void DrawCapsuleFcn( b3Pos p1, b3Pos p2, float radius, b3HexColor color, float alpha, void* context )
+{
+	(void)context;
+
+	b3Vec3 e = b3SubPos(p2, p1);
+	float length = b3Length( e );
+	if (length < FLT_EPSILON)
+	{
+		DrawSphereEx( (b3WorldTransform){ p1, b3Quat_identity }, radius, HexColorAToVec4( color, alpha ), DEFAULT_METALLIC,
+					  DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_NONE );
+		return;
+	}
+
+	b3Vec3 en = b3MulSV( 1.0f / length, e );
+	b3WorldTransform transform;
+	transform.p = b3OffsetPos( p1, b3MulSV( 0.5f, e ));
+	transform.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisX, en );
+
+	DrawCapsuleEx( transform, 0.5f * length, radius, HexColorAToVec4( color, alpha ), DEFAULT_METALLIC,
+				  DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_NONE );
+}
+
 static void DrawBoundsFcn( b3AABB aabb, b3HexColor color, void* context )
 {
 	(void)context;
@@ -935,6 +957,7 @@ void MakeDebugDraw( b3DebugDraw* out )
 	out->DrawTransformFcn = DrawTransformFcn;
 	out->DrawPointFcn = DrawPointFcn;
 	out->DrawSphereFcn = DrawSphereFcn;
+	out->DrawCapsuleFcn = DrawCapsuleFcn;
 	out->DrawBoundsFcn = DrawBoundsFcn;
 	out->DrawBoxFcn = DrawBoxFcn;
 	out->DrawStringFcn = DrawStringFcn;

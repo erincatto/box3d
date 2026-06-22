@@ -105,6 +105,11 @@ static void b3EmptyDrawSphere( b3Pos p, float radius, b3HexColor color, float al
 	B3_UNUSED( p, radius, color, alpha, context );
 }
 
+static void b3EmptyDrawCapsule( b3Pos p1, b3Pos p2, float radius, b3HexColor color, float alpha, void* context )
+{
+	B3_UNUSED( p1, p2, radius, color, alpha, context );
+}
+
 static void b3EmptyDrawBounds( b3AABB aabb, b3HexColor color, void* context )
 {
 	B3_UNUSED( aabb, color, context );
@@ -130,6 +135,7 @@ b3DebugDraw b3DefaultDebugDraw( void )
 	draw.DrawTransformFcn = b3EmptyDrawTransform;
 	draw.DrawPointFcn = b3EmptyDrawPoint;
 	draw.DrawSphereFcn = b3EmptyDrawSphere;
+	draw.DrawCapsuleFcn = b3EmptyDrawCapsule;
 	draw.DrawBoundsFcn = b3EmptyDrawBounds;
 	draw.DrawBoxFcn = b3EmptyDrawBox;
 	draw.DrawStringFcn = b3EmptyDrawString;
