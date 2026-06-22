@@ -15,7 +15,6 @@ static constexpr float RADIAL_ZOOM_SENS = 0.02f; // meters per pixel (alt+right-
 static constexpr float FLY_SPEED_STEP = 1.0f;	 // m/s per scroll tick
 static constexpr float ZOOM_STEP = 0.9f;		 // multiplier per scroll tick
 static constexpr float MIN_DIST = 0.1f;
-static constexpr float MAX_DIST = 1000.0f;
 static constexpr float MIN_SPEED = 0.06f;	 // matches box3d's 0.001*60
 static constexpr float MAX_SPEED = 30000.0f; // matches box3d's 500*60
 static constexpr float PITCH_LIM = HALF_PI - 0.01f;
@@ -23,7 +22,7 @@ static constexpr float THIRD_PERSON_MIN_RADIUS = 0.25f; // matches box3d
 
 // Build a reverse-Z RH projection and its inverse together by swapping the
 // near/far args. mat4PerspectiveAndInverse normally puts ndc.z=0 at near, 1
-// at far; with the arguments swapped you get 1 at near, 0 at far - what the
+// at far. With the arguments swapped you get 1 at near, 0 at far - what the
 // project's pipeline expects (compare GREATER, far-clear 0). The inverse is
 // closed-form from the same params so the un-project path stays accurate.
 static void ReverseZPerspectiveAndInverse( Mat4* outProj, Mat4* outProjInv, float fov, float aspect, float n, float f )
@@ -31,8 +30,8 @@ static void ReverseZPerspectiveAndInverse( Mat4* outProj, Mat4* outProjInv, floa
 	MakePerspectiveAndInverse( outProj, outProjInv, fov, aspect, f, n );
 }
 
-// Yaw/pitch -> the "+view-Z" direction (pivot -> camera), matching Box3D's
-// sample convention. The actual looking direction is -ForwardFromAngles.
+// Yaw/pitch -> the "+view-Z" direction (pivot -> camera). The actual looking
+// direction is -ForwardFromAngles.
 static b3Vec3 ForwardFromAngles( float yaw, float pitch )
 {
 	const float cp = cosf( pitch );
@@ -59,7 +58,16 @@ static void RebuildBasisAndView( Camera& c )
 	c.m_right = right;
 	c.m_up = up;
 	c.m_forward = forward;
-	MakeViewAndInverse( &c.m_view, &c.m_viewInv, right, up, forward, c.m_position );
+
+	// The basis view assumes meters, Y-up, eye at the origin. Geometry reaches the
+	// GPU shifted against the draw origin in length units, so fold the sim->display
+	// map in: view = basis * S maps a length-unit eye-relative point to view space.
+	// The inverse mirrors it (viewInv = S^-1 * basisInv) so unproject and the sky's
+	// invViewProj recover length-unit points.
+	Mat4 viewBasis, viewBasisInv;
+	MakeViewAndInverse( &viewBasis, &viewBasisInv, right, up, forward, c.m_position );
+	c.m_view = MulMM4( viewBasis, c.m_renderXform );
+	c.m_viewInv = MulMM4( c.m_renderXformInv, viewBasisInv );
 }
 
 Camera::Camera()
@@ -69,7 +77,7 @@ Camera::Camera()
 	, m_radius( 25.0f )
 	, m_fov( 60.0f * DEG_TO_RAD )
 	, m_near( 0.1f )
-	, m_far( 1000.0f )
+	, m_far( kViewDistance )
 	, m_speed( 10.0f )
 	, m_width( 0 )
 	, m_height( 0 )
@@ -83,6 +91,10 @@ Camera::Camera()
 	, m_viewInv( MakeIdentity() )
 	, m_proj( MakeIdentity() )
 	, m_projInv( MakeIdentity() )
+	, m_renderXform( MakeIdentity() )
+	, m_renderXformInv( MakeIdentity() )
+	, m_lengthUnitsPerMeter( 1.0f )
+	, m_zUp( false )
 {
 	RebuildBasisAndView( *this );
 	RebuildProj( 1.0f );
@@ -95,19 +107,63 @@ void Camera::RebuildProj( float aspect )
 	ReverseZPerspectiveAndInverse( &m_proj, &m_projInv, m_fov, aspect, m_near, m_far );
 }
 
+void Camera::SetRenderTransform( float lengthUnitsPerMeter, bool zUp )
+{
+	m_lengthUnitsPerMeter = lengthUnitsPerMeter > 0.0f ? lengthUnitsPerMeter : 1.0f;
+	m_zUp = zUp;
+
+	const float s = 1.0f / m_lengthUnitsPerMeter; // meters per length unit
+	const float u = m_lengthUnitsPerMeter;		  // length units per meter
+
+	if ( zUp )
+	{
+		// S = s * Rx(-90): sim (x,y,z) -> display (x, z, -y), so sim +Z is view up.
+		// A proper rotation (det +1), not an axis swap, so winding and normals stay
+		// correct and back-face culling is not inverted.
+		m_renderXform = Mat4{ { s, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, -s, 0.0f }, { 0.0f, s, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
+		m_renderXformInv =
+			Mat4{ { u, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, u, 0.0f }, { 0.0f, -u, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
+	}
+	else
+	{
+		m_renderXform = Mat4{ { s, 0.0f, 0.0f, 0.0f }, { 0.0f, s, 0.0f, 0.0f }, { 0.0f, 0.0f, s, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
+		m_renderXformInv =
+			Mat4{ { u, 0.0f, 0.0f, 0.0f }, { 0.0f, u, 0.0f, 0.0f }, { 0.0f, 0.0f, u, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
+	}
+
+	RebuildBasisAndView( *this );
+}
+
+// Map a simulation-space AABB into display space (meters, view up axis). S is a
+// scaled signed-axis permutation, so transforming the two opposite corners and
+// taking the per-axis min/max recovers the display AABB exactly.
+static b3AABB TransformAABBToDisplay( const Mat4& s, b3AABB a )
+{
+	Vec4 lo = MulMV4( s, MakeVec4( a.lowerBound.x, a.lowerBound.y, a.lowerBound.z, 1.0f ) );
+	Vec4 hi = MulMV4( s, MakeVec4( a.upperBound.x, a.upperBound.y, a.upperBound.z, 1.0f ) );
+	b3AABB out;
+	out.lowerBound = { fminf( lo.x, hi.x ), fminf( lo.y, hi.y ), fminf( lo.z, hi.z ) };
+	out.upperBound = { fmaxf( lo.x, hi.x ), fmaxf( lo.y, hi.y ), fmaxf( lo.z, hi.z ) };
+	return out;
+}
+
 void Camera::Frame( b3AABB aabb, float aspect, float padding )
 {
 	if ( !b3IsValidAABB( aabb ) )
 	{
 		return;
 	}
+
+	// Bounds arrive in simulation space. frame against the display-space box so the
+	// fit accounts for the render scale and up axis.
+	aabb = TransformAABBToDisplay( m_renderXform, aabb );
 	b3Vec3 center = b3AABB_Center( aabb );
 	b3Vec3 ext = b3AABB_Extents( aabb ); // half-extents
 	float r = sqrtf( ext.x * ext.x + ext.y * ext.y + ext.z * ext.z );
 	m_pivot = b3ToPos( center );
 	if ( r < 1.0e-6f )
 	{
-		// Point-like; preserve current radius, just retarget. The cached
+		// Point-like. Preserve current radius, just retarget. The cached
 		// position/basis depend on m_pivot, so refresh them before returning.
 		RebuildBasisAndView( *this );
 		return;
@@ -128,16 +184,8 @@ void Camera::Frame( b3AABB aabb, float aspect, float padding )
 void Camera::SetOrbit( float yawRadians, float pitchRadians, float radius )
 {
 	m_yaw = yawRadians;
-	if ( pitchRadians > PITCH_LIM )
-		pitchRadians = PITCH_LIM;
-	if ( pitchRadians < -PITCH_LIM )
-		pitchRadians = -PITCH_LIM;
-	m_pitch = pitchRadians;
-	if ( radius < MIN_DIST )
-		radius = MIN_DIST;
-	if ( radius > MAX_DIST )
-		radius = MAX_DIST;
-	m_radius = radius;
+	m_pitch = b3ClampFloat( pitchRadians, -PITCH_LIM, PITCH_LIM );
+	m_radius = b3ClampFloat( radius, MIN_DIST, kViewDistance );
 	RebuildBasisAndView( *this );
 }
 
@@ -171,34 +219,35 @@ PickRay Camera::BuildPickRay( float x, float y ) const
 	}
 
 	// Pixel -> NDC. Origin top-left, Y down. NDC has Y up, X right.
-	const float ndcX = ( 2.0f * x / (float)m_width ) - 1.0f;
-	const float ndcY = 1.0f - ( 2.0f * y / (float)m_height );
+	float ndcX = ( 2.0f * x / (float)m_width ) - 1.0f;
+	float ndcY = 1.0f - ( 2.0f * y / (float)m_height );
 
 	// Reverse-Z: near maps to clip-Z = +w, far to 0. Unproject both clip points
 	// through inv(P*V) = viewInv * projInv, no runtime matrix inversion. The
 	// matrices are eye-relative, so the recovered points are too.
-	const Mat4 invVP = MulMM4( m_viewInv, m_projInv );
+	Mat4 invVP = MulMM4( m_viewInv, m_projInv );
 
-	const Vec4 clipN = MakeVec4( ndcX, ndcY, 1.0f, 1.0f );
-	const Vec4 clipF = MakeVec4( ndcX, ndcY, 0.0f, 1.0f );
+	Vec4 clipN = MakeVec4( ndcX, ndcY, 1.0f, 1.0f );
+	Vec4 clipF = MakeVec4( ndcX, ndcY, 0.0f, 1.0f );
 
-	const Vec4 wN = MulMV4( invVP, clipN );
-	const Vec4 wF = MulMV4( invVP, clipF );
+	Vec4 wN = MulMV4( invVP, clipN );
+	Vec4 wF = MulMV4( invVP, clipF );
 
 	if ( wN.w == 0.0f || wF.w == 0.0f )
 	{
 		return ray;
 	}
 
-	const float invWN = 1.0f / wN.w;
-	const float invWF = 1.0f / wF.w;
+	float invWN = 1.0f / wN.w;
+	float invWF = 1.0f / wF.w;
 
 	b3Vec3 nearWorld = { wN.x * invWN, wN.y * invWN, wN.z * invWN };
 	b3Vec3 farWorld = { wF.x * invWF, wF.y * invWF, wF.z * invWF };
 
-	// Lift the near point to absolute world with the double eye. Translation is
-	// a delta so it stays eye-relative and needs no offset.
-	ray.origin = b3OffsetPos( m_worldEye, nearWorld );
+	// viewInv folds in S^-1, so the unprojected points are in simulation space
+	// relative to the eye. Lift the near point with the simulation eye so the ray
+	// feeds straight into the world queries, which run in length units.
+	ray.origin = b3OffsetPos( DrawOrigin(), nearWorld );
 	ray.translation = b3Sub( farWorld, nearWorld );
 	return ray;
 }
@@ -206,7 +255,7 @@ PickRay Camera::BuildPickRay( float x, float y ) const
 void Camera::OnEvent( const sapp_event* e )
 {
 	uint32_t mods = e->modifiers & ( SAPP_MODIFIER_SHIFT | SAPP_MODIFIER_CTRL | SAPP_MODIFIER_ALT );
-	const bool canOrbit = mods == SAPP_MODIFIER_ALT;
+	bool canOrbit = mods == SAPP_MODIFIER_ALT;
 
 	switch ( e->type )
 	{
@@ -450,8 +499,8 @@ void Camera::Update( float dt, int width, int height )
 			m_radius -= RADIAL_ZOOM_SENS * m_radialZoomDY;
 			if ( m_radius < MIN_DIST )
 				m_radius = MIN_DIST;
-			if ( m_radius > MAX_DIST )
-				m_radius = MAX_DIST;
+			if ( m_radius > kViewDistance )
+				m_radius = kViewDistance;
 		}
 
 		if ( m_scrollAccum != 0.0f )
@@ -459,8 +508,8 @@ void Camera::Update( float dt, int width, int height )
 			m_radius *= powf( ZOOM_STEP, m_scrollAccum );
 			if ( m_radius < MIN_DIST )
 				m_radius = MIN_DIST;
-			if ( m_radius > MAX_DIST )
-				m_radius = MAX_DIST;
+			if ( m_radius > kViewDistance )
+				m_radius = kViewDistance;
 		}
 	}
 

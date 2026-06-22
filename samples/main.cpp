@@ -72,7 +72,7 @@ static void OnInit( void )
 
 	constexpr float DEG = 3.14159265358979323846f / 180.0f;
 	s_context.camera.SetFov( 50.0f * DEG );
-	s_context.camera.SetClip( 0.1f, 1000.0f );
+	s_context.camera.SetClip( 0.1f, Camera::kViewDistance );
 
 	s_context.Load();
 
@@ -295,10 +295,17 @@ static void OnFrame( void )
 	Camera& camera = s_context.camera;
 	camera.Update( dt, W, H );
 
+	// Push the current length scale and Z-up choice. The replay player sets length
+	// units from its header on load and restores them on close, so querying every
+	// frame tracks load/unload without extra wiring. Live samples sit at 1 unit per
+	// meter, leaving the transform identity.
+	camera.SetRenderTransform( b3GetLengthUnitsPerMeter(), s_context.viewZUp );
+
 	// Sync the draw origin to the camera eye once per frame, before any drawing. This must hold even
 	// for samples that drive their own Step without calling Sample::Step. Render re-syncs after Step
-	// because a third person follow moves the eye while stepping.
-	SetDrawOrigin( camera.m_worldEye );
+	// because a third person follow moves the eye while stepping. The draw origin is in simulation
+	// space; the view folds in the scale and up axis.
+	SetDrawOrigin( camera.DrawOrigin() );
 
 	ResetFrameArena();
 

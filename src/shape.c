@@ -381,7 +381,19 @@ b3ShapeId b3CreateTransformedHullShape( b3BodyId bodyId, const b3ShapeDef* def, 
 										b3Vec3 scale )
 {
 	B3_VALIDATE( b3IsValidHull( hull ) );
-	return b3CreateShape( bodyId, def, hull, b3_hullShape, transform, scale, true );
+	b3ShapeId shapeId = b3CreateShape( bodyId, def, hull, b3_hullShape, transform, scale, true );
+	if ( shapeId.index1 != 0 )
+	{
+		b3World* world = b3GetUnlockedWorld( bodyId.world0 );
+		if ( world != NULL && world->recording != NULL )
+		{
+			// Intern the untransformed hull and record the transform, so replay re-bakes the same data.
+			uint32_t geometryId = b3RecInternHull( world->recording, hull );
+			b3RecArgs_CreateTransformedHullShape createArgs = { bodyId, *def, geometryId, transform, scale };
+			b3RecWriteRet_CreateTransformedHullShape( world->recording, &createArgs, shapeId );
+		}
+	}
+	return shapeId;
 }
 
 b3ShapeId b3CreateMeshShape( b3BodyId bodyId, const b3ShapeDef* def, const b3MeshData* mesh, b3Vec3 scale )

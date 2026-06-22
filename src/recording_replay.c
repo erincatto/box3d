@@ -995,6 +995,27 @@ static void b3RecDispatch_CreateHullShape( const b3RecArgs_CreateHullShape* a, b
 	b3RecCheckShapeId( rdr, gotId, recId );
 }
 
+static void b3RecDispatch_CreateTransformedHullShape( const b3RecArgs_CreateTransformedHullShape* a, b3RecReader* rdr )
+{
+	b3ShapeId recId = b3RecR_SHAPEID( rdr );
+	if ( !rdr->ok )
+	{
+		return;
+	}
+	uint32_t id = a->geometryId;
+	if ( id >= (uint32_t)rdr->slotCount )
+	{
+		printf( "b3ReplayFile: transformed hull geometryId %u out of range\n", id );
+		rdr->ok = false;
+		return;
+	}
+	b3RegistrySlot* slot = rdr->slots + id;
+	b3BodyId bodyId = b3RecMakeBodyId( rdr, a->body );
+	// Transform and scale are re-baked into fresh hull data by the create, matching the recording.
+	b3ShapeId gotId = b3CreateTransformedHullShape( bodyId, &a->def, (const b3HullData*)slot->bytes, a->transform, a->scale );
+	b3RecCheckShapeId( rdr, gotId, recId );
+}
+
 static void b3RecDispatch_CreateMeshShape( const b3RecArgs_CreateMeshShape* a, b3RecReader* rdr )
 {
 	b3ShapeId recId = b3RecR_SHAPEID( rdr );

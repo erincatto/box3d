@@ -1014,6 +1014,19 @@ static int AllOps( void )
 	b3ShapeId boxShapeId = b3CreateHullShape( boxBodyId, &boxShapeDef, &boxHull.base );
 	ENSURE( b3Shape_IsValid( boxShapeId ) );
 
+	// Transformed hull shape on a fifth dynamic body (b3CreateTransformedHullShape path)
+	b3BodyDef xformBodyDef = b3DefaultBodyDef();
+	xformBodyDef.type = b3_dynamicBody;
+	xformBodyDef.position = (b3Pos){ 12.0f, 5.0f, 0.0f };
+	b3BodyId xformBodyId = b3CreateBody( worldId, &xformBodyDef );
+	ENSURE( b3Body_IsValid( xformBodyId ) );
+	b3ShapeDef xformShapeDef = b3DefaultShapeDef();
+	xformShapeDef.density = 1.0f;
+	b3Transform xformXf = { (b3Vec3){ 0.1f, 0.2f, -0.1f }, b3MakeQuatFromAxisAngle( (b3Vec3){ 0.0f, 1.0f, 0.0f }, 0.4f ) };
+	b3ShapeId xformShapeId = b3CreateTransformedHullShape( xformBodyId, &xformShapeDef, customHull, xformXf,
+														  (b3Vec3){ 1.25f, 0.75f, 1.5f } );
+	ENSURE( b3Shape_IsValid( xformShapeId ) );
+
 	// Mesh, height field, and compound static shapes (3D-only)
 	b3BodyDef meshBodyDef = b3DefaultBodyDef();
 	meshBodyDef.type = b3_staticBody;
@@ -1428,6 +1441,71 @@ static int AllOps( void )
 	return 0;
 }
 
+// A transformed hull bakes its transform and non-uniform scale into fresh hull data at create time.
+// It must be recorded like any other shape create, else its shape id allocation is invisible to the
+// player and every later id drifts. A plain hull created after it would then mismatch on replay.
+static int TransformedHullRoundTrip( void )
+{
+	b3Vec3 pts[8] = {
+		{ -1.0f, -1.0f, -1.0f }, {  1.0f, -1.0f, -1.0f },
+		{  1.0f,  1.0f, -1.0f }, { -1.0f,  1.0f, -1.0f },
+		{ -1.0f, -1.0f,  1.0f }, {  1.0f, -1.0f,  1.0f },
+		{  1.0f,  1.0f,  1.0f }, { -1.0f,  1.0f,  1.0f },
+	};
+	b3HullData* hull = b3CreateHull( pts, 8, 8 );
+	ENSURE( hull != NULL );
+
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+
+	b3World_StartRecording( worldId, rec );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.density    = 1.0f;
+
+	// Baked transform with a rotation and non-uniform scale, the path Unreal uses for instanced hulls.
+	b3Transform xf  = { (b3Vec3){ 0.25f, 0.0f, -0.5f }, b3MakeQuatFromAxisAngle( (b3Vec3){ 0.0f, 0.0f, 1.0f }, 0.3f ) };
+	b3Vec3      scl = { 1.5f, 0.5f, 2.0f };
+	for ( int i = 0; i < 3; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type      = b3_dynamicBody;
+		bodyDef.position  = (b3Pos){ (float)( i * 3 ), 5.0f, 0.0f };
+		b3BodyId bodyId   = b3CreateBody( worldId, &bodyDef );
+		b3ShapeId sid = b3CreateTransformedHullShape( bodyId, &shapeDef, hull, xf, scl );
+		ENSURE( b3Shape_IsValid( sid ) );
+	}
+
+	// A plain hull after the transformed ones: if the transformed creates desynced the id pool, this
+	// shape's recorded id would not match what replay allocates and b3ValidateReplay would fail.
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type      = b3_dynamicBody;
+		bodyDef.position  = (b3Pos){ 0.0f, 10.0f, 0.0f };
+		b3BodyId bodyId   = b3CreateBody( worldId, &bodyDef );
+		b3ShapeId sid = b3CreateHullShape( bodyId, &shapeDef, hull );
+		ENSURE( b3Shape_IsValid( sid ) );
+	}
+
+	for ( int i = 0; i < 5; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+	b3DestroyHull( hull );
+
+	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 ) );
+	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 4 ) );
+
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 // Patch the reserved header bytes to nonzero and confirm b3ValidateReplay ignores them.
 // Guards a future change that starts validating them or shrinks the header.
 static int ReservedHeaderBytes( void )
@@ -1496,6 +1574,7 @@ int RecordingTest( void )
 	RUN_SUBTEST( PlayerAccessors );
 	RUN_SUBTEST( KeyframeHandleReuse );
 	RUN_SUBTEST( QueryReplay );
+	RUN_SUBTEST( TransformedHullRoundTrip );
 	RUN_SUBTEST( AllOps );
 	RUN_SUBTEST( ReservedHeaderBytes );
 	return 0;

@@ -265,6 +265,10 @@ public:
 			b3Vec3 extent = b3Sub( m_info.bounds.upperBound, m_info.bounds.lowerBound );
 			if ( extent.x > 0.0f || extent.y > 0.0f || extent.z > 0.0f )
 			{
+				// The player just applied the recording's length scale, so frame against the
+				// same sim->display transform the frame loop will use, or the first fit lands at
+				// the wrong distance.
+				m_camera->SetRenderTransform( b3GetLengthUnitsPerMeter(), m_context->viewZUp );
 				float aspect = m_camera->m_height > 0 ? (float)m_camera->m_width / (float)m_camera->m_height : 1.0f;
 				m_camera->Frame( m_info.bounds, aspect, 1.4f );
 			}
@@ -385,7 +389,7 @@ public:
 		if ( m_generating )
 		{
 			m_stepCount = m_player != nullptr ? b3RecPlayer_GetFrame( m_player ) : 0;
-			SetDrawOrigin( m_camera->m_worldEye );
+			SetDrawOrigin( m_camera->DrawOrigin() );
 			return;
 		}
 
@@ -428,7 +432,7 @@ public:
 			m_stepCount = b3RecPlayer_GetFrame( m_player );
 		}
 
-		SetDrawOrigin( m_camera->m_worldEye );
+		SetDrawOrigin( m_camera->DrawOrigin() );
 
 		if ( B3_IS_NULL( m_replayWorldId ) )
 		{
@@ -453,8 +457,7 @@ public:
 		b3DebugDraw debugDraw;
 		MakeDebugDraw( &debugDraw );
 		ApplyGuiFlags( &debugDraw );
-		b3Vec3 r = { 1000.0f, 1000.0f, 1000.0f };
-		debugDraw.drawingBounds = b3OffsetAABB( { b3Neg( r ), r }, m_camera->m_worldEye );
+		debugDraw.drawingBounds = m_camera->DrawBounds(); // view-distance box in length units around the eye
 		b3World_Draw( m_replayWorldId, &debugDraw, B3_DEFAULT_MASK_BITS );
 
 		DrawSelectionHighlight();

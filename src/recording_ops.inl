@@ -78,6 +78,12 @@ B3_REC_OP( 0x44, CreateHeightFieldShape, RET_SHAPEID, ARG( BODYID, body ) ARG( S
 B3_REC_OP( 0x45, CreateCompoundShape, RET_SHAPEID, ARG( BODYID, body ) ARG( SHAPEDEF, def ) ARG( GEOMID, geometryId ) )
 B3_REC_OP( 0x46, DestroyShape, RET_NONE, ARG( SHAPEID, shape ) ARG( BOOL, updateBodyMass ) )
 
+// Transformed hull bakes a transform and non-uniform scale into fresh hull data at create time. Needs
+// its own op since the plain hull op carries no transform, and an unrecorded create silently desyncs
+// the replay shape id pool.
+B3_REC_OP( 0x47, CreateTransformedHullShape, RET_SHAPEID,
+		   ARG( BODYID, body ) ARG( SHAPEDEF, def ) ARG( GEOMID, geometryId ) ARG( TRANSFORM, transform ) ARG( VEC3, scale ) )
+
 // Shape mutators
 B3_REC_OP( 0x50, ShapeSetDensity, RET_NONE, ARG( SHAPEID, shape ) ARG( F32, density ) ARG( BOOL, updateBodyMass ) )
 B3_REC_OP( 0x51, ShapeSetFriction, RET_NONE, ARG( SHAPEID, shape ) ARG( F32, friction ) )

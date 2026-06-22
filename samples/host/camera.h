@@ -45,6 +45,10 @@ class Camera
 public:
 	Camera();
 
+	// One knob for how far the camera reaches, in meters: the projection far plane,
+	// the maximum orbit radius, and (scaled to length units) the draw cull box.
+	static constexpr float kViewDistance = 1000.0f;
+
 	// Feed each sokol_app event here. Safe to call from event_cb at any
 	// time during the frame; deltas are summed and consumed by Update().
 	void OnEvent( const sapp_event* e );
@@ -143,7 +147,33 @@ public:
 	// ray if the camera has no size yet, so callers never read uninitialized values.
 	PickRay BuildPickRay( float x, float y ) const;
 
-	b3Pos m_pivot; // look-at point, world space. Double precision so it stays exact far from origin.
+	// Set the simulation->display transform: a uniform scale of 1/lengthUnitsPerMeter
+	// so the scene renders in meters, plus an optional rotation taking simulation +Z
+	// to view up. Folded into the view matrix, so simulation data and the draw origin
+	// stay in length units and only the rendered result is scaled and reoriented. The
+	// camera itself then lives in meters, so radius and speeds read in meters.
+	void SetRenderTransform( float lengthUnitsPerMeter, bool zUp );
+
+	// Eye in simulation space (length units). The renderer shifts simulation-space
+	// geometry against this. The view folds in the sim->display map afterward. With
+	// an identity transform this is just m_worldEye.
+	b3Pos DrawOrigin() const
+	{
+		Vec4 e = MulMV4( m_renderXformInv, MakeVec4( m_worldEye.x, m_worldEye.y, m_worldEye.z, 1.0f ) );
+		return b3Pos{ e.x, e.y, e.z };
+	}
+
+	// Cull box for b3World_Draw, in simulation space (length units): a cube of the
+	// view distance centered on the simulation eye, so the draw set matches the far
+	// plane reach. The broad phase is queried in length units, hence the scale.
+	b3AABB DrawBounds() const
+	{
+		float h = kViewDistance * m_lengthUnitsPerMeter;
+		b3Vec3 r = { h, h, h };
+		return b3OffsetAABB( { b3Neg( r ), r }, DrawOrigin() );
+	}
+
+	b3Pos m_pivot; // look-at point, display space (meters). Double precision so it stays exact far from origin.
 	float m_yaw;	// radians, around Y
 	float m_pitch;	// radians, around camera-frame X
 	float m_radius; // meters from pivot
@@ -184,6 +214,14 @@ public:
 	Mat4 m_viewInv;
 	Mat4 m_proj;
 	Mat4 m_projInv;
+
+	// Simulation -> display transform and its inverse, folded into m_view / m_viewInv
+	// by RebuildBasisAndView. Identity until SetRenderTransform runs, so the default
+	// is meters and y-up.
+	Mat4 m_renderXform;
+	Mat4 m_renderXformInv;
+	float m_lengthUnitsPerMeter;
+	bool m_zUp;
 
 	// Per-frame input deltas accumulated by OnEvent and zeroed by Update.
 	// Routing into the right bucket happens in OnEvent based on which mouse

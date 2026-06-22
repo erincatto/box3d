@@ -1604,7 +1604,7 @@ public:
 
 		// Latch the draw origin to the followed eye so the debug overlays demote against the same
 		// point the view renders from.
-		SetDrawOrigin(m_camera->m_worldEye);
+		SetDrawOrigin( m_camera->DrawOrigin() );
 
 		// Debug visualization
 		if ( m_showDebug )

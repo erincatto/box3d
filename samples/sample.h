@@ -79,6 +79,10 @@ struct SampleContext
 	bool enableShadows = true;
 	bool enableGtao = true;
 
+	// View-only: treat simulation +Z as up when drawing. Does not touch the
+	// simulation. The frame loop hands this to the camera's render transform.
+	bool viewZUp = false;
+
 	float sunStrength = 1.0f;
 	int debugView = 0;
 

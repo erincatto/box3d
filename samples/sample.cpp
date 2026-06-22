@@ -466,17 +466,15 @@ void Sample::Step()
 	// The frame latched the origin before Step, but a third person follow moves the eye while
 	// stepping, so refresh it here. Shapes come back demoted to float against this origin, the same
 	// relative frame the translation free view renders, so everything stays precise far from the origin.
-	SetDrawOrigin( m_camera->m_worldEye );
+	SetDrawOrigin( m_camera->DrawOrigin() );
 
 	b3DebugDraw debugDraw;
 	MakeDebugDraw( &debugDraw );
 
-	// Generous visible volume around the eye. Box3D uses this to decide which shapes enter the
-	// draw set and lazily fire createDebugShape. The cull bounds live in absolute world space to
-	// match the broad-phase tree; the draw origin is the world eye.
-	b3Vec3 r = { 1000.0f, 1000.0f, 1000.0f };
-	b3AABB bounds = b3OffsetAABB( { b3Neg( r ), r }, m_camera->m_worldEye );
-	debugDraw.drawingBounds = bounds;
+	// Box3D uses this to decide which shapes enter the draw set and lazily fire
+	// createDebugShape. The camera derives it from the view distance, in length units
+	// around the simulation eye, matching the broad-phase tree and the far plane.
+	debugDraw.drawingBounds = m_camera->DrawBounds();
 
 	ApplyGuiFlags( &debugDraw );
 
@@ -1546,6 +1544,9 @@ static void DrawMenuBar( SampleContext* context )
 				float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
 				cam.Frame( aabb, aspect, 0.75f );
 			}
+			// View-only: stand the scene up when the simulation uses +Z as up (e.g. a
+			// recording imported from a Z-up tool). The simulation is untouched.
+			ImGui::MenuItem( "Z-up View", nullptr, &context->viewZUp );
 			ImGui::Separator();
 			ImGui::MenuItem( "Shapes", nullptr, &gd->drawShapes );
 			ImGui::MenuItem( "Transparent", nullptr, &context->transparentDynamic );
@@ -1833,12 +1834,15 @@ static void DrawInfoPanel( SampleContext* context )
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", context->sample->m_stepCount );
 	ImGui::Separator();
 
+	// The camera lives in display space, so pivot, radius and speed are in meters
+	// regardless of the simulation's length units.
 	b3Pos p = context->camera.m_pivot;
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "pivot (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "pivot m (%.1f, %.1f, %.1f)", p.x, p.y, p.z );
 	float yawDeg = B3_RAD_TO_DEG * context->camera.m_yaw;
 	float pitchDeg = B3_RAD_TO_DEG * context->camera.m_pitch;
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "yaw/pitch (%.1f, %.1f)", yawDeg, pitchDeg );
-	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "radius %.1f", context->camera.m_radius );
+	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "radius m %.1f, speed m/s %.1f", context->camera.m_radius,
+						context->camera.m_speed );
 
 	ImGui::Separator();
 
@@ -2281,7 +2285,7 @@ void CharacterMover::Step( b3ShapeId* ignoreShapes, int ignoreCount, bool clipVe
 		m_sample->m_camera->UpdateTransform();
 	}
 
-	SetDrawOrigin( m_sample->m_camera->m_worldEye );
+	SetDrawOrigin( m_sample->m_camera->DrawOrigin() );
 
 	int count = m_planeCount;
 	for ( int i = 0; i < count; ++i )
