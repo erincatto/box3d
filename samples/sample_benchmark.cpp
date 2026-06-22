@@ -383,7 +383,6 @@ public:
 		}
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.name = "grid";
 		m_gridMesh = b3CreateGridMesh( 40, 40, 1.0f, 0, true );
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -397,7 +396,6 @@ public:
 			transform.p = { 0.0f, hy, -20.0f };
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, hy, 0.1f, transform );
-			shapeDef.name = "wall1";
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
@@ -406,7 +404,6 @@ public:
 			transform.p = { 0.0f, hy, 20.0f };
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 20.0f, hy, 0.1f, transform );
-			shapeDef.name = "wall2";
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
@@ -415,7 +412,6 @@ public:
 			transform.p = { -20.0f, hy, 0.0f };
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, hy, 20.0f, transform );
-			shapeDef.name = "wall3";
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
@@ -424,7 +420,6 @@ public:
 			transform.p = { 20.0f, hy, 0.0f };
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, hy, 20.0f, transform );
-			shapeDef.name = "wall4";
 			b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
 		}
 
@@ -1253,7 +1248,6 @@ public:
 		CreateWorld( &capacity );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.name = "grid";
 		m_gridMesh = b3CreateGridMesh( 40, 40, 1.0f, 0, true );
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();

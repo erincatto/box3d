@@ -36,7 +36,6 @@ typedef struct b3Shape
 	b3Filter filter;
 	void* userData;
 	void* userShape;
-	char name[B3_NAME_LENGTH + 1];
 
 	uint16_t generation;
 	bool enableSensorEvents;

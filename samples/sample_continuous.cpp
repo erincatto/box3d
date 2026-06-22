@@ -491,7 +491,6 @@ public:
 			transform.p = { 0.0f, halfHeight, -extent };
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( extent, halfHeight, 0.1f, transform );
-			shapeDef.name = "wall1";
 			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
 		}
 
@@ -500,7 +499,6 @@ public:
 			transform.p = { 0.0f, halfHeight, extent };
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( extent, halfHeight, 0.1f, transform );
-			shapeDef.name = "wall2";
 			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
 		}
 
@@ -509,7 +507,6 @@ public:
 			transform.p = { -extent, halfHeight, 0.0f };
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, halfHeight, extent, transform );
-			shapeDef.name = "wall3";
 			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
 		}
 
@@ -518,7 +515,6 @@ public:
 			transform.p = { extent, halfHeight, 0.0f };
 			transform.q = b3Quat_identity;
 			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, halfHeight, extent, transform );
-			shapeDef.name = "wall4";
 			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
 		}
 	}

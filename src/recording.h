@@ -46,7 +46,7 @@ typedef struct b3World b3World;
 #define B3_REC_MAGIC 0x43523342u
 
 // Minor tracks op-stream additions that keep the 48 byte header shape (e.g. the spatial query ops).
-#define B3_REC_VERSION_MAJOR 1
+#define B3_REC_VERSION_MAJOR 2
 #define B3_REC_VERSION_MINOR 1
 
 // File header, fixed 48 bytes, little-endian. Contains the registry locator so the player

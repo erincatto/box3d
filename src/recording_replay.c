@@ -436,7 +436,6 @@ b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr )
 b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 {
 	b3ShapeDef def = b3DefaultShapeDef();
-	def.name = b3RecR_STR( rdr );
 	(void)b3RecR_U64( rdr ); // userData placeholder
 
 	int matCount = b3RecR_I32( rdr );

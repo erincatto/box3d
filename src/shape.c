@@ -191,20 +191,6 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 	shape->fatAABB = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
 	shape->generation += 1;
 
-	if ( def->name )
-	{
-#if defined( _MSC_VER )
-		strncpy_s( shape->name, B3_NAME_LENGTH + 1, def->name, B3_NAME_LENGTH );
-#else
-		strncpy( shape->name, def->name, B3_NAME_LENGTH );
-		shape->name[B3_NAME_LENGTH] = 0;
-#endif
-	}
-	else
-	{
-		memset( shape->name, 0, sizeof( shape->name ) );
-	}
-
 	if ( shape->type == b3_compoundShape )
 	{
 		// Own a copy of the compound materials so every shape frees its array the same way. Compounds
@@ -1147,33 +1133,6 @@ bool b3Shape_IsSensor( b3ShapeId shapeId )
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
 	return shape->sensorIndex != B3_NULL_INDEX;
-}
-
-void b3Shape_SetName( b3ShapeId shapeId, const char* name )
-{
-	b3World* world = b3GetWorld( shapeId.world0 );
-	b3Shape* shape = b3GetShape( world, shapeId );
-
-	if ( name )
-	{
-#if defined( _MSC_VER )
-		strncpy_s( shape->name, B3_NAME_LENGTH + 1, name, B3_NAME_LENGTH );
-#else
-		strncpy( shape->name, name, B3_NAME_LENGTH );
-		shape->name[B3_NAME_LENGTH] = 0;
-#endif
-	}
-	else
-	{
-		memset( shape->name, 0, sizeof( shape->name ) );
-	}
-}
-
-const char* b3Shape_GetName( b3ShapeId shapeId )
-{
-	b3World* world = b3GetWorld( shapeId.world0 );
-	b3Shape* shape = b3GetShape( world, shapeId );
-	return shape->name;
 }
 
 // todo no tests
@@ -2417,11 +2376,6 @@ void b3DumpShape( b3World* world, int shapeIndex )
 	b3Shape* shape = b3Array_Get( world->shapes, shapeIndex );
 
 	b3Dump( "    b3ShapeDef sd = b3DefaultShapeDef();\n" );
-
-	if ( shape->name[0] != 0 )
-	{
-		b3Dump( "    sd.name = \"%s\";\n", shape->name );
-	}
 
 	// printf("%" PRIx64 ";\n", t);
 	b3Dump( "    sd.density = %.9g;\n", shape->density );

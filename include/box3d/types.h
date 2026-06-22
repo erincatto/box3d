@@ -451,9 +451,6 @@ typedef enum b3ShapeType
 /// @ingroup shape
 typedef struct b3ShapeDef
 {
-	/// Optional body name for debugging. Up to B3_NAME_LENGTH characters (including null termination)
-	const char* name;
-
 	/// Use this to store application specific shape data.
 	void* userData;
 

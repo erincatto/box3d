@@ -224,8 +224,8 @@ public:
 		b3Recording* recording = b3LoadRecordingFromFile( m_path );
 		if ( recording != nullptr )
 		{
-			m_player = b3RecPlayer_Create( b3Recording_GetData( recording ), b3Recording_GetSize( recording ),
-										   m_context->workerCount );
+			m_player =
+				b3RecPlayer_Create( b3Recording_GetData( recording ), b3Recording_GetSize( recording ), m_context->workerCount );
 			b3DestroyRecording( recording );
 		}
 		else
@@ -291,8 +291,7 @@ public:
 		}
 
 		float fontSize = ImGui::GetFontSize();
-		ImGui::SetNextWindowPos( { m_camera->m_width * 0.5f, m_camera->m_height * 0.35f }, ImGuiCond_Appearing,
-								 { 0.5f, 0.5f } );
+		ImGui::SetNextWindowPos( { m_camera->m_width * 0.5f, m_camera->m_height * 0.35f }, ImGuiCond_Appearing, { 0.5f, 0.5f } );
 		ImGui::SetNextWindowSize( { 26.0f * fontSize, 0.0f }, ImGuiCond_Appearing );
 
 		if ( ImGui::BeginPopupModal( popupId, nullptr, ImGuiWindowFlags_AlwaysAutoResize ) == false )
@@ -442,16 +441,18 @@ public:
 
 		// Highlight the dynamic body under the cursor, matching the live samples.
 		PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
-		b3RayResult hover = b3World_CastRayClosest( m_replayWorldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
+
+		b3QueryFilter queryFilter = { UINT64_MAX, UINT64_MAX };
+		b3RayResult hover = b3World_CastRayClosest( m_replayWorldId, pickRay.origin, pickRay.translation, queryFilter );
 		b3BodyId hovered = b3_nullBodyId;
-		if ( hover.hit && b3Body_GetType( b3Shape_GetBody( hover.shapeId ) ) == b3_dynamicBody )
+		if ( hover.hit ) // && b3Body_GetType( b3Shape_GetBody( hover.shapeId ) ) == b3_dynamicBody )
 		{
 			hovered = b3Shape_GetBody( hover.shapeId );
 		}
 		SetHoveredBody( hovered );
 
 		// Mirror the ordinal selection into the renderer highlight each frame.
-		SetSelectedBody( SelectedBody() );
+		// SetSelectedBody( SelectedBody() );
 
 		// Draw the replay world through the same adapter path the live samples use.
 		b3DebugDraw debugDraw;
@@ -814,8 +815,8 @@ public:
 			for ( int s = 0; s < sn; ++s )
 			{
 				char sl[64];
-				snprintf( sl, sizeof( sl ), "Shape %d  %s###b%ds%d", s, ReplayShapeTypeName( b3Shape_GetType( shapes[s] ) ),
-						  ord, s );
+				snprintf( sl, sizeof( sl ), "Shape %d  %s###b%ds%d", s, ReplayShapeTypeName( b3Shape_GetType( shapes[s] ) ), ord,
+						  s );
 				ImGuiTreeNodeFlags lf =
 					ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 				if ( m_selKind == SelShape && m_selBodyOrdinal == ord && m_selSlot == s )
@@ -861,7 +862,7 @@ public:
 
 		// Spatial queries recorded for the current frame. Selecting one overlays its geometry and
 		// recorded hits on the world. The list is rebuilt each frame, so a selection is by index only.
-		int  qn = b3RecPlayer_GetFrameQueryCount( m_player );
+		int qn = b3RecPlayer_GetFrameQueryCount( m_player );
 		char ql[32];
 		snprintf( ql, sizeof( ql ), "Queries (%d)###queries", qn );
 		if ( ImGui::TreeNodeEx( ql, ImGuiTreeNodeFlags_SpanAvailWidth ) )
@@ -1089,7 +1090,7 @@ public:
 
 		// Hit shape ids as one wrapped list so a many-hit query stays compact.
 		char line[256];
-		int  len = 0;
+		int len = 0;
 		for ( int h = 0; h < q.hitCount && len < (int)sizeof( line ) - 12; ++h )
 		{
 			b3RecQueryHit hit = b3RecPlayer_GetFrameQueryHit( m_player, m_selQuery, h );
@@ -1187,8 +1188,7 @@ public:
 		ImGui::SameLine();
 		ImGui::Text( "   %.0f hz, %d sub-steps", hz, m_info.subStepCount );
 		ImGui::SameLine();
-		ImGui::Text( "   bodies %d  shapes %d  contacts %d  joints %d", c.bodyCount, c.shapeCount, c.contactCount,
-					 c.jointCount );
+		ImGui::Text( "   bodies %d  shapes %d  contacts %d  joints %d", c.bodyCount, c.shapeCount, c.contactCount, c.jointCount );
 
 		if ( divergeFrame >= 0 )
 		{
@@ -1210,7 +1210,8 @@ public:
 		}
 
 		PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
-		b3RayResult result = b3World_CastRayClosest( m_replayWorldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
+		b3QueryFilter queryFilter = { UINT64_MAX, UINT64_MAX };
+		b3RayResult result = b3World_CastRayClosest( m_replayWorldId, pickRay.origin, pickRay.translation, queryFilter );
 		SelectShape( result.hit ? result.shapeId : b3_nullShapeId );
 	}
 
@@ -1229,7 +1230,7 @@ public:
 
 	b3RecPlayer* m_player;
 	b3WorldId m_replayWorldId; // player-owned world we draw and pick; separate from the empty base world
-	b3RecPlayerInfo m_info;    // cached at load for the timeline readout and camera framing
+	b3RecPlayerInfo m_info;	   // cached at load for the timeline readout and camera framing
 	char m_path[256];
 	char m_status[128];
 	float m_speed;
@@ -1237,7 +1238,7 @@ public:
 	bool m_loop;
 
 	bool m_selectTimelineTab; // one-shot: focus the Timeline tab on the next draw
-	bool m_prevShowMetrics;   // restore the drawer state on exit
+	bool m_prevShowMetrics;	  // restore the drawer state on exit
 
 	// Load popup state. A fresh open configures the keyframe policy here, then the popup switches to a
 	// progress bar while every keyframe is generated up front. Temporaries hold the in-popup edits so
@@ -1250,9 +1251,9 @@ public:
 	// Selection by creation ordinal so it survives a backward seek that rebuilds the world.
 	SelKind m_selKind;
 	int m_selBodyOrdinal;
-	int m_selSlot;            // shape or joint slot within the selected body
-	int m_selQuery;           // query index, only meaningful for the current frame
-	bool m_revealSelection;   // one-shot: expand and scroll the tree to a viewport pick
+	int m_selSlot;			// shape or joint slot within the selected body
+	int m_selQuery;			// query index, only meaningful for the current frame
+	bool m_revealSelection; // one-shot: expand and scroll the tree to a viewport pick
 };
 
 static int sampleReplayViewer = RegisterReplay( "Replay", "Viewer", ReplayViewer::Create );
