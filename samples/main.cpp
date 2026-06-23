@@ -346,6 +346,7 @@ static void OnFrame( void )
 	fi.debugMode = s_context.debugView;
 	fi.disableShadows = !s_context.enableShadows;
 	fi.disableAmbientOcclusion = !s_context.enableGtao;
+	fi.zUp = s_context.viewZUp;
 
 	const sg_swapchain sc = sglue_swapchain();
 	RenderFrame( &sc, &fi );

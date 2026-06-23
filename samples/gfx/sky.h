@@ -30,8 +30,9 @@ void ShutdownSky( void );
 // Below-horizon fade weight in [0, 1], 1 well above the horizon, 0
 // below it, smoothstep between sin(2 deg) and sin(5 deg). The IBL cubemap
 // renderer reads this so its sky matches the backdrop exactly when the
-// sun is near the horizon. dirToSun.y == sin(elevation) when normalized.
-float SkySunFadeWeight( b3Vec3 dirToSun );
+// sun is near the horizon. Elevation is sin = dirToSun.y for a y-up sim,
+// dirToSun.z for a z-up sim, selected by zUp.
+float SkySunFadeWeight( b3Vec3 dirToSun, bool zUp );
 
 // Issue the sky draw. Call inside the main lit pass after all opaque
 // shape draws. Parameters:
@@ -42,7 +43,8 @@ float SkySunFadeWeight( b3Vec3 dirToSun );
 //                direction as (world_far_point - cameraPos).
 //   invViewProj  inverse of proj * view for the current frame, the VS
 //                unprojects NDC corners through this to get world rays.
-void DrawSky( b3Vec3 dirToSun, float turbidity, b3Vec3 cameraPos, Mat4 invViewProj );
+//   zUp          simulation up axis, reorients the sky model for z-up.
+void DrawSky( b3Vec3 dirToSun, float turbidity, b3Vec3 cameraPos, Mat4 invViewProj, bool zUp );
 
 #ifdef __cplusplus
 } // extern "C"

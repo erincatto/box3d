@@ -51,6 +51,11 @@ typedef struct FrameInput
 	// depth pre-pass + trace + upsample skipped
 	// the full-res AO target is cleared to 1.0 (no occlusion) instead
 	bool disableAmbientOcclusion;
+
+	// Simulation up axis. The camera folds the sim->display map into the
+	// view transform, but the procedural sky reconstructs directions in sim
+	// space, so it needs the up axis to orient the Preetham model.
+	bool zUp;
 } FrameInput;
 
 // Directional light. The renderer owns one. Defaults are set in InitRenderer:

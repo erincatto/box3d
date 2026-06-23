@@ -135,12 +135,26 @@ vec3 preethamSky(vec3 view_dir, vec3 sun_dir, float turbidity)
 	return max(rgb, vec3(0.0));
 }
 	
+// Rotate a sky direction from simulation space into the model's Y-up
+// frame. Y-up sims pass through. Z-up sims need Rx(-90), (x,y,z) ->
+// (x, z, -y), the same map the renderer folds into its view transform so
+// sim +Z becomes view up. zUp is 0.0 or 1.0. View ray and sun rotate
+// together so their relative angle is preserved, only horizon and zenith
+// reorient.
+vec3 preethamToYUp(vec3 v, float zUp)
+{
+	return mix(v, vec3(v.x, v.z, - v.y), zUp);
+}
+
 // Convenience wrapper: raw Preetham scaled by the empirical luminance
 // factor and the caller's below-horizon fade weight (1 above horizon,
 // 0 below). The sky backdrop shader and the IBL sky cubemap both call
-// this so they're guaranteed to agree pixel-for-pixel.
-vec3 preethamSkyScaled(vec3 view_dir, vec3 sun_dir, float turbidity, float fade)
+// this so they're guaranteed to agree pixel-for-pixel. zUp reorients the
+// model for a z-up simulation, see preethamToYUp.
+vec3 preethamSkyScaled(vec3 view_dir, vec3 sun_dir, float turbidity, float fade, float zUp)
 {
-	return preethamSky(view_dir, sun_dir, turbidity) * PREETHAM_LUMINANCE_SCALE * fade;
+	vec3 v = preethamToYUp(view_dir, zUp);
+	vec3 s = preethamToYUp(sun_dir, zUp);
+	return preethamSky(v, s, turbidity) * PREETHAM_LUMINANCE_SCALE * fade;
 }
 	

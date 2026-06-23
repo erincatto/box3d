@@ -100,6 +100,10 @@ static struct
 	// by RebuildImageBasedLightingIfDirty after a successful rebuild.
 	bool dirty;
 	bool ready;
+
+	// Up axis the cube and SH were last baked for. A change reorients the
+	// sky, so it forces a rebuild even when sun and turbidity hold.
+	bool zUp;
 } s_ibl;
 
 // CPU Preetham (mirror of common/preetham.glsl)
@@ -107,6 +111,13 @@ static struct
 // Keeps SH projection in lockstep with the GPU sky. The math is verbatim
 // from the shader. Comments are deliberately spare to avoid two sources
 // of truth, read preetham.glsl for the rationale.
+
+// Rotate a sky direction into the model's Y-up frame, mirror of
+// preethamToYUp in common/preetham.glsl.
+static b3Vec3 SkyDirToYUpC( b3Vec3 v, bool zUp )
+{
+	return zUp ? ( b3Vec3 ){ v.x, v.z, -v.y } : v;
+}
 
 static float PreethamPerezC( float cos_theta, float cos_gamma, float gamma, float A, float B, float C, float D, float E )
 {
@@ -116,10 +127,13 @@ static float PreethamPerezC( float cos_theta, float cos_gamma, float gamma, floa
 	return term1 * term2;
 }
 
-static b3Vec3 PreethamSkyScaledC( b3Vec3 view_dir, b3Vec3 sun_dir, float turbidity, float fade )
+static b3Vec3 PreethamSkyScaledC( b3Vec3 view_dir, b3Vec3 sun_dir, float turbidity, float fade, bool zUp )
 {
 	const float PI = 3.14159265358979323846f;
 	const float LUMINANCE_SCALE = 0.06f; // mirrors PREETHAM_LUMINANCE_SCALE
+
+	view_dir = SkyDirToYUpC( view_dir, zUp );
+	sun_dir = SkyDirToYUpC( sun_dir, zUp );
 
 	const float sun_y_clamped = ( sun_dir.y < 0.0f ) ? 0.0f : ( sun_dir.y > 1.0f ) ? 1.0f : sun_dir.y;
 
@@ -233,7 +247,7 @@ static float cubeTexelSolidAngle( float u, float v, int n )
 // accumulating sum L(omega) * Y_i(omega) * domega, then multiplying by the Funk-Hecke
 // diffuse convolution weights so the shader's evaluation is a straight
 // dot product against the SH basis.
-static void ProjectSkyToSh( b3Vec3 dirToSun, float turbidity, float fade )
+static void ProjectSkyToSh( b3Vec3 dirToSun, float turbidity, float fade, bool zUp )
 {
 	b3Vec3 coef[9];
 	for ( int i = 0; i < 9; ++i )
@@ -267,7 +281,10 @@ static void ProjectSkyToSh( b3Vec3 dirToSun, float turbidity, float fade )
 				}
 
 				const float dW = cubeTexelSolidAngle( u, v, N );
-				const b3Vec3 L = PreethamSkyScaledC( dir, dirToSun, turbidity, fade );
+				// dir stays in sim space, it indexes the SH basis below which
+				// the lit shader evaluates at a sim-space normal. Only the
+				// Preetham color lookup rotates into the model's Y-up frame.
+				const b3Vec3 L = PreethamSkyScaledC( dir, dirToSun, turbidity, fade, zUp );
 
 				const float x = dir.x;
 				const float y = dir.y;
@@ -340,7 +357,7 @@ static void GenerateBrdfLut( void )
 	sg_pop_debug_group();
 }
 
-static void GenerateSkyCube( b3Vec3 dirToSun, float turbidity, float fade )
+static void GenerateSkyCube( b3Vec3 dirToSun, float turbidity, float fade, bool zUp )
 {
 	// Six passes, one per face. Each pass fills the raw cube's
 	// corresponding face via a fullscreen-triangle Preetham eval.
@@ -358,7 +375,7 @@ static void GenerateSkyCube( b3Vec3 dirToSun, float turbidity, float fade )
 		const CubeFaceBasis b = s_cubeFaceBasis[face];
 		sky_to_cube_ub_face_t up = { 0 };
 		up.face_right = MakeVec4( b.right.x, b.right.y, b.right.z, 0.0f );
-		up.face_up = MakeVec4( b.up.x, b.up.y, b.up.z, 0.0f );
+		up.face_up = MakeVec4( b.up.x, b.up.y, b.up.z, zUp ? 1.0f : 0.0f );
 		up.face_forward = MakeVec4( b.forward.x, b.forward.y, b.forward.z, fade );
 		up.sun_dir_world = MakeVec4( dirToSun.x, dirToSun.y, dirToSun.z, turbidity );
 		sg_apply_uniforms( UB_sky_to_cube_ub_face, &SG_RANGE( up ) );
@@ -610,8 +627,16 @@ void MarkIblDirty( void )
 	s_ibl.dirty = true;
 }
 
-void RebuildImageBasedLightingIfDirty( b3Vec3 dirToSun, float turbidity )
+void RebuildImageBasedLightingIfDirty( b3Vec3 dirToSun, float turbidity, bool zUp )
 {
+	// A changed up axis reorients the baked sky, so treat it like a sun or
+	// turbidity change and force a rebuild.
+	if ( zUp != s_ibl.zUp )
+	{
+		s_ibl.zUp = zUp;
+		s_ibl.dirty = true;
+	}
+
 	if ( s_ibl.dirty == false || s_ibl.ready == false )
 	{
 		return;
@@ -620,13 +645,13 @@ void RebuildImageBasedLightingIfDirty( b3Vec3 dirToSun, float turbidity )
 	// Renormalize just in case to avoid NaNs
 	float lenSq = dirToSun.x * dirToSun.x + dirToSun.y * dirToSun.y + dirToSun.z * dirToSun.z;
 	b3Vec3 sun = ( lenSq > 0.0f ) ? b3Normalize( dirToSun ) : b3Vec3_axisY;
-	float fade = SkySunFadeWeight( sun );
+	float fade = SkySunFadeWeight( sun, zUp );
 
 	sg_push_debug_group( "ibl_rebuild" );
 
-	GenerateSkyCube( sun, turbidity, fade );
+	GenerateSkyCube( sun, turbidity, fade, zUp );
 	GeneratePrefilter();
-	ProjectSkyToSh( sun, turbidity, fade );
+	ProjectSkyToSh( sun, turbidity, fade, zUp );
 
 	sg_pop_debug_group();
 

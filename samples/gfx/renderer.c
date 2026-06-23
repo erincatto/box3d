@@ -1269,8 +1269,9 @@ void InitRenderer( const sg_environment* env )
 
 	// Bring IBL in sync with the initial sun before the first frame so
 	// lit pipelines (once they sample the cubemap) don't read garbage
-	// upper mips on frame 0. Per-frame mark-dirty/rebuild is not yet implemented.
-	RebuildImageBasedLightingIfDirty( s_gfx.sun.dirToSun, s_gfx.turbidity );
+	// upper mips on frame 0. Bakes y-up, the first frame's up axis arrives
+	// via FrameInput and rebakes if it differs.
+	RebuildImageBasedLightingIfDirty( s_gfx.sun.dirToSun, s_gfx.turbidity, false );
 }
 
 void SetSun( Sun sun )
@@ -1920,7 +1921,7 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 	// Draw after all opaque shapes. The sky pipeline tests GREATER_EQUAL
 	// at NDC z = 0 against the reverse-Z cleared depth (0), so it fills
 	// only pixels that no opaque draw touched.
-	DrawSky( s_gfx.sun.dirToSun, s_gfx.turbidity, frame->cameraPosition, invViewProj );
+	DrawSky( s_gfx.sun.dirToSun, s_gfx.turbidity, frame->cameraPosition, invViewProj, frame->zUp );
 }
 
 // Depth-only pre-pass. Renders all opaque shapes from the main camera
@@ -2106,7 +2107,7 @@ static void PreSceneWork( int width, int height, const FrameInput* frame )
 	UploadInstances();
 
 	// IBL regen must run before the main pass starts
-	RebuildImageBasedLightingIfDirty( s_gfx.sun.dirToSun, s_gfx.turbidity );
+	RebuildImageBasedLightingIfDirty( s_gfx.sun.dirToSun, s_gfx.turbidity, frame->zUp );
 
 	RenderShadowCascades( frame, frame->disableShadows == false );
 

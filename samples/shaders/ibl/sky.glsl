@@ -72,7 +72,7 @@ void main()
 layout(binding = 1)uniform sky_ub_pass
 {
 	vec4 sun_dir_world; // .xyz = world dir TO sun (normalized), .w = below-horizon fade weight [0,1]
-	vec4 sky_params; // .x = turbidity (Preetham T), .yzw = reserved
+	vec4 sky_params; // .x = turbidity (Preetham T), .y = z-up flag (0 or 1), .zw = reserved
 	vec4 camera_pos; // .xyz = world camera position, .w = unused
 };
 
@@ -94,7 +94,7 @@ void main()
 	// preethamSkyScaled so the IBL sky cubemap (sky_to_cube.glsl) sees
 	// the same backdrop. Fade weight comes from the C side via
 	// sun_dir_world.w (1 above horizon, 0 below).
-	vec3 rgb = preethamSkyScaled(view_dir, sun_dir, sky_params.x, sun_dir_world.w);
+	vec3 rgb = preethamSkyScaled(view_dir, sun_dir, sky_params.x, sun_dir_world.w, sky_params.y);
 	
 	out_color = vec4(rgb, 1.0);
 }

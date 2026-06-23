@@ -52,8 +52,9 @@ void ShutdownImageBasedLighting( void );
 void MarkIblDirty( void );
 
 // If dirty, regenerate the prefiltered sky cube and recompute SH from
-// the current sun direction + turbidity. Idempotent when clean.
-void RebuildImageBasedLightingIfDirty( b3Vec3 dirToSun, float turbidity );
+// the current sun direction + turbidity. Idempotent when clean. zUp picks
+// the sky's up axis, a change forces a rebuild on its own.
+void RebuildImageBasedLightingIfDirty( b3Vec3 dirToSun, float turbidity, bool zUp );
 
 // Prefiltered sky cubemap (mip 0 = mirror, mip GFX_IBL_CUBE_MIPS-1 =
 // fully rough). Bind once per lit-pipeline draw.

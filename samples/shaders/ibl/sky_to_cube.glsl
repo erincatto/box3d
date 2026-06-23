@@ -46,10 +46,10 @@ void main()
 layout(binding = 0)uniform ub_face
 {
 	// Three rows of a mat3 basis. Stored as vec4 for std140 alignment,
-	// .xyz are the axis vectors, .w is unused (.w on face_forward
-	// doubles as the below-horizon fade weight to save a UBO slot).
+	// .xyz are the axis vectors. The .w lanes carry scalars to save UBO
+	// slots: face_up.w = z-up flag, face_forward.w = below-horizon fade.
 	vec4 face_right; // .xyz = world-space face right axis
-	vec4 face_up; // .xyz = world-space face up axis
+	vec4 face_up; // .xyz = world-space face up axis, .w = z-up flag (0 or 1)
 	vec4 face_forward; // .xyz = world-space face forward axis, .w = fade weight
 	vec4 sun_dir_world; // .xyz = world-space direction TO sun, .w = turbidity
 };
@@ -62,7 +62,7 @@ void main()
 	vec2 uv = v_uv * 2.0 - 1.0; // [-1, +1] across the face
 	vec3 dir = normalize(face_forward.xyz + uv.x * face_right.xyz + uv.y * face_up.xyz);
 	
-	vec3 rgb = preethamSkyScaled(dir, sun_dir_world.xyz, sun_dir_world.w, face_forward.w);
+	vec3 rgb = preethamSkyScaled(dir, sun_dir_world.xyz, sun_dir_world.w, face_forward.w, face_up.w);
 	out_color = vec4(rgb, 1.0);
 }
 #pragma sokol @end
