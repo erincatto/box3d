@@ -55,18 +55,9 @@ void* b3AllocateElement( b3BlockAllocator* allocator )
 		return element;
 	}
 
-	int startIndex = allocator->nextIndex;
-	int startOffset = startIndex & ( B3_BLOCK_SIZE - 1 );
+	int index = allocator->nextIndex++;
 
-	if ( startOffset + 1 > B3_BLOCK_SIZE )
-	{
-		startIndex = ( startIndex + B3_BLOCK_SIZE ) & ~( B3_BLOCK_SIZE - 1 );
-	}
-
-	allocator->nextIndex = startIndex + 1;
-
-	int lastIndex = allocator->nextIndex - 1;
-	int requiredBlockCount = ( lastIndex >> B3_BLOCK_EXPONENT ) + 1;
+	int requiredBlockCount = ( index >> B3_BLOCK_EXPONENT ) + 1;
 
 	if ( requiredBlockCount > allocator->blocks.count )
 	{
@@ -79,8 +70,8 @@ void* b3AllocateElement( b3BlockAllocator* allocator )
 		}
 	}
 
-	int blockIndex = startIndex >> B3_BLOCK_EXPONENT;
-	int blockOffset = startIndex & ( B3_BLOCK_SIZE - 1 );
+	int blockIndex = index >> B3_BLOCK_EXPONENT;
+	int blockOffset = index & ( B3_BLOCK_SIZE - 1 );
 
 	return allocator->blocks.data[blockIndex].memory + blockOffset * allocator->elementSize;
 }

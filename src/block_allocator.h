@@ -30,6 +30,6 @@ typedef struct b3BlockAllocator
 b3BlockAllocator b3CreateBlockAllocator( int elementSize, int initialCount );
 void b3DestroyBlockAllocator( b3BlockAllocator* allocator );
 
-// Elements are guaranteed contiguous.
+// Returns one element of elementSize contiguous bytes. Address is stable until freed.
 void* b3AllocateElement( b3BlockAllocator* allocator );
 void b3FreeElement( b3BlockAllocator* allocator, void* element );
