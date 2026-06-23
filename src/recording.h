@@ -115,7 +115,7 @@ typedef struct b3Recording
 {
 	b3RecBuffer      buffer;
 	int              recordStart;      // offset of the 3-byte size field for u24 backpatch
-	b3Mutex*         lock;             // serializes query commits from concurrent threads
+	b3Mutex*         lock;             // serializes record writes from concurrent threads
 	b3GeometryRegistry registry;
 
 	// Union of world bounds over every recorded step, written at stop.

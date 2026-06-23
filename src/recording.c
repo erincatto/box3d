@@ -668,13 +668,17 @@ void b3RecEndRecord( b3Recording* rec )
 #undef B3_REC_OP
 #undef ARG
 
-// Codegen: full writers
+// Codegen: full writers. Setters and creates may run on threads that each own a distinct object,
+// so hold the lock across the whole record. Without it a concurrent writer splices its bytes between
+// our begin and end and the record desyncs replay. Same lock the query commit path takes.
 #define B3_REC_OP( op, Name, RET, ... )                                                                                          \
 	void b3RecWrite_##Name( b3Recording* rec, const b3RecArgs_##Name* a )                                                        \
 	{                                                                                                                            \
+		b3LockMutex( rec->lock );                                                                                                \
 		b3RecBeginRecord( rec, (uint8_t)( op ) );                                                                                \
 		b3RecWriteArgs_##Name( rec, a );                                                                                         \
 		b3RecEndRecord( rec );                                                                                                   \
+		b3UnlockMutex( rec->lock );                                                                                              \
 	}
 #include "recording_ops.inl"
 #undef B3_REC_OP
@@ -683,10 +687,12 @@ void b3RecEndRecord( b3Recording* rec )
 #define B3_REC_RETWRITE( op, Name, idType, idW )                                                                                 \
 	void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, idType id )                                          \
 	{                                                                                                                            \
+		b3LockMutex( rec->lock );                                                                                                \
 		b3RecBeginRecord( rec, (uint8_t)( op ) );                                                                                \
 		b3RecWriteArgs_##Name( rec, a );                                                                                         \
 		idW( &rec->buffer, id );                                                                                                 \
 		b3RecEndRecord( rec );                                                                                                   \
+		b3UnlockMutex( rec->lock );                                                                                              \
 	}
 #define B3_REC_RETWRITE_RET_NONE( op, Name )
 #define B3_REC_RETWRITE_RET_BODYID( op, Name )  B3_REC_RETWRITE( op, Name, b3BodyId,  b3RecW_BODYID )
