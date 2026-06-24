@@ -90,6 +90,8 @@ typedef enum b3GeometryKind
 } b3GeometryKind;
 
 // One entry per unique geometry blob. id == index in the entries array.
+// hashNext chains entries that share a content hash so dedup stays exact under a hash collision,
+// which the keyframe registry depends on to never grow during capture. B3_NULL_INDEX ends the chain.
 typedef struct b3GeometryEntry
 {
 	uint64_t       contentHash;
@@ -97,6 +99,7 @@ typedef struct b3GeometryEntry
 	b3GeometryKind kind;
 	int            byteCount;
 	uint8_t*       bytes;
+	int            hashNext;
 } b3GeometryEntry;
 
 // Growable array of geometry entries. Ids are array indices, so the array is serialized in order.
@@ -321,6 +324,11 @@ bool  b3RecPlaneTrampoline( b3ShapeId id, const b3PlaneResult* planes, int plane
 
 // Geometry registry
 uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
+                           uint8_t* bytes, int byteCount );
+// Append an entry unconditionally and return its id, which equals its array index. Unlike
+// b3InternGeometry it never deduplicates, so the keyframe seed can mirror slots 1:1 even when an
+// already-recorded file carries byte-identical duplicate slots (a hash collision wrote them apart).
+uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
                            uint8_t* bytes, int byteCount );
 void     b3FreeRegistry( b3GeometryRegistry* reg );
 void     b3RecWriteRegistry( b3Recording* rec );

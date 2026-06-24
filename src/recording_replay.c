@@ -2369,15 +2369,16 @@ static void b3FreeKeyframe( b3RecKeyframe* kf )
 }
 
 // Pre-populate keyframeRec's registry to mirror rdr.slots so geometry ids stay stable during
-// b3SerializeWorld. b3InternGeometry deduplicates so the count stays constant.
+// b3SerializeWorld. Each slot becomes one entry with id == slot index, even byte-identical slots that
+// a hash collision left undeduplicated in an already-recorded file. b3SerializeWorld then resolves a
+// live blob back to a valid slot index via the registry's exact dedup, so capture never grows it.
 static void b3RecSeedKeyframeRegistry( b3RecPlayer* player )
 {
 	b3GeometryRegistry* reg = &player->keyframeRec->registry;
 	for ( int i = 0; i < player->rdr.slotCount; ++i )
 	{
 		b3RegistrySlot* slot = player->rdr.slots + i;
-		// Copy so b3InternGeometry can take ownership (it frees on dedup, which won't happen
-		// since we're inserting fresh entries in order).
+		// Copy so the registry can take ownership.
 		int n = slot->byteCount > 0 ? slot->byteCount : 1;
 		uint8_t* copy = (uint8_t*)b3Alloc( (size_t)n );
 		if ( slot->byteCount > 0 )
@@ -2385,8 +2386,8 @@ static void b3RecSeedKeyframeRegistry( b3RecPlayer* player )
 			memcpy( copy, slot->bytes, (size_t)slot->byteCount );
 		}
 		uint64_t h = b3Hash64Blob( slot->bytes, slot->byteCount );
-		uint32_t id = b3InternGeometry( reg, slot->kind, h, copy, slot->byteCount );
-		// Each slot should get id == its index since we seed in order.
+		uint32_t id = b3AppendGeometry( reg, slot->kind, h, copy, slot->byteCount );
+		// Seeding in order without dedup keeps id == slot index.
 		B3_ASSERT( id == (uint32_t)i );
 		(void)id;
 	}
@@ -2403,7 +2404,7 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 	B3_UNUSED( regCountBefore );
 
 	b3SerializeWorld( world, &buf, player->keyframeRec );
-	// Registry must not grow: all geometry was pre-seeded.
+	// Registry must not grow: all geometry was pre-seeded and the registry dedups exactly.
 	B3_ASSERT( player->keyframeRec->registry.count == regCountBefore );
 
 	size_t bodyBytes = (size_t)player->bodyIdCount * sizeof( b3BodyId );

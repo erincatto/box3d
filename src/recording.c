@@ -709,16 +709,47 @@ void b3RecEndRecord( b3Recording* rec )
 
 // Geometry registry
 
-// Fold a 32-bit hash into 64 bits. Collisions are caught by the byteCount+memcmp fallback.
+// Full 64-bit content hash, so distinct blobs of the same length get independent bits. A reseeded
+// 32-bit djb2 cannot: djb2 is affine in its seed, so a same-length collision survives every seed and
+// the high word would just track the low one. Word folded for speed, byte order normalized on
+// big-endian to match b3Hash, then a splitmix64 finalizer so tiny inputs still spread across all bits.
+// From Fowler/Noll/Vo FNV-1a salted by length, then the splitmix64 mix.
 uint64_t b3Hash64Blob( const uint8_t* bytes, int n )
 {
-	uint32_t h = b3Hash( B3_HASH_INIT, bytes, n );
-	return (uint64_t)h | ( (uint64_t)b3NonZeroHash( ~h ) << 32 );
+	uint64_t h = 0xcbf29ce484222325ull ^ (uint64_t)(uint32_t)n;
+	const uint64_t prime = 0x100000001b3ull;
+	int i = 0;
+
+	while ( i + 8 <= n )
+	{
+		uint64_t word;
+		memcpy( &word, bytes + i, sizeof( word ) );
+#if defined( __BYTE_ORDER__ ) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		word = ( ( word & 0x00000000000000FFULL ) << 56 ) | ( ( word & 0x000000000000FF00ULL ) << 40 ) |
+		       ( ( word & 0x0000000000FF0000ULL ) << 24 ) | ( ( word & 0x00000000FF000000ULL ) << 8 ) |
+		       ( ( word & 0x000000FF00000000ULL ) >> 8 ) | ( ( word & 0x0000FF0000000000ULL ) >> 24 ) |
+		       ( ( word & 0x00FF000000000000ULL ) >> 40 ) | ( ( word & 0xFF00000000000000ULL ) >> 56 );
+#endif
+		h = ( h ^ word ) * prime;
+		i += 8;
+	}
+
+	while ( i < n )
+	{
+		h = ( h ^ (uint64_t)bytes[i] ) * prime;
+		i += 1;
+	}
+
+	h ^= h >> 30;
+	h *= 0xbf58476d1ce4e5b9ull;
+	h ^= h >> 27;
+	h *= 0x94d049bb133111ebull;
+	h ^= h >> 31;
+	return h;
 }
 
-// Content hash to entry id, so dedup is O(1) average instead of a linear scan. A 64-bit content-hash
-// collision between distinct blobs is still caught by the byteCount + memcmp check, so it can never
-// return the wrong id; the worst case is a missed dedup in that astronomically unlikely event.
+// Content hash to chain head, so dedup is near O(1). Colliding hashes share a head and are walked
+// through b3GeometryEntry::hashNext, so the byteCount + memcmp check always finds an existing blob.
 #define NAME b3GeometryHashMap
 #define KEY_TY uint64_t
 #define VAL_TY uint32_t
@@ -728,33 +759,10 @@ uint64_t b3Hash64Blob( const uint8_t* bytes, int n )
 #define FREE_FN b3Free
 #include "verstable.h"
 
-uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
-                           uint8_t* bytes, int byteCount )
+// Append a fresh entry and splice it onto the front of its hash chain. The map value is the chain head.
+static uint32_t b3RegistryPush( b3GeometryRegistry* reg, b3GeometryHashMap* map, b3GeometryHashMap_itr itr,
+                                bool hashPresent, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount )
 {
-	if ( reg->dedupMap == NULL )
-	{
-		b3GeometryHashMap* fresh = (b3GeometryHashMap*)b3Alloc( sizeof( b3GeometryHashMap ) );
-		b3GeometryHashMap_init( fresh );
-		reg->dedupMap = fresh;
-	}
-	b3GeometryHashMap* map = (b3GeometryHashMap*)reg->dedupMap;
-
-	b3GeometryHashMap_itr itr = b3GeometryHashMap_get( map, contentHash );
-	bool hashPresent = b3GeometryHashMap_is_end( itr ) == false;
-	if ( hashPresent )
-	{
-		b3GeometryEntry* e = reg->entries + itr.data->val;
-		if ( e->byteCount == byteCount && memcmp( e->bytes, bytes, (size_t)byteCount ) == 0 )
-		{
-			// Duplicate: the caller transferred ownership; return existing id
-			b3Free( bytes, (size_t)byteCount );
-			return e->id;
-		}
-		// Same hash, different bytes: a 64-bit collision. Store a new entry and leave the map pointing
-		// at the first, so only a later blob identical to this rare one would miss dedup.
-	}
-
-	// New entry — grow the array if needed
 	if ( reg->count >= reg->capacity )
 	{
 		int newCap = reg->capacity < 8 ? 8 : reg->capacity * 2;
@@ -771,14 +779,63 @@ uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_
 	entry->kind        = kind;
 	entry->byteCount   = byteCount;
 	entry->bytes       = bytes; // take ownership
+	entry->hashNext    = hashPresent ? (int)itr.data->val : B3_NULL_INDEX;
 	reg->count++;
 
-	// Only the first entry for a given hash goes in the map; a hash hit is verified by memcmp above.
-	if ( hashPresent == false )
+	if ( hashPresent )
+	{
+		itr.data->val = id;
+	}
+	else
 	{
 		b3GeometryHashMap_insert( map, contentHash, id );
 	}
 	return id;
+}
+
+static b3GeometryHashMap* b3RegistryMap( b3GeometryRegistry* reg )
+{
+	if ( reg->dedupMap == NULL )
+	{
+		b3GeometryHashMap* fresh = (b3GeometryHashMap*)b3Alloc( sizeof( b3GeometryHashMap ) );
+		b3GeometryHashMap_init( fresh );
+		reg->dedupMap = fresh;
+	}
+	return (b3GeometryHashMap*)reg->dedupMap;
+}
+
+uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
+                           uint8_t* bytes, int byteCount )
+{
+	b3GeometryHashMap* map = b3RegistryMap( reg );
+
+	b3GeometryHashMap_itr itr = b3GeometryHashMap_get( map, contentHash );
+	bool hashPresent = b3GeometryHashMap_is_end( itr ) == false;
+	if ( hashPresent )
+	{
+		// Walk every entry sharing this hash so a collision still finds the identical blob.
+		for ( int idx = (int)itr.data->val; idx != B3_NULL_INDEX; idx = reg->entries[idx].hashNext )
+		{
+			b3GeometryEntry* e = reg->entries + idx;
+			if ( e->byteCount == byteCount && memcmp( e->bytes, bytes, (size_t)byteCount ) == 0 )
+			{
+				// Duplicate: the caller transferred ownership; return existing id
+				b3Free( bytes, (size_t)byteCount );
+				return e->id;
+			}
+		}
+	}
+
+	return b3RegistryPush( reg, map, itr, hashPresent, kind, contentHash, bytes, byteCount );
+}
+
+uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
+                           uint8_t* bytes, int byteCount )
+{
+	b3GeometryHashMap* map = b3RegistryMap( reg );
+	b3GeometryHashMap_itr itr = b3GeometryHashMap_get( map, contentHash );
+	bool hashPresent = b3GeometryHashMap_is_end( itr ) == false;
+	return b3RegistryPush( reg, map, itr, hashPresent, kind, contentHash, bytes, byteCount );
 }
 
 void b3FreeRegistry( b3GeometryRegistry* reg )

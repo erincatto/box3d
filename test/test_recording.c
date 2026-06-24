@@ -1563,8 +1563,85 @@ static int ReservedHeaderBytes( void )
 	return 0;
 }
 
+// Geometry that shares a content hash but differs in bytes must dedup exactly. Mirrors the keyframe
+// flow that crashed: the seed appends every slot 1:1 (even byte-identical duplicates a hash collision
+// left in an already-recorded file), then capture must resolve a live blob back to an existing slot
+// without growing the registry. Forces the collision by handing the same hash to distinct blobs.
+static int GeometryHashCollision( void )
+{
+	const int n = 16;
+	const uint64_t sharedHash = 0xABCD1234ull;
+
+	// The content hash must use its full width: a one-byte change in a same-length blob has to perturb
+	// the high word too, not just the low one, which is the trap a reseeded 32-bit djb2 fell into.
+	{
+		uint8_t p[16];
+		uint8_t q[16];
+		memset( p, 0x11, sizeof( p ) );
+		memset( q, 0x11, sizeof( q ) );
+		q[7] = 0x12;
+		uint64_t hp = b3Hash64Blob( p, (int)sizeof( p ) );
+		uint64_t hq = b3Hash64Blob( q, (int)sizeof( q ) );
+		ENSURE( hp != hq );
+		ENSURE( (uint32_t)( hp >> 32 ) != (uint32_t)( hq >> 32 ) );
+	}
+
+	b3GeometryRegistry reg = { 0 };
+
+	uint8_t* blobA = (uint8_t*)b3Alloc( (size_t)n );
+	uint8_t* blobB = (uint8_t*)b3Alloc( (size_t)n );
+	memset( blobA, 0xAA, (size_t)n );
+	memset( blobB, 0xBB, (size_t)n );
+
+	// Distinct blobs colliding on the hash must become two entries, not a false dedup.
+	uint32_t idA = b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobA, n );
+	uint32_t idB = b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobB, n );
+	ENSURE( idA != idB );
+	ENSURE( reg.count == 2 );
+
+	// Re-interning either blob must find it through the hash chain and never grow the registry,
+	// including the one shadowed behind the bucket head. The old single-entry lookup missed the
+	// shadowed blob and appended a duplicate, which is exactly what tripped the keyframe assert.
+	uint8_t* blobA2 = (uint8_t*)b3Alloc( (size_t)n );
+	memset( blobA2, 0xAA, (size_t)n );
+	ENSURE( b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobA2, n ) == idA );
+	ENSURE( reg.count == 2 );
+
+	uint8_t* blobB2 = (uint8_t*)b3Alloc( (size_t)n );
+	memset( blobB2, 0xBB, (size_t)n );
+	ENSURE( b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobB2, n ) == idB );
+	ENSURE( reg.count == 2 );
+
+	b3FreeRegistry( &reg );
+
+	// Seed-then-capture: appending byte-identical duplicate slots keeps id == slot index, and a later
+	// exact intern still resolves to one of them without appending a new entry.
+	b3GeometryRegistry seeded = { 0 };
+	uint8_t* slot0 = (uint8_t*)b3Alloc( (size_t)n );
+	uint8_t* slot1 = (uint8_t*)b3Alloc( (size_t)n );
+	uint8_t* slot2 = (uint8_t*)b3Alloc( (size_t)n );
+	memset( slot0, 0xAA, (size_t)n );
+	memset( slot1, 0xBB, (size_t)n );
+	memset( slot2, 0xAA, (size_t)n ); // duplicate of slot0
+	ENSURE( b3AppendGeometry( &seeded, b3_geometryHull, sharedHash, slot0, n ) == 0 );
+	ENSURE( b3AppendGeometry( &seeded, b3_geometryHull, sharedHash, slot1, n ) == 1 );
+	ENSURE( b3AppendGeometry( &seeded, b3_geometryHull, sharedHash, slot2, n ) == 2 );
+
+	uint8_t* live = (uint8_t*)b3Alloc( (size_t)n );
+	memset( live, 0xAA, (size_t)n );
+	uint32_t resolved = b3InternGeometry( &seeded, b3_geometryHull, sharedHash, live, n );
+	ENSURE( seeded.count == 3 );                                   // no growth
+	ENSURE( resolved == 0 || resolved == 2 );                      // a valid slot index for that content
+	ENSURE( seeded.entries[resolved].byteCount == n );
+	ENSURE( memcmp( seeded.entries[resolved].bytes, slot0, (size_t)n ) == 0 );
+
+	b3FreeRegistry( &seeded );
+	return 0;
+}
+
 int RecordingTest( void )
 {
+	RUN_SUBTEST( GeometryHashCollision );
 	RUN_SUBTEST( SphereRoundTrip );
 	RUN_SUBTEST( EmptyWorldRoundTrip );
 	RUN_SUBTEST( HullDedup );
