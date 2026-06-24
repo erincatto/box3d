@@ -481,6 +481,11 @@ void Sample::Step()
 	b3World_Draw( m_worldId, &debugDraw, B3_DEFAULT_MASK_BITS );
 }
 
+b3BodyId Sample::FocusBody() const
+{
+	return GetHoveredBody();
+}
+
 void Sample::ResetProfile()
 {
 	m_stepCount = 0;

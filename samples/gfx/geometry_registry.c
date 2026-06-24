@@ -222,7 +222,7 @@ MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCo
 	vbDesc.data.ptr = vertices;
 	vbDesc.data.size = (size_t)vertexCount * sizeof( MeshVertex );
 	vbDesc.label = debugLabel ? debugLabel : "geom_vbo";
-	e->vbo = sg_make_buffer( &vbDesc );
+	sg_buffer vbo = sg_make_buffer( &vbDesc );
 
 	sg_buffer_desc ibDesc = { 0 };
 	ibDesc.usage.index_buffer = true;
@@ -230,8 +230,20 @@ MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCo
 	ibDesc.data.ptr = indices;
 	ibDesc.data.size = (size_t)indexCount * sizeof( uint32_t );
 	ibDesc.label = debugLabel ? debugLabel : "geom_ibo";
-	e->ibo = sg_make_buffer( &ibDesc );
+	sg_buffer ibo = sg_make_buffer( &ibDesc );
 
+	// A full GPU buffer pool returns an invalid handle. Bail before committing
+	// the slot so a huge recording drops geometry instead of crashing. The
+	// slot stays free (refCount 0) for the next caller.
+	if ( sg_query_buffer_state( vbo ) != SG_RESOURCESTATE_VALID || sg_query_buffer_state( ibo ) != SG_RESOURCESTATE_VALID )
+	{
+		sg_destroy_buffer( ibo );
+		sg_destroy_buffer( vbo );
+		return InvalidMeshHandle();
+	}
+
+	e->vbo = vbo;
+	e->ibo = ibo;
 	e->hash = hash;
 	e->refCount = 1;
 	e->indexCount = indexCount;
@@ -272,13 +284,30 @@ void RegisterMeshEdges( MeshHandle h, const EdgeVertex* edges, int edgeCount, co
 	bdesc.data.ptr = edges;
 	bdesc.data.size = (size_t)( 2 * edgeCount ) * sizeof( EdgeVertex );
 	bdesc.label = debugLabel ? debugLabel : "geom_edges";
-	e->edgeBuf = sg_make_buffer( &bdesc );
+	sg_buffer edgeBuf = sg_make_buffer( &bdesc );
+
+	// On a full pool the edge buffer is invalid. Passing it to sg_make_view
+	// trips a sokol assert (no active view type), so skip the overlay and let
+	// the shape draw without edges.
+	if ( sg_query_buffer_state( edgeBuf ) != SG_RESOURCESTATE_VALID )
+	{
+		sg_destroy_buffer( edgeBuf );
+		return;
+	}
 
 	sg_view_desc vdesc = { 0 };
-	vdesc.storage_buffer.buffer = e->edgeBuf;
+	vdesc.storage_buffer.buffer = edgeBuf;
 	vdesc.label = debugLabel ? debugLabel : "geom_edges_view";
-	e->edgeStorageView = sg_make_view( &vdesc );
+	sg_view edgeView = sg_make_view( &vdesc );
+	if ( sg_query_view_state( edgeView ) != SG_RESOURCESTATE_VALID )
+	{
+		sg_destroy_view( edgeView );
+		sg_destroy_buffer( edgeBuf );
+		return;
+	}
 
+	e->edgeBuf = edgeBuf;
+	e->edgeStorageView = edgeView;
 	e->edgeCount = edgeCount;
 }
 

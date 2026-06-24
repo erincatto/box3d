@@ -119,6 +119,11 @@ public:
 		return true;
 	}
 
+	// Body the Frame shortcut should fit. Defaults to whatever the cursor is over.
+	// The replay viewer overrides this to fit its persistent selection instead, so
+	// framing works regardless of where the cursor sits.
+	virtual b3BodyId FocusBody() const;
+
 	// Arm recording on the live world, snapshotting it as the seed so capture can begin at any
 	// step boundary. Stop writes the file named by the context and frees the buffer.
 	void StartRecording();

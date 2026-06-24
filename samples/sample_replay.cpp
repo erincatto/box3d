@@ -477,6 +477,21 @@ public:
 		return false;
 	}
 
+	// Frame the persistent selection so F focuses the chosen body wherever the cursor sits. Only a
+	// body, shape, or joint pick resolves to a body to fit. Otherwise fall back to the hovered body.
+	b3BodyId FocusBody() const override
+	{
+		if ( m_selKind == SelBody || m_selKind == SelShape || m_selKind == SelJoint )
+		{
+			b3BodyId body = SelectedBody();
+			if ( b3Body_IsValid( body ) )
+			{
+				return body;
+			}
+		}
+		return GetHoveredBody();
+	}
+
 	// Transport row shared by the right panel and the Timeline tab. Play is green, Pause red.
 	void DrawTransport()
 	{

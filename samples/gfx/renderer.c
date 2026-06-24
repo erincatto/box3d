@@ -649,14 +649,13 @@ void InitRenderer( const sg_environment* env )
 	sg_desc desc = { 0 };
 	desc.environment = *env;
 	desc.logger.func = OnSokolLog;
-	// Sokol's default buffer/view pools are 128/256, which is fine for the
-	// demo scenes but exhausts on Box3D benchmark scenes that register many
-	// unique hull geometries (the washer benchmark: 40 distinct 8-vertex
-	// hulls, each consuming 1 vertex + 1 index + 1 edge buffer + 1 edge
-	// view in the geometry registry). Size up generously, each pool slot
-	// is a small struct, so 1024 each is < 1 MB of headroom.
-	desc.buffer_pool_size = 1024;
-	desc.view_pool_size = 1024;
+
+	// Sokol's default buffer/view pools are 128/256, which exhausts on scenes that register many unique geometries.
+	// The geometry registry holds up to MAX_REGISTRY_ENTRIES (4096) entries, each consuming 3 buffers (vertex,
+	// index, edge) and 1 edge view. Size the pools past 4096 entries worth so the registry cap, which degrades
+	// gracefully, is the binding limit rather than a sokol pool assert. Pool slots are small structs, a few MB total.
+	desc.buffer_pool_size = 16384;
+	desc.view_pool_size = 8192;
 	sg_setup( &desc );
 
 #if defined( SOKOL_GLCORE )
@@ -1248,11 +1247,11 @@ void InitRenderer( const sg_environment* env )
 	// Default exposure: Preetham at physical strength is bright, -2 EV
 	// brings the integrated sky+sun into AgX's sweet spot.
 	s_gfx.exposureEv = -2.5f;
-	
+
 	// 1.0 is AgX's stock Standard look (identity), the Render Settings
 	// panel raises it to counteract AgX's path-to-white desaturation.
 	s_gfx.tonemapSaturation = 1.4f;
-	
+
 	// IBL on by default, the Render Settings panel toggles it.
 	s_gfx.iblEnabled = true;
 
