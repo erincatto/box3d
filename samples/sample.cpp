@@ -1549,10 +1549,6 @@ static void DrawMenuBar( SampleContext* context )
 				float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
 				cam.Frame( aabb, aspect, 0.75f );
 			}
-			// View-only: stand the scene up when the simulation uses +Z as up (e.g. a
-			// recording imported from a Z-up tool). The simulation is untouched.
-			ImGui::MenuItem( "Z-up View", nullptr, &context->viewZUp );
-			ImGui::Separator();
 			ImGui::MenuItem( "Shapes", nullptr, &gd->drawShapes );
 			ImGui::MenuItem( "Transparent", nullptr, &context->transparentDynamic );
 			ImGui::MenuItem( "Joints", nullptr, &gd->drawJoints );

@@ -143,6 +143,7 @@ public:
 		m_selSlot = -1;
 		m_selQuery = -1;
 		m_revealSelection = false;
+		m_drawAllQueries = false;
 		m_requestLoadPopup = false;
 		m_generating = false;
 		m_popupBudgetMB = m_context->replayKeyframeBudgetMB;
@@ -159,6 +160,10 @@ public:
 		m_context->showMetrics = true;
 		m_context->pause = true;
 		m_selectTimelineTab = true;
+
+		// Z-up is a replay-only view choice and has no toggle elsewhere, so restore it on exit
+		// rather than leak a tilted view into the next sample.
+		m_prevViewZUp = m_context->viewZUp;
 
 		snprintf( m_path, sizeof( m_path ), "%s", m_context->replayFile );
 
@@ -188,6 +193,7 @@ public:
 		// debug-shape pool. Destroying the player here releases the replay world's pool entries first.
 		ClosePlayer();
 		m_context->showMetrics = m_prevShowMetrics;
+		m_context->viewZUp = m_prevViewZUp;
 	}
 
 	void ClosePlayer()
@@ -258,20 +264,31 @@ public:
 		m_info = b3RecPlayer_GetInfo( m_player );
 		snprintf( m_status, sizeof( m_status ), "loaded" );
 
-		// Frame the recorded motion. Bounds come from the trailing RecordingBounds record; an empty
-		// extent means an older recording, so leave the default view.
+		// Frame the recorded motion on a fresh open. A restart keeps the user's current camera.
 		if ( m_context->restart == false )
 		{
-			b3Vec3 extent = b3Sub( m_info.bounds.upperBound, m_info.bounds.lowerBound );
-			if ( extent.x > 0.0f || extent.y > 0.0f || extent.z > 0.0f )
-			{
-				// The player just applied the recording's length scale, so frame against the
-				// same sim->display transform the frame loop will use, or the first fit lands at
-				// the wrong distance.
-				m_camera->SetRenderTransform( b3GetLengthUnitsPerMeter(), m_context->viewZUp );
-				float aspect = m_camera->m_height > 0 ? (float)m_camera->m_width / (float)m_camera->m_height : 1.0f;
-				m_camera->Frame( m_info.bounds, aspect, 1.4f );
-			}
+			FrameRecording();
+		}
+	}
+
+	// Fit the view to the recorded bounds for the current up axis. The player applies the recording's
+	// length scale on load, so frame against the same sim->display transform the frame loop uses, or
+	// the fit lands at the wrong distance. Reused on a Z-up toggle, where the transform rotates about
+	// the sim origin and would otherwise swing the bounds out of view. An empty extent means an older
+	// recording with no bounds record, so leave the default view.
+	void FrameRecording()
+	{
+		if ( m_player == nullptr )
+		{
+			return;
+		}
+
+		b3Vec3 extent = b3Sub( m_info.bounds.upperBound, m_info.bounds.lowerBound );
+		if ( extent.x > 0.0f || extent.y > 0.0f || extent.z > 0.0f )
+		{
+			m_camera->SetRenderTransform( b3GetLengthUnitsPerMeter(), m_context->viewZUp );
+			float aspect = m_camera->m_height > 0 ? (float)m_camera->m_width / (float)m_camera->m_height : 1.0f;
+			m_camera->Frame( m_info.bounds, aspect, 1.4f );
 		}
 	}
 
@@ -463,8 +480,13 @@ public:
 
 		DrawSelectionHighlight();
 
-		// Overlay the selected query's geometry and recorded hits on top of the world.
-		if ( m_selKind == SelQuery )
+		// Overlay query geometry and recorded hits on top of the world. The toggle draws every
+		// recorded query, otherwise just the selected one.
+		if ( m_drawAllQueries )
+		{
+			b3RecPlayer_DrawFrameQueries( m_player, &debugDraw, -1 );
+		}
+		else if ( m_selKind == SelQuery )
 		{
 			b3RecPlayer_DrawFrameQueries( m_player, &debugDraw, m_selQuery );
 		}
@@ -565,6 +587,16 @@ public:
 		{
 			m_context->showMetrics = true;
 			m_selectTimelineTab = true;
+		}
+
+		// Overlay every recorded query, not just the one selected in the outline.
+		ImGui::Checkbox( "Draw All Queries", &m_drawAllQueries );
+
+		// View-only stand-up for recordings authored with +Z as up. The simulation is untouched.
+		// Reframe on a toggle so the rotated bounds stay centered, matching the fit done on load.
+		if ( ImGui::Checkbox( "Z-up View", &m_context->viewZUp ) )
+		{
+			FrameRecording();
 		}
 
 		if ( b3RecPlayer_HasDiverged( m_player ) )
@@ -1254,6 +1286,7 @@ public:
 
 	bool m_selectTimelineTab; // one-shot: focus the Timeline tab on the next draw
 	bool m_prevShowMetrics;	  // restore the drawer state on exit
+	bool m_prevViewZUp;		  // restore the up-axis view on exit
 
 	// Load popup state. A fresh open configures the keyframe policy here, then the popup switches to a
 	// progress bar while every keyframe is generated up front. Temporaries hold the in-popup edits so
@@ -1269,6 +1302,7 @@ public:
 	int m_selSlot;			// shape or joint slot within the selected body
 	int m_selQuery;			// query index, only meaningful for the current frame
 	bool m_revealSelection; // one-shot: expand and scroll the tree to a viewport pick
+	bool m_drawAllQueries;	// overlay every recorded query, not just the selected one
 };
 
 static int sampleReplayViewer = RegisterReplay( "Replay", "Viewer", ReplayViewer::Create );
