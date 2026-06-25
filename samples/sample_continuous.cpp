@@ -1003,7 +1003,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 60.0f, 40.0f, 60.0f, { 0.0f, 2.0f, 0.0f } );
+			m_camera->SetView( 130.0f, 15.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
 		AddGroundBox( 500.0f );

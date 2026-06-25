@@ -198,7 +198,9 @@ b3AABB b3RecR_AABB( b3RecReader* rdr )
 
 b3QueryFilter b3RecR_QUERYFILTER( b3RecReader* rdr )
 {
-	b3QueryFilter f;
+	// id and name are not on the wire here, they ride the separate QueryTag op. Start from the default
+	// so they keep the untagged sentinel instead of garbage.
+	b3QueryFilter f = b3DefaultQueryFilter();
 	f.categoryBits = b3RecR_U64( rdr );
 	f.maskBits = b3RecR_U64( rdr );
 	return f;

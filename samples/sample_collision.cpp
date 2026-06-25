@@ -1075,16 +1075,6 @@ public:
 		return true;
 	}
 
-	void Render() override
-	{
-		Sample::Render();
-
-		DrawTextLine( "Shift + LMB and drag to shift start position" );
-
-		DrawGroundGrid( 10 );
-		DrawAxes( b3WorldTransform_identity, 1.0f );
-	}
-
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override
 	{
 		if ( button == 0 )
@@ -1126,9 +1116,15 @@ public:
 
 	void Step() override
 	{
+		Sample::Step();
+
 		CastSpheres();
 		CastCapsules();
 		CastHulls();
+		DrawTextLine( "Shift + LMB and drag to shift start position" );
+
+		DrawGroundGrid( 10 );
+		DrawAxes( b3WorldTransform_identity, 1.0f );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -1279,18 +1275,6 @@ public:
 		}
 	}
 
-	void Render() override
-	{
-		Sample::Render();
-
-		DrawTextLine( "Shift + LMB and drag to move shapes" );
-
-		DrawGroundGrid( 10 );
-		DrawLine( b3Pos_zero, b3OffsetPos( b3Pos_zero, 0.4f * b3Vec3_axisX ), MakeColor( b3_colorRed ) );
-		DrawLine( b3Pos_zero, b3OffsetPos( b3Pos_zero, 0.4f * b3Vec3_axisY ), MakeColor( b3_colorGreen ) );
-		DrawLine( b3Pos_zero, b3OffsetPos( b3Pos_zero, 0.4f * b3Vec3_axisZ ), MakeColor( b3_colorBlue ) );
-	}
-
 	void MouseDown( b3Vec2 p, int button, int modifiers ) override
 	{
 		if ( button == 0 )
@@ -1321,9 +1305,17 @@ public:
 
 	void Step() override
 	{
+		Sample::Step();
+
 		OverlapSpheres();
 		OverlapCapsules();
 		OverlapHulls();
+		DrawTextLine( "Shift + LMB and drag to move shapes" );
+
+		DrawGroundGrid( 10 );
+		DrawLine( b3Pos_zero, b3OffsetPos( b3Pos_zero, 0.4f * b3Vec3_axisX ), MakeColor( b3_colorRed ) );
+		DrawLine( b3Pos_zero, b3OffsetPos( b3Pos_zero, 0.4f * b3Vec3_axisY ), MakeColor( b3_colorGreen ) );
+		DrawLine( b3Pos_zero, b3OffsetPos( b3Pos_zero, 0.4f * b3Vec3_axisZ ), MakeColor( b3_colorBlue ) );
 	}
 
 	b3BoxHull m_box;
