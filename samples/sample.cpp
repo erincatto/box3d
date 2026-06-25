@@ -104,8 +104,8 @@ void SampleContext::Save()
 	fprintf( file, "  \"sunStrength\": %g,\n", GetSun().strength );
 	fprintf( file, "  \"debugView\": %d,\n", debugView );
 	fprintf( file, "  \"showHullEdges\": %s,\n", GetEdgeOverlayParams().showHulls ? "true" : "false" );
-	fprintf( file, "  \"showEdgeConvexity\": %s\n", GetEdgeOverlayParams().showEdgeConvexity ? "true" : "false" );
-	fprintf( file, "  \"replayKeyframeBudgetMB\": %d\n", replayKeyframeBudgetMB );
+	fprintf( file, "  \"showEdgeConvexity\": %s,\n", GetEdgeOverlayParams().showEdgeConvexity ? "true" : "false" );
+	fprintf( file, "  \"replayKeyframeBudgetMB\": %d,\n", replayKeyframeBudgetMB );
 	fprintf( file, "  \"replayKeyframeMinInterval\": %d\n", replayKeyframeMinInterval );
 	fprintf( file, "}\n" );
 	fclose( file );
@@ -1135,7 +1135,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 
 		b3QueryFilter filter = b3DefaultQueryFilter();
 		filter.name = "select";
-		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
+		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, filter );
 
 		if ( result.hit )
 		{

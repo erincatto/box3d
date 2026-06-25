@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <unordered_map>
 #include <vector>
 
 // Inspector readout names
@@ -556,9 +557,6 @@ public:
 		}
 		SetHoveredBody( hovered );
 
-		// Mirror the ordinal selection into the renderer highlight each frame.
-		// SetSelectedBody( SelectedBody() );
-
 		// Draw the replay world through the same adapter path the live samples use.
 		b3DebugDraw debugDraw;
 		MakeDebugDraw( &debugDraw );
@@ -1021,6 +1019,8 @@ public:
 			int frame = b3RecPlayer_GetFrame( m_player );
 			int qn = b3RecPlayer_GetFrameQueryCount( m_player );
 			int kindOrdinal[ReplayQueryTypeCount] = { 0 };
+			// Running occurrence count per key, so disambiguating same-key calls stays linear in the frame.
+			std::unordered_map<uint64_t, int> keyInstance;
 			for ( int i = 0; i < qn; ++i )
 			{
 				b3RecQueryInfo q = b3RecPlayer_GetFrameQuery( m_player, i );
@@ -1028,7 +1028,7 @@ public:
 				row.frame = frame;
 				row.type = q.type;
 				row.kindOrdinal = kindOrdinal[q.type]++;
-				row.instance = QueryInstanceOfKey( i, q.key );
+				row.instance = q.key != 0 ? keyInstance[q.key]++ : 0;
 				row.key = q.key;
 				row.id = q.id;
 				row.name = q.name;
@@ -1112,7 +1112,8 @@ public:
 				continue;
 			}
 
-			char label[96];
+			// Hold the full text plus the ###qr id so a long label cannot truncate the id and collide rows.
+			char label[128];
 			snprintf( label, sizeof( label ), "%s###qr%d", text, r );
 			ImGui::PushStyleColor( ImGuiCol_Text, PanelColor( QueryKindColor( row.type ) ) );
 			bool clicked = ImGui::Selectable( label, false );

@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define B3_DEFAULT_CATEGORY_BITS 1
+#define B3_DEFAULT_CATEGORY_BITS UINT64_MAX
 #define B3_DEFAULT_MASK_BITS UINT64_MAX
 
 /// Task interface

@@ -120,13 +120,15 @@ void Camera::SetRenderTransform( float lengthUnitsPerMeter, bool zUp )
 		// S = s * Rx(-90): sim (x,y,z) -> display (x, z, -y), so sim +Z is view up.
 		// A proper rotation (det +1), not an axis swap, so winding and normals stay
 		// correct and back-face culling is not inverted.
-		m_renderXform = Mat4{ { s, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, -s, 0.0f }, { 0.0f, s, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
+		m_renderXform =
+			Mat4{ { s, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, -s, 0.0f }, { 0.0f, s, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
 		m_renderXformInv =
 			Mat4{ { u, 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, u, 0.0f }, { 0.0f, -u, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
 	}
 	else
 	{
-		m_renderXform = Mat4{ { s, 0.0f, 0.0f, 0.0f }, { 0.0f, s, 0.0f, 0.0f }, { 0.0f, 0.0f, s, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
+		m_renderXform =
+			Mat4{ { s, 0.0f, 0.0f, 0.0f }, { 0.0f, s, 0.0f, 0.0f }, { 0.0f, 0.0f, s, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
 		m_renderXformInv =
 			Mat4{ { u, 0.0f, 0.0f, 0.0f }, { 0.0f, u, 0.0f, 0.0f }, { 0.0f, 0.0f, u, 0.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } };
 	}
@@ -460,10 +462,7 @@ void Camera::Update( float dt, int width, int height )
 		if ( m_speedScrollAccum != 0.0f )
 		{
 			m_speed += m_speedScrollAccum * FLY_SPEED_STEP;
-			if ( m_speed < MIN_SPEED )
-				m_speed = MIN_SPEED;
-			if ( m_speed > MAX_SPEED )
-				m_speed = MAX_SPEED;
+			m_speed = b3ClampFloat( m_speed, MIN_SPEED, MAX_SPEED );
 		}
 	}
 	else
@@ -473,10 +472,7 @@ void Camera::Update( float dt, int width, int height )
 		{
 			m_yaw -= m_orbitDX * ORBIT_SENS;
 			m_pitch -= m_orbitDY * ORBIT_SENS;
-			if ( m_pitch > PITCH_LIM )
-				m_pitch = PITCH_LIM;
-			if ( m_pitch < -PITCH_LIM )
-				m_pitch = -PITCH_LIM;
+			m_pitch = b3ClampFloat( m_pitch, -PITCH_LIM, PITCH_LIM );
 		}
 
 		if ( m_panDX != 0.0f || m_panDY != 0.0f )
@@ -497,19 +493,13 @@ void Camera::Update( float dt, int width, int height )
 		{
 			// Drag down -> zoom in (radius shrinks). Matches Box3D.
 			m_radius -= RADIAL_ZOOM_SENS * m_radialZoomDY;
-			if ( m_radius < MIN_DIST )
-				m_radius = MIN_DIST;
-			if ( m_radius > kViewDistance )
-				m_radius = kViewDistance;
+			m_radius = b3ClampFloat( m_radius, MIN_DIST, kViewDistance );
 		}
 
 		if ( m_scrollAccum != 0.0f )
 		{
 			m_radius *= powf( ZOOM_STEP, m_scrollAccum );
-			if ( m_radius < MIN_DIST )
-				m_radius = MIN_DIST;
-			if ( m_radius > kViewDistance )
-				m_radius = kViewDistance;
+			m_radius = b3ClampFloat( m_radius, MIN_DIST, kViewDistance );
 		}
 	}
 

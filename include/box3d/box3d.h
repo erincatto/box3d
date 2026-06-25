@@ -439,13 +439,13 @@ typedef struct b3RecQueryInfo
 {
 	b3RecQueryType type;
 	b3QueryFilter  filter;
-	b3AABB         aabb;        // world-space bounds of the query, swept for casts; use this to frame it
+	b3AABB         aabb;        // world-space bounds of the query, swept for casts
 	b3Pos          origin;      // query origin (zero for overlap AABB)
 	b3Vec3         translation; // ray and cast translation
 	int            hitCount;    // number of recorded results
-	uint64_t       key;         // identity key, the hash of (id, name); 0 if untagged. Track by this.
-	uint64_t       id;          // caller id, e.g. an entity id; 0 if none
-	const char*    name;        // caller label, NULL if none
+	uint64_t       key;         // identity key, the hash of (id, name), 0 if untagged
+	uint64_t       id;          // query id, 0 if none
+	const char*    name;        // query label, NULL if none
 } b3RecQueryInfo;
 
 /// One result of a recorded spatial query.

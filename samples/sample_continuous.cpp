@@ -1023,8 +1023,6 @@ public:
 		// Log any CCD that takes longer than 1 ms.
 		b3SetStallThreshold( 0.001f );
 
-		// b3World_SetMaximumLinearSpeed( m_worldId, 50.0f );
-
 		Launch();
 	}
 

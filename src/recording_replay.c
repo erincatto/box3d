@@ -207,7 +207,8 @@ b3QueryFilter b3RecR_QUERYFILTER( b3RecReader* rdr )
 // Reserve reader scratch for a count taken from an untrusted file. Every recorded element
 // consumes at least one byte, so a valid count can never exceed the bytes left in the file.
 // Reject anything larger (or negative, or that would overflow the byte size) by failing the read
-// rather than allocating wildly. Contents are not preserved; callers overwrite before use.
+// rather than allocating wildly. A grow keeps the old contents so callers can accumulate across
+// reserves, as the collide-mover dispatcher does one shape group at a time.
 static bool b3RecReserveScratch( b3RecReader* rdr, void** data, int* cap, int need, int elemSize )
 {
 	int remaining = rdr->size - rdr->cursor;
@@ -221,11 +222,13 @@ static bool b3RecReserveScratch( b3RecReader* rdr, void** data, int* cap, int ne
 		return true;
 	}
 	int newCap = need <= INT_MAX / elemSize - 8 ? need + 8 : need;
+	void* grown = b3Alloc( (size_t)newCap * (size_t)elemSize );
 	if ( *data != NULL )
 	{
+		memcpy( grown, *data, (size_t)*cap * (size_t)elemSize );
 		b3Free( *data, (size_t)*cap * (size_t)elemSize );
 	}
-	*data = b3Alloc( (size_t)newCap * (size_t)elemSize );
+	*data = grown;
 	*cap = newCap;
 	return true;
 }
@@ -2284,6 +2287,13 @@ static void b3RecLoadTags( b3RecReader* rdr, const uint8_t* rp, const uint8_t* d
 		return;
 	}
 
+	// Each tag is at least 18 bytes (8 key + 8 id + 2 length). Reject a count that cannot fit the
+	// remaining bytes so a corrupt table cannot request a wild allocation.
+	if ( (size_t)count > (size_t)( dataEnd - rp ) / 18 )
+	{
+		return;
+	}
+
 	b3RecTag* tags = (b3RecTag*)b3Alloc( (size_t)count * sizeof( b3RecTag ) );
 	memset( tags, 0, (size_t)count * sizeof( b3RecTag ) );
 	for ( uint32_t i = 0; i < count; ++i )
@@ -2364,6 +2374,14 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 		rdr->slotCount = 0;
 		b3RecLoadTags( rdr, rp, dataEnd );
 		return true;
+	}
+
+	// Each entry is at least 5 bytes (kind + 4-byte length). A count that cannot fit the remaining
+	// registry bytes is a corrupt header, so reject it before allocating.
+	if ( rp > dataEnd || (size_t)count > (size_t)( dataEnd - rp ) / 5 )
+	{
+		printf( "b3ReplayFile: registry count out of range\n" );
+		return false;
 	}
 
 	b3RegistrySlot* slots = (b3RegistrySlot*)b3Alloc( (size_t)count * sizeof( b3RegistrySlot ) );
