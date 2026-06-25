@@ -24,9 +24,8 @@
 
 #include "box3d/box3d.h"
 
-#include <nfd.h>
-
 #include <ctype.h>
+#include <nfd.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -106,6 +105,8 @@ void SampleContext::Save()
 	fprintf( file, "  \"debugView\": %d,\n", debugView );
 	fprintf( file, "  \"showHullEdges\": %s,\n", GetEdgeOverlayParams().showHulls ? "true" : "false" );
 	fprintf( file, "  \"showEdgeConvexity\": %s\n", GetEdgeOverlayParams().showEdgeConvexity ? "true" : "false" );
+	fprintf( file, "  \"replayKeyframeBudgetMB\": %d\n", replayKeyframeBudgetMB );
+	fprintf( file, "  \"replayKeyframeMinInterval\": %d\n", replayKeyframeMinInterval );
 	fprintf( file, "}\n" );
 	fclose( file );
 }
@@ -252,6 +253,24 @@ void SampleContext::Load()
 			EdgeOverlayParams p = GetEdgeOverlayParams();
 			p.showEdgeConvexity = strncmp( s, "true", 4 ) == 0;
 			SetEdgeOverlayParams( &p );
+		}
+		else if ( jsoneq( data, &tokens[i], "replayKeyframeBudgetMB" ) == 0 )
+		{
+			int count = tokens[i + 1].end - tokens[i + 1].start;
+			assert( count < 32 );
+			const char* s = data + tokens[i + 1].start;
+			strncpy( buffer, s, count );
+			buffer[count] = 0;
+			replayKeyframeBudgetMB = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 64, 4096 );
+		}
+		else if ( jsoneq( data, &tokens[i], "replayKeyframeMinInterval" ) == 0 )
+		{
+			int count = tokens[i + 1].end - tokens[i + 1].start;
+			assert( count < 32 );
+			const char* s = data + tokens[i + 1].start;
+			strncpy( buffer, s, count );
+			buffer[count] = 0;
+			replayKeyframeMinInterval = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 1, 1024 );
 		}
 	}
 
@@ -436,12 +455,15 @@ void Sample::Step()
 	m_triangleIndex = -1;
 	m_userMaterialId = 0;
 
+	b3BodyId hovered = b3_nullBodyId;
+	if ( m_camera->m_thirdPerson == false )
 	{
 		PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
-		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
+		b3QueryFilter filter = b3DefaultQueryFilter();
+		filter.name = "hover";
+		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, filter );
 
-		b3BodyId hovered = b3_nullBodyId;
 		if ( result.hit )
 		{
 			b3ShapeType type = b3Shape_GetType( result.shapeId );
@@ -459,9 +481,9 @@ void Sample::Step()
 				hovered = bodyId;
 			}
 		}
-
-		SetHoveredBody( hovered );
 	}
+
+	SetHoveredBody( hovered );
 
 	// The frame latched the origin before Step, but a third person follow moves the eye while
 	// stepping, so refresh it here. Shapes come back demoted to float against this origin, the same
@@ -481,9 +503,26 @@ void Sample::Step()
 	b3World_Draw( m_worldId, &debugDraw, B3_DEFAULT_MASK_BITS );
 }
 
+bool Sample::FocusBounds( b3AABB* ) const
+{
+	return false;
+}
+
+float Sample::InfoPanelWidthEm() const
+{
+	return INFO_PANEL_WIDTH;
+}
+
 b3BodyId Sample::FocusBody() const
 {
 	return GetHoveredBody();
+}
+
+void Sample::FocusHome()
+{
+	b3AABB aabb = b3World_GetBounds( m_worldId );
+	float aspect = m_camera->m_height > 0 ? (float)m_camera->m_width / (float)m_camera->m_height : 1.0f;
+	m_camera->Frame( aabb, aspect, 0.75f );
 }
 
 void Sample::ResetProfile()
@@ -542,7 +581,7 @@ void Sample::DrawMetrics()
 	}
 
 	float fontSize = ImGui::GetFontSize();
-	float menuWidth = INFO_PANEL_WIDTH * fontSize;
+	float menuWidth = InfoPanelWidthEm() * fontSize;
 	float drawerHeight = 16.0f * fontSize;
 	float drawerWidth = m_camera->m_width - menuWidth - 1.5f * fontSize;
 
@@ -1094,8 +1133,9 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 	{
 		PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 
-		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation,
-													 b3DefaultQueryFilter() );
+		b3QueryFilter filter = b3DefaultQueryFilter();
+		filter.name = "select";
+		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
 		if ( result.hit )
 		{
@@ -1583,7 +1623,7 @@ static void DrawMenuBar( SampleContext* context )
 			{
 				ImGui::PushItemWidth( 6.0f * fontSize );
 				ImGui::InputFloat( "Joint", &gd->jointScale );
-				ImGui::InputFloat( "Force", &gd->forceScale );
+				ImGui::InputFloat( "Force", &gd->forceScale, 0, 0, "%.6f", ImGuiInputTextFlags_CharsScientific );
 				ImGui::PopItemWidth();
 				ImGui::EndMenu();
 			}
@@ -1815,7 +1855,7 @@ static void DrawInfoPanel( SampleContext* context )
 {
 	const SampleEntry& entry = g_sampleEntries[context->sampleIndex];
 	float fontSize = ImGui::GetFontSize();
-	float menuWidth = INFO_PANEL_WIDTH * fontSize;
+	float menuWidth = context->sample->InfoPanelWidthEm() * fontSize;
 	float menuBarHeight = ImGui::GetFrameHeight();
 
 	// Full-height panel pinned under the menu bar at the right edge, matching Box2D.
@@ -2108,6 +2148,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 	b3Pos rayOrigin = b3TransformWorldPoint( m_transform, m_capsule.center1 );
 	b3Vec3 rayTranslation = -rayLength * b3Vec3_axisY;
 	b3QueryFilter skipTeamFilter = { 1, ~2u };
+	skipTeamFilter.name = "pogo";
 	b3RayResult rayResult = b3World_CastRayClosest( worldId, rayOrigin, rayTranslation, skipTeamFilter );
 
 	if ( rayResult.hit == false )
@@ -2136,10 +2177,10 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 	b3Pos target = m_transform.p + timeStep * m_velocity + timeStep * m_pogoVelocity * b3Vec3_axisY;
 
 	// Want the mover to collide with allies
-	b3QueryFilter moverFilter = { .categoryBits = 1, .maskBits = ~0u };
+	b3QueryFilter moverFilter = { .categoryBits = 1, .maskBits = ~0u, .id = 1, .name = "mover_collide" };
 
 	// The cast should ignore allies
-	b3QueryFilter castFilter = { .categoryBits = 1, .maskBits = ~2u };
+	b3QueryFilter castFilter = { .categoryBits = 1, .maskBits = ~2u, .id = 1, .name = "mover_cast" };
 
 	m_totalIterations = 0;
 	float tolerance = 0.01f;

@@ -419,7 +419,8 @@ B3_API void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDeb
 /// @param player a valid player handle
 /// @param draw debug draw callbacks
 /// @param queryIndex index of the frame query to draw, or -1 to draw all of them
-B3_API void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int queryIndex );
+/// @param selectedIndex index of the query to emphasize (reserved color plus a label), or -1 for none
+B3_API void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int queryIndex, int selectedIndex );
 
 /// The kind of a recorded spatial query, matching the public query and cast functions.
 typedef enum b3RecQueryType
@@ -438,10 +439,13 @@ typedef struct b3RecQueryInfo
 {
 	b3RecQueryType type;
 	b3QueryFilter  filter;
-	b3AABB         aabb;        // overlap AABB, world space
+	b3AABB         aabb;        // world-space bounds of the query, swept for casts; use this to frame it
 	b3Pos          origin;      // query origin (zero for overlap AABB)
 	b3Vec3         translation; // ray and cast translation
 	int            hitCount;    // number of recorded results
+	uint64_t       key;         // identity key, the hash of (id, name); 0 if untagged. Track by this.
+	uint64_t       id;          // caller id, e.g. an entity id; 0 if none
+	const char*    name;        // caller label, NULL if none
 } b3RecQueryInfo;
 
 /// One result of a recorded spatial query.

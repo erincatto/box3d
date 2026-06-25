@@ -869,6 +869,103 @@ static int QueryReplay( void )
 	return 0;
 }
 
+// Tagged queries: the caller (id, label) is hashed into a key that rides the QueryTag op, with the id
+// and label interned in the trailing tag table. The same label under two entity ids is two distinct
+// keys. All survive a file round-trip and resolve back through b3RecQueryInfo; untagged queries report
+// key 0 / id 0 / name NULL.
+static int TaggedQuery( void )
+{
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	groundDef.type     = b3_staticBody;
+	b3BodyId   groundId = b3CreateBody( worldId, &groundDef );
+	b3BoxHull  groundBox   = b3MakeBoxHull( 20.0f, 1.0f, 20.0f );
+	b3ShapeDef groundShape = b3DefaultShapeDef();
+	b3CreateHullShape( groundId, &groundShape, &groundBox.base );
+
+	b3World_StartRecording( worldId, rec );
+
+	// Same label, different entity ids: distinct logical queries with distinct keys.
+	b3QueryFilter bullet53 = b3DefaultQueryFilter();
+	bullet53.id   = 53;
+	bullet53.name = "bullet";
+
+	b3QueryFilter bullet54 = b3DefaultQueryFilter();
+	bullet54.id   = 54;
+	bullet54.name = "bullet";
+
+	b3QueryFilter untagged = b3DefaultQueryFilter();
+
+	uint64_t key53 = b3HashQueryTag( 53, "bullet" );
+	uint64_t key54 = b3HashQueryTag( 54, "bullet" );
+	ENSURE( key53 != 0 && key54 != 0 && key53 != key54 );
+
+	const int totalFrames = 10;
+	for ( int i = 0; i < totalFrames; ++i )
+	{
+		b3Pos  origin      = { 0.0f, 6.0f, 0.0f };
+		b3Vec3 translation = { 0.0f, -8.0f, 0.0f };
+		b3AABB aabb        = { { -5.0f, -1.0f, -5.0f }, { 5.0f, 6.0f, 5.0f } };
+
+		// Two tagged rays sharing the label "bullet" plus one untagged overlap, every frame.
+		b3World_CastRay( worldId, origin, translation, bullet53, QueryReplayCastFcn, NULL );
+		b3World_CastRay( worldId, origin, translation, bullet54, QueryReplayCastFcn, NULL );
+		b3World_OverlapAABB( worldId, aabb, untagged, QueryReplayOverlapFcn, NULL );
+
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 ) );
+
+	// Round-trip through a file so the interned tag table is exercised on the persisted bytes.
+	const char* path = "tagged_query_test.b3rec";
+	ENSURE( b3SaveRecordingToFile( rec, path ) );
+	b3Recording* loaded = b3LoadRecordingFromFile( path );
+	ENSURE( loaded != NULL );
+
+	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( loaded ), b3Recording_GetSize( loaded ), 1 );
+	ENSURE( player != NULL );
+
+	b3RecPlayer_SeekFrame( player, 5 );
+	ENSURE( !b3RecPlayer_HasDiverged( player ) );
+	ENSURE( b3RecPlayer_GetFrameQueryCount( player ) == 3 );
+
+	bool saw53 = false, saw54 = false, sawUntagged = false;
+	for ( int qi = 0; qi < b3RecPlayer_GetFrameQueryCount( player ); ++qi )
+	{
+		b3RecQueryInfo info = b3RecPlayer_GetFrameQuery( player, qi );
+		if ( info.key == key53 )
+		{
+			saw53 = true;
+			ENSURE( info.id == 53 && info.name != NULL && strcmp( info.name, "bullet" ) == 0 );
+		}
+		else if ( info.key == key54 )
+		{
+			saw54 = true;
+			ENSURE( info.id == 54 && info.name != NULL && strcmp( info.name, "bullet" ) == 0 );
+		}
+		else
+		{
+			sawUntagged = true;
+			ENSURE( info.key == 0 && info.id == 0 && info.name == NULL );
+		}
+	}
+	ENSURE( saw53 && saw54 && sawUntagged );
+
+	b3RecPlayer_Destroy( player );
+	b3DestroyRecording( loaded );
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 // Empty world: recording starts with no bodies and none are ever created. The empty world is still
 // seed-serialized like any other, so replay validates and Restart restores in place with a stable
 // world id rather than tearing down and rebuilding the world.
@@ -1408,7 +1505,7 @@ static int AllOps( void )
 		{
 			if ( frames % 2 == 0 )
 			{
-				b3RecPlayer_DrawFrameQueries( player, &dd, -1 );
+				b3RecPlayer_DrawFrameQueries( player, &dd, -1, -1 );
 			}
 			frames += 1;
 		}
@@ -1653,6 +1750,7 @@ int RecordingTest( void )
 	RUN_SUBTEST( PlayerAccessors );
 	RUN_SUBTEST( KeyframeHandleReuse );
 	RUN_SUBTEST( QueryReplay );
+	RUN_SUBTEST( TaggedQuery );
 	RUN_SUBTEST( TransformedHullRoundTrip );
 	RUN_SUBTEST( AllOps );
 	RUN_SUBTEST( ReservedHeaderBytes );

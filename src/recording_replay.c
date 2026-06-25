@@ -1773,6 +1773,63 @@ static void b3RecStashProxy( b3RecDrawQuery* q, const b3ShapeProxy* proxy )
 	}
 }
 
+// Tight world-space bounds of a query's swept geometry, so the viewer can frame any query and not
+// just the overlap AABB. Mover and proxy points are origin relative. A cast sweeps the shape from the
+// origin to origin plus translation. The overlap AABB is already a world-space box.
+static void b3RecComputeQueryBounds( b3RecDrawQuery* q )
+{
+	if ( q->kind == B3_RECQ_OVERLAP_AABB )
+	{
+		return;
+	}
+
+	// Shape points relative to the origin, plus the fattening radius. A ray has no shape, so it falls
+	// through to a single point at the origin.
+	b3Vec3 local[B3_MAX_SHAPE_CAST_POINTS];
+	int count = 0;
+	float radius = 0.0f;
+	switch ( q->kind )
+	{
+		case B3_RECQ_CAST_MOVER:
+		case B3_RECQ_COLLIDE_MOVER:
+			local[0] = q->mover.center1;
+			local[1] = q->mover.center2;
+			count = 2;
+			radius = q->mover.radius;
+			break;
+
+		case B3_RECQ_OVERLAP_SHAPE:
+		case B3_RECQ_CAST_SHAPE:
+			count = q->proxyCount;
+			for ( int i = 0; i < count; ++i )
+			{
+				local[i] = q->proxyPoints[i];
+			}
+			radius = q->proxyRadius;
+			break;
+
+		default:
+			break;
+	}
+	if ( count == 0 )
+	{
+		local[0] = b3Vec3_zero;
+		count = 1;
+	}
+
+	// Sweep each point across the translation. A non-cast query has zero translation, so both ends
+	// coincide and the duplicates fold away.
+	b3Pos end = b3OffsetPos( q->origin, q->translation );
+	b3Vec3 world[2 * B3_MAX_SHAPE_CAST_POINTS];
+	int n = 0;
+	for ( int i = 0; i < count; ++i )
+	{
+		world[n++] = b3ToVec3( b3OffsetPos( q->origin, local[i] ) );
+		world[n++] = b3ToVec3( b3OffsetPos( end, local[i] ) );
+	}
+	q->aabb = b3MakeAABB( world, n, radius );
+}
+
 static void b3RecDispatch_QueryOverlapAABB( const b3RecArgs_QueryOverlapAABB* a, b3RecReader* rdr )
 {
 	uint32_t n = b3RecR_U32( rdr );
@@ -1796,6 +1853,7 @@ static void b3RecDispatch_QueryOverlapAABB( const b3RecArgs_QueryOverlapAABB* a,
 		b3RecDrawQuery* q = b3RecStashQueryBegin( rdr->owner, B3_RECQ_OVERLAP_AABB, rdr->hits, (int)n );
 		q->filter = a->filter;
 		q->aabb = a->aabb;
+		b3RecComputeQueryBounds( q );
 	}
 }
 
@@ -1823,6 +1881,7 @@ static void b3RecDispatch_QueryOverlapShape( const b3RecArgs_QueryOverlapShape* 
 		q->filter = a->filter;
 		q->origin = a->origin;
 		b3RecStashProxy( q, &a->proxy );
+		b3RecComputeQueryBounds( q );
 	}
 }
 
@@ -1856,6 +1915,7 @@ static void b3RecDispatch_QueryCastRay( const b3RecArgs_QueryCastRay* a, b3RecRe
 		q->filter = a->filter;
 		q->origin = a->origin;
 		q->translation = a->translation;
+		b3RecComputeQueryBounds( q );
 	}
 }
 
@@ -1890,6 +1950,7 @@ static void b3RecDispatch_QueryCastShape( const b3RecArgs_QueryCastShape* a, b3R
 		q->origin = a->origin;
 		q->translation = a->translation;
 		b3RecStashProxy( q, &a->proxy );
+		b3RecComputeQueryBounds( q );
 	}
 }
 
@@ -1921,6 +1982,7 @@ static void b3RecDispatch_QueryCastRayClosest( const b3RecArgs_QueryCastRayClose
 		q->origin = a->origin;
 		q->translation = a->translation;
 		q->rayResult = rec;
+		b3RecComputeQueryBounds( q );
 	}
 }
 
@@ -1951,6 +2013,7 @@ static void b3RecDispatch_QueryCastMover( const b3RecArgs_QueryCastMover* a, b3R
 		q->mover = a->mover;
 		q->translation = a->translation;
 		q->castFraction = recFraction;
+		b3RecComputeQueryBounds( q );
 	}
 }
 
@@ -1995,7 +2058,14 @@ static void b3RecDispatch_QueryCollideMover( const b3RecArgs_QueryCollideMover* 
 		q->filter = a->filter;
 		q->origin = a->origin;
 		q->mover = a->mover;
+		b3RecComputeQueryBounds( q );
 	}
+}
+
+// Stash the identity key of the query that immediately follows. Consumed by the next stash.
+static void b3RecDispatch_QueryTag( const b3RecArgs_QueryTag* a, b3RecReader* rdr )
+{
+	rdr->pendingQueryKey = a->key;
 }
 
 // X-macro dispatch switch: read opcode+u24 payloadSize, dispatch, skip unknown ops.
@@ -2126,6 +2196,10 @@ static b3RecDrawQuery* b3RecStashQueryBegin( b3RecPlayer* player, int kind, cons
 	b3RecDrawQuery* q = &player->frameQueries[player->frameQueryCount];
 	memset( q, 0, sizeof( *q ) );
 	q->kind = kind;
+	// Pair the query with the key from its preceding QueryTag op, if any, then clear it so the next
+	// untagged query reads 0.
+	q->key = player->rdr.pendingQueryKey;
+	player->rdr.pendingQueryKey = 0;
 	q->hitStart = player->frameHitCount;
 	q->hitCount = hitCount;
 	b3RecGrowFrameHits( player, hitCount );
@@ -2194,7 +2268,68 @@ static void b3RecSeedFrame0BodyIds( b3RecPlayer* player )
 	}
 }
 
-// Load the trailing registry block and fill rdr->slots/slotCount.
+// Read the optional query-tag table trailing the geometry entries: u32 tagCount then per tag
+// { u64 id, u16 len, name bytes }. A recording written before the tag table leaves rp at dataEnd, so
+// nothing loads. Bounds-checked; a truncated tail loads what fits and leaves the rest zeroed.
+static void b3RecLoadTags( b3RecReader* rdr, const uint8_t* rp, const uint8_t* dataEnd )
+{
+	if ( rp + 4 > dataEnd )
+	{
+		return;
+	}
+	uint32_t count = (uint32_t)rp[0] | ( (uint32_t)rp[1] << 8 ) | ( (uint32_t)rp[2] << 16 ) | ( (uint32_t)rp[3] << 24 );
+	rp += 4;
+	if ( count == 0 )
+	{
+		return;
+	}
+
+	b3RecTag* tags = (b3RecTag*)b3Alloc( (size_t)count * sizeof( b3RecTag ) );
+	memset( tags, 0, (size_t)count * sizeof( b3RecTag ) );
+	for ( uint32_t i = 0; i < count; ++i )
+	{
+		if ( rp + 18 > dataEnd ) // 8 byte key + 8 byte id + 2 byte length
+		{
+			break;
+		}
+		uint64_t key = 0;
+		uint64_t id = 0;
+		for ( int b = 0; b < 8; ++b )
+		{
+			key |= (uint64_t)rp[b] << ( 8 * b );
+		}
+		rp += 8;
+		for ( int b = 0; b < 8; ++b )
+		{
+			id |= (uint64_t)rp[b] << ( 8 * b );
+		}
+		rp += 8;
+		uint16_t len = (uint16_t)( (uint16_t)rp[0] | ( (uint16_t)rp[1] << 8 ) );
+		rp += 2;
+		if ( len == 0xFFFFu )
+		{
+			len = 0; // a null name is written as 0xFFFF
+		}
+		if ( rp + len > dataEnd )
+		{
+			break;
+		}
+		int n = len > B3_NAME_LENGTH ? B3_NAME_LENGTH : (int)len;
+		tags[i].key = key;
+		tags[i].id = id;
+		if ( n > 0 )
+		{
+			memcpy( tags[i].name, rp, (size_t)n );
+		}
+		tags[i].name[n] = '\0';
+		rp += len;
+	}
+
+	rdr->tags = tags;
+	rdr->tagCount = (int)count;
+}
+
+// Load the trailing registry block and fill rdr->slots/slotCount, then the optional tag table.
 // Returns true on success. On failure sets rdr->ok = false and returns false.
 static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64_t registryOffset, uint64_t registryByteCount )
 {
@@ -2218,6 +2353,7 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 		return false;
 	}
 
+	const uint8_t* dataEnd = (const uint8_t*)data + regEnd;
 	const uint8_t* rp = (const uint8_t*)data + regStart;
 	uint32_t count = (uint32_t)rp[0] | ( (uint32_t)rp[1] << 8 ) | ( (uint32_t)rp[2] << 16 ) | ( (uint32_t)rp[3] << 24 );
 	rp += 4;
@@ -2226,13 +2362,13 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 	{
 		rdr->slots = NULL;
 		rdr->slotCount = 0;
+		b3RecLoadTags( rdr, rp, dataEnd );
 		return true;
 	}
 
 	b3RegistrySlot* slots = (b3RegistrySlot*)b3Alloc( (size_t)count * sizeof( b3RegistrySlot ) );
 	memset( slots, 0, (size_t)count * sizeof( b3RegistrySlot ) );
 
-	const uint8_t* dataEnd = (const uint8_t*)data + regEnd;
 	for ( uint32_t i = 0; i < count; ++i )
 	{
 		if ( rp + 5 > dataEnd )
@@ -2278,6 +2414,7 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 
 	rdr->slots = slots;
 	rdr->slotCount = (int)count;
+	b3RecLoadTags( rdr, rp, dataEnd );
 	return true;
 }
 
@@ -2631,6 +2768,10 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 			printf( "b3RecPlayer_Create: snapshot deserialization failed\n" );
 			b3DestroyWorld( worldId );
 			b3RecFreeSlots( player->rdr.slots, player->rdr.slotCount );
+			if ( player->rdr.tags != NULL )
+			{
+				b3Free( player->rdr.tags, (size_t)player->rdr.tagCount * sizeof( b3RecTag ) );
+			}
 			b3Free( copy, (size_t)size );
 			b3Free( player, sizeof( b3RecPlayer ) );
 			return NULL;
@@ -2679,6 +2820,10 @@ void b3RecPlayer_Destroy( b3RecPlayer* player )
 	if ( player->rdr.hits != NULL )
 	{
 		b3Free( player->rdr.hits, (size_t)player->rdr.hitCap * sizeof( b3RecRecordedHit ) );
+	}
+	if ( player->rdr.tags != NULL )
+	{
+		b3Free( player->rdr.tags, (size_t)player->rdr.tagCount * sizeof( b3RecTag ) );
 	}
 
 	// Free the per-frame query store.
@@ -2989,9 +3134,15 @@ b3BodyId b3RecPlayer_GetBodyId( const b3RecPlayer* player, int index )
 	return player->bodyIds[index];
 }
 
+// A selected query draws in one reserved color so it stands out when every query is drawn at once.
+static b3HexColor b3RecQuerySelColor( bool selected, b3HexColor base )
+{
+	return selected ? b3_colorPlum : base;
+}
+
 // Highlight each reported overlap shape by its AABB. Skip any destroyed since the query, per the
 // b3Shape_GetAABB contract that overlap results may contain stale shapes.
-static void b3RecDrawHitBounds( const b3RecPlayer* player, const b3RecDrawQuery* q, b3DebugDraw* draw )
+static void b3RecDrawHitBounds( const b3RecPlayer* player, const b3RecDrawQuery* q, b3DebugDraw* draw, b3HexColor color )
 {
 	if ( draw->DrawBoundsFcn == NULL )
 	{
@@ -3004,7 +3155,7 @@ static void b3RecDrawHitBounds( const b3RecPlayer* player, const b3RecDrawQuery*
 		{
 			continue;
 		}
-		draw->DrawBoundsFcn( b3Shape_GetAABB( id ), b3_colorMagenta, draw->context );
+		draw->DrawBoundsFcn( b3Shape_GetAABB( id ), color, draw->context );
 	}
 }
 
@@ -3046,14 +3197,15 @@ static void b3RecDrawProxy( b3DebugDraw* draw, b3Pos basePos, const b3RecDrawQue
 	}
 }
 
-void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int queryIndex )
+void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int queryIndex, int selectedIndex )
 {
 	if ( player == NULL || draw == NULL )
 	{
 		return;
 	}
 
-	// queryIndex < 0 draws every query, otherwise just the one selected in the viewer.
+	// queryIndex < 0 draws every query, otherwise just the one selected in the viewer. The query at
+	// selectedIndex draws in one reserved color and is labeled, so it stands out among the rest.
 	for ( int qi = 0; qi < player->frameQueryCount; ++qi )
 	{
 		if ( queryIndex >= 0 && qi != queryIndex )
@@ -3062,6 +3214,7 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 		}
 
 		const b3RecDrawQuery* q = &player->frameQueries[qi];
+		bool selected = ( qi == selectedIndex );
 
 		switch ( q->kind )
 		{
@@ -3072,19 +3225,19 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 				b3Pos end = b3OffsetPos( origin, q->translation );
 				if ( draw->DrawSegmentFcn )
 				{
-					draw->DrawSegmentFcn( origin, end, b3_colorYellow, draw->context );
+					draw->DrawSegmentFcn( origin, end, b3RecQuerySelColor( selected, b3_colorYellow ), draw->context );
 				}
 				for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
 				{
 					const b3RecRecordedHit* h = &player->frameHits[hi];
 					if ( draw->DrawPointFcn )
 					{
-						draw->DrawPointFcn( h->point, 4.0f, b3_colorYellow, draw->context );
+						draw->DrawPointFcn( h->point, 4.0f, b3RecQuerySelColor( selected, b3_colorYellow ), draw->context );
 					}
 					if ( draw->DrawSegmentFcn )
 					{
-						draw->DrawSegmentFcn( h->point, b3OffsetPos( h->point, b3MulSV( 0.2f, h->normal ) ), b3_colorYellowGreen,
-											  draw->context );
+						draw->DrawSegmentFcn( h->point, b3OffsetPos( h->point, b3MulSV( 0.2f, h->normal ) ),
+											  b3RecQuerySelColor( selected, b3_colorYellowGreen ), draw->context );
 					}
 				}
 				break;
@@ -3094,77 +3247,135 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 				// Draw the cast line and the proxy at its start, then each hit point and normal.
 				if ( draw->DrawSegmentFcn )
 				{
-					draw->DrawSegmentFcn( q->origin, b3OffsetPos( q->origin, q->translation ), b3_colorSkyBlue, draw->context );
+					draw->DrawSegmentFcn( q->origin, b3OffsetPos( q->origin, q->translation ),
+										  b3RecQuerySelColor( selected, b3_colorSkyBlue ), draw->context );
 				}
-				b3RecDrawProxy( draw, q->origin, q, b3_colorLightGreen );
+				b3RecDrawProxy( draw, q->origin, q, b3RecQuerySelColor( selected, b3_colorLightGreen ) );
 				for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
 				{
 					const b3RecRecordedHit* h = &player->frameHits[hi];
 					if ( draw->DrawPointFcn )
 					{
-						draw->DrawPointFcn( h->point, 4.0f, b3_colorSkyBlue, draw->context );
+						draw->DrawPointFcn( h->point, 4.0f, b3RecQuerySelColor( selected, b3_colorSkyBlue ), draw->context );
 					}
 					if ( draw->DrawSegmentFcn )
 					{
-						draw->DrawSegmentFcn( h->point, b3OffsetPos( h->point, b3MulSV( 0.2f, h->normal ) ), b3_colorLightSkyBlue,
-											  draw->context );
+						draw->DrawSegmentFcn( h->point, b3OffsetPos( h->point, b3MulSV( 0.2f, h->normal ) ),
+											  b3RecQuerySelColor( selected, b3_colorLightSkyBlue ), draw->context );
 					}
 					if ( draw->DrawSphereFcn )
 					{
 						b3Pos p = b3OffsetPos( q->origin, b3MulSV( h->fraction, q->translation ) );
-						b3RecDrawProxy( draw, p, q, b3_colorSkyBlue );
+						b3RecDrawProxy( draw, p, q, b3RecQuerySelColor( selected, b3_colorSkyBlue ) );
 					}
 				}
 				break;
 			}
 			case B3_RECQ_CAST_MOVER:
-			case B3_RECQ_COLLIDE_MOVER:
 			{
-				// 3D debug draw has no solid capsule, so draw the mover axis and its end caps.
 				b3Pos c1 = b3OffsetPos( q->origin, q->mover.center1 );
 				b3Pos c2 = b3OffsetPos( q->origin, q->mover.center2 );
 				b3HexColor c = q->kind == B3_RECQ_CAST_MOVER ? b3_colorLightSkyBlue : b3_colorTan;
 				if ( draw->DrawCapsuleFcn )
 				{
-					draw->DrawCapsuleFcn( c1, c2, q->mover.radius, c, 0.5f, draw->context );
+					draw->DrawCapsuleFcn( c1, c2, q->mover.radius, b3RecQuerySelColor( selected, c ), 0.6f, draw->context );
+
+					if (q->castFraction > 0.01f)
+					{
+						b3Vec3 d = b3MulSV( q->castFraction, q->translation );
+						c1 = b3OffsetPos( c1, d );
+						c2 = b3OffsetPos( c2, d );
+						draw->DrawCapsuleFcn( c1, c2, q->mover.radius, c, 0.3f, draw->context );
+					}
 				}
-				//if ( draw->DrawPointFcn )
-				//{
-				//	draw->DrawPointFcn( c1, 4.0f, c, draw->context );
-				//	draw->DrawPointFcn( c2, 4.0f, c, draw->context );
-				//}
-				// Collide-mover stashes one hit per collision plane, origin relative. Cast-mover stashes
-				// no hits, so this loop is a no-op there.
+				break;
+			}
+
+			case B3_RECQ_COLLIDE_MOVER:
+			{
+				b3Pos c1 = b3OffsetPos( q->origin, q->mover.center1 );
+				b3Pos c2 = b3OffsetPos( q->origin, q->mover.center2 );
+				b3HexColor c = q->kind == B3_RECQ_CAST_MOVER ? b3_colorLightSkyBlue : b3_colorTan;
+				if ( draw->DrawCapsuleFcn )
+				{
+					draw->DrawCapsuleFcn( c1, c2, q->mover.radius, b3RecQuerySelColor( selected, c ), 0.6f, draw->context );
+				}
+
 				for ( int hi = q->hitStart; hi < q->hitStart + q->hitCount; ++hi )
 				{
 					const b3RecRecordedHit* h = &player->frameHits[hi];
 					b3Pos point = b3OffsetPos( q->origin, h->plane.point );
 					if ( draw->DrawSegmentFcn )
 					{
-						draw->DrawSegmentFcn( point, b3OffsetPos( point, b3MulSV( 0.2f, h->plane.plane.normal ) ), b3_colorOrange,
-											  draw->context );
+						draw->DrawSegmentFcn( point, b3OffsetPos( point, b3MulSV( 0.2f, h->plane.plane.normal ) ),
+											  b3RecQuerySelColor( selected, b3_colorOrange ), draw->context );
 					}
 				}
 				break;
 			}
+
 			case B3_RECQ_OVERLAP_AABB:
 			{
 				if ( draw->DrawBoundsFcn )
 				{
-					draw->DrawBoundsFcn( q->aabb, b3_colorLimeGreen, draw->context );
+					draw->DrawBoundsFcn( q->aabb, b3RecQuerySelColor( selected, b3_colorLimeGreen ), draw->context );
 				}
-				b3RecDrawHitBounds( player, q, draw );
+				b3RecDrawHitBounds( player, q, draw, b3RecQuerySelColor( selected, b3_colorMagenta ) );
 				break;
 			}
 			case B3_RECQ_OVERLAP_SHAPE:
 			{
 				// The overlap proxy sits at the origin; draw it, then the overlapping shape bounds.
-				b3RecDrawProxy( draw, q->origin, q, b3_colorLimeGreen );
-				b3RecDrawHitBounds( player, q, draw );
+				b3RecDrawProxy( draw, q->origin, q, b3RecQuerySelColor( selected, b3_colorLimeGreen ) );
+				b3RecDrawHitBounds( player, q, draw, b3RecQuerySelColor( selected, b3_colorMagenta ) );
 				break;
 			}
 			default:
 				break;
+		}
+
+		// Label the selected query at its origin so it reads by name among the others. The overlap AABB
+		// has no origin, so anchor at the box center. Untagged queries (no key) rely on the color alone.
+		if ( selected && q->key != 0 && draw->DrawStringFcn != NULL )
+		{
+			const char* name = NULL;
+			uint64_t id = 0;
+			for ( int t = 0; t < player->rdr.tagCount; ++t )
+			{
+				if ( player->rdr.tags[t].key == q->key )
+				{
+					name = player->rdr.tags[t].name;
+					id = player->rdr.tags[t].id;
+					break;
+				}
+			}
+			char label[64];
+			if ( name != NULL && name[0] != '\0' && id != 0 )
+			{
+				snprintf( label, sizeof( label ), "%s (%llu)", name, (unsigned long long)id );
+			}
+			else if ( name != NULL && name[0] != '\0' )
+			{
+				snprintf( label, sizeof( label ), "%s", name );
+			}
+			else
+			{
+				snprintf( label, sizeof( label ), "#%llu", (unsigned long long)id );
+			}
+			b3Pos labelPos = q->origin;
+			if ( q->kind == B3_RECQ_OVERLAP_AABB )
+			{
+				labelPos = b3ToPos( b3AABB_Center( q->aabb ) );
+			}
+			else if ( q->kind == B3_RECQ_CAST_MOVER || q->kind == B3_RECQ_COLLIDE_MOVER )
+			{
+				// Sit the label just past the center2 end cap, which for an upright mover is above it.
+				b3Pos c1 = b3OffsetPos( q->origin, q->mover.center1 );
+				b3Pos c2 = b3OffsetPos( q->origin, q->mover.center2 );
+				b3Vec3 dir = b3Normalize( b3SubPos( c2, c1 ) );
+				labelPos = b3OffsetPos( c2, b3MulSV( 1.25f * q->mover.radius, dir ) );
+			}
+			draw->DrawStringFcn( labelPos, label, b3_colorWhite, draw->context );
 		}
 	}
 }
@@ -3194,6 +3405,18 @@ b3RecQueryInfo b3RecPlayer_GetFrameQuery( const b3RecPlayer* player, int index )
 	info.origin = q->origin;
 	info.translation = q->translation;
 	info.hitCount = q->hitCount;
+	info.key = q->key;
+	info.id = 0;
+	info.name = NULL;
+	for ( int i = 0; i < player->rdr.tagCount && q->key != 0; ++i )
+	{
+		if ( player->rdr.tags[i].key == q->key )
+		{
+			info.id = player->rdr.tags[i].id;
+			info.name = player->rdr.tags[i].name;
+			break;
+		}
+	}
 	return info;
 }
 

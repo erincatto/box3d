@@ -223,6 +223,11 @@ B3_REC_OP( 0xED, QueryCastMover, RET_NONE,
 B3_REC_OP( 0xEE, QueryCollideMover, RET_NONE,
 		   ARG( WORLDID, world ) ARG( POSITION, origin ) ARG( CAPSULE, mover ) ARG( QUERYFILTER, filter ) )
 
+// Identity key (hash of the caller id + label) for the query that immediately follows. Emitted only
+// for a tagged query. The id and label are interned in the trailing tag table, so only the 8 byte key
+// rides the stream.
+B3_REC_OP( 0xEF, QueryTag, RET_NONE, ARG( U64, key ) )
+
 B3_REC_OP( 0xF1, StateHash, RET_NONE, ARG( WORLDID, world ) ARG( U64, hash ) )
 
 // Accumulated world bounds over the whole recording, written once at stop. Informational.

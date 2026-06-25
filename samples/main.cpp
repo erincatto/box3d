@@ -178,24 +178,30 @@ static void OnEvent( const sapp_event* e )
 					case KEY_F:
 					case KEY_HOME:
 					{
-						// Frame the selection, or the whole world when nothing is selected.
-						b3BodyId bodyId = s_context.sample->FocusBody();
-						b3AABB aabb;
-						float padding;
-						if ( B3_IS_NON_NULL( bodyId ) )
+						// Frame the selection, or let the sample frame its whole scene when nothing is
+						// selected. A non-body selection such as a recorded query supplies its own bounds and
+						// takes priority over the hovered body. The replay viewer's scene lives in a
+						// player-owned world, not the base world, so the whole-scene case routes through
+						// FocusHome.
+						Camera& cam = s_context.camera;
+						float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
+						b3AABB bounds;
+						if ( s_context.sample->FocusBounds( &bounds ) )
 						{
-							aabb = b3Body_ComputeAABB( bodyId );
-							padding = 1.5f;
+							cam.Frame( bounds, aspect, 1.5f );
 						}
 						else
 						{
-							aabb = b3World_GetBounds( s_context.sample->m_worldId );
-							padding = 0.75f;
+							b3BodyId bodyId = s_context.sample->FocusBody();
+							if ( B3_IS_NON_NULL( bodyId ) )
+							{
+								cam.Frame( b3Body_ComputeAABB( bodyId ), aspect, 1.5f );
+							}
+							else
+							{
+								s_context.sample->FocusHome();
+							}
 						}
-
-						Camera& cam = s_context.camera;
-						float aspect = cam.m_height > 0 ? (float)cam.m_width / (float)cam.m_height : 1.0f;
-						cam.Frame( aabb, aspect, padding );
 					}
 					break;
 

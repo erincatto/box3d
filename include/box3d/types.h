@@ -1284,6 +1284,16 @@ typedef struct b3QueryFilter
 	/// The collision mask bits. This states the shape categories that this
 	/// query would accept for collision.
 	uint64_t maskBits;
+
+	/// Optional id combined with @ref name to identify this query in a recording, e.g. an entity id.
+	/// Need not be unique on its own. 0 with a null name means untagged. Ignored when not recording.
+	uint64_t id;
+
+	/// Optional label combined with @ref id to identify this query, e.g. "bullet". Need not be unique
+	/// on its own. The recorder hashes (id, name) into one stable key the viewer tracks the query by,
+	/// so the same id and name pair identifies the same query across frames. NULL means none. Ignored
+	/// when not recording.
+	const char* name;
 } b3QueryFilter;
 
 /// Use this to initialize your query filter

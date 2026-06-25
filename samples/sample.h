@@ -119,10 +119,24 @@ public:
 		return true;
 	}
 
+	// Width of the right info panel in em. The bottom drawer clears to the same width. A sample that
+	// hosts heavier content there, such as the replay viewer's detail pane, can widen it.
+	virtual float InfoPanelWidthEm() const;
+
+	// Bounds the Frame shortcut should fit when the selection is not a body, e.g. a recorded query.
+	// Takes priority over FocusBody so an explicit selection wins over a hovered body. Returns false
+	// by default, leaving the body and whole-scene paths in charge.
+	virtual bool FocusBounds( b3AABB* bounds ) const;
+
 	// Body the Frame shortcut should fit. Defaults to whatever the cursor is over.
 	// The replay viewer overrides this to fit its persistent selection instead, so
 	// framing works regardless of where the cursor sits.
 	virtual b3BodyId FocusBody() const;
+
+	// Frame shortcut with nothing selected: fit the whole scene. Defaults to the live world bounds.
+	// The replay viewer overrides this to fit the recording, whose world is player-owned and separate
+	// from the empty base world.
+	virtual void FocusHome();
 
 	// Arm recording on the live world, snapshotting it as the seed so capture can begin at any
 	// step boundary. Stop writes the file named by the context and frees the buffer.

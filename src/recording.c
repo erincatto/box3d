@@ -564,14 +564,20 @@ void b3RecPatchU32( b3RecBuffer* buf, int offset, uint32_t v )
 	p[3] = (uint8_t)( v >> 24 );
 }
 
-void b3RecCommitRecord( b3Recording* rec, uint8_t opcode, const uint8_t* payload, int payloadSize )
+// Frame and append one record into the buffer. Caller holds rec->lock.
+static void b3RecCommitRecordLocked( b3Recording* rec, uint8_t opcode, const uint8_t* payload, int payloadSize )
 {
 	B3_ASSERT( payloadSize >= 0 && payloadSize < ( 1 << 24 ) );
-	b3LockMutex( rec->lock );
 	b3RecW_U8( &rec->buffer, opcode );
 	uint8_t sz[3] = { (uint8_t)payloadSize, (uint8_t)( payloadSize >> 8 ), (uint8_t)( payloadSize >> 16 ) };
 	b3RecBufAppend( &rec->buffer, sz, 3 );
 	b3RecBufAppend( &rec->buffer, payload, payloadSize );
+}
+
+void b3RecCommitRecord( b3Recording* rec, uint8_t opcode, const uint8_t* payload, int payloadSize )
+{
+	b3LockMutex( rec->lock );
+	b3RecCommitRecordLocked( rec, opcode, payload, payloadSize );
 	b3UnlockMutex( rec->lock );
 }
 
@@ -582,11 +588,28 @@ void b3RecQueryBegin( b3RecQueryWriter* w, void* context )
 	w->userContext = context;
 	w->hitCount = 0;
 	w->countOffset = 0;
+	w->tagId = 0;
+	w->tagName = NULL;
 }
 
 void b3RecQueryCommit( b3Recording* rec, uint8_t opcode, b3RecQueryWriter* w )
 {
-	b3RecCommitRecord( rec, opcode, w->buf.data, w->buf.size );
+	b3LockMutex( rec->lock );
+	// A tagged query writes its identity key right before the query record, under one lock so the pair
+	// stays adjacent even with concurrent queries. The key is the hash of the caller (id, name), which
+	// are interned once into the trailing tag table so the viewer can show them.
+	bool tagged = w->tagId != 0 || ( w->tagName != NULL && w->tagName[0] != '\0' );
+	if ( tagged )
+	{
+		uint64_t key = b3HashQueryTag( w->tagId, w->tagName );
+		b3RecInternTag( rec, key, w->tagId, w->tagName );
+		b3RecBuffer tagBuf = { 0 };
+		b3RecW_U64( &tagBuf, key );
+		b3RecCommitRecordLocked( rec, b3_recOpQueryTag, tagBuf.data, tagBuf.size );
+		b3RecBufFree( &tagBuf );
+	}
+	b3RecCommitRecordLocked( rec, opcode, w->buf.data, w->buf.size );
+	b3UnlockMutex( rec->lock );
 	b3RecBufFree( &w->buf );
 }
 
@@ -859,7 +882,60 @@ void b3FreeRegistry( b3GeometryRegistry* reg )
 	reg->dedupMap = NULL;
 }
 
-// Write the trailing registry block: u32 entryCount then per-entry { u8 kind, u32 byteCount, bytes }.
+uint64_t b3HashQueryTag( uint64_t id, const char* name )
+{
+	uint64_t h = B3_SNAP_FNV_INIT;
+	for ( int i = 0; i < 8; ++i )
+	{
+		h = ( h ^ ( ( id >> ( 8 * i ) ) & 0xFFu ) ) * B3_SNAP_FNV_PRIME;
+	}
+	if ( name != NULL )
+	{
+		for ( int i = 0; name[i] != '\0'; ++i )
+		{
+			h = ( h ^ (uint8_t)name[i] ) * B3_SNAP_FNV_PRIME;
+		}
+	}
+	// Never 0 so the key doubles as the tagged flag.
+	return h != 0 ? h : 1;
+}
+
+void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* name )
+{
+	for ( int i = 0; i < rec->tagCount; ++i )
+	{
+		if ( rec->tags[i].key == key )
+		{
+			return; // first id/name for a key wins
+		}
+	}
+	if ( rec->tagCount == rec->tagCapacity )
+	{
+		int newCap = rec->tagCapacity == 0 ? 8 : 2 * rec->tagCapacity;
+		b3RecTag* grown = (b3RecTag*)b3Alloc( (size_t)newCap * sizeof( b3RecTag ) );
+		if ( rec->tags != NULL )
+		{
+			memcpy( grown, rec->tags, (size_t)rec->tagCount * sizeof( b3RecTag ) );
+			b3Free( rec->tags, (size_t)rec->tagCapacity * sizeof( b3RecTag ) );
+		}
+		rec->tags = grown;
+		rec->tagCapacity = newCap;
+	}
+	b3RecTag* tag = &rec->tags[rec->tagCount++];
+	tag->key = key;
+	tag->id = id;
+	int n = 0;
+	while ( name != NULL && name[n] != '\0' && n < B3_NAME_LENGTH )
+	{
+		tag->name[n] = name[n];
+		n++;
+	}
+	tag->name[n] = '\0';
+}
+
+// Write the trailing registry block: u32 entryCount then per-entry { u8 kind, u32 byteCount, bytes },
+// followed by the query-tag table { u32 tagCount, per-tag u64 id, STR name }. A reader built before
+// the tag table stops after the geometry entries and ignores the trailing tag bytes.
 void b3RecWriteRegistry( b3Recording* rec )
 {
 	b3RecW_U32( &rec->buffer, (uint32_t)rec->registry.count );
@@ -869,6 +945,14 @@ void b3RecWriteRegistry( b3Recording* rec )
 		b3RecW_U8( &rec->buffer, (uint8_t)e->kind );
 		b3RecW_U32( &rec->buffer, (uint32_t)e->byteCount );
 		b3RecBufAppend( &rec->buffer, e->bytes, e->byteCount );
+	}
+
+	b3RecW_U32( &rec->buffer, (uint32_t)rec->tagCount );
+	for ( int i = 0; i < rec->tagCount; ++i )
+	{
+		b3RecW_U64( &rec->buffer, rec->tags[i].key );
+		b3RecW_U64( &rec->buffer, rec->tags[i].id );
+		b3RecW_STR( &rec->buffer, rec->tags[i].name );
 	}
 }
 
@@ -896,6 +980,10 @@ void b3DestroyRecording( b3Recording* recording )
 
 	b3RecBufFree( &recording->buffer );
 	b3FreeRegistry( &recording->registry );
+	if ( recording->tags != NULL )
+	{
+		b3Free( recording->tags, (size_t)recording->tagCapacity * sizeof( b3RecTag ) );
+	}
 	b3DestroyMutex( recording->lock );
 	b3Free( recording, sizeof( b3Recording ) );
 }
@@ -923,6 +1011,13 @@ void b3StartRecordingIntoBuffer( b3World* world, b3Recording* recording )
 	recording->recordStart = 0;
 	recording->haveBounds  = false;
 	b3FreeRegistry( &recording->registry );
+	if ( recording->tags != NULL )
+	{
+		b3Free( recording->tags, (size_t)recording->tagCapacity * sizeof( b3RecTag ) );
+		recording->tags = NULL;
+	}
+	recording->tagCount = 0;
+	recording->tagCapacity = 0;
 
 	b3RecHeader hdr = { 0 };
 	hdr.magic            = B3_REC_MAGIC;

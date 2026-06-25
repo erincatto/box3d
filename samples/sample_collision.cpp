@@ -627,13 +627,15 @@ public:
 				break;
 		}
 
+		b3QueryFilter filter = b3DefaultQueryFilter();
+		filter.name = "cast_world";
 		if ( m_castType == e_rayCast )
 		{
-			b3World_CastRay( m_worldId, m_origin, m_translation, b3DefaultQueryFilter(), modeFcn, &m_castContext );
+			b3World_CastRay( m_worldId, m_origin, m_translation, filter, modeFcn, &m_castContext );
 		}
 		else
 		{
-			b3World_CastShape( m_worldId, m_origin, &proxy, m_translation, b3DefaultQueryFilter(), modeFcn, &m_castContext );
+			b3World_CastShape( m_worldId, m_origin, &proxy, m_translation, filter, modeFcn, &m_castContext );
 		}
 
 		if ( m_castContext.count > 0 )

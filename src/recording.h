@@ -46,8 +46,9 @@ typedef struct b3World b3World;
 #define B3_REC_MAGIC 0x43523342u
 
 // Minor tracks op-stream additions that keep the 48 byte header shape (e.g. the spatial query ops).
+// Minor 2 added the QueryTag op and the interned query-tag table at the tail of the registry block.
 #define B3_REC_VERSION_MAJOR 2
-#define B3_REC_VERSION_MINOR 1
+#define B3_REC_VERSION_MINOR 2
 
 // File header, fixed 48 bytes, little-endian. Contains the registry locator so the player
 // can load geometry before replaying any ops.
@@ -112,6 +113,16 @@ typedef struct b3GeometryRegistry
 	void*            dedupMap;
 } b3GeometryRegistry;
 
+// One interned query tag: a hashed (id, name) key mapped back to the id and label that produced it.
+// Stored once per key in the trailing block so a tagged query carries only the 8 byte key on the wire.
+// Shared by the recorder (accumulate) and the player (load).
+typedef struct b3RecTag
+{
+	uint64_t key;  // hash of (id, name), the per-query identity
+	uint64_t id;   // caller id, e.g. an entity id
+	char     name[B3_NAME_LENGTH + 1]; // caller label
+} b3RecTag;
+
 // User-owned recording buffer. The world appends into it while active; the host saves and
 // destroys it. Opaque across the public API.
 typedef struct b3Recording
@@ -120,6 +131,11 @@ typedef struct b3Recording
 	int              recordStart;      // offset of the 3-byte size field for u24 backpatch
 	b3Mutex*         lock;             // serializes record writes from concurrent threads
 	b3GeometryRegistry registry;
+
+	// Interned query tags accumulated during capture, written to the tail of the registry block at stop.
+	b3RecTag*        tags;
+	int              tagCount;
+	int              tagCapacity;
 
 	// Union of world bounds over every recorded step, written at stop.
 	b3AABB           accumulatedBounds;
@@ -310,6 +326,8 @@ typedef struct b3RecQueryWriter
 	b3RecBuffer buf;         // per-call local payload, heap-backed
 	int         countOffset; // offset of the reserved u32 hit-count slot
 	uint32_t    hitCount;
+	uint64_t    tagId;       // caller query id, 0 = untagged. Emitted as a QueryTag before the record.
+	const char* tagName;     // caller query name, interned by id. NULL = none.
 } b3RecQueryWriter;
 
 void b3RecQueryBegin( b3RecQueryWriter* w, void* context );
@@ -332,6 +350,14 @@ uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_
                            uint8_t* bytes, int byteCount );
 void     b3FreeRegistry( b3GeometryRegistry* reg );
 void     b3RecWriteRegistry( b3Recording* rec );
+
+// Hash a query (id, name) pair into the stable key the viewer tracks the query by. Never returns 0,
+// so the key doubles as a tagged/untagged flag.
+uint64_t b3HashQueryTag( uint64_t id, const char* name );
+
+// Record a key->(id, name) mapping once, deduped by key (a repeated key keeps its first id/name).
+// The name is clamped to B3_NAME_LENGTH.
+void     b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* name );
 
 // Intern each large geometry kind and return a stable u32 id for use in create ops.
 // Caller does NOT free bytes; b3InternGeometry takes ownership (frees on duplicate).

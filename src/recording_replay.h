@@ -46,8 +46,9 @@ typedef enum b3RecQueryKind
 typedef struct b3RecDrawQuery
 {
 	int           kind;
+	uint64_t      key;                               // identity key (hash of caller id+name), 0 = untagged
 	b3QueryFilter filter;
-	b3AABB        aabb;                              // overlap AABB, world space
+	b3AABB        aabb;                              // world-space bounds of the query, swept for casts
 	b3Vec3        proxyPoints[B3_MAX_SHAPE_CAST_POINTS]; // overlap/cast shape proxy, origin relative
 	int           proxyCount;
 	float         proxyRadius;
@@ -96,6 +97,14 @@ typedef struct b3RecReader
 	// Preloaded geometry registry
 	b3RegistrySlot* slots;
 	int             slotCount;
+
+	// Preloaded query-tag table (key -> id, name), loaded with the registry. Resolves the caller id and
+	// label for the viewer.
+	b3RecTag*       tags;
+	int             tagCount;
+
+	// Key from the QueryTag op preceding the next query, consumed by the next stash. 0 = untagged.
+	uint64_t        pendingQueryKey;
 
 	// Scratch for recorded query hits; grown on demand, freed with the player.
 	b3RecRecordedHit* hits;

@@ -9,7 +9,6 @@
 #include "bitset.h"
 #include "body.h"
 #include "broad_phase.h"
-#include "compound.h"
 #include "constraint_graph.h"
 #include "contact.h"
 #include "core.h"
@@ -1366,7 +1365,8 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 
 	B3_ASSERT( b3IsValidAABB( draw->drawingBounds ) );
 
-	const float axisScale = 0.3f * b3GetLengthUnitsPerMeter();
+	float lengthScale = b3GetLengthUnitsPerMeter();
+	float axisScale = 0.3f * lengthScale;
 	b3HexColor farColor = b3_colorDarkBlue;
 	b3HexColor speculativeColor = b3_colorBlue;
 	b3HexColor addColor = b3_colorLimeGreen;
@@ -1521,7 +1521,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 									b3Pos p1 = p;
 									b3Pos p2 = b3OffsetPos( p1, b3MulSV( draw->forceScale * force, normal ) );
 									draw->DrawSegmentFcn( p1, p2, impulseColor, draw->context );
-									snprintf( buffer, B3_ARRAY_COUNT( buffer ), "   %.1f", force );
+									snprintf( buffer, B3_ARRAY_COUNT( buffer ), "  %.1f", force );
 									draw->DrawStringFcn( p1, buffer, b3_colorWhite, draw->context );
 								}
 								else if ( draw->drawContactFeatures )
@@ -1571,8 +1571,9 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 								draw->DrawSegmentFcn( p1, p2, frictionColor, draw->context );
 								draw->DrawPointFcn( p1, 5.0f, frictionColor, draw->context );
 
+								p1 = b3OffsetPos( p1, b3MulSV(0.05f * lengthScale, normal) );
 								char buffer[32];
-								snprintf( buffer, B3_ARRAY_COUNT( buffer ), "  %.2f", b3Length( frictionForce ) );
+								snprintf( buffer, B3_ARRAY_COUNT( buffer ), "%.2f", b3Length( frictionForce ) );
 								draw->DrawStringFcn( p1, buffer, b3_colorWhite, draw->context );
 							}
 						}
@@ -2594,6 +2595,8 @@ b3TreeStats b3World_OverlapAABB( b3WorldId worldId, b3AABB aabb, b3QueryFilter f
 	if ( world->recording != NULL )
 	{
 		b3RecQueryBegin( &recWriter, context );
+		recWriter.tagId = filter.id;
+		recWriter.tagName = filter.name;
 		recWriter.userFcn.overlapFcn = fcn;
 		b3RecW_WORLDID( &recWriter.buf, worldId );
 		b3RecW_AABB( &recWriter.buf, aabb );
@@ -2684,6 +2687,8 @@ b3TreeStats b3World_OverlapShape( b3WorldId worldId, b3Pos origin, const b3Shape
 	if ( world->recording != NULL )
 	{
 		b3RecQueryBegin( &recWriter, context );
+		recWriter.tagId = filter.id;
+		recWriter.tagName = filter.name;
 		recWriter.userFcn.overlapFcn = fcn;
 		b3RecW_WORLDID( &recWriter.buf, worldId );
 		b3RecW_POSITION( &recWriter.buf, origin );
@@ -2781,6 +2786,8 @@ void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mov
 	if ( world->recording != NULL )
 	{
 		b3RecQueryBegin( &recWriter, context );
+		recWriter.tagId = filter.id;
+		recWriter.tagName = filter.name;
 		recWriter.userFcn.planeFcn = fcn;
 		b3RecW_WORLDID( &recWriter.buf, worldId );
 		b3RecW_POSITION( &recWriter.buf, origin );
@@ -2895,6 +2902,8 @@ b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation
 	if ( world->recording != NULL )
 	{
 		b3RecQueryBegin( &recWriter, context );
+		recWriter.tagId = filter.id;
+		recWriter.tagName = filter.name;
 		recWriter.userFcn.castFcn = fcn;
 		b3RecW_WORLDID( &recWriter.buf, worldId );
 		b3RecW_POSITION( &recWriter.buf, origin );
@@ -3003,6 +3012,8 @@ b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Pos origin, b3Vec3 tran
 	{
 		b3RecQueryWriter recWriter = { 0 };
 		b3RecQueryBegin( &recWriter, NULL );
+		recWriter.tagId = filter.id;
+		recWriter.tagName = filter.name;
 		b3RecW_WORLDID( &recWriter.buf, worldId );
 		b3RecW_POSITION( &recWriter.buf, origin );
 		b3RecW_VEC3( &recWriter.buf, translation );
@@ -3095,6 +3106,8 @@ b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3ShapePro
 	if ( world->recording != NULL )
 	{
 		b3RecQueryBegin( &recWriter, context );
+		recWriter.tagId = filter.id;
+		recWriter.tagName = filter.name;
 		recWriter.userFcn.castFcn = fcn;
 		b3RecW_WORLDID( &recWriter.buf, worldId );
 		b3RecW_POSITION( &recWriter.buf, origin );
@@ -3226,6 +3239,8 @@ float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover
 	if ( world->recording != NULL )
 	{
 		b3RecQueryBegin( &recWriter, context );
+		recWriter.tagId = filter.id;
+		recWriter.tagName = filter.name;
 		recWriter.userFcn.moverFilterFcn = fcn;
 		b3RecW_WORLDID( &recWriter.buf, worldId );
 		b3RecW_POSITION( &recWriter.buf, origin );
