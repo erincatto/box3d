@@ -92,7 +92,12 @@ void HighlightMaskInit( void )
 	sphPdesc.colors[0].pixel_format = SG_PIXELFORMAT_R8;
 	sphPdesc.color_count = 1;
 	sphPdesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
-	sphPdesc.depth.compare = SG_COMPAREFUNC_GREATER_EQUAL;
+	// Mask the full unoccluded projection, not the visible silhouette. A large
+	// shape occluded by many others (the ground box) would otherwise punch a
+	// hole per occluder and the outline would ring every one of them. Drawing
+	// the whole projection leaves only the true outer contour. The outline is
+	// no longer occlusion aware as a result.
+	sphPdesc.depth.compare = SG_COMPAREFUNC_ALWAYS;
 	sphPdesc.depth.write_enabled = false;
 	// Impostor convention: front-face cull on the proxy box, so the
 	// analytic intersection is rasterized from the back faces and remains
@@ -128,7 +133,7 @@ void HighlightMaskInit( void )
 	capPdesc.colors[0].pixel_format = SG_PIXELFORMAT_R8;
 	capPdesc.color_count = 1;
 	capPdesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
-	capPdesc.depth.compare = SG_COMPAREFUNC_GREATER_EQUAL;
+	capPdesc.depth.compare = SG_COMPAREFUNC_ALWAYS;
 	capPdesc.depth.write_enabled = false;
 	capPdesc.cull_mode = SG_CULLMODE_FRONT;
 	capPdesc.face_winding = SG_FACEWINDING_CCW;
@@ -165,7 +170,7 @@ void HighlightMaskInit( void )
 	hullPdesc.colors[0].pixel_format = SG_PIXELFORMAT_R8;
 	hullPdesc.color_count = 1;
 	hullPdesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
-	hullPdesc.depth.compare = SG_COMPAREFUNC_GREATER_EQUAL;
+	hullPdesc.depth.compare = SG_COMPAREFUNC_ALWAYS;
 	hullPdesc.depth.write_enabled = false;
 	hullPdesc.cull_mode = SG_CULLMODE_BACK;
 	hullPdesc.face_winding = SG_FACEWINDING_CCW;

@@ -2620,8 +2620,9 @@ void RenderFrame( const sg_swapchain* swapChain, const FrameInput* frame )
 								GetTransparentMeshInstanceView(), &s_gfx.edgeOverlay );
 
 	// highlight mask, only when the box3d adapter (or test scene)
-	// forwarded hovered/selected shapes for this frame. Mask depth-tests
-	// against the GTAO prepass depth so occluded highlights don't bleed.
+	// forwarded hovered/selected shapes for this frame. The mask captures the
+	// full unoccluded projection so the outline rings only a shape's outer
+	// contour, never its occluders.
 	const bool drawHighlights = s_gfx.highlight.enabled && HasHighlightMaskContent();
 	if ( drawHighlights )
 	{
