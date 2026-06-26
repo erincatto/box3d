@@ -126,7 +126,7 @@ public:
 	// Bounds the Frame shortcut should fit when the selection is not a body, e.g. a recorded query.
 	// Takes priority over FocusBody so an explicit selection wins over a hovered body. Returns false
 	// by default, leaving the body and whole-scene paths in charge.
-	virtual bool FocusBounds( b3AABB* bounds ) const;
+	virtual bool FocusBounds( b3AABB* bounds );
 
 	// Body the Frame shortcut should fit. Defaults to whatever the cursor is over.
 	// The replay viewer overrides this to fit its persistent selection instead, so

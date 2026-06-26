@@ -493,7 +493,7 @@ void Sample::Step()
 	b3World_Draw( m_worldId, &debugDraw, B3_DEFAULT_MASK_BITS );
 }
 
-bool Sample::FocusBounds( b3AABB* ) const
+bool Sample::FocusBounds( b3AABB* )
 {
 	return false;
 }

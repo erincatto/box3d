@@ -17,6 +17,21 @@
 #include <unordered_map>
 #include <vector>
 
+// Whole-recording query index, built lazily by scanning the player once. Backs the search box.
+struct QueryIndexRow
+{
+	int frame;
+	b3RecQueryType type;
+	int kindOrdinal;
+	int instance; // occurrence among same-key queries in its frame
+	uint64_t key;
+	uint64_t id;
+	const char* name; // points into the player's tag table, stable for the player's lifetime
+	b3QueryFilter filter;
+	b3Pos origin;
+	int hitCount;
+};
+
 // Inspector readout names
 static const char* ReplayBodyTypeName( b3BodyType type )
 {
@@ -180,6 +195,15 @@ static void FormatQueryLabel( char* out, int cap, const char* name, uint64_t id,
 	}
 }
 
+enum SelectionKind
+{
+	SelNone,
+	SelBody,
+	SelShape,
+	SelJoint,
+	SelQuery,
+};
+
 // Plays back a .b3rec recording by driving the keyframe player one recorded step at a time and
 // drawing the replayed world. The player owns the world, so the base sample world is left empty and
 // unused. Mouse picking only reads the world (no drag joint), since mutating it would diverge the
@@ -193,15 +217,6 @@ static void FormatQueryLabel( char* out, int cap, const char* name, uint64_t id,
 class ReplayViewer : public Sample
 {
 public:
-	enum SelKind
-	{
-		SelNone,
-		SelBody,
-		SelShape,
-		SelJoint,
-		SelQuery,
-	};
-
 	explicit ReplayViewer( SampleContext* context )
 		: Sample( context )
 	{
@@ -609,7 +624,7 @@ public:
 
 	// F frames the selected query by its recorded world-space bounds. Absent this frame, fall through
 	// to the body paths.
-	bool FocusBounds( b3AABB* bounds ) const override
+	bool FocusBounds( b3AABB* bounds ) override
 	{
 		// A shape selection frames that shape alone, finer than its whole body.
 		if ( m_selKind == SelShape )
@@ -774,25 +789,25 @@ public:
 
 	// Every shape on a body, sized to the real count so a body with many shapes still
 	// selects. The slot model breaks under a fixed cap once the count exceeds it.
-	std::vector<b3ShapeId> BodyShapes( b3BodyId body ) const
+	void BodyShapes( std::vector<b3ShapeId>& buffer, b3BodyId bodyId ) const
 	{
-		std::vector<b3ShapeId> shapes( b3Body_GetShapeCount( body ) );
-		if ( shapes.empty() == false )
+		int count = b3Body_GetShapeCount( bodyId );
+		buffer.resize( count );
+		if ( count > 0 )
 		{
-			b3Body_GetShapes( body, shapes.data(), (int)shapes.size() );
+			b3Body_GetShapes( bodyId, buffer.data(), count );
 		}
-		return shapes;
 	}
 
-	b3ShapeId SelectedShape() const
+	b3ShapeId SelectedShape()
 	{
 		b3BodyId body = SelectedBody();
 		if ( m_selKind != SelShape || b3Body_IsValid( body ) == false )
 		{
 			return b3_nullShapeId;
 		}
-		std::vector<b3ShapeId> shapes = BodyShapes( body );
-		return ( m_selSlot >= 0 && m_selSlot < (int)shapes.size() ) ? shapes[m_selSlot] : b3_nullShapeId;
+		BodyShapes( m_shapeBuffer, body );
+		return ( m_selSlot >= 0 && m_selSlot < (int)m_shapeBuffer.size() ) ? m_shapeBuffer[m_selSlot] : b3_nullShapeId;
 	}
 
 	b3JointId SelectedJoint() const
@@ -896,11 +911,11 @@ public:
 			m_selKind = SelNone;
 			return;
 		}
-		std::vector<b3ShapeId> shapes = BodyShapes( body );
+		BodyShapes( m_shapeBuffer, body );
 		int slot = -1;
-		for ( int i = 0; i < (int)shapes.size(); ++i )
+		for ( int i = 0; i < (int)m_shapeBuffer.size(); ++i )
 		{
-			if ( B3_ID_EQUALS( shapes[i], shape ) )
+			if ( B3_ID_EQUALS( m_shapeBuffer[i], shape ) )
 			{
 				slot = i;
 				break;
@@ -1223,12 +1238,12 @@ public:
 				continue;
 			}
 
-			std::vector<b3ShapeId> shapes = BodyShapes( body );
-			for ( int s = 0; s < (int)shapes.size(); ++s )
+			BodyShapes( m_shapeBuffer, body );
+			for ( int s = 0; s < (int)m_shapeBuffer.size(); ++s )
 			{
+				b3ShapeType shapeType = b3Shape_GetType( m_shapeBuffer[s] );
 				char sl[64];
-				snprintf( sl, sizeof( sl ), "Shape %d  %s###b%ds%d", s, ReplayShapeTypeName( b3Shape_GetType( shapes[s] ) ), ord,
-						  s );
+				snprintf( sl, sizeof( sl ), "Shape %d  %s###b%ds%d", s, ReplayShapeTypeName( shapeType ), ord, s );
 				ImGuiTreeNodeFlags lf =
 					ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 				if ( m_selKind == SelShape && m_selBodyOrdinal == ord && m_selSlot == s )
@@ -1716,13 +1731,16 @@ public:
 	int m_popupMinInterval;
 
 	// Selection by creation ordinal so it survives a backward seek that rebuilds the world.
-	SelKind m_selKind;
+	SelectionKind m_selKind;
 	int m_selBodyOrdinal;
 	int m_selSlot;			// shape or joint slot within the selected body
 	int m_selQuery;			// resolved query index for the current frame, recomputed from the pin below
 	bool m_revealSelection; // one-shot: expand and scroll the tree to a viewport pick or search jump
 	bool m_drawAllQueries;	// overlay every recorded query, not just the selected one
 	int m_hoverQuery;		// outline query row under the cursor, drawn as a transient highlight
+
+	// Re-usable buffer for getting all shapes from a body.
+	std::vector<b3ShapeId> m_shapeBuffer;
 
 	// A pinned query prefers its identity key (the hash of the caller id and label), the robust identity
 	// that tracks the logical query regardless of call order. A tag issued several times per step (the
@@ -1735,20 +1753,6 @@ public:
 	int m_selQueryKindOrdinal;
 	int m_selQueryInstance; // occurrence among same-key queries this frame, 0 unless a tag repeats
 
-	// Whole-recording query index, built lazily by scanning the player once. Backs the search box.
-	struct QueryIndexRow
-	{
-		int frame;
-		b3RecQueryType type;
-		int kindOrdinal;
-		int instance; // occurrence among same-key queries in its frame
-		uint64_t key;
-		uint64_t id;
-		const char* name; // points into the player's tag table, stable for the player's lifetime
-		b3QueryFilter filter;
-		b3Pos origin;
-		int hitCount;
-	};
 	std::vector<QueryIndexRow> m_queryIndex;
 	bool m_queryIndexBuilt;
 	char m_querySearch[64];
