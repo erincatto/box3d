@@ -549,6 +549,23 @@ public:
 		MakeDebugDraw( &debugDraw );
 		ApplyGuiFlags( &debugDraw );
 		debugDraw.drawingBounds = m_camera->DrawBounds(); // view-distance box in length units around the eye
+
+		// Drive the shared outline highlight from the selection. A shape selection outlines that
+		// shape alone, a body selection outlines the whole body. Set before the draw so the mask
+		// is filled by the draw callback.
+		if ( m_selKind == SelShape )
+		{
+			SetSelectedShape( SelectedShape() );
+		}
+		else if ( m_selKind == SelBody )
+		{
+			SetSelectedBody( SelectedBody() );
+		}
+		else
+		{
+			ClearSelection();
+		}
+
 		b3World_Draw( m_replayWorldId, &debugDraw, B3_DEFAULT_MASK_BITS );
 
 		DrawSelectionHighlight();
@@ -594,6 +611,16 @@ public:
 	// to the body paths.
 	bool FocusBounds( b3AABB* bounds ) const override
 	{
+		// A shape selection frames that shape alone, finer than its whole body.
+		if ( m_selKind == SelShape )
+		{
+			b3ShapeId shape = SelectedShape();
+			if ( b3Shape_IsValid( shape ) )
+			{
+				*bounds = b3Shape_GetAABB( shape );
+				return true;
+			}
+		}
 		if ( m_selKind != SelQuery || m_player == nullptr )
 		{
 			return false;
@@ -607,8 +634,8 @@ public:
 		return true;
 	}
 
-	// Frame the persistent selection so F focuses the chosen body wherever the cursor sits. Only a
-	// body, shape, or joint pick resolves to a body to fit. Otherwise fall back to the hovered body.
+	// Frame the selection by body. A body, shape, or joint pick resolves to a body. A shape pick is
+	// framed tighter in FocusBounds, so this is its fallback. Null when nothing resolves.
 	b3BodyId FocusBody() const override
 	{
 		if ( m_selKind == SelBody || m_selKind == SelShape || m_selKind == SelJoint )
@@ -745,6 +772,18 @@ public:
 		return b3RecPlayer_GetBodyId( m_player, m_selBodyOrdinal );
 	}
 
+	// Every shape on a body, sized to the real count so a body with many shapes still
+	// selects. The slot model breaks under a fixed cap once the count exceeds it.
+	std::vector<b3ShapeId> BodyShapes( b3BodyId body ) const
+	{
+		std::vector<b3ShapeId> shapes( b3Body_GetShapeCount( body ) );
+		if ( shapes.empty() == false )
+		{
+			b3Body_GetShapes( body, shapes.data(), (int)shapes.size() );
+		}
+		return shapes;
+	}
+
 	b3ShapeId SelectedShape() const
 	{
 		b3BodyId body = SelectedBody();
@@ -752,9 +791,8 @@ public:
 		{
 			return b3_nullShapeId;
 		}
-		b3ShapeId shapes[32];
-		int n = b3Body_GetShapes( body, shapes, 32 );
-		return ( m_selSlot >= 0 && m_selSlot < n ) ? shapes[m_selSlot] : b3_nullShapeId;
+		std::vector<b3ShapeId> shapes = BodyShapes( body );
+		return ( m_selSlot >= 0 && m_selSlot < (int)shapes.size() ) ? shapes[m_selSlot] : b3_nullShapeId;
 	}
 
 	b3JointId SelectedJoint() const
@@ -858,10 +896,9 @@ public:
 			m_selKind = SelNone;
 			return;
 		}
-		b3ShapeId shapes[32];
-		int n = b3Body_GetShapes( body, shapes, 32 );
+		std::vector<b3ShapeId> shapes = BodyShapes( body );
 		int slot = -1;
-		for ( int i = 0; i < n; ++i )
+		for ( int i = 0; i < (int)shapes.size(); ++i )
 		{
 			if ( B3_ID_EQUALS( shapes[i], shape ) )
 			{
@@ -901,8 +938,8 @@ public:
 		}
 	}
 
-	// Highlight the current selection without touching the world: AABB box, body axes, center of
-	// mass, and contacts. Joints mark both connected body centers.
+	// Selection overlays drawn on top of the outline highlight: body axes, center of mass, and
+	// contacts. Joints mark both connected body centers.
 	void DrawSelectionHighlight()
 	{
 		if ( m_selKind == SelShape )
@@ -913,7 +950,6 @@ public:
 				return;
 			}
 			b3BodyId body = b3Shape_GetBody( shape );
-			DrawBounds( b3Shape_GetAABB( shape ), 0.0f, MakeColor( b3_colorYellow ) );
 			DrawAxes( b3Body_GetTransform( body ), 0.5f );
 			DrawPoint( b3Body_GetWorldCenterOfMass( body ), 8.0f, MakeColor( b3_colorYellow ) );
 			DrawBodyContacts( body );
@@ -925,7 +961,6 @@ public:
 			{
 				return;
 			}
-			DrawBounds( b3Body_ComputeAABB( body ), 0.0f, MakeColor( b3_colorYellow ) );
 			DrawAxes( b3Body_GetTransform( body ), 0.5f );
 			DrawPoint( b3Body_GetWorldCenterOfMass( body ), 8.0f, MakeColor( b3_colorYellow ) );
 			DrawBodyContacts( body );
@@ -1188,9 +1223,8 @@ public:
 				continue;
 			}
 
-			b3ShapeId shapes[32];
-			int sn = b3Body_GetShapes( body, shapes, 32 );
-			for ( int s = 0; s < sn; ++s )
+			std::vector<b3ShapeId> shapes = BodyShapes( body );
+			for ( int s = 0; s < (int)shapes.size(); ++s )
 			{
 				char sl[64];
 				snprintf( sl, sizeof( sl ), "Shape %d  %s###b%ds%d", s, ReplayShapeTypeName( b3Shape_GetType( shapes[s] ) ), ord,

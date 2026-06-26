@@ -108,6 +108,7 @@ typedef struct
 	int materialOverrideCount;
 
 	b3BodyId selectedBodyId;
+	b3ShapeId selectedShapeId;
 
 	// Function pointers, drawingBounds, and context inside this struct are NOT used.
 	// Only used for settings
@@ -141,6 +142,7 @@ void InitAdapter( void )
 	s_adapter.groundShapeId = b3_nullShapeId;
 	s_adapter.materialOverrideCount = 0;
 	s_adapter.selectedBodyId = b3_nullBodyId;
+	s_adapter.selectedShapeId = b3_nullShapeId;
 	s_adapter.transparentDynamic = false;
 
 	s_adapter.guiDraw = b3DefaultDebugDraw();
@@ -168,6 +170,7 @@ void ResetAdapterPool( void )
 	s_adapter.groundShapeId = b3_nullShapeId;
 	s_adapter.materialOverrideCount = 0;
 	s_adapter.selectedBodyId = b3_nullBodyId;
+	s_adapter.selectedShapeId = b3_nullShapeId;
 	s_adapter.transparentDynamic = false;
 }
 
@@ -245,11 +248,19 @@ int GetDebugShapeCount( void )
 void SetSelectedBody( b3BodyId bodyId )
 {
 	s_adapter.selectedBodyId = b3Body_IsValid( bodyId ) ? bodyId : b3_nullBodyId;
+	s_adapter.selectedShapeId = b3_nullShapeId;
+}
+
+void SetSelectedShape( b3ShapeId shapeId )
+{
+	s_adapter.selectedShapeId = b3Shape_IsValid( shapeId ) ? shapeId : b3_nullShapeId;
+	s_adapter.selectedBodyId = b3_nullBodyId;
 }
 
 void ClearSelection( void )
 {
 	s_adapter.selectedBodyId = b3_nullBodyId;
+	s_adapter.selectedShapeId = b3_nullShapeId;
 }
 
 b3BodyId GetSelectedBody( void )
@@ -267,9 +278,19 @@ bool IsBodySelected( b3BodyId bodyId )
 	return B3_ID_EQUALS( s_adapter.selectedBodyId, bodyId );
 }
 
-static HighlightKind ResolveHighlightKind( b3BodyId bodyId )
+static bool IsShapeSelected( b3ShapeId shapeId )
 {
-	return IsBodySelected( bodyId ) ? HIGHLIGHT_KIND_SELECT : HIGHLIGHT_KIND_NONE;
+	if ( B3_IS_NULL( s_adapter.selectedShapeId ) )
+	{
+		return false;
+	}
+
+	return B3_ID_EQUALS( s_adapter.selectedShapeId, shapeId );
+}
+
+static HighlightKind ResolveHighlightKind( b3BodyId bodyId, b3ShapeId shapeId )
+{
+	return ( IsShapeSelected( shapeId ) || IsBodySelected( bodyId ) ) ? HIGHLIGHT_KIND_SELECT : HIGHLIGHT_KIND_NONE;
 }
 
 static int AllocDebugShape( void )
@@ -733,9 +754,9 @@ static bool DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexCo
 
 	TransparentShadowCast shadowCast = TRANSPARENT_SHADOW_NONE;
 
-	// Resolve hover/select state once. Body-keyed, so every supported shape on
-	// a hovered/selected body outlines together, compound children included.
-	HighlightKind hk = ResolveHighlightKind( us->bodyId );
+	// Resolve selection state once. A selected shape outlines alone, a selected
+	// body outlines all its shapes, compound children included.
+	HighlightKind hk = ResolveHighlightKind( us->bodyId, us->shapeId );
 
 	if ( us->kind == Box3DUS_Compound )
 	{

@@ -38,6 +38,7 @@ void SetTransparentDynamic( bool enabled );
 bool GetTransparentDynamic( void );
 
 void SetSelectedBody( b3BodyId bodyId );
+void SetSelectedShape( b3ShapeId shapeId );
 void ClearSelection( void );
 b3BodyId GetSelectedBody( void );
 bool IsBodySelected( b3BodyId bodyId );
