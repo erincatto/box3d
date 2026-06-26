@@ -287,7 +287,6 @@ public:
 			m_player = nullptr;
 		}
 		m_replayWorldId = b3_nullWorldId;
-		SetHoveredBody( b3_nullBodyId );
 		SetSelectedBody( b3_nullBodyId );
 		m_selKind = SelNone;
 		m_selBodyOrdinal = -1;
@@ -545,18 +544,6 @@ public:
 			return;
 		}
 
-		// Highlight the dynamic body under the cursor, matching the live samples.
-		PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
-
-		b3QueryFilter queryFilter = { UINT64_MAX, UINT64_MAX };
-		b3RayResult hover = b3World_CastRayClosest( m_replayWorldId, pickRay.origin, pickRay.translation, queryFilter );
-		b3BodyId hovered = b3_nullBodyId;
-		if ( hover.hit ) // && b3Body_GetType( b3Shape_GetBody( hover.shapeId ) ) == b3_dynamicBody )
-		{
-			hovered = b3Shape_GetBody( hover.shapeId );
-		}
-		SetHoveredBody( hovered );
-
 		// Draw the replay world through the same adapter path the live samples use.
 		b3DebugDraw debugDraw;
 		MakeDebugDraw( &debugDraw );
@@ -632,7 +619,7 @@ public:
 				return body;
 			}
 		}
-		return GetHoveredBody();
+		return b3_nullBodyId;
 	}
 
 	// Nothing selected: fit the recording, not the empty base world. Reuses the on-load framing so the

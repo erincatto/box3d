@@ -263,7 +263,7 @@ void AppendHighlightCapsule( b3Transform transform, float halfLength, float radi
 	inst->params = MakeVec4( halfLength, radius, (float)kind, 0.0f );
 }
 
-void AppendHighlightHull( MeshHandle handle, b3Transform transform, b3Vec3 scale, HighlightKind kind )
+void AppendHighlightGeometry( MeshHandle handle, b3Transform transform, b3Vec3 scale, HighlightKind kind )
 {
 	if ( kind == HIGHLIGHT_KIND_NONE )
 		return;

@@ -37,9 +37,6 @@ void SetShapeMaterial( b3ShapeId shapeId, Vec4 color, float metallic, float roug
 void SetTransparentDynamic( bool enabled );
 bool GetTransparentDynamic( void );
 
-void SetHoveredBody( b3BodyId bodyId );
-b3BodyId GetHoveredBody( void );
-
 void SetSelectedBody( b3BodyId bodyId );
 void ClearSelection( void );
 b3BodyId GetSelectedBody( void );

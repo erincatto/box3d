@@ -7,8 +7,9 @@
 // outline post-pass then reads the mask and composites silhouette colors
 // over the resolved scene.
 //
-// Restricted to spheres, capsules, and hulls by design, meshes and
-// heightfields look poor outlined and aren't worth the pipeline weight.
+// Covers spheres, capsules, and any registered geometry (hull, mesh,
+// height field). The geometry path is occlusion unaware, so a large
+// selected shape outlines its whole projected footprint.
 //
 // Encodes one of three states per pixel as the kind value passed in:
 // 1 = hover -> R8 UNORM 0.5
@@ -53,10 +54,11 @@ void AppendHighlightSphere( b3Transform transform, float radius, HighlightKind k
 // world-space scalars. Logs + drops on overflow.
 void AppendHighlightCapsule( b3Transform transform, float halfLength, float radius, HighlightKind kind );
 
-// Append a highlighted hull. handle resolves to a registered geometry
-// (vbo/ibo). transform + scale match AppendMesh, rotation matters because
-// hulls aren't rotationally symmetric. Logs + drops on overflow.
-void AppendHighlightHull( MeshHandle handle, b3Transform transform, b3Vec3 scale, HighlightKind kind );
+// Append highlighted geometry (hull, mesh, or height field). handle resolves
+// to a registered geometry (vbo/ibo). transform + scale match AppendMesh,
+// rotation matters because the geometry isn't rotationally symmetric. Logs +
+// drops on overflow.
+void AppendHighlightGeometry( MeshHandle handle, b3Transform transform, b3Vec3 scale, HighlightKind kind );
 
 // True when at least one shape was submitted this frame. Lets the caller
 // skip mask + outline passes entirely on the common empty case.

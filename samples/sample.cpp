@@ -455,35 +455,25 @@ void Sample::Step()
 	m_triangleIndex = -1;
 	m_userMaterialId = 0;
 
-	b3BodyId hovered = b3_nullBodyId;
+	// Cursor pick feeds the surface type readout only. Highlighting is selection driven.
 	if ( m_camera->m_thirdPerson == false )
 	{
 		PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
 		b3QueryFilter filter = b3DefaultQueryFilter();
-		filter.name = "hover";
+		filter.name = "pick";
 		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, filter );
 
 		if ( result.hit )
 		{
-			b3ShapeType type = b3Shape_GetType( result.shapeId );
-			if ( type == b3_meshShape )
+			if ( b3Shape_GetType( result.shapeId ) == b3_meshShape )
 			{
 				m_triangleIndex = result.triangleIndex;
 			}
 
 			m_userMaterialId = result.userMaterialId;
-
-			// Only dynamic bodies highlight, so the static ground never lights up.
-			b3BodyId bodyId = b3Shape_GetBody( result.shapeId );
-			if ( b3Body_GetType( bodyId ) == b3_dynamicBody )
-			{
-				hovered = bodyId;
-			}
 		}
 	}
-
-	SetHoveredBody( hovered );
 
 	// The frame latched the origin before Step, but a third person follow moves the eye while
 	// stepping, so refresh it here. Shapes come back demoted to float against this origin, the same
@@ -515,7 +505,7 @@ float Sample::InfoPanelWidthEm() const
 
 b3BodyId Sample::FocusBody() const
 {
-	return GetHoveredBody();
+	return GetSelectedBody();
 }
 
 void Sample::FocusHome()
@@ -1131,6 +1121,7 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 {
 	if ( button == 0 && modifiers == 0 )
 	{
+		// Plain click selects the body under the cursor, any type. Empty space clears.
 		PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 
 		b3QueryFilter filter = b3DefaultQueryFilter();
@@ -1138,6 +1129,25 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, filter );
 
 		if ( result.hit )
+		{
+			SetSelectedBody( b3Shape_GetBody( result.shapeId ) );
+		}
+		else
+		{
+			ClearSelection();
+		}
+	}
+	else if ( button == 0 && modifiers == MOD_CTRL )
+	{
+		// Ctrl click grabs a dynamic body with a kinematic mouse body and a motor joint.
+		PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
+
+		b3QueryFilter filter = b3DefaultQueryFilter();
+		filter.name = "grab";
+		b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, filter );
+
+		b3BodyId bodyId = result.hit ? b3Shape_GetBody( result.shapeId ) : b3_nullBodyId;
+		if ( result.hit && b3Body_GetType( bodyId ) == b3_dynamicBody )
 		{
 			m_mousePoint = result.point;
 
@@ -1147,17 +1157,8 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			bodyDef.enableSleep = false;
 			m_mouseBodyId = b3CreateBody( m_worldId, &bodyDef );
 
-			b3BodyId bodyId = b3Shape_GetBody( result.shapeId );
-
-			// A plain click also sets the selection. Dynamic only, matching hover.
-			if ( b3Body_GetType( bodyId ) == b3_dynamicBody )
-			{
-				SetSelectedBody( bodyId );
-			}
-			else
-			{
-				ClearSelection();
-			}
+			// Grabbing also selects so the body stays highlighted while dragged.
+			SetSelectedBody( bodyId );
 
 			b3MotorJointDef jointDef = b3DefaultMotorJointDef();
 			jointDef.base.bodyIdA = m_mouseBodyId;
@@ -1184,11 +1185,6 @@ void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 			b3Body_SetAwake( bodyId, true );
 
 			m_mouseFraction = result.fraction;
-		}
-		else
-		{
-			// Click into empty space clears the selection.
-			ClearSelection();
 		}
 	}
 	else if ( modifiers & MOD_SHIFT )
@@ -1249,8 +1245,6 @@ void Sample::MouseUp( b3Vec2 p, int button )
 	m_mouseJointId = b3_nullJointId;
 	m_mouseBodyId = b3_nullBodyId;
 	m_mouseFraction = 0.0f;
-
-	ClearSelection();
 }
 
 void Sample::MouseMove( b3Vec2 p )

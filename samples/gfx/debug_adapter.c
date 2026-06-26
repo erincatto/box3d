@@ -107,7 +107,6 @@ typedef struct
 	MaterialOverride materialOverrides[BOX3D_MATERIAL_OVERRIDE_CAPACITY];
 	int materialOverrideCount;
 
-	b3BodyId hoveredBodyId;
 	b3BodyId selectedBodyId;
 
 	// Function pointers, drawingBounds, and context inside this struct are NOT used.
@@ -141,7 +140,6 @@ void InitAdapter( void )
 	s_adapter.allocCount = 0;
 	s_adapter.groundShapeId = b3_nullShapeId;
 	s_adapter.materialOverrideCount = 0;
-	s_adapter.hoveredBodyId = b3_nullBodyId;
 	s_adapter.selectedBodyId = b3_nullBodyId;
 	s_adapter.transparentDynamic = false;
 
@@ -169,7 +167,6 @@ void ResetAdapterPool( void )
 
 	s_adapter.groundShapeId = b3_nullShapeId;
 	s_adapter.materialOverrideCount = 0;
-	s_adapter.hoveredBodyId = b3_nullBodyId;
 	s_adapter.selectedBodyId = b3_nullBodyId;
 	s_adapter.transparentDynamic = false;
 }
@@ -245,16 +242,6 @@ int GetDebugShapeCount( void )
 	return s_adapter.allocCount;
 }
 
-void SetHoveredBody( b3BodyId bodyId )
-{
-	s_adapter.hoveredBodyId = b3Body_IsValid( bodyId ) ? bodyId : b3_nullBodyId;
-}
-
-b3BodyId GetHoveredBody( void )
-{
-	return s_adapter.hoveredBodyId;
-}
-
 void SetSelectedBody( b3BodyId bodyId )
 {
 	s_adapter.selectedBodyId = b3Body_IsValid( bodyId ) ? bodyId : b3_nullBodyId;
@@ -282,17 +269,7 @@ bool IsBodySelected( b3BodyId bodyId )
 
 static HighlightKind ResolveHighlightKind( b3BodyId bodyId )
 {
-	if ( IsBodySelected( bodyId ) )
-	{
-		return HIGHLIGHT_KIND_SELECT;
-	}
-
-	if ( B3_ID_EQUALS( bodyId, s_adapter.hoveredBodyId ) )
-	{
-		return HIGHLIGHT_KIND_HOVER;
-	}
-
-	return HIGHLIGHT_KIND_NONE;
+	return IsBodySelected( bodyId ) ? HIGHLIGHT_KIND_SELECT : HIGHLIGHT_KIND_NONE;
 }
 
 static int AllocDebugShape( void )
@@ -698,9 +675,9 @@ static void AppendResolvedShape( const DebugShape* us, b3Transform baseTransform
 		MeshMaterialMode mode = us->isGround ? MESH_MATERIAL_MODE_GROUND_GRID : MESH_MATERIAL_MODE_SOLID;
 		float cell = us->isGround ? BOX3D_GROUND_GRID_CELL_SIZE : 0.0f;
 		AppendMesh( us->geom.handle, baseTransform, us->geom.scale, c, metallic, roughness, mode, cell, shadowCast );
-		if ( hk != HIGHLIGHT_KIND_NONE && us->kind == Box3DUS_Hull )
+		if ( hk != HIGHLIGHT_KIND_NONE )
 		{
-			AppendHighlightHull( us->geom.handle, baseTransform, us->geom.scale, hk );
+			AppendHighlightGeometry( us->geom.handle, baseTransform, us->geom.scale, hk );
 		}
 	}
 }
