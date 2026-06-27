@@ -115,7 +115,7 @@ void b3Log( const char* format, ... )
 
 b3Version b3GetVersion( void )
 {
-	return (b3Version){ 0, 2, 0 };
+	return (b3Version){ 0, 1, 0 };
 }
 
 bool b3IsDoublePrecision( void )

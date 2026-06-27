@@ -234,7 +234,7 @@ install(
 )
 
 install(
-  FILES ${BOX3D_API_FILES}
+  FILES ${BOX3D_INCLUDE_FILES}
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/box3d
 )
 
@@ -242,7 +242,7 @@ include(CMakePackageConfigHelpers)
 
 write_basic_package_version_file(
   "${CMAKE_CURRENT_BINARY_DIR}/box3dConfigVersion.cmake"
-  VERSION ${BOX3D_VERSION}
+  VERSION ${PROJECT_VERSION}
   COMPATIBILITY SameMajorVersion
 )
 

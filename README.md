@@ -49,6 +49,14 @@ Box3D is a 3D physics engine for games.
 - Install [git](https://git-scm.com/)
 - Ensure these run from the command line
 
+## Building with CMake presets
+
+The presets in `CMakePresets.json` give one build flow on every platform and are picked up automatically by Visual Studio, VS Code, and CLion (open the folder and choose a preset). From the command line:
+
+- Windows: `cmake --preset windows` then `cmake --build --preset windows-release`
+- Linux: `cmake --preset linux-release` then `cmake --build --preset linux-release`
+- macOS: `cmake --preset macos` then `cmake --build --preset macos-release`
+
 ## Building for Visual Studio
 
 - Install [Visual Studio](https://visualstudio.microsoft.com/)
@@ -76,6 +84,42 @@ Box3D is a 3D physics engine for games.
 - cmake ..
 - cmake --build . --config Release
 - cmake --install . (might need sudo)
+
+## Using Box3D in your project
+
+The core library has no dependencies beyond the C runtime (and `libm` on Unix). Linking it
+gives you the `box3d::box3d` target. When Box3D is consumed as a subproject it builds the
+library only; samples, tests, and benchmarks are skipped.
+
+The recommended path is FetchContent, which pins a tag and needs no separate install step:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(box3d
+  GIT_REPOSITORY https://github.com/erincatto/box3d.git
+  GIT_TAG v0.1.0)
+FetchContent_MakeAvailable(box3d)
+
+target_link_libraries(my_app PRIVATE box3d::box3d)
+```
+
+For a vendored copy or git submodule, point `add_subdirectory` at it:
+
+```cmake
+add_subdirectory(extern/box3d)
+
+target_link_libraries(my_app PRIVATE box3d::box3d)
+```
+
+To use a copy installed with `cmake --install`, find the package:
+
+```cmake
+find_package(box3d 0.1 REQUIRED)
+
+target_link_libraries(my_app PRIVATE box3d::box3d)
+```
+
+See [`docs/hello.md`](docs/hello.md) for a minimal first program.
 
 ## Compatibility
 
