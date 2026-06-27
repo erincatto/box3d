@@ -117,6 +117,8 @@ bool b3OverlapCapsule( const b3Capsule* shape, b3Transform shapeTransform, const
 
 b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* input )
 {
+	B3_ASSERT( b3IsValidRay( input ) );
+
 	b3Vec3 c1 = shape->center1;
 	b3Vec3 c2 = shape->center2;
 	float r = shape->radius;
@@ -187,12 +189,13 @@ b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* inp
 		return b3RayCastSphere( &sphere, input );
 	}
 
-	// Ray translation
+	// Ray axis. A zero length ray reaching here starts outside the capsule, so it misses.
+	// Same zero length convention as b3RayCastSphere.
 	b3Vec3 dr = input->translation;
-	float dr2 = b3LengthSquared( dr );
-	if ( dr2 < tol * tol )
+	float rayLength;
+	b3Vec3 rayAxis = b3GetLengthAndNormalize( &rayLength, dr );
+	if ( rayLength == 0.0f )
 	{
-		// Ray is a point and outside the capsule.
 		return output;
 	}
 
@@ -204,10 +207,6 @@ b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* inp
 	{
 		return output;
 	}
-
-	// Ray axis
-	float rayLength = sqrtf( dr2 );
-	b3Vec3 rayAxis = b3MulSV( 1.0f / rayLength, dr );
 
 	// Compute the closest point between the ray segment and the capsule segment.
 	// See Real-Time Collision Detection, section 5.1.9

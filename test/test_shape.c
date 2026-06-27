@@ -291,6 +291,17 @@ static int CheckCastHit( b3CastOutput out, b3Vec3 origin, b3Vec3 translation, b3
 	return 0;
 }
 
+// The shared initial overlap convention: a ray starting inside a solid reports the origin
+// with zero fraction and no normal.
+static int CheckInitialOverlap( b3CastOutput out, b3Vec3 origin )
+{
+	ENSURE( out.hit );
+	ENSURE( out.fraction == 0.0f );
+	ENSURE_SMALL( b3Distance( out.point, origin ), FLT_EPSILON );
+	ENSURE( out.normal.x == 0.0f && out.normal.y == 0.0f && out.normal.z == 0.0f );
+	return 0;
+}
+
 static int RayCastSphereHitTest( void )
 {
 	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 1.0f };
@@ -587,6 +598,60 @@ static int RayCastCapsuleClipTest( void )
 	return 0;
 }
 
+// Zero length rays and initial overlap behave the same across the solid shapes. A moving ray
+// and a zero length ray that both start inside report the origin with zero fraction, and a zero
+// length ray that starts outside misses.
+static int RayCastOverlapConventionTest( void )
+{
+	b3Vec3 zero = { 0.0f, 0.0f, 0.0f };
+	b3Vec3 ray = { 8.0f, 0.0f, 0.0f };
+
+	// Sphere
+	{
+		b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 1.0f };
+		b3Vec3 inside = { 0.2f, 0.0f, 0.0f };
+		b3Vec3 outside = { 3.0f, 0.0f, 0.0f };
+		b3RayCastInput moving = { inside, ray, 1.0f };
+		b3RayCastInput pointInside = { inside, zero, 1.0f };
+		b3RayCastInput pointOutside = { outside, zero, 1.0f };
+		if ( CheckInitialOverlap( b3RayCastSphere( &s, &moving ), inside ) )
+			return 1;
+		if ( CheckInitialOverlap( b3RayCastSphere( &s, &pointInside ), inside ) )
+			return 1;
+		ENSURE( b3RayCastSphere( &s, &pointOutside ).hit == false );
+	}
+
+	// Capsule
+	{
+		b3Vec3 inside = { 0.0f, 0.0f, 0.0f };
+		b3Vec3 outside = { 0.0f, 3.0f, 0.0f };
+		b3RayCastInput moving = { inside, ray, 1.0f };
+		b3RayCastInput pointInside = { inside, zero, 1.0f };
+		b3RayCastInput pointOutside = { outside, zero, 1.0f };
+		if ( CheckInitialOverlap( b3RayCastCapsule( &rayCapsule, &moving ), inside ) )
+			return 1;
+		if ( CheckInitialOverlap( b3RayCastCapsule( &rayCapsule, &pointInside ), inside ) )
+			return 1;
+		ENSURE( b3RayCastCapsule( &rayCapsule, &pointOutside ).hit == false );
+	}
+
+	// Hull
+	{
+		b3Vec3 inside = { 0.3f, 0.2f, 0.1f };
+		b3Vec3 outside = { 3.0f, 0.0f, 0.0f };
+		b3RayCastInput moving = { inside, ray, 1.0f };
+		b3RayCastInput pointInside = { inside, zero, 1.0f };
+		b3RayCastInput pointOutside = { outside, zero, 1.0f };
+		if ( CheckInitialOverlap( b3RayCastHull( &box.base, &moving ), inside ) )
+			return 1;
+		if ( CheckInitialOverlap( b3RayCastHull( &box.base, &pointInside ), inside ) )
+			return 1;
+		ENSURE( b3RayCastHull( &box.base, &pointOutside ).hit == false );
+	}
+
+	return 0;
+}
+
 static int RayCastShapeTest( void )
 {
 	b3RayCastInput input = {
@@ -647,6 +712,8 @@ int ShapeTest( void )
 	RUN_SUBTEST( RayCastCapsuleInteriorTest );
 	RUN_SUBTEST( RayCastCapsuleDegenerateTest );
 	RUN_SUBTEST( RayCastCapsuleClipTest );
+
+	RUN_SUBTEST( RayCastOverlapConventionTest );
 
 	return 0;
 }
