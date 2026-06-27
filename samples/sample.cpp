@@ -1723,7 +1723,8 @@ static void DrawMenuBar( SampleContext* context )
 				ImGui::SeparatorText( "Mouse" );
 				if ( ImGui::BeginTable( "mouse", 2, ImGuiTableFlags_SizingFixedFit ) )
 				{
-					DrawRow( "Left drag", "Move bodies (mouse joint)" );
+					DrawRow( "Left click", "Select body/shape" );
+					DrawRow( "Ctrl + left drag", "Move bodies (mouse joint)" );
 					DrawRow( "Alt + left drag", "Orbit camera" );
 					DrawRow( "Alt + middle drag", "Pan camera" );
 					DrawRow( "Right drag", "Fly look (WASD to move)" );

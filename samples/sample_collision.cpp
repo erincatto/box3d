@@ -660,7 +660,7 @@ public:
 				else if ( m_castType == e_sphereCast )
 				{
 					DrawLine( point, head, MakeColor( color1 ) );
-					//DrawWireSphere( transform, &sphere, 32, MakeColorAlpha( colors[i], 0.5f ) );
+					// DrawWireSphere( transform, &sphere, 32, MakeColorAlpha( colors[i], 0.5f ) );
 					DrawSolidSphere( transform, sphere, MakeColorAlpha( colors[i], 0.5f ) );
 				}
 				else if ( m_castType == e_capsuleCast )
@@ -1327,6 +1327,250 @@ public:
 };
 
 static int sampleOverlapWorld = RegisterSample( "Collision", "Overlap World", OverlapWorld::Create );
+
+// Casts very long rays at a row of shapes to exercise the far-origin accuracy of the ray cast
+// solvers. Each ray sweeps a small cone over time, so an accurate solver traces a smooth loop of
+// hit points and normals even when the origin is kilometers away.
+class LongRayCast : public Sample
+{
+public:
+	enum
+	{
+		SHAPE_COUNT = 5,
+		TRAIL_COUNT = 180
+	};
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new LongRayCast( context );
+	}
+
+	explicit LongRayCast( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( -35.0f, 22.0f, 34.0f, { 0.0f, 1.0f, 0.0f } );
+		}
+
+		b3World_SetGravity( m_worldId, b3Vec3_zero );
+
+		m_hull = b3CreateRock( 1.0f );
+		m_mesh = b3CreateWaveMesh( 8, 8, 0.5f, 0.25f, 0.2f, 0.2f );
+
+		int hfCount = 9;
+		b3Vec3 hfScale = 0.5f * b3Vec3_one;
+		m_heightField = b3CreateWave( hfCount, hfCount, hfScale, 0.08f, 0.16f, false );
+
+		// Aim each ray at a point above its shape so the cone sweeps the hit across the surface.
+		float spacing = 5.0f;
+		float aimHeight = 2.5f;
+		for ( int i = 0; i < SHAPE_COUNT; ++i )
+		{
+			float x = ( i - 2 ) * spacing;
+			m_targets[i] = { x, aimHeight, 0.0f };
+			m_trailNext[i] = 0;
+			m_trailCount[i] = 0;
+			m_failRate[i] = 0.0f;
+		}
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_staticBody;
+		// bodyDef.position.y = 1.0f;
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		// Sphere
+		bodyDef.position.x = m_targets[0].x;
+		{
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			b3Sphere sphere = { b3Vec3_zero, 1.0f };
+			b3CreateSphereShape( body, &shapeDef, &sphere );
+		}
+
+		// Capsule along the x-axis
+		bodyDef.position.x = m_targets[1].x;
+		{
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			b3Capsule capsule = { { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, 0.7f };
+			b3CreateCapsuleShape( body, &shapeDef, &capsule );
+		}
+
+		// Hull
+		bodyDef.position.x = m_targets[2].x;
+		{
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHullShape( body, &shapeDef, m_hull );
+		}
+
+		// Wave mesh, centered on its origin and facing up
+		bodyDef.position.x = m_targets[3].x;
+		{
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateMeshShape( body, &shapeDef, m_mesh, b3Vec3_one );
+		}
+
+		// Height field grows from a corner, so offset the body to center the patch under the ray
+		{
+			float extentX = hfScale.x * ( hfCount - 1 );
+			float extentZ = hfScale.z * ( hfCount - 1 );
+			bodyDef.position = { m_targets[4].x - 0.5f * extentX, 0.0f, -0.5f * extentZ };
+			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHeightFieldShape( body, &shapeDef, m_heightField );
+		}
+
+		m_rayLengthKilometers = 1.0f;
+		m_coneAngle = 5.0f;
+		m_phase = 0.0f;
+
+		memset( m_trail, 0, sizeof( m_trail ) );
+	}
+
+	~LongRayCast() override
+	{
+		b3DestroyHull( m_hull );
+		b3DestroyMesh( m_mesh );
+		b3DestroyHeightField( m_heightField );
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::SliderFloat( "Ray Length", &m_rayLengthKilometers, 1.0f, 10000.0f, "%.0f km", ImGuiSliderFlags_Logarithmic );
+		ImGui::SliderFloat( "Cone Angle", &m_coneAngle, 0.0f, 12.0f, "%.1f deg" );
+		return true;
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		// Advance the cone so it completes one loop per trail buffer.
+		m_phase += 2.0f * B3_PI / float( TRAIL_COUNT );
+		if ( m_phase > 2.0f * B3_PI )
+		{
+			m_phase -= 2.0f * B3_PI;
+		}
+
+		// Unit direction precessing on a small cone about the up axis.
+		float halfAngle = m_coneAngle * ( B3_PI / 180.0f );
+		b3Vec3 tilted = b3RotateVector( b3MakeQuatFromAxisAngle( b3Vec3_axisX, halfAngle ), b3Vec3_axisY );
+		b3Vec3 coneDir = b3RotateVector( b3MakeQuatFromAxisAngle( b3Vec3_axisY, m_phase ), tilted );
+
+		float reach = 5.0f;
+		float farDistance = 1000.0f * m_rayLengthKilometers;
+		b3QueryFilter filter = b3DefaultQueryFilter();
+
+		for ( int i = 0; i < SHAPE_COUNT; ++i )
+		{
+			// The long ray under test and a short ray on the same line. The short ray is near
+			// enough to be accurate, so it is the ground truth: if it hits where the long ray
+			// misses, the miss is an accuracy failure, not the cone tilting off the shape.
+			CastHit truth = CastAlong( m_targets[i], coneDir, 50.0f, reach, filter );
+			CastHit cast = CastAlong( m_targets[i], coneDir, farDistance, reach, filter );
+
+			float fail = 0.0f;
+
+			if ( cast.hit )
+			{
+				// Color the hit by how far it drifts from the ground truth.
+				float error = truth.hit ? b3Length( cast.point - truth.point ) : 0.0f;
+				b3HexColor color = error < 0.05f ? b3_colorGreen : b3_colorOrange;
+
+				m_trail[i][m_trailNext[i]] = cast.point;
+				m_trailNext[i] = ( m_trailNext[i] + 1 ) % TRAIL_COUNT;
+				if ( m_trailCount[i] < TRAIL_COUNT )
+				{
+					m_trailCount[i] += 1;
+				}
+
+				DrawLine( b3OffsetPos( cast.point, b3MulSV( 3.0f, coneDir ) ), cast.point, MakeColor( b3_colorAqua ) );
+				DrawLine( cast.point, b3OffsetPos( cast.point, b3MulSV( 1.5f, cast.normal ) ), MakeColor( b3_colorYellow ) );
+				DrawPoint( cast.point, 8.0f, MakeColor( color ) );
+			}
+			else if ( truth.hit )
+			{
+				// Accuracy failure: the line does hit, but single precision lost it at distance.
+				// Mark where the hit should have been and slash the empty ray red.
+				fail = 1.0f;
+				b3Pos expected = truth.point;
+				DrawPoint( expected, 14.0f, MakeColor( b3_colorRed ) );
+				DrawLine( b3OffsetPos( expected, b3MulSV( 2.0f, coneDir ) ), b3OffsetPos( expected, b3MulSV( -2.0f, coneDir ) ),
+						  MakeColor( b3_colorRed ) );
+			}
+			else
+			{
+				// Geometric miss: the cone tilted the ray off the shape. Not an accuracy problem.
+				b3Pos aim = m_targets[i];
+				DrawLine( b3OffsetPos( aim, b3MulSV( 2.0f, coneDir ) ), b3OffsetPos( aim, b3MulSV( -4.0f, coneDir ) ),
+						  MakeColorAlpha( b3_colorGray, 0.4f ) );
+			}
+
+			m_failRate[i] = 0.95f * m_failRate[i] + 0.05f * fail;
+
+			// Fade the trail from oldest to newest so the loop reads as a path.
+			int start = ( m_trailNext[i] - m_trailCount[i] + TRAIL_COUNT ) % TRAIL_COUNT;
+			for ( int j = 0; j < m_trailCount[i]; ++j )
+			{
+				int index = ( start + j ) % TRAIL_COUNT;
+				float alpha = float( j + 1 ) / float( m_trailCount[i] );
+				DrawPoint( m_trail[i][index], 4.0f, MakeColorAlpha( b3_colorGreen, alpha ) );
+			}
+		}
+
+		DrawTextLine( "Long ray casts versus sphere, capsule, hull, mesh, height field" );
+		DrawTextLine( "Origin distance %.0f km. Green hit is accurate, orange is drifting, red marks an accuracy miss.",
+					  m_rayLengthKilometers );
+		DrawTextLine( "Accuracy miss rate: sphere %.0f%%  capsule %.0f%%  hull %.0f%%  mesh %.0f%%  field %.0f%%",
+					  100.0f * m_failRate[0], 100.0f * m_failRate[1], 100.0f * m_failRate[2], 100.0f * m_failRate[3],
+					  100.0f * m_failRate[4] );
+	}
+
+	struct CastHit
+	{
+		b3Pos point;
+		b3Vec3 normal;
+		bool hit;
+	};
+
+	// Cast a ray that passes through the aim point along a cone direction, starting at the given
+	// distance above it. Returns the closest hit.
+	CastHit CastAlong( b3Pos aim, b3Vec3 coneDir, float distance, float reach, b3QueryFilter filter ) const
+	{
+		b3Pos origin = b3OffsetPos( aim, b3MulSV( distance, coneDir ) );
+		b3Vec3 translation = b3MulSV( -( distance + reach ), coneDir );
+
+		CastContext context = {};
+		context.fractions[0] = FLT_MAX;
+		context.fractions[1] = FLT_MAX;
+		context.fractions[2] = FLT_MAX;
+		b3World_CastRay( m_worldId, origin, translation, filter, RayCastClosestCallback, &context );
+
+		CastHit output = {};
+		output.hit = context.count > 0;
+		if ( output.hit )
+		{
+			output.point = context.points[0];
+			output.normal = context.normals[0];
+		}
+		return output;
+	}
+
+	b3HullData* m_hull;
+	b3MeshData* m_mesh;
+	b3HeightFieldData* m_heightField;
+
+	b3Pos m_targets[SHAPE_COUNT];
+	b3Pos m_trail[SHAPE_COUNT][TRAIL_COUNT];
+	int m_trailNext[SHAPE_COUNT];
+	int m_trailCount[SHAPE_COUNT];
+	float m_failRate[SHAPE_COUNT];
+
+	float m_rayLengthKilometers;
+	float m_coneAngle;
+	float m_phase;
+};
+
+static int sampleLongRayCast = RegisterSample( "Collision", "Long Ray Cast", LongRayCast::Create );
 
 class InitialOverlap : public Sample
 {
