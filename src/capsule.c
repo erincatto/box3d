@@ -261,7 +261,7 @@ b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* inp
 
 	// Closest points
 	b3Vec3 p1 = b3MulSV( t1, a1 );
-	b3Vec3 p2 = b3MulAdd( s, t1, a2 );
+	b3Vec3 p2 = b3MulAdd( s, t2, a2 );
 
 	// Vector from closest point on infinite capsule to infinite ray.
 	b3Vec3 g = b3Sub( p2, p1 );
@@ -276,10 +276,10 @@ b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* inp
 	// Compute the intersection of the infinite ray with the infinite cylinder. Like ray versus sphere,
 	// this is done relative to the closest point to avoid round-off errors. Not a fraction, has length units.
 	// https://en.wikipedia.org/wiki/Line-cylinder_intersection
-	float dt = sqrtf( ( r * r - g2 ) * invDet );
+	float h = sqrtf( ( r * r - g2 ) * invDet );
 
 	// This is the ray distance at the intersection point. Length units.
-	float tr = t2 + dt;
+	float tr = t2 - h;
 
 	// Outside ray?
 	if (tr < 0.0f || input->maxFraction * rayLength < tr)
