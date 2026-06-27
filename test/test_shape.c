@@ -7,6 +7,7 @@
 #include "box3d/math_functions.h"
 
 #include <float.h>
+#include <math.h>
 
 static b3Capsule capsule = { { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, 1.0f };
 static b3Sphere sphere = { { 1.0f, 0.0f, 0.0f }, 1.0f };
@@ -652,6 +653,138 @@ static int RayCastOverlapConventionTest( void )
 	return 0;
 }
 
+// Distance, in double precision, from a single precision hit point to the analytic first
+// ray/sphere intersection of the same float ray. Isolates the single precision method error:
+// the reference carries no float rounding, so what remains is purely what the method lost.
+static double SphereHitError( b3Sphere shape, b3RayCastInput input, b3Vec3 point )
+{
+	double r = shape.radius;
+	double sx = (double)input.origin.x - shape.center.x;
+	double sy = (double)input.origin.y - shape.center.y;
+	double sz = (double)input.origin.z - shape.center.z;
+	double tx = input.translation.x, ty = input.translation.y, tz = input.translation.z;
+	double len = sqrt( tx * tx + ty * ty + tz * tz );
+	double dx = tx / len, dy = ty / len, dz = tz / len;
+	double b = sx * dx + sy * dy + sz * dz;
+	double c = sx * sx + sy * sy + sz * sz - r * r;
+	double t = -b - sqrt( b * b - c );
+	double ex = point.x - ( input.origin.x + t * dx );
+	double ey = point.y - ( input.origin.y + t * dy );
+	double ez = point.z - ( input.origin.z + t * dz );
+	return sqrt( ex * ex + ey * ey + ez * ez );
+}
+
+// Same idea for the ray/infinite-cylinder intersection, used where the hit lands on the side.
+static double CapsuleHitError( b3Capsule shape, b3RayCastInput input, b3Vec3 point )
+{
+	double ax = (double)shape.center2.x - shape.center1.x;
+	double ay = (double)shape.center2.y - shape.center1.y;
+	double az = (double)shape.center2.z - shape.center1.z;
+	double alen = sqrt( ax * ax + ay * ay + az * az );
+	ax /= alen, ay /= alen, az /= alen;
+
+	double sx = (double)input.origin.x - shape.center1.x;
+	double sy = (double)input.origin.y - shape.center1.y;
+	double sz = (double)input.origin.z - shape.center1.z;
+	double tx = input.translation.x, ty = input.translation.y, tz = input.translation.z;
+	double tlen = sqrt( tx * tx + ty * ty + tz * tz );
+	double dx = tx / tlen, dy = ty / tlen, dz = tz / tlen;
+
+	double sa = sx * ax + sy * ay + sz * az;
+	double da = dx * ax + dy * ay + dz * az;
+	double spx = sx - sa * ax, spy = sy - sa * ay, spz = sz - sa * az;
+	double dpx = dx - da * ax, dpy = dy - da * ay, dpz = dz - da * az;
+	double A = dpx * dpx + dpy * dpy + dpz * dpz;
+	double B = 2.0 * ( spx * dpx + spy * dpy + spz * dpz );
+	double r = shape.radius;
+	double C = spx * spx + spy * spy + spz * spz - r * r;
+	double tau = ( -B - sqrt( B * B - 4.0 * A * C ) ) / ( 2.0 * A );
+	double ex = point.x - ( input.origin.x + tau * dx );
+	double ey = point.y - ( input.origin.y + tau * dy );
+	double ez = point.z - ( input.origin.z + tau * dz );
+	return sqrt( ex * ex + ey * ey + ez * ez );
+}
+
+// A miss is the worst possible outcome, so fold it into the error as a large sentinel.
+#define RAY_MISS 1.0e30
+
+static int RayCastFarOriginTest( void )
+{
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 1.0f };
+	b3Capsule c = { { -2.0f, 0.0f, 0.0f }, { 2.0f, 0.0f, 0.0f }, 1.0f };
+
+	// (0,0,1) lies on the unit sphere and on the capsule side. The ray dives in from a far origin
+	// along H + D*u for a fan of directions u skewed off the surface normal, so the capsule solve
+	// sees a real perpendicular gap rather than a free exact cancellation.
+	b3Vec3 h = { 0.0f, 0.0f, 1.0f };
+	float offsets[] = { -0.7f, 0.0f, 0.7f };
+	float distances[] = { 1e1f, 1e2f, 1e3f, 1e4f, 1e5f, 1e6f, 1e7f };
+
+	double worstSphere[ARRAY_COUNT( distances )];
+	double worstCapsule[ARRAY_COUNT( distances )];
+	double worstOld[ARRAY_COUNT( distances )];
+
+	printf( "    worst hit point error over a fan of skew rays, by origin distance:\n" );
+	printf( "    %-9s %-13s %-13s %-13s\n", "distance", "sphere", "capsule", "capsuleOld" );
+	for ( int i = 0; i < ARRAY_COUNT( distances ); ++i )
+	{
+		float d = distances[i];
+		double maxS = 0.0, maxC = 0.0, maxO = 0.0;
+
+		for ( int ia = 0; ia < ARRAY_COUNT( offsets ); ++ia )
+		{
+			for ( int ib = 0; ib < ARRAY_COUNT( offsets ); ++ib )
+			{
+				b3Vec3 u = b3Normalize( ( b3Vec3 ){ offsets[ia], offsets[ib], 1.0f } );
+				b3Vec3 origin = b3MulAdd( h, d, u );
+				b3Vec3 translation = b3MulSV( -2.0f * d, u );
+				b3RayCastInput input = { origin, translation, 1.0f };
+
+				b3CastOutput os = b3RayCastSphere( &s, &input );
+				b3CastOutput oc = b3RayCastCapsule( &c, &input );
+				b3CastOutput oo = b3RayCastCapsuleOld( &c, &input );
+
+				double errS = os.hit ? SphereHitError( s, input, os.point ) : RAY_MISS;
+				double errC = oc.hit ? CapsuleHitError( c, input, oc.point ) : RAY_MISS;
+				double errO = oo.hit ? CapsuleHitError( c, input, oo.point ) : RAY_MISS;
+
+				maxS = errS > maxS ? errS : maxS;
+				maxC = errC > maxC ? errC : maxC;
+				maxO = errO > maxO ? errO : maxO;
+			}
+		}
+
+		worstSphere[i] = maxS;
+		worstCapsule[i] = maxC;
+		worstOld[i] = maxO;
+		printf( "    %-9.0e %-13.3e %-13.3e %-13.3e\n", d, maxS, maxC, maxO );
+	}
+
+	// The closest point formulation keeps the error at the single precision floor: it grows only
+	// linearly with origin distance, error ~ distance * FLT_EPSILON, with no catastrophic loss.
+	for ( int i = 0; i < ARRAY_COUNT( distances ); ++i )
+	{
+		if ( distances[i] <= 1.0e5f )
+		{
+			double floor = 16.0 * distances[i] * FLT_EPSILON + 2.0e-6;
+			ENSURE( worstSphere[i] < floor );
+			ENSURE( worstCapsule[i] < floor );
+		}
+	}
+
+	// Still a clean sub-meter hit at a million units out.
+	ENSURE( worstSphere[5] < 0.5 && worstCapsule[5] < 0.5 );
+
+	// The naive discriminant loses precision quadratically. By ten thousand units it is wrong by
+	// more than a meter while the new solver is still at the millimeter floor, and beyond that it
+	// returns false misses. Roughly three decades of usable origin distance are recovered.
+	ENSURE( worstOld[3] > 1.0 );
+	ENSURE( worstOld[3] > 100.0 * worstCapsule[3] );
+	ENSURE( worstOld[4] > 1.0 );
+
+	return 0;
+}
+
 static int RayCastShapeTest( void )
 {
 	b3RayCastInput input = {
@@ -714,6 +847,7 @@ int ShapeTest( void )
 	RUN_SUBTEST( RayCastCapsuleClipTest );
 
 	RUN_SUBTEST( RayCastOverlapConventionTest );
+	RUN_SUBTEST( RayCastFarOriginTest );
 
 	return 0;
 }
