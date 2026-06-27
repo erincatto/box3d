@@ -3320,7 +3320,7 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 				{
 					draw->DrawCapsuleFcn( c1, c2, q->mover.radius, b3RecQuerySelColor( selected, c ), 0.6f, draw->context );
 
-					if (q->castFraction > 0.01f)
+					if ( q->castFraction > 0.01f )
 					{
 						b3Vec3 d = b3MulSV( q->castFraction, q->translation );
 						c1 = b3OffsetPos( c1, d );

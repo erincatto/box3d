@@ -54,19 +54,19 @@ typedef struct b3World b3World;
 // can load geometry before replaying any ops.
 typedef struct b3RecHeader
 {
-	uint32_t magic;			     // 'B3RC' = 0x43523342
-	uint16_t versionMajor;		 // B3_REC_VERSION_MAJOR
-	uint16_t versionMinor;		 // B3_REC_VERSION_MINOR
-	uint8_t  pointerWidth;		 // sizeof(void*), gates POD-def struct layout
-	uint8_t  bigEndian;		     // 0 on all supported targets
-	uint8_t  validationEnabled;  // 1 if built with BOX3D_VALIDATE, diagnostic only
-	uint8_t  reserved;
-	float    lengthScale;		 // b3GetLengthUnitsPerMeter()
+	uint32_t magic;			   // 'B3RC' = 0x43523342
+	uint16_t versionMajor;	   // B3_REC_VERSION_MAJOR
+	uint16_t versionMinor;	   // B3_REC_VERSION_MINOR
+	uint8_t pointerWidth;	   // sizeof(void*), gates POD-def struct layout
+	uint8_t bigEndian;		   // 0 on all supported targets
+	uint8_t validationEnabled; // 1 if built with BOX3D_VALIDATE, diagnostic only
+	uint8_t reserved;
+	float lengthScale; // b3GetLengthUnitsPerMeter()
 	uint32_t reserved2;
-	uint32_t reserved3;		     // explicit pad so the 64-bit fields align with no implicit gap
-	uint64_t snapshotSize;		 // bytes of snapshot blob after the header (0 in Phase 1)
-	uint64_t registryOffset;	 // absolute offset to trailing registry block, backpatched at stop
-	uint64_t registryByteCount;  // size of the registry block
+	uint32_t reserved3;			// explicit pad so the 64-bit fields align with no implicit gap
+	uint64_t snapshotSize;		// bytes of snapshot blob after the header (0 in Phase 1)
+	uint64_t registryOffset;	// absolute offset to trailing registry block, backpatched at stop
+	uint64_t registryByteCount; // size of the registry block
 } b3RecHeader;
 
 _Static_assert( sizeof( b3RecHeader ) == 48, "recording header must be 48 bytes" );
@@ -76,9 +76,9 @@ _Static_assert( sizeof( b3RecHeader ) == 48, "recording header must be 48 bytes"
 typedef struct b3RecBuffer
 {
 	uint8_t* data;
-	int      capacity;
-	int      size;
-	bool     countOnly;
+	int capacity;
+	int size;
+	bool countOnly;
 } b3RecBuffer;
 
 // Geometry kinds for the trailing registry section
@@ -95,12 +95,12 @@ typedef enum b3GeometryKind
 // which the keyframe registry depends on to never grow during capture. B3_NULL_INDEX ends the chain.
 typedef struct b3GeometryEntry
 {
-	uint64_t       contentHash;
-	uint32_t       id;
+	uint64_t contentHash;
+	uint32_t id;
 	b3GeometryKind kind;
-	int            byteCount;
-	uint8_t*       bytes;
-	int            hashNext;
+	int byteCount;
+	uint8_t* bytes;
+	int hashNext;
 } b3GeometryEntry;
 
 // Growable array of geometry entries. Ids are array indices, so the array is serialized in order.
@@ -108,85 +108,85 @@ typedef struct b3GeometryEntry
 typedef struct b3GeometryRegistry
 {
 	b3GeometryEntry* entries;
-	int              count;
-	int              capacity;
-	void*            dedupMap;
+	int count;
+	int capacity;
+	void* dedupMap;
 } b3GeometryRegistry;
 
-// One interned query tag: a hashed (id, name) key mapped back to the id and label that produced it.
+// Query tag from b3QueryFilter.
 // Stored once per key in the trailing block so a tagged query carries only the 8 byte key on the wire.
 // Shared by the recorder (accumulate) and the player (load).
 typedef struct b3RecTag
 {
-	uint64_t key;  // hash of (id, name), the per-query identity
-	uint64_t id;   // caller id, e.g. an entity id
-	char     name[B3_NAME_LENGTH + 1]; // caller label
+	uint64_t key;				   // hash of (id, name)
+	uint64_t id;				   // entity/actor id
+	char name[B3_NAME_LENGTH + 1]; // query label
 } b3RecTag;
 
 // User-owned recording buffer. The world appends into it while active; the host saves and
 // destroys it. Opaque across the public API.
 typedef struct b3Recording
 {
-	b3RecBuffer      buffer;
-	int              recordStart;      // offset of the 3-byte size field for u24 backpatch
-	b3Mutex*         lock;             // serializes record writes from concurrent threads
+	b3RecBuffer buffer;
+	int recordStart; // offset of the 3-byte size field for u24 backpatch
+	b3Mutex* lock;	 // serializes record writes from concurrent threads
 	b3GeometryRegistry registry;
 
 	// Interned query tags accumulated during capture, written to the tail of the registry block at stop.
-	// tagMap maps a tag key to its index for O(1) dedup. Opaque here, owned by recording.c.
-	b3RecTag*        tags;
-	int              tagCount;
-	int              tagCapacity;
-	void*            tagMap;
+	// tagMap maps a tag key to its index for O(1) dedup.
+	b3RecTag* tags;
+	int tagCount;
+	int tagCapacity;
+	void* tagMap;
 
 	// Union of world bounds over every recorded step, written at stop.
-	b3AABB           accumulatedBounds;
-	bool             haveBounds;
+	b3AABB accumulatedBounds;
+	bool haveBounds;
 } b3Recording;
 
 // C type aliases per TAG, used in the X-macro codegen arg structs
-typedef bool             b3RecCType_BOOL;
-typedef int32_t          b3RecCType_I32;
-typedef uint8_t          b3RecCType_U8;
-typedef uint16_t         b3RecCType_U16;
-typedef uint32_t         b3RecCType_U32;
-typedef uint64_t         b3RecCType_U64;
-typedef float            b3RecCType_F32;
-typedef double           b3RecCType_F64;
-typedef b3Vec3           b3RecCType_VEC3;
-typedef b3Quat           b3RecCType_QUAT;
-typedef b3Transform      b3RecCType_TRANSFORM;
-typedef b3Pos            b3RecCType_POSITION;
+typedef bool b3RecCType_BOOL;
+typedef int32_t b3RecCType_I32;
+typedef uint8_t b3RecCType_U8;
+typedef uint16_t b3RecCType_U16;
+typedef uint32_t b3RecCType_U32;
+typedef uint64_t b3RecCType_U64;
+typedef float b3RecCType_F32;
+typedef double b3RecCType_F64;
+typedef b3Vec3 b3RecCType_VEC3;
+typedef b3Quat b3RecCType_QUAT;
+typedef b3Transform b3RecCType_TRANSFORM;
+typedef b3Pos b3RecCType_POSITION;
 typedef b3WorldTransform b3RecCType_WORLDXF;
-typedef b3Matrix3        b3RecCType_MATRIX3;
-typedef b3AABB           b3RecCType_AABB;
-typedef b3Sphere         b3RecCType_SPHERE;
-typedef b3Capsule        b3RecCType_CAPSULE;
-typedef b3QueryFilter    b3RecCType_QUERYFILTER;
-typedef b3ShapeProxy     b3RecCType_SHAPEPROXY;
+typedef b3Matrix3 b3RecCType_MATRIX3;
+typedef b3AABB b3RecCType_AABB;
+typedef b3Sphere b3RecCType_SPHERE;
+typedef b3Capsule b3RecCType_CAPSULE;
+typedef b3QueryFilter b3RecCType_QUERYFILTER;
+typedef b3ShapeProxy b3RecCType_SHAPEPROXY;
 // Geometry reference: a plain u32 id into the trailing registry
-typedef uint32_t         b3RecCType_GEOMID;
-typedef b3Filter         b3RecCType_FILTER;
+typedef uint32_t b3RecCType_GEOMID;
+typedef b3Filter b3RecCType_FILTER;
 typedef b3SurfaceMaterial b3RecCType_MATERIAL;
-typedef b3MassData       b3RecCType_MASSDATA;
-typedef b3MotionLocks    b3RecCType_LOCKS;
-typedef const char*      b3RecCType_STR;
-typedef b3WorldId        b3RecCType_WORLDID;
-typedef b3BodyId         b3RecCType_BODYID;
-typedef b3ShapeId        b3RecCType_SHAPEID;
-typedef b3JointId        b3RecCType_JOINTID;
-typedef b3BodyDef        b3RecCType_BODYDEF;
-typedef b3ShapeDef       b3RecCType_SHAPEDEF;
-typedef b3ExplosionDef   b3RecCType_EXPLOSIONDEF;
-typedef b3ParallelJointDef  b3RecCType_PARALLELJOINTDEF;
-typedef b3DistanceJointDef  b3RecCType_DISTANCEJOINTDEF;
-typedef b3FilterJointDef    b3RecCType_FILTERJOINTDEF;
-typedef b3MotorJointDef     b3RecCType_MOTORJOINTDEF;
+typedef b3MassData b3RecCType_MASSDATA;
+typedef b3MotionLocks b3RecCType_LOCKS;
+typedef const char* b3RecCType_STR;
+typedef b3WorldId b3RecCType_WORLDID;
+typedef b3BodyId b3RecCType_BODYID;
+typedef b3ShapeId b3RecCType_SHAPEID;
+typedef b3JointId b3RecCType_JOINTID;
+typedef b3BodyDef b3RecCType_BODYDEF;
+typedef b3ShapeDef b3RecCType_SHAPEDEF;
+typedef b3ExplosionDef b3RecCType_EXPLOSIONDEF;
+typedef b3ParallelJointDef b3RecCType_PARALLELJOINTDEF;
+typedef b3DistanceJointDef b3RecCType_DISTANCEJOINTDEF;
+typedef b3FilterJointDef b3RecCType_FILTERJOINTDEF;
+typedef b3MotorJointDef b3RecCType_MOTORJOINTDEF;
 typedef b3PrismaticJointDef b3RecCType_PRISMATICJOINTDEF;
-typedef b3RevoluteJointDef  b3RecCType_REVOLUTEJOINTDEF;
+typedef b3RevoluteJointDef b3RecCType_REVOLUTEJOINTDEF;
 typedef b3SphericalJointDef b3RecCType_SPHERICALJOINTDEF;
-typedef b3WeldJointDef      b3RecCType_WELDJOINTDEF;
-typedef b3WheelJointDef     b3RecCType_WHEELJOINTDEF;
+typedef b3WeldJointDef b3RecCType_WELDJOINTDEF;
+typedef b3WheelJointDef b3RecCType_WHEELJOINTDEF;
 
 // Codegen pass 1a: arg structs. Generated here so call sites (body.c, shape.c, etc.) can see them.
 #define ARG( TAG, field ) b3RecCType_##TAG field;
@@ -272,7 +272,7 @@ void b3RecEndRecord( b3Recording* rec );
 
 // Create ops: declare writers that also append the returned id inside the record.
 #define B3_REC_RETDECL_RET_NONE( Name )
-#define B3_REC_RETDECL_RET_BODYID( Name )  void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, b3BodyId id );
+#define B3_REC_RETDECL_RET_BODYID( Name ) void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, b3BodyId id );
 #define B3_REC_RETDECL_RET_SHAPEID( Name ) void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, b3ShapeId id );
 #define B3_REC_RETDECL_RET_JOINTID( Name ) void b3RecWriteRet_##Name( b3Recording* rec, const b3RecArgs_##Name* a, b3JointId id );
 #define B3_REC_OP( op, Name, RET, ... ) B3_REC_RETDECL_##RET( Name )
@@ -289,8 +289,8 @@ void b3RecEndRecord( b3Recording* rec );
 	{                                                                                                                            \
 		if ( ( world )->recording != NULL )                                                                                      \
 		{                                                                                                                        \
-			b3RecArgs_##Name recArgs = { __VA_ARGS__ };                                                                             \
-			b3RecWrite_##Name( ( world )->recording, &recArgs );                                                                    \
+			b3RecArgs_##Name recArgs = { __VA_ARGS__ };                                                                          \
+			b3RecWrite_##Name( ( world )->recording, &recArgs );                                                                 \
 		}                                                                                                                        \
 	}                                                                                                                            \
 	while ( 0 )
@@ -301,14 +301,14 @@ void b3RecEndRecord( b3Recording* rec );
 	{                                                                                                                            \
 		if ( ( world )->recording != NULL )                                                                                      \
 		{                                                                                                                        \
-			b3RecArgs_##Name recCreateArgs = { __VA_ARGS__ };                                                                       \
-			b3RecWriteRet_##Name( ( world )->recording, &recCreateArgs, id );                                                       \
+			b3RecArgs_##Name recCreateArgs = { __VA_ARGS__ };                                                                    \
+			b3RecWriteRet_##Name( ( world )->recording, &recCreateArgs, id );                                                    \
 		}                                                                                                                        \
 	}                                                                                                                            \
 	while ( 0 )
 
 // Patch helpers for the query hit-count backfill
-int  b3RecReserveU32( b3RecBuffer* buf );
+int b3RecReserveU32( b3RecBuffer* buf );
 void b3RecPatchU32( b3RecBuffer* buf, int offset, uint32_t v );
 
 // Commit a finished query record under the lock. The payload buffer stays owned by the caller.
@@ -320,16 +320,16 @@ typedef struct b3RecQueryWriter
 	union
 	{
 		b3OverlapResultFcn* overlapFcn;
-		b3CastResultFcn*    castFcn;
-		b3PlaneResultFcn*   planeFcn;
-		b3MoverFilterFcn*   moverFilterFcn;
+		b3CastResultFcn* castFcn;
+		b3PlaneResultFcn* planeFcn;
+		b3MoverFilterFcn* moverFilterFcn;
 	} userFcn;
-	void*       userContext;
-	b3RecBuffer buf;         // per-call local payload, heap-backed
-	int         countOffset; // offset of the reserved u32 hit-count slot
-	uint32_t    hitCount;
-	uint64_t    tagId;       // caller query id, 0 = untagged. Emitted as a QueryTag before the record.
-	const char* tagName;     // caller query name, interned by id. NULL = none.
+	void* userContext;
+	b3RecBuffer buf; // per-call local payload, heap-backed
+	int countOffset; // offset of the reserved u32 hit-count slot
+	uint32_t hitCount;
+	uint64_t tagId;		 // caller query id, 0 = untagged. Emitted as a QueryTag before the record.
+	const char* tagName; // caller query name, interned by id. NULL = none.
 } b3RecQueryWriter;
 
 void b3RecQueryBegin( b3RecQueryWriter* w, void* context, uint64_t tagId, const char* tagName );
@@ -337,21 +337,19 @@ void b3RecQueryCommit( b3Recording* rec, uint8_t opcode, b3RecQueryWriter* w );
 
 // Recording trampolines: replace the user fcn so hits are captured before dispatch. The overlap
 // trampoline doubles for the mover filter, which has the same bool(shapeId, ctx) shape.
-bool  b3RecOverlapTrampoline( b3ShapeId id, void* ctx );
+bool b3RecOverlapTrampoline( b3ShapeId id, void* ctx );
 float b3RecCastTrampoline( b3ShapeId id, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId, int triangleIndex,
 						   int childIndex, void* ctx );
-bool  b3RecPlaneTrampoline( b3ShapeId id, const b3PlaneResult* planes, int planeCount, void* ctx );
+bool b3RecPlaneTrampoline( b3ShapeId id, const b3PlaneResult* planes, int planeCount, void* ctx );
 
 // Geometry registry
-uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
-                           uint8_t* bytes, int byteCount );
+uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount );
 // Append an entry unconditionally and return its id, which equals its array index. Unlike
 // b3InternGeometry it never deduplicates, so the keyframe seed can mirror slots 1:1 even when an
 // already-recorded file carries byte-identical duplicate slots (a hash collision wrote them apart).
-uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
-                           uint8_t* bytes, int byteCount );
-void     b3FreeRegistry( b3GeometryRegistry* reg );
-void     b3RecWriteRegistry( b3Recording* rec );
+uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount );
+void b3FreeRegistry( b3GeometryRegistry* reg );
+void b3RecWriteRegistry( b3Recording* rec );
 
 // Hash a query (id, name) pair into the stable key the viewer tracks the query by. Never returns 0,
 // so the key doubles as a tagged/untagged flag.
@@ -359,7 +357,7 @@ uint64_t b3HashQueryTag( uint64_t id, const char* name );
 
 // Record a key->(id, name) mapping once, deduped by key (a repeated key keeps its first id/name).
 // The name is clamped to B3_NAME_LENGTH.
-void     b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* name );
+void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* name );
 
 // Intern each large geometry kind and return a stable u32 id for use in create ops.
 // Caller does NOT free bytes; b3InternGeometry takes ownership (frees on duplicate).

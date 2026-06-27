@@ -948,7 +948,7 @@ void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* na
 }
 
 // Write the trailing registry block: u32 entryCount then per-entry { u8 kind, u32 byteCount, bytes },
-// followed by the query-tag table { u32 tagCount, per-tag u64 id, STR name }. A reader built before
+// followed by the query-tag table { u32 tagCount, per-tag uu64 id, STR name }. A reader built before
 // the tag table stops after the geometry entries and ignores the trailing tag bytes.
 void b3RecWriteRegistry( b3Recording* rec )
 {

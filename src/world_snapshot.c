@@ -32,10 +32,10 @@
 #include <string.h>
 
 // Snapshot image magic 'BNS3' and version
-#define B3_SNAP_MAGIC   0x33534E42u
+#define B3_SNAP_MAGIC 0x33534E42u
 #define B3_SNAP_VERSION 1u
 
-#define B3_SNAP_FLAG_VALIDATION      0x1u
+#define B3_SNAP_FLAG_VALIDATION 0x1u
 #define B3_SNAP_FLAG_DOUBLE_PRECISION 0x2u
 
 // Layout hash over all POD-copied structs + key constants.
@@ -43,8 +43,8 @@
 static uint32_t b3ComputeLayoutHash( void )
 {
 	uint32_t h = 2166136261u;
-#define MIX( x )     \
-	h ^= (uint32_t)( x ); \
+#define MIX( x )                                                                                                                 \
+	h ^= (uint32_t)( x );                                                                                                        \
 	h *= 16777619u;
 	MIX( sizeof( b3Body ) )
 	MIX( sizeof( b3BodySim ) )
@@ -88,9 +88,9 @@ typedef struct b3SnapHeader
 typedef struct b3SnapReader
 {
 	const uint8_t* data;
-	int            cursor;
-	int            size;
-	bool           ok;
+	int cursor;
+	int size;
+	bool ok;
 } b3SnapReader;
 
 static void b3SnapRCheck( b3SnapReader* r, int need )
@@ -158,36 +158,36 @@ static bool b3SnapCheckCount( const b3SnapReader* r, int count, int memSize, int
 }
 
 // POD array: count + raw bytes
-#define b3SerPodArray( buf, arr )                                                  \
-	do                                                                             \
-	{                                                                              \
-		b3SnapW_I32( buf, ( arr ).count );                                         \
-		if ( ( arr ).count > 0 )                                                   \
-		{                                                                          \
-			b3SnapW_Bytes( buf, ( arr ).data, ( arr ).count * (int)sizeof( *( arr ).data ) ); \
-		}                                                                          \
-	}                                                                              \
+#define b3SerPodArray( buf, arr )                                                                                                \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		b3SnapW_I32( buf, ( arr ).count );                                                                                       \
+		if ( ( arr ).count > 0 )                                                                                                 \
+		{                                                                                                                        \
+			b3SnapW_Bytes( buf, ( arr ).data, ( arr ).count * (int)sizeof( *( arr ).data ) );                                    \
+		}                                                                                                                        \
+	}                                                                                                                            \
 	while ( 0 )
 
-#define b3DesPodArray( r, arr )                                                                          \
-	do                                                                                                   \
-	{                                                                                                    \
-		int cnt = b3SnapR_I32( r );                                                                      \
-		int elemSize = (int)sizeof( *( arr ).data );                                                     \
-		if ( (r)->ok && b3SnapCheckCount( r, cnt, elemSize, elemSize ) == false )                        \
-		{                                                                                                 \
-			(r)->ok = false;                                                                             \
-		}                                                                                                 \
-		if ( (r)->ok && cnt > 0 )                                                                        \
-		{                                                                                                 \
-			b3Array_Resize( arr, cnt );                                                                   \
-			b3SnapR_Bytes( r, ( arr ).data, cnt * elemSize );                                             \
-		}                                                                                                 \
-		else if ( (r)->ok )                                                                              \
-		{                                                                                                 \
-			( arr ).count = 0;                                                                           \
-		}                                                                                                 \
-	}                                                                                                    \
+#define b3DesPodArray( r, arr )                                                                                                  \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		int cnt = b3SnapR_I32( r );                                                                                              \
+		int elemSize = (int)sizeof( *( arr ).data );                                                                             \
+		if ( ( r )->ok && b3SnapCheckCount( r, cnt, elemSize, elemSize ) == false )                                              \
+		{                                                                                                                        \
+			( r )->ok = false;                                                                                                   \
+		}                                                                                                                        \
+		if ( ( r )->ok && cnt > 0 )                                                                                              \
+		{                                                                                                                        \
+			b3Array_Resize( arr, cnt );                                                                                          \
+			b3SnapR_Bytes( r, ( arr ).data, cnt * elemSize );                                                                    \
+		}                                                                                                                        \
+		else if ( ( r )->ok )                                                                                                    \
+		{                                                                                                                        \
+			( arr ).count = 0;                                                                                                   \
+		}                                                                                                                        \
+	}                                                                                                                            \
 	while ( 0 )
 
 // Id pool: nextIndex + freeArray
@@ -229,7 +229,7 @@ static void b3DesBitSet( b3SnapReader* r, b3BitSet* bs )
 	bs->bits = (uint64_t*)b3Alloc( blockCapacity * sizeof( uint64_t ) );
 	memset( bs->bits, 0, blockCapacity * sizeof( uint64_t ) );
 	bs->blockCapacity = blockCapacity;
-	bs->blockCount    = blockCount;
+	bs->blockCount = blockCount;
 	if ( blockCount > 0 )
 	{
 		b3SnapR_Bytes( r, bs->bits, (int)( blockCount * sizeof( uint64_t ) ) );
@@ -252,7 +252,7 @@ static void b3DesHashSet( b3SnapReader* r, b3HashSet* hs )
 	uint32_t cap = b3SnapR_U32( r );
 	uint32_t cnt = b3SnapR_U32( r );
 	bool valid = b3SnapCheckCount( r, (int)cap, (int)sizeof( b3SetItem ), (int)sizeof( b3SetItem ) ) &&
-	             ( cap & ( cap - 1 ) ) == 0 && cnt <= cap;
+				 ( cap & ( cap - 1 ) ) == 0 && cnt <= cap;
 	if ( r->ok && valid == false && ( cap != 0 || cnt != 0 ) )
 	{
 		r->ok = false;
@@ -264,16 +264,16 @@ static void b3DesHashSet( b3SnapReader* r, b3HashSet* hs )
 	}
 	if ( cap > 0 )
 	{
-		hs->items    = (b3SetItem*)b3Alloc( cap * sizeof( b3SetItem ) );
+		hs->items = (b3SetItem*)b3Alloc( cap * sizeof( b3SetItem ) );
 		hs->capacity = cap;
-		hs->count    = cnt;
+		hs->count = cnt;
 		b3SnapR_Bytes( r, hs->items, (int)( cap * sizeof( b3SetItem ) ) );
 	}
 	else
 	{
-		hs->items    = NULL;
+		hs->items = NULL;
 		hs->capacity = 0;
-		hs->count    = 0;
+		hs->count = 0;
 	}
 }
 
@@ -296,11 +296,11 @@ static void b3DesTree( b3SnapReader* r, b3DynamicTree* tree )
 {
 	uint64_t version;
 	b3SnapR_Bytes( r, &version, sizeof( uint64_t ) );
-	int root         = b3SnapR_I32( r );
-	int nodeCount    = b3SnapR_I32( r );
+	int root = b3SnapR_I32( r );
+	int nodeCount = b3SnapR_I32( r );
 	int nodeCapacity = b3SnapR_I32( r );
-	int freeList     = b3SnapR_I32( r );
-	int proxyCount   = b3SnapR_I32( r );
+	int freeList = b3SnapR_I32( r );
+	int proxyCount = b3SnapR_I32( r );
 
 	if ( r->ok && b3SnapCheckCount( r, nodeCapacity, (int)sizeof( b3TreeNode ), (int)sizeof( b3TreeNode ) ) == false )
 	{
@@ -309,16 +309,16 @@ static void b3DesTree( b3SnapReader* r, b3DynamicTree* tree )
 
 	// Free existing allocation including any rebuild scratch
 	b3Free( tree->nodes, tree->nodeCapacity * (int)sizeof( b3TreeNode ) );
-	b3Free( tree->leafIndices,  tree->rebuildCapacity * (int)sizeof( int ) );
-	b3Free( tree->leafBoxes,    tree->rebuildCapacity * (int)sizeof( b3AABB ) );
-	b3Free( tree->leafCenters,  tree->rebuildCapacity * (int)sizeof( b3Vec3 ) );
-	b3Free( tree->binIndices,   tree->rebuildCapacity * (int)sizeof( int ) );
-	tree->nodes          = NULL;
-	tree->leafIndices    = NULL;
-	tree->leafBoxes      = NULL;
-	tree->leafCenters    = NULL;
-	tree->binIndices     = NULL;
-	tree->nodeCapacity   = 0;
+	b3Free( tree->leafIndices, tree->rebuildCapacity * (int)sizeof( int ) );
+	b3Free( tree->leafBoxes, tree->rebuildCapacity * (int)sizeof( b3AABB ) );
+	b3Free( tree->leafCenters, tree->rebuildCapacity * (int)sizeof( b3Vec3 ) );
+	b3Free( tree->binIndices, tree->rebuildCapacity * (int)sizeof( int ) );
+	tree->nodes = NULL;
+	tree->leafIndices = NULL;
+	tree->leafBoxes = NULL;
+	tree->leafCenters = NULL;
+	tree->binIndices = NULL;
+	tree->nodeCapacity = 0;
 	tree->rebuildCapacity = 0;
 
 	if ( !r->ok )
@@ -326,11 +326,11 @@ static void b3DesTree( b3SnapReader* r, b3DynamicTree* tree )
 		return;
 	}
 
-	tree->version    = version;
-	tree->root       = root;
-	tree->nodeCount  = nodeCount;
+	tree->version = version;
+	tree->root = root;
+	tree->nodeCount = nodeCount;
 	tree->nodeCapacity = nodeCapacity;
-	tree->freeList   = freeList;
+	tree->freeList = freeList;
 	tree->proxyCount = proxyCount;
 
 	if ( nodeCapacity > 0 )
@@ -389,50 +389,50 @@ static void b3DesGraphColor( b3SnapReader* r, b3GraphColor* color, bool isOverfl
 // World simulation scalars (never host/callback/worker state)
 static void b3SerWorldConfig( b3RecBuffer* buf, const b3World* world )
 {
-	b3SnapW_Bytes( buf, &world->gravity,               sizeof( b3Vec3 ) );
-	b3SnapW_Bytes( buf, &world->hitEventThreshold,     sizeof( float ) );
-	b3SnapW_Bytes( buf, &world->restitutionThreshold,  sizeof( float ) );
-	b3SnapW_Bytes( buf, &world->maxLinearSpeed,        sizeof( float ) );
-	b3SnapW_Bytes( buf, &world->contactSpeed,          sizeof( float ) );
-	b3SnapW_Bytes( buf, &world->contactHertz,          sizeof( float ) );
-	b3SnapW_Bytes( buf, &world->contactDampingRatio,   sizeof( float ) );
+	b3SnapW_Bytes( buf, &world->gravity, sizeof( b3Vec3 ) );
+	b3SnapW_Bytes( buf, &world->hitEventThreshold, sizeof( float ) );
+	b3SnapW_Bytes( buf, &world->restitutionThreshold, sizeof( float ) );
+	b3SnapW_Bytes( buf, &world->maxLinearSpeed, sizeof( float ) );
+	b3SnapW_Bytes( buf, &world->contactSpeed, sizeof( float ) );
+	b3SnapW_Bytes( buf, &world->contactHertz, sizeof( float ) );
+	b3SnapW_Bytes( buf, &world->contactDampingRatio, sizeof( float ) );
 	b3SnapW_Bytes( buf, &world->contactRecycleDistance, sizeof( float ) );
-	b3SnapW_Bytes( buf, &world->stepIndex,             sizeof( uint64_t ) );
+	b3SnapW_Bytes( buf, &world->stepIndex, sizeof( uint64_t ) );
 	b3SnapW_I32( buf, world->splitIslandId );
-	b3SnapW_Bytes( buf, &world->inv_h,                sizeof( float ) );
-	b3SnapW_Bytes( buf, &world->inv_dt,               sizeof( float ) );
+	b3SnapW_Bytes( buf, &world->inv_h, sizeof( float ) );
+	b3SnapW_Bytes( buf, &world->inv_dt, sizeof( float ) );
 	b3SnapW_I32( buf, world->endEventArrayIndex );
-	b3SnapW_Bytes( buf, &world->maxCapacity,           sizeof( b3Capacity ) );
+	b3SnapW_Bytes( buf, &world->maxCapacity, sizeof( b3Capacity ) );
 	uint8_t flags = 0;
-	flags |= world->enableSleep         ? 0x01u : 0u;
-	flags |= world->enableWarmStarting  ? 0x02u : 0u;
-	flags |= world->enableContinuous    ? 0x04u : 0u;
-	flags |= world->enableSpeculative   ? 0x08u : 0u;
+	flags |= world->enableSleep ? 0x01u : 0u;
+	flags |= world->enableWarmStarting ? 0x02u : 0u;
+	flags |= world->enableContinuous ? 0x04u : 0u;
+	flags |= world->enableSpeculative ? 0x08u : 0u;
 	b3RecBufAppend( buf, &flags, 1 );
 }
 
 static void b3DesWorldConfig( b3SnapReader* r, b3World* world )
 {
-	b3SnapR_Bytes( r, &world->gravity,               sizeof( b3Vec3 ) );
-	b3SnapR_Bytes( r, &world->hitEventThreshold,     sizeof( float ) );
-	b3SnapR_Bytes( r, &world->restitutionThreshold,  sizeof( float ) );
-	b3SnapR_Bytes( r, &world->maxLinearSpeed,        sizeof( float ) );
-	b3SnapR_Bytes( r, &world->contactSpeed,          sizeof( float ) );
-	b3SnapR_Bytes( r, &world->contactHertz,          sizeof( float ) );
-	b3SnapR_Bytes( r, &world->contactDampingRatio,   sizeof( float ) );
+	b3SnapR_Bytes( r, &world->gravity, sizeof( b3Vec3 ) );
+	b3SnapR_Bytes( r, &world->hitEventThreshold, sizeof( float ) );
+	b3SnapR_Bytes( r, &world->restitutionThreshold, sizeof( float ) );
+	b3SnapR_Bytes( r, &world->maxLinearSpeed, sizeof( float ) );
+	b3SnapR_Bytes( r, &world->contactSpeed, sizeof( float ) );
+	b3SnapR_Bytes( r, &world->contactHertz, sizeof( float ) );
+	b3SnapR_Bytes( r, &world->contactDampingRatio, sizeof( float ) );
 	b3SnapR_Bytes( r, &world->contactRecycleDistance, sizeof( float ) );
-	b3SnapR_Bytes( r, &world->stepIndex,             sizeof( uint64_t ) );
+	b3SnapR_Bytes( r, &world->stepIndex, sizeof( uint64_t ) );
 	world->splitIslandId = b3SnapR_I32( r );
-	b3SnapR_Bytes( r, &world->inv_h,                sizeof( float ) );
-	b3SnapR_Bytes( r, &world->inv_dt,               sizeof( float ) );
+	b3SnapR_Bytes( r, &world->inv_h, sizeof( float ) );
+	b3SnapR_Bytes( r, &world->inv_dt, sizeof( float ) );
 	world->endEventArrayIndex = b3SnapR_I32( r );
-	b3SnapR_Bytes( r, &world->maxCapacity,           sizeof( b3Capacity ) );
+	b3SnapR_Bytes( r, &world->maxCapacity, sizeof( b3Capacity ) );
 	uint8_t flags = 0;
 	b3SnapR_Bytes( r, &flags, 1 );
-	world->enableSleep        = ( flags & 0x01u ) != 0;
+	world->enableSleep = ( flags & 0x01u ) != 0;
 	world->enableWarmStarting = ( flags & 0x02u ) != 0;
-	world->enableContinuous   = ( flags & 0x04u ) != 0;
-	world->enableSpeculative  = ( flags & 0x08u ) != 0;
+	world->enableContinuous = ( flags & 0x04u ) != 0;
+	world->enableSpeculative = ( flags & 0x08u ) != 0;
 }
 
 // Shapes carry pointer fields: materials, userData, userShape, and the geometry union.
@@ -447,12 +447,12 @@ static void b3SerShapes( b3RecBuffer* buf, b3World* world, b3Recording* rec )
 	for ( int i = 0; i < count; ++i )
 	{
 		b3Shape shape = world->shapes.data[i];
-		bool isLive   = ( shape.id == i );
+		bool isLive = ( shape.id == i );
 
 		// Null out pointer fields before writing the raw struct
-		shape.materials  = NULL;
-		shape.userData   = NULL;
-		shape.userShape  = NULL;
+		shape.materials = NULL;
+		shape.userData = NULL;
+		shape.userShape = NULL;
 		// Zero the geometry union so free-slot images have deterministic bytes
 		if ( !isLive )
 		{
@@ -463,7 +463,7 @@ static void b3SerShapes( b3RecBuffer* buf, b3World* world, b3Recording* rec )
 		if ( !isLive )
 		{
 			// Free slot: no materials or geometry
-			b3SnapW_I32( buf, 0 ); // materialCount
+			b3SnapW_I32( buf, 0 );	// materialCount
 			b3SnapW_I32( buf, -1 ); // geometry kind sentinel
 			continue;
 		}
@@ -549,18 +549,18 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 	// GPU mesh on each seek, which the host (a 3D renderer) would otherwise pay for. Handles that are
 	// not reclaimed below belong to shapes that are gone or were replaced, and get released so the host
 	// pool does not leak across seeks. Box2D has no such handles, so its restore skips all of this.
-	int       oldShapeCount  = world->shapes.count;
-	void**    savedUserShape  = NULL;
+	int oldShapeCount = world->shapes.count;
+	void** savedUserShape = NULL;
 	uint16_t* savedGeneration = NULL;
 	if ( oldShapeCount > 0 )
 	{
-		savedUserShape  = (void**)b3Alloc( (size_t)oldShapeCount * sizeof( void* ) );
+		savedUserShape = (void**)b3Alloc( (size_t)oldShapeCount * sizeof( void* ) );
 		savedGeneration = (uint16_t*)b3Alloc( (size_t)oldShapeCount * sizeof( uint16_t ) );
 		for ( int i = 0; i < oldShapeCount; ++i )
 		{
-			b3Shape* old       = world->shapes.data + i;
-			bool     oldLive   = ( old->id == i );
-			savedUserShape[i]  = oldLive ? old->userShape : NULL;
+			b3Shape* old = world->shapes.data + i;
+			bool oldLive = ( old->id == i );
+			savedUserShape[i] = oldLive ? old->userShape : NULL;
 			savedGeneration[i] = old->generation;
 		}
 	}
@@ -574,7 +574,7 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 		b3SnapR_Bytes( r, dst, sizeof( b3Shape ) );
 		// Pointer fields were written as NULL; set them cleanly
 		dst->materials = NULL;
-		dst->userData  = NULL;
+		dst->userData = NULL;
 		dst->userShape = NULL;
 		memset( &dst->capsule, 0, sizeof( dst->capsule ) );
 
@@ -583,9 +583,9 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 		// Carry the renderer handle over when the same shape still occupies this slot. Consumed
 		// handles are nulled so the teardown sweep only releases the ones that vanished.
 		if ( isLive && i < oldShapeCount && savedUserShape != NULL && savedUserShape[i] != NULL &&
-		     savedGeneration[i] == dst->generation )
+			 savedGeneration[i] == dst->generation )
 		{
-			dst->userShape    = savedUserShape[i];
+			dst->userShape = savedUserShape[i];
 			savedUserShape[i] = NULL;
 		}
 
@@ -615,7 +615,7 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 				break;
 			}
 			dst->materialCount = matCount;
-			dst->materials     = (b3SurfaceMaterial*)b3Alloc( (size_t)matCount * sizeof( b3SurfaceMaterial ) );
+			dst->materials = (b3SurfaceMaterial*)b3Alloc( (size_t)matCount * sizeof( b3SurfaceMaterial ) );
 			b3SnapR_Bytes( r, dst->materials, matCount * (int)sizeof( b3SurfaceMaterial ) );
 		}
 		else
@@ -667,7 +667,7 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 				}
 				b3RegistrySlot* slot = rdr->slots + gid;
 				// Mesh is a self-contained blob used by reference; point straight at the pristine bytes.
-				dst->mesh.data  = (const b3MeshData*)slot->bytes;
+				dst->mesh.data = (const b3MeshData*)slot->bytes;
 				dst->mesh.scale = scale;
 				break;
 			}
@@ -746,17 +746,17 @@ static void b3SerContacts( b3RecBuffer* buf, b3World* world )
 	for ( int i = 0; i < count; ++i )
 	{
 		const b3Contact* c = world->contacts.data + i;
-		bool isLive        = ( c->contactId == i );
+		bool isLive = ( c->contactId == i );
 
 		// Write raw struct with pointer fields zeroed
 		b3Contact copy = *c;
-		copy.manifolds             = NULL;
-		copy.bodySimIndexA         = B3_NULL_INDEX;
-		copy.bodySimIndexB         = B3_NULL_INDEX;
+		copy.manifolds = NULL;
+		copy.bodySimIndexA = B3_NULL_INDEX;
+		copy.bodySimIndexB = B3_NULL_INDEX;
 		if ( copy.flags & b3_simMeshContact )
 		{
-			copy.meshContact.triangleCache.data     = NULL;
-			copy.meshContact.triangleCache.count    = 0;
+			copy.meshContact.triangleCache.data = NULL;
+			copy.meshContact.triangleCache.count = 0;
 			copy.meshContact.triangleCache.capacity = 0;
 		}
 		b3SnapW_Bytes( buf, &copy, sizeof( b3Contact ) );
@@ -783,7 +783,7 @@ static void b3SerContacts( b3RecBuffer* buf, b3World* world )
 			if ( c->meshContact.triangleCache.count > 0 )
 			{
 				b3SnapW_Bytes( buf, c->meshContact.triangleCache.data,
-				               c->meshContact.triangleCache.count * (int)sizeof( b3TriangleCache ) );
+							   c->meshContact.triangleCache.count * (int)sizeof( b3TriangleCache ) );
 			}
 		}
 	}
@@ -808,13 +808,13 @@ static void b3DesContacts( b3SnapReader* r, b3World* world )
 	{
 		b3Contact* dst = world->contacts.data + i;
 		b3SnapR_Bytes( r, dst, sizeof( b3Contact ) );
-		dst->manifolds     = NULL;
+		dst->manifolds = NULL;
 		dst->bodySimIndexA = B3_NULL_INDEX;
 		dst->bodySimIndexB = B3_NULL_INDEX;
 		if ( dst->flags & b3_simMeshContact )
 		{
-			dst->meshContact.triangleCache.data     = NULL;
-			dst->meshContact.triangleCache.count    = 0;
+			dst->meshContact.triangleCache.data = NULL;
+			dst->meshContact.triangleCache.count = 0;
 			dst->meshContact.triangleCache.capacity = 0;
 		}
 
@@ -834,13 +834,13 @@ static void b3DesContacts( b3SnapReader* r, b3World* world )
 				r->ok = false;
 				break;
 			}
-			dst->manifolds     = b3AllocateManifolds( world, manifoldCount );
+			dst->manifolds = b3AllocateManifolds( world, manifoldCount );
 			dst->manifoldCount = manifoldCount;
 			b3SnapR_Bytes( r, dst->manifolds, manifoldCount * (int)sizeof( b3Manifold ) );
 		}
 		else
 		{
-			dst->manifolds     = NULL;
+			dst->manifolds = NULL;
 			dst->manifoldCount = 0;
 		}
 
@@ -883,7 +883,7 @@ static void b3FreeLiveSimElements( b3World* world )
 		if ( s->materials != NULL )
 		{
 			b3Free( s->materials, (size_t)s->materialCount * sizeof( b3SurfaceMaterial ) );
-			s->materials   = NULL;
+			s->materials = NULL;
 			s->materialCount = 0;
 		}
 		// Hull is ref-counted in the world DB; release before overwrite so re-adding is ref-neutral.
@@ -904,7 +904,7 @@ static void b3FreeLiveSimElements( b3World* world )
 			if ( c->manifolds != NULL )
 			{
 				b3FreeManifolds( world, c->manifolds, c->manifoldCount );
-				c->manifolds     = NULL;
+				c->manifolds = NULL;
 				c->manifoldCount = 0;
 			}
 			if ( c->flags & b3_simMeshContact )
@@ -939,10 +939,10 @@ int b3SerializeWorld( b3World* world, b3RecBuffer* buf, b3Recording* rec )
 
 	// Snapshot header
 	b3SnapHeader hdr;
-	hdr.magic      = B3_SNAP_MAGIC;
-	hdr.version    = B3_SNAP_VERSION;
+	hdr.magic = B3_SNAP_MAGIC;
+	hdr.version = B3_SNAP_VERSION;
 	hdr.layoutHash = b3ComputeLayoutHash();
-	hdr.flags      = B3_ENABLE_VALIDATION ? B3_SNAP_FLAG_VALIDATION : 0u;
+	hdr.flags = B3_ENABLE_VALIDATION ? B3_SNAP_FLAG_VALIDATION : 0u;
 #if defined( BOX3D_DOUBLE_PRECISION )
 	hdr.flags |= B3_SNAP_FLAG_DOUBLE_PRECISION;
 #endif
@@ -973,7 +973,7 @@ int b3SerializeWorld( b3World* world, b3RecBuffer* buf, b3Recording* rec )
 		b3SnapW_I32( buf, bodyCount );
 		for ( int i = 0; i < bodyCount; ++i )
 		{
-			b3Body elem  = world->bodies.data[i];
+			b3Body elem = world->bodies.data[i];
 			elem.userData = NULL;
 			b3SnapW_Bytes( buf, &elem, sizeof( b3Body ) );
 		}
@@ -991,7 +991,7 @@ int b3SerializeWorld( b3World* world, b3RecBuffer* buf, b3Recording* rec )
 		b3SnapW_I32( buf, jointCount );
 		for ( int i = 0; i < jointCount; ++i )
 		{
-			b3Joint elem  = world->joints.data[i];
+			b3Joint elem = world->joints.data[i];
 			elem.userData = NULL;
 			b3SnapW_Bytes( buf, &elem, sizeof( b3Joint ) );
 		}
@@ -1085,10 +1085,10 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 
 	b3SnapReader readerStorage;
 	b3SnapReader* r = &readerStorage;
-	r->data   = data;
+	r->data = data;
 	r->cursor = (int)sizeof( b3SnapHeader );
-	r->size   = size;
-	r->ok     = true;
+	r->size = size;
+	r->ok = true;
 
 	// Free existing per-object heap before overwriting
 	b3FreeLiveSimElements( world );
@@ -1240,9 +1240,9 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 		for ( int i = 0; i < islandCount && r->ok; ++i )
 		{
 			b3Island* island = world->islands.data + i;
-			island->setIndex              = b3SnapR_I32( r );
-			island->localIndex            = b3SnapR_I32( r );
-			island->islandId              = b3SnapR_I32( r );
+			island->setIndex = b3SnapR_I32( r );
+			island->localIndex = b3SnapR_I32( r );
+			island->islandId = b3SnapR_I32( r );
 			island->constraintRemoveCount = b3SnapR_I32( r );
 			b3Array_Create( island->bodies );
 			b3Array_Create( island->contacts );
