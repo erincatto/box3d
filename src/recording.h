@@ -133,9 +133,11 @@ typedef struct b3Recording
 	b3GeometryRegistry registry;
 
 	// Interned query tags accumulated during capture, written to the tail of the registry block at stop.
+	// tagMap maps a tag key to its index for O(1) dedup. Opaque here, owned by recording.c.
 	b3RecTag*        tags;
 	int              tagCount;
 	int              tagCapacity;
+	void*            tagMap;
 
 	// Union of world bounds over every recorded step, written at stop.
 	b3AABB           accumulatedBounds;
@@ -330,7 +332,7 @@ typedef struct b3RecQueryWriter
 	const char* tagName;     // caller query name, interned by id. NULL = none.
 } b3RecQueryWriter;
 
-void b3RecQueryBegin( b3RecQueryWriter* w, void* context );
+void b3RecQueryBegin( b3RecQueryWriter* w, void* context, uint64_t tagId, const char* tagName );
 void b3RecQueryCommit( b3Recording* rec, uint8_t opcode, b3RecQueryWriter* w );
 
 // Recording trampolines: replace the user fcn so hits are captured before dispatch. The overlap

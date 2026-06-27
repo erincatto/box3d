@@ -822,26 +822,6 @@ public:
 		return ( m_selSlot >= 0 && m_selSlot < n ) ? joints[m_selSlot] : b3_nullJointId;
 	}
 
-	// Occurrence index of the frame query at frameIndex among earlier same-key queries this frame. A
-	// tag issued several times per step (the mover slide loop) shares one key across its calls, so this
-	// tells them apart. Zero for an untagged query, which has no shared identity to disambiguate.
-	int QueryInstanceOfKey( int frameIndex, uint64_t key ) const
-	{
-		if ( key == 0 )
-		{
-			return 0;
-		}
-		int instance = 0;
-		for ( int j = 0; j < frameIndex; ++j )
-		{
-			if ( b3RecPlayer_GetFrameQuery( m_player, j ).key == key )
-			{
-				instance += 1;
-			}
-		}
-		return instance;
-	}
-
 	// Map the pinned query to this frame's flat query index, or -1 when the frame did not issue it. A
 	// tagged query is matched by its caller id and instance, which track the logical query across steps
 	// and seeks regardless of call order. An untagged query falls back to the per-kind call position.
@@ -1300,11 +1280,14 @@ public:
 		if ( ImGui::TreeNodeEx( ql, ImGuiTreeNodeFlags_SpanAvailWidth ) )
 		{
 			int kindOrdinal[ReplayQueryTypeCount] = { 0 };
+			// Count earlier same-key queries as we go so a tag issued several times this frame (the mover
+			// slide loop) gets a stable instance number. Untagged queries have no shared identity.
+			std::unordered_map<uint64_t, int> keyInstance;
 			for ( int i = 0; i < qn; ++i )
 			{
 				b3RecQueryInfo q = b3RecPlayer_GetFrameQuery( m_player, i );
 				int ord = kindOrdinal[q.type]++;
-				int instance = QueryInstanceOfKey( i, q.key );
+				int instance = q.key != 0 ? keyInstance[q.key]++ : 0;
 				char base[64];
 				FormatQueryLabel( base, sizeof( base ), q.name, q.id, q.type, ord );
 				char qi[96];
@@ -1691,7 +1674,7 @@ public:
 		}
 
 		PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
-		b3QueryFilter queryFilter = { UINT64_MAX, UINT64_MAX };
+		b3QueryFilter queryFilter = b3DefaultQueryFilter();
 		b3RayResult result = b3World_CastRayClosest( m_replayWorldId, pickRay.origin, pickRay.translation, queryFilter );
 		SelectShape( result.hit ? result.shapeId : b3_nullShapeId );
 	}

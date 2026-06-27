@@ -257,18 +257,24 @@ void SampleContext::Load()
 		else if ( jsoneq( data, &tokens[i], "replayKeyframeBudgetMB" ) == 0 )
 		{
 			int count = tokens[i + 1].end - tokens[i + 1].start;
-			assert( count < 32 );
+			if ( count > (int)sizeof( buffer ) - 1 )
+			{
+				count = (int)sizeof( buffer ) - 1;
+			}
 			const char* s = data + tokens[i + 1].start;
-			strncpy( buffer, s, count );
+			memcpy( buffer, s, count );
 			buffer[count] = 0;
 			replayKeyframeBudgetMB = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 64, 4096 );
 		}
 		else if ( jsoneq( data, &tokens[i], "replayKeyframeMinInterval" ) == 0 )
 		{
 			int count = tokens[i + 1].end - tokens[i + 1].start;
-			assert( count < 32 );
+			if ( count > (int)sizeof( buffer ) - 1 )
+			{
+				count = (int)sizeof( buffer ) - 1;
+			}
 			const char* s = data + tokens[i + 1].start;
-			strncpy( buffer, s, count );
+			memcpy( buffer, s, count );
 			buffer[count] = 0;
 			replayKeyframeMinInterval = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 1, 1024 );
 		}

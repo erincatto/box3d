@@ -99,9 +99,11 @@ typedef struct b3RecReader
 	int             slotCount;
 
 	// Preloaded query-tag table (key -> id, name), loaded with the registry. Resolves the caller id and
-	// label for the viewer.
+	// label for the viewer. tagMap maps a key to its tag index for O(1) lookup; opaque, owned by the player.
 	b3RecTag*       tags;
-	int             tagCount;
+	int             tagCount;     // tags that loaded; a truncated tail loads fewer
+	int             tagCapacity;  // tags allocated, used to free the array
+	void*           tagMap;
 
 	// Key from the QueryTag op preceding the next query, consumed by the next stash. 0 = untagged.
 	uint64_t        pendingQueryKey;

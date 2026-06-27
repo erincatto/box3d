@@ -2273,72 +2273,82 @@ static void b3RecSeedFrame0BodyIds( b3RecPlayer* player )
 	}
 }
 
+// Tag key to tag index, so the viewer resolves a query's caller id and label in O(1) instead of a
+// linear scan over the tag table.
+#define NAME b3RecTagLookup
+#define KEY_TY uint64_t
+#define VAL_TY uint32_t
+#define HASH_FN vt_hash_integer
+#define CMPR_FN vt_cmpr_integer
+#define MALLOC_FN b3Alloc
+#define FREE_FN b3Free
+#include "verstable.h"
+
 // Read the optional query-tag table trailing the geometry entries: u32 tagCount then per tag
-// { u64 id, u16 len, name bytes }. A recording written before the tag table leaves rp at dataEnd, so
-// nothing loads. Bounds-checked; a truncated tail loads what fits and leaves the rest zeroed.
+// { u64 key, u64 id, u16 len, name bytes }. A recording written before the tag table leaves rp at
+// dataEnd, so nothing loads. Bounds-checked; tagCount reflects only the tags that fully fit, so a
+// truncated tail loads what it can and reports the real count.
 static void b3RecLoadTags( b3RecReader* rdr, const uint8_t* rp, const uint8_t* dataEnd )
 {
-	if ( rp + 4 > dataEnd )
-	{
-		return;
-	}
-	uint32_t count = (uint32_t)rp[0] | ( (uint32_t)rp[1] << 8 ) | ( (uint32_t)rp[2] << 16 ) | ( (uint32_t)rp[3] << 24 );
-	rp += 4;
-	if ( count == 0 )
+	b3RecReader sub = { 0 };
+	sub.data = rp;
+	sub.size = (int)( dataEnd - rp );
+	sub.ok = true;
+
+	uint32_t count = b3RecR_U32( &sub );
+	if ( sub.ok == false || count == 0 )
 	{
 		return;
 	}
 
 	// Each tag is at least 18 bytes (8 key + 8 id + 2 length). Reject a count that cannot fit the
 	// remaining bytes so a corrupt table cannot request a wild allocation.
-	if ( (size_t)count > (size_t)( dataEnd - rp ) / 18 )
+	if ( (size_t)count > (size_t)( sub.size - sub.cursor ) / 18 )
 	{
 		return;
 	}
 
 	b3RecTag* tags = (b3RecTag*)b3Alloc( (size_t)count * sizeof( b3RecTag ) );
 	memset( tags, 0, (size_t)count * sizeof( b3RecTag ) );
+
+	b3RecTagLookup* map = (b3RecTagLookup*)b3Alloc( sizeof( b3RecTagLookup ) );
+	b3RecTagLookup_init( map );
+
+	uint32_t loaded = 0;
 	for ( uint32_t i = 0; i < count; ++i )
 	{
-		if ( rp + 18 > dataEnd ) // 8 byte key + 8 byte id + 2 byte length
+		uint64_t key = b3RecR_U64( &sub );
+		uint64_t id = b3RecR_U64( &sub );
+		uint16_t len = b3RecR_U16( &sub );
+		if ( sub.ok == false )
 		{
 			break;
 		}
-		uint64_t key = 0;
-		uint64_t id = 0;
-		for ( int b = 0; b < 8; ++b )
-		{
-			key |= (uint64_t)rp[b] << ( 8 * b );
-		}
-		rp += 8;
-		for ( int b = 0; b < 8; ++b )
-		{
-			id |= (uint64_t)rp[b] << ( 8 * b );
-		}
-		rp += 8;
-		uint16_t len = (uint16_t)( (uint16_t)rp[0] | ( (uint16_t)rp[1] << 8 ) );
-		rp += 2;
 		if ( len == 0xFFFFu )
 		{
 			len = 0; // a null name is written as 0xFFFF
 		}
-		if ( rp + len > dataEnd )
+		if ( (int64_t)sub.cursor + (int64_t)len > (int64_t)sub.size )
 		{
 			break;
 		}
 		int n = len > B3_NAME_LENGTH ? B3_NAME_LENGTH : (int)len;
-		tags[i].key = key;
-		tags[i].id = id;
+		tags[loaded].key = key;
+		tags[loaded].id = id;
 		if ( n > 0 )
 		{
-			memcpy( tags[i].name, rp, (size_t)n );
+			memcpy( tags[loaded].name, sub.data + sub.cursor, (size_t)n );
 		}
-		tags[i].name[n] = '\0';
-		rp += len;
+		tags[loaded].name[n] = '\0';
+		sub.cursor += len;
+		b3RecTagLookup_insert( map, key, loaded );
+		loaded += 1;
 	}
 
 	rdr->tags = tags;
-	rdr->tagCount = (int)count;
+	rdr->tagCount = (int)loaded;
+	rdr->tagCapacity = (int)count;
+	rdr->tagMap = map;
 }
 
 // Load the trailing registry block and fill rdr->slots/slotCount, then the optional tag table.
@@ -2790,7 +2800,12 @@ b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount )
 			b3RecFreeSlots( player->rdr.slots, player->rdr.slotCount );
 			if ( player->rdr.tags != NULL )
 			{
-				b3Free( player->rdr.tags, (size_t)player->rdr.tagCount * sizeof( b3RecTag ) );
+				b3Free( player->rdr.tags, (size_t)player->rdr.tagCapacity * sizeof( b3RecTag ) );
+			}
+			if ( player->rdr.tagMap != NULL )
+			{
+				b3RecTagLookup_cleanup( (b3RecTagLookup*)player->rdr.tagMap );
+				b3Free( player->rdr.tagMap, sizeof( b3RecTagLookup ) );
 			}
 			b3Free( copy, (size_t)size );
 			b3Free( player, sizeof( b3RecPlayer ) );
@@ -2843,7 +2858,12 @@ void b3RecPlayer_Destroy( b3RecPlayer* player )
 	}
 	if ( player->rdr.tags != NULL )
 	{
-		b3Free( player->rdr.tags, (size_t)player->rdr.tagCount * sizeof( b3RecTag ) );
+		b3Free( player->rdr.tags, (size_t)player->rdr.tagCapacity * sizeof( b3RecTag ) );
+	}
+	if ( player->rdr.tagMap != NULL )
+	{
+		b3RecTagLookup_cleanup( (b3RecTagLookup*)player->rdr.tagMap );
+		b3Free( player->rdr.tagMap, sizeof( b3RecTagLookup ) );
 	}
 
 	// Free the per-frame query store.
@@ -3295,7 +3315,7 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 			{
 				b3Pos c1 = b3OffsetPos( q->origin, q->mover.center1 );
 				b3Pos c2 = b3OffsetPos( q->origin, q->mover.center2 );
-				b3HexColor c = q->kind == B3_RECQ_CAST_MOVER ? b3_colorLightSkyBlue : b3_colorTan;
+				b3HexColor c = q->kind == b3_colorLightSkyBlue;
 				if ( draw->DrawCapsuleFcn )
 				{
 					draw->DrawCapsuleFcn( c1, c2, q->mover.radius, b3RecQuerySelColor( selected, c ), 0.6f, draw->context );
@@ -3315,7 +3335,7 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 			{
 				b3Pos c1 = b3OffsetPos( q->origin, q->mover.center1 );
 				b3Pos c2 = b3OffsetPos( q->origin, q->mover.center2 );
-				b3HexColor c = q->kind == B3_RECQ_CAST_MOVER ? b3_colorLightSkyBlue : b3_colorTan;
+				b3HexColor c = q->kind == b3_colorTan;
 				if ( draw->DrawCapsuleFcn )
 				{
 					draw->DrawCapsuleFcn( c1, c2, q->mover.radius, b3RecQuerySelColor( selected, c ), 0.6f, draw->context );
@@ -3360,13 +3380,14 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 		{
 			const char* name = NULL;
 			uint64_t id = 0;
-			for ( int t = 0; t < player->rdr.tagCount; ++t )
+			if ( player->rdr.tagMap != NULL )
 			{
-				if ( player->rdr.tags[t].key == q->key )
+				b3RecTagLookup_itr it = b3RecTagLookup_get( (b3RecTagLookup*)player->rdr.tagMap, q->key );
+				if ( b3RecTagLookup_is_end( it ) == false )
 				{
-					name = player->rdr.tags[t].name;
-					id = player->rdr.tags[t].id;
-					break;
+					const b3RecTag* tag = &player->rdr.tags[it.data->val];
+					name = tag->name;
+					id = tag->id;
 				}
 			}
 			char label[64];
@@ -3428,13 +3449,15 @@ b3RecQueryInfo b3RecPlayer_GetFrameQuery( const b3RecPlayer* player, int index )
 	info.key = q->key;
 	info.id = 0;
 	info.name = NULL;
-	for ( int i = 0; i < player->rdr.tagCount && q->key != 0; ++i )
+	if ( q->key != 0 && player->rdr.tagMap != NULL )
 	{
-		if ( player->rdr.tags[i].key == q->key )
+		b3RecTagLookup_itr it = b3RecTagLookup_get( (b3RecTagLookup*)player->rdr.tagMap, q->key );
+		if ( b3RecTagLookup_is_end( it ) == false )
 		{
-			info.id = player->rdr.tags[i].id;
-			info.name = player->rdr.tags[i].name;
-			break;
+			const b3RecTag* tag = &player->rdr.tags[it.data->val];
+			info.id = tag->id;
+			// An id-only tag interns an empty name; report it as none so the viewer shows the id alone.
+			info.name = tag->name[0] != '\0' ? tag->name : NULL;
 		}
 	}
 	return info;

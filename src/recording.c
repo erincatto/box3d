@@ -87,8 +87,8 @@ void b3RecW_U32( b3RecBuffer* buf, uint32_t v )
 
 void b3RecW_U64( b3RecBuffer* buf, uint64_t v )
 {
-	uint8_t b[8] = { (uint8_t)v,          (uint8_t)( v >> 8 ),  (uint8_t)( v >> 16 ), (uint8_t)( v >> 24 ),
-	                 (uint8_t)( v >> 32 ), (uint8_t)( v >> 40 ), (uint8_t)( v >> 48 ), (uint8_t)( v >> 56 ) };
+	uint8_t b[8] = { (uint8_t)v,		   (uint8_t)( v >> 8 ),	 (uint8_t)( v >> 16 ), (uint8_t)( v >> 24 ),
+					 (uint8_t)( v >> 32 ), (uint8_t)( v >> 40 ), (uint8_t)( v >> 48 ), (uint8_t)( v >> 56 ) };
 	b3RecBufAppend( buf, b, 8 );
 }
 
@@ -316,29 +316,29 @@ void b3RecW_STR( b3RecBuffer* buf, const char* s )
 // so the writer and reader both get updated. Only enforced on the 64-bit target; each def lists the
 // single-precision and double-precision sizes (equal for most), so either build configuration passes.
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3ExplosionDef ) == 32 || sizeof( b3ExplosionDef ) == 48,
-                "b3ExplosionDef changed: update b3RecW_EXPLOSIONDEF and b3RecR_EXPLOSIONDEF together" );
+				"b3ExplosionDef changed: update b3RecW_EXPLOSIONDEF and b3RecR_EXPLOSIONDEF together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3BodyDef ) == 104 || sizeof( b3BodyDef ) == 120,
-                "b3BodyDef changed: update b3RecW_BODYDEF and b3RecR_BODYDEF together" );
+				"b3BodyDef changed: update b3RecW_BODYDEF and b3RecR_BODYDEF together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3ShapeDef ) == 112,
-                "b3ShapeDef changed: update b3RecW_SHAPEDEF and b3RecR_SHAPEDEF together" );
+				"b3ShapeDef changed: update b3RecW_SHAPEDEF and b3RecR_SHAPEDEF together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3ParallelJointDef ) == 128,
-                "b3ParallelJointDef changed: update b3RecW_PARALLELJOINTDEF and its reader together" );
+				"b3ParallelJointDef changed: update b3RecW_PARALLELJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3DistanceJointDef ) == 160,
-                "b3DistanceJointDef changed: update b3RecW_DISTANCEJOINTDEF and its reader together" );
+				"b3DistanceJointDef changed: update b3RecW_DISTANCEJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3FilterJointDef ) == 112,
-                "b3FilterJointDef changed: update b3RecW_FILTERJOINTDEF and its reader together" );
+				"b3FilterJointDef changed: update b3RecW_FILTERJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3MotorJointDef ) == 168,
-                "b3MotorJointDef changed: update b3RecW_MOTORJOINTDEF and its reader together" );
+				"b3MotorJointDef changed: update b3RecW_MOTORJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3PrismaticJointDef ) == 152,
-                "b3PrismaticJointDef changed: update b3RecW_PRISMATICJOINTDEF and its reader together" );
+				"b3PrismaticJointDef changed: update b3RecW_PRISMATICJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3RevoluteJointDef ) == 152,
-                "b3RevoluteJointDef changed: update b3RecW_REVOLUTEJOINTDEF and its reader together" );
+				"b3RevoluteJointDef changed: update b3RecW_REVOLUTEJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3SphericalJointDef ) == 184,
-                "b3SphericalJointDef changed: update b3RecW_SPHERICALJOINTDEF and its reader together" );
+				"b3SphericalJointDef changed: update b3RecW_SPHERICALJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3WeldJointDef ) == 128,
-                "b3WeldJointDef changed: update b3RecW_WELDJOINTDEF and its reader together" );
+				"b3WeldJointDef changed: update b3RecW_WELDJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3WheelJointDef ) == 184,
-                "b3WheelJointDef changed: update b3RecW_WHEELJOINTDEF and its reader together" );
+				"b3WheelJointDef changed: update b3RecW_WHEELJOINTDEF and its reader together" );
 
 void b3RecW_EXPLOSIONDEF( b3RecBuffer* buf, b3ExplosionDef v )
 {
@@ -581,15 +581,15 @@ void b3RecCommitRecord( b3Recording* rec, uint8_t opcode, const uint8_t* payload
 	b3UnlockMutex( rec->lock );
 }
 
-void b3RecQueryBegin( b3RecQueryWriter* w, void* context )
+void b3RecQueryBegin( b3RecQueryWriter* w, void* context, uint64_t tagId, const char* tagName )
 {
-	w->buf = ( b3RecBuffer ){ 0 };
+	w->buf = (b3RecBuffer){ 0 };
 	w->userFcn.overlapFcn = NULL;
 	w->userContext = context;
 	w->hitCount = 0;
 	w->countOffset = 0;
-	w->tagId = 0;
-	w->tagName = NULL;
+	w->tagId = tagId;
+	w->tagName = tagName;
 }
 
 void b3RecQueryCommit( b3Recording* rec, uint8_t opcode, b3RecQueryWriter* w )
@@ -691,7 +691,7 @@ void b3RecEndRecord( b3Recording* rec )
 #undef B3_REC_OP
 #undef ARG
 
-// Codegen: full writers. Setters and creates may run on threads that each own a distinct object,
+// Codegen: full writers. Setters may run on threads that each own a distinct object,
 // so hold the lock across the whole record. Without it a concurrent writer splices its bytes between
 // our begin and end and the record desyncs replay. Same lock the query commit path takes.
 #define B3_REC_OP( op, Name, RET, ... )                                                                                          \
@@ -718,7 +718,7 @@ void b3RecEndRecord( b3Recording* rec )
 		b3UnlockMutex( rec->lock );                                                                                              \
 	}
 #define B3_REC_RETWRITE_RET_NONE( op, Name )
-#define B3_REC_RETWRITE_RET_BODYID( op, Name )  B3_REC_RETWRITE( op, Name, b3BodyId,  b3RecW_BODYID )
+#define B3_REC_RETWRITE_RET_BODYID( op, Name ) B3_REC_RETWRITE( op, Name, b3BodyId, b3RecW_BODYID )
 #define B3_REC_RETWRITE_RET_SHAPEID( op, Name ) B3_REC_RETWRITE( op, Name, b3ShapeId, b3RecW_SHAPEID )
 #define B3_REC_RETWRITE_RET_JOINTID( op, Name ) B3_REC_RETWRITE( op, Name, b3JointId, b3RecW_JOINTID )
 #define B3_REC_OP( op, Name, RET, ... ) B3_REC_RETWRITE_##RET( op, Name )
@@ -749,9 +749,9 @@ uint64_t b3Hash64Blob( const uint8_t* bytes, int n )
 		memcpy( &word, bytes + i, sizeof( word ) );
 #if defined( __BYTE_ORDER__ ) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 		word = ( ( word & 0x00000000000000FFULL ) << 56 ) | ( ( word & 0x000000000000FF00ULL ) << 40 ) |
-		       ( ( word & 0x0000000000FF0000ULL ) << 24 ) | ( ( word & 0x00000000FF000000ULL ) << 8 ) |
-		       ( ( word & 0x000000FF00000000ULL ) >> 8 ) | ( ( word & 0x0000FF0000000000ULL ) >> 24 ) |
-		       ( ( word & 0x00FF000000000000ULL ) >> 40 ) | ( ( word & 0xFF00000000000000ULL ) >> 56 );
+			   ( ( word & 0x0000000000FF0000ULL ) << 24 ) | ( ( word & 0x00000000FF000000ULL ) << 8 ) |
+			   ( ( word & 0x000000FF00000000ULL ) >> 8 ) | ( ( word & 0x0000FF0000000000ULL ) >> 24 ) |
+			   ( ( word & 0x00FF000000000000ULL ) >> 40 ) | ( ( word & 0xFF00000000000000ULL ) >> 56 );
 #endif
 		h = ( h ^ word ) * prime;
 		i += 8;
@@ -782,27 +782,36 @@ uint64_t b3Hash64Blob( const uint8_t* bytes, int n )
 #define FREE_FN b3Free
 #include "verstable.h"
 
+// Tag key to tag index, so interning a query tag is O(1) rather than a linear scan over the tag table.
+#define NAME b3RecTagMap
+#define KEY_TY uint64_t
+#define VAL_TY uint32_t
+#define HASH_FN vt_hash_integer
+#define CMPR_FN vt_cmpr_integer
+#define MALLOC_FN b3Alloc
+#define FREE_FN b3Free
+#include "verstable.h"
+
 // Append a fresh entry and splice it onto the front of its hash chain. The map value is the chain head.
-static uint32_t b3RegistryPush( b3GeometryRegistry* reg, b3GeometryHashMap* map, b3GeometryHashMap_itr itr,
-                                bool hashPresent, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount )
+static uint32_t b3RegistryPush( b3GeometryRegistry* reg, b3GeometryHashMap* map, b3GeometryHashMap_itr itr, bool hashPresent,
+								b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount )
 {
 	if ( reg->count >= reg->capacity )
 	{
 		int newCap = reg->capacity < 8 ? 8 : reg->capacity * 2;
-		reg->entries = (b3GeometryEntry*)b3GrowAlloc( reg->entries,
-		                                               reg->capacity * (int)sizeof( b3GeometryEntry ),
-		                                               newCap * (int)sizeof( b3GeometryEntry ) );
+		reg->entries = (b3GeometryEntry*)b3GrowAlloc( reg->entries, reg->capacity * (int)sizeof( b3GeometryEntry ),
+													  newCap * (int)sizeof( b3GeometryEntry ) );
 		reg->capacity = newCap;
 	}
 
 	uint32_t id = (uint32_t)reg->count;
 	b3GeometryEntry* entry = reg->entries + reg->count;
 	entry->contentHash = contentHash;
-	entry->id          = id;
-	entry->kind        = kind;
-	entry->byteCount   = byteCount;
-	entry->bytes       = bytes; // take ownership
-	entry->hashNext    = hashPresent ? (int)itr.data->val : B3_NULL_INDEX;
+	entry->id = id;
+	entry->kind = kind;
+	entry->byteCount = byteCount;
+	entry->bytes = bytes; // take ownership
+	entry->hashNext = hashPresent ? (int)itr.data->val : B3_NULL_INDEX;
 	reg->count++;
 
 	if ( hashPresent )
@@ -827,8 +836,7 @@ static b3GeometryHashMap* b3RegistryMap( b3GeometryRegistry* reg )
 	return (b3GeometryHashMap*)reg->dedupMap;
 }
 
-uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
-                           uint8_t* bytes, int byteCount )
+uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount )
 {
 	b3GeometryHashMap* map = b3RegistryMap( reg );
 
@@ -852,8 +860,7 @@ uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_
 	return b3RegistryPush( reg, map, itr, hashPresent, kind, contentHash, bytes, byteCount );
 }
 
-uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash,
-                           uint8_t* bytes, int byteCount )
+uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount )
 {
 	b3GeometryHashMap* map = b3RegistryMap( reg );
 	b3GeometryHashMap_itr itr = b3GeometryHashMap_get( map, contentHash );
@@ -876,8 +883,8 @@ void b3FreeRegistry( b3GeometryRegistry* reg )
 		b3GeometryHashMap_cleanup( (b3GeometryHashMap*)reg->dedupMap );
 		b3Free( reg->dedupMap, sizeof( b3GeometryHashMap ) );
 	}
-	reg->entries  = NULL;
-	reg->count    = 0;
+	reg->entries = NULL;
+	reg->count = 0;
 	reg->capacity = 0;
 	reg->dedupMap = NULL;
 }
@@ -900,27 +907,33 @@ uint64_t b3HashQueryTag( uint64_t id, const char* name )
 	return h != 0 ? h : 1;
 }
 
+static b3RecTagMap* b3RecTags( b3Recording* rec )
+{
+	if ( rec->tagMap == NULL )
+	{
+		b3RecTagMap* fresh = b3Alloc( sizeof( b3RecTagMap ) );
+		b3RecTagMap_init( fresh );
+		rec->tagMap = fresh;
+	}
+	return rec->tagMap;
+}
+
 void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* name )
 {
-	for ( int i = 0; i < rec->tagCount; ++i )
+	b3RecTagMap* map = b3RecTags( rec );
+	if ( b3RecTagMap_is_end( b3RecTagMap_get( map, key ) ) == false )
 	{
-		if ( rec->tags[i].key == key )
-		{
-			return; // first id/name for a key wins
-		}
+		return; // first id/name for a key wins
 	}
+
 	if ( rec->tagCount == rec->tagCapacity )
 	{
 		int newCap = rec->tagCapacity == 0 ? 8 : 2 * rec->tagCapacity;
-		b3RecTag* grown = (b3RecTag*)b3Alloc( (size_t)newCap * sizeof( b3RecTag ) );
-		if ( rec->tags != NULL )
-		{
-			memcpy( grown, rec->tags, (size_t)rec->tagCount * sizeof( b3RecTag ) );
-			b3Free( rec->tags, (size_t)rec->tagCapacity * sizeof( b3RecTag ) );
-		}
-		rec->tags = grown;
+		rec->tags = b3GrowAlloc( rec->tags, rec->tagCapacity * (int)sizeof( b3RecTag ), newCap * (int)sizeof( b3RecTag ) );
 		rec->tagCapacity = newCap;
 	}
+
+	uint32_t index = (uint32_t)rec->tagCount;
 	b3RecTag* tag = &rec->tags[rec->tagCount++];
 	tag->key = key;
 	tag->id = id;
@@ -931,6 +944,7 @@ void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* na
 		n++;
 	}
 	tag->name[n] = '\0';
+	b3RecTagMap_insert( map, key, index );
 }
 
 // Write the trailing registry block: u32 entryCount then per-entry { u8 kind, u32 byteCount, bytes },
@@ -964,9 +978,9 @@ b3Recording* b3CreateRecording( int byteCapacity )
 	*rec = (b3Recording){ 0 };
 
 	int initCap = byteCapacity > 0 ? byteCapacity : 65536;
-	rec->buffer.data     = (uint8_t*)b3Alloc( (size_t)initCap );
+	rec->buffer.data = (uint8_t*)b3Alloc( (size_t)initCap );
 	rec->buffer.capacity = initCap;
-	rec->buffer.size     = 0;
+	rec->buffer.size = 0;
 	rec->lock = b3CreateMutex();
 	return rec;
 }
@@ -983,6 +997,11 @@ void b3DestroyRecording( b3Recording* recording )
 	if ( recording->tags != NULL )
 	{
 		b3Free( recording->tags, (size_t)recording->tagCapacity * sizeof( b3RecTag ) );
+	}
+	if ( recording->tagMap != NULL )
+	{
+		b3RecTagMap_cleanup( (b3RecTagMap*)recording->tagMap );
+		b3Free( recording->tagMap, sizeof( b3RecTagMap ) );
 	}
 	b3DestroyMutex( recording->lock );
 	b3Free( recording, sizeof( b3Recording ) );
@@ -1009,25 +1028,31 @@ void b3StartRecordingIntoBuffer( b3World* world, b3Recording* recording )
 	// Reset so a recording handle can be reused for a fresh session
 	recording->buffer.size = 0;
 	recording->recordStart = 0;
-	recording->haveBounds  = false;
+	recording->haveBounds = false;
 	b3FreeRegistry( &recording->registry );
 	if ( recording->tags != NULL )
 	{
 		b3Free( recording->tags, (size_t)recording->tagCapacity * sizeof( b3RecTag ) );
 		recording->tags = NULL;
 	}
+	if ( recording->tagMap != NULL )
+	{
+		b3RecTagMap_cleanup( (b3RecTagMap*)recording->tagMap );
+		b3Free( recording->tagMap, sizeof( b3RecTagMap ) );
+		recording->tagMap = NULL;
+	}
 	recording->tagCount = 0;
 	recording->tagCapacity = 0;
 
 	b3RecHeader hdr = { 0 };
-	hdr.magic            = B3_REC_MAGIC;
-	hdr.versionMajor     = B3_REC_VERSION_MAJOR;
-	hdr.versionMinor     = B3_REC_VERSION_MINOR;
-	hdr.pointerWidth     = (uint8_t)sizeof( void* );
-	hdr.bigEndian        = 0;
+	hdr.magic = B3_REC_MAGIC;
+	hdr.versionMajor = B3_REC_VERSION_MAJOR;
+	hdr.versionMinor = B3_REC_VERSION_MINOR;
+	hdr.pointerWidth = (uint8_t)sizeof( void* );
+	hdr.bigEndian = 0;
 	hdr.validationEnabled = B3_ENABLE_VALIDATION ? 1u : 0u;
-	hdr.lengthScale      = b3GetLengthUnitsPerMeter();
-	hdr.registryOffset   = 0;       // backpatched in b3StopRecordingInternal
+	hdr.lengthScale = b3GetLengthUnitsPerMeter();
+	hdr.registryOffset = 0; // backpatched in b3StopRecordingInternal
 	hdr.registryByteCount = 0;
 
 	world->recording = recording;
@@ -1081,14 +1106,14 @@ void b3StopRecordingInternal( b3World* world )
 	// Backpatch registryOffset and registryByteCount into the header
 	uint8_t* hdrBytes = rec->buffer.data;
 	uint64_t regOff = (uint64_t)registryOffset;
-	uint64_t regSz  = (uint64_t)registryByteCount;
+	uint64_t regSz = (uint64_t)registryByteCount;
 	// Little-endian backpatch in place; offsetof keeps this correct if the header layout shifts
 	uint8_t* pOff = hdrBytes + offsetof( b3RecHeader, registryOffset );
-	uint8_t* pSz  = hdrBytes + offsetof( b3RecHeader, registryByteCount );
+	uint8_t* pSz = hdrBytes + offsetof( b3RecHeader, registryByteCount );
 	for ( int i = 0; i < 8; ++i )
 	{
 		pOff[i] = (uint8_t)( regOff >> ( 8 * i ) );
-		pSz[i]  = (uint8_t)( regSz  >> ( 8 * i ) );
+		pSz[i] = (uint8_t)( regSz >> ( 8 * i ) );
 	}
 }
 
