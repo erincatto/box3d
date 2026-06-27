@@ -509,6 +509,7 @@ B3_API b3CastOutput b3RayCastHollowSphere( const b3Sphere* shape, const b3RayCas
 
 /// Ray cast versus capsule in local space. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* input );
+B3_API b3CastOutput b3RayCastCapsuleOld( const b3Capsule* shape, const b3RayCastInput* input );
 
 /// Ray cast versus compound in local space. Initial overlap is treated as a miss.
 B3_API b3CastOutput b3RayCastCompound( const b3CompoundData* shape, const b3RayCastInput* input );

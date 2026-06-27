@@ -115,10 +115,223 @@ bool b3OverlapCapsule( const b3Capsule* shape, b3Transform shapeTransform, const
 	return output.distance < B3_OVERLAP_SLOP;
 }
 
+b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* input )
+{
+	b3Vec3 c1 = shape->center1;
+	b3Vec3 c2 = shape->center2;
+	float r = shape->radius;
+
+	// Initialize result structure
+	b3CastOutput output = { 0 };
+
+	b3Vec3 d = b3Sub( c2, c1 );
+
+	// Fall back to sphere if the capsule is short
+	float tol = 0.01f * B3_LINEAR_SLOP;
+	float lengthSquared = b3LengthSquared( d );
+	if ( lengthSquared < tol * tol )
+	{
+		b3Vec3 sphereCenter = b3MulSV( 0.5f, b3Add( shape->center1, shape->center2 ) );
+		b3Sphere sphere = { sphereCenter, shape->radius };
+		return b3RayCastSphere( &sphere, input );
+	}
+
+	// Vector from first center to ray origin.
+	b3Vec3 s = b3Sub( input->origin, c1 );
+
+	// Capsule axis
+	float length = sqrtf( lengthSquared );
+	b3Vec3 axis = b3MulSV( 1.0f / length, d );
+
+	// Project ray origin onto capsule axis.
+	float u = b3Dot( s, axis );
+
+	// Closest point on infinite capsule axis, relative to c1.
+	b3Vec3 c = b3MulSV( u, axis );
+
+	// Vector from closest point to ray origin
+	b3Vec3 sc = b3Sub( s, c );
+
+	// Squared distance from ray origin to capsule axis
+	float sc2 = b3LengthSquared( sc );
+
+	// Is the ray origin within the infinite cylinder along the capsule axis?
+	if ( sc2 < r * r )
+	{
+		// Clamped barycentric coordinate of ray origin projected onto capsule axis.
+		float uClamped = b3ClampFloat( u, 0.0f, length );
+
+		// The closest point on the bounded capsule segment, relative to c1.
+		b3Vec3 cp = b3MulSV( uClamped, axis );
+
+		// Vector from ray origin to closest point on segment.
+		b3Vec3 scp = b3Sub( s, cp );
+
+		// Squared distance of ray origin from capsule segment.
+		float scp2 = b3LengthSquared( scp );
+
+		// Is the ray origin within the capsule?
+		if ( scp2 < r * r )
+		{
+			output.hit = true;
+			output.point = input->origin;
+			return output;
+		}
+
+		// The ray can hit an endcap.
+		b3Sphere sphere = {
+			.center = b3Add( c1, cp ),
+			.radius = r,
+		};
+
+		return b3RayCastSphere( &sphere, input );
+	}
+
+	// Ray translation
+	b3Vec3 dr = input->translation;
+	float dr2 = b3LengthSquared( dr );
+	if ( dr2 < tol * tol )
+	{
+		// Ray is a point and outside the capsule.
+		return output;
+	}
+
+	// Barycentric coordinate of ray end point.
+	float v = u + input->maxFraction * b3Dot( dr, axis );
+
+	// Early out: does the projected ray fall outside the capsule?
+	if ( ( u < -r && v < -r ) || ( length + r < u && length + r < v ) )
+	{
+		return output;
+	}
+
+	// Ray axis
+	float rayLength = sqrtf( dr2 );
+	b3Vec3 rayAxis = b3MulSV( 1.0f / rayLength, dr );
+
+	// Compute the closest point between the ray segment and the capsule segment.
+	// See Real-Time Collision Detection, section 5.1.9
+
+	// Closest point on capsule : a1 = segment unit axis, t1 = unknown fraction
+	// p1 = t1 * a1
+
+	// Closet point on ray : a2 = ray unit axis, t2 = unknown fraction
+	// p2 = s + t2 * a2
+
+	// Closest point perpendicularity conditions.
+	// dot(p2 - p1, a1) = 0
+	// dot(p2 - p1, a2) = 0
+
+	// Expand
+	// dot(t1 * a1 - s - t2 * a2, a1) = 0
+	// dot(t1 * a1 - s - t2 * a2, a2) = 0
+
+	// Expand
+	// t1 - dot(s, a1) - t2 * dot(a1, a2) = 0
+	// t1 * dot(a1, a2) - dot(s, a2) - t2 = 0
+
+	// Group : a12 = dot(a1, a2), sa1 = dot(s, a1), sa2 = dot(s, a2)
+	// t1       - a12 * t2 = sa1
+	// a12 * t1 -       t2 = sa2
+
+	// Solve
+	// https://en.wikipedia.org/wiki/Cramer%27s_rule
+	// I've flipped the signs of the numerator and denominator to give a positive determinant.
+	// det = 1 - a12 * a12
+	// t1 = (sa1 - a12 * sa2) / det
+	// t2 = (a12 * sa1 - sa2) / det
+
+	b3Vec3 a1 = axis;
+	b3Vec3 a2 = rayAxis;
+	float a12 = b3Dot( a1, a2 );
+
+	float det = 1.0f - a12 * a12;
+	if ( det < FLT_EPSILON )
+	{
+		// Parallel
+		return output;
+	}
+
+	float invDet = 1.0f / det;
+	float sa1 = u;
+	float sa2 = b3Dot( s, a2 );
+
+	float t1 = ( sa1 - a12 * sa2 ) * invDet;
+	float t2 = ( a12 * sa1 - sa2 ) * invDet;
+
+	// Closest points
+	b3Vec3 p1 = b3MulSV( t1, a1 );
+	b3Vec3 p2 = b3MulAdd( s, t1, a2 );
+
+	// Vector from closest point on infinite capsule to infinite ray.
+	b3Vec3 g = b3Sub( p2, p1 );
+
+	float g2 = b3LengthSquared( g );
+	if ( g2 > r * r )
+	{
+		// Early out: closest point on infinite ray is outside infinite cylinder.
+		return output;
+	}
+
+	// Compute the intersection of the infinite ray with the infinite cylinder. Like ray versus sphere,
+	// this is done relative to the closest point to avoid round-off errors. Not a fraction, has length units.
+	// https://en.wikipedia.org/wiki/Line-cylinder_intersection
+	float dt = sqrtf( ( r * r - g2 ) * invDet );
+
+	// This is the ray distance at the intersection point. Length units.
+	float tr = t2 + dt;
+
+	// Outside ray?
+	if (tr < 0.0f || input->maxFraction * rayLength < tr)
+	{
+		return output;
+	}
+
+	// The corresponding distance on the capsule axis. Length units.
+	float tc = u + tr * a12;
+
+	// Outside c1 end?
+	if ( tc < 0.0f )
+	{
+		// Ray cast sphere 1.
+		b3Sphere sphere = {
+			.center = c1,
+			.radius = r,
+		};
+
+		return b3RayCastSphere( &sphere, input );
+	}
+
+	// Outside c2 end?
+	if (length < tc)
+	{
+		// Ray cast sphere 2.
+		b3Sphere sphere = {
+			.center = c2,
+			.radius = r,
+		};
+
+		return b3RayCastSphere( &sphere, input );
+	}
+
+	// Hit point on capsule side.
+	b3Vec3 p = b3MulAdd( s, tr, rayAxis );
+
+	// Hit normal.
+	b3Vec3 normal = b3MulSub( p, tc, axis );
+	normal = b3Normalize( normal );
+
+	output.point = p;
+	output.normal = normal;
+	output.fraction = b3ClampFloat( tr / rayLength, 0.0f, input->maxFraction );
+	output.hit = true;
+	return output;
+}
+
 // todo_erin implement precision improvement
 // Precision Improvements for Ray / Sphere Intersection - Ray Tracing Gems 2019
 // http://www.codercorner.com/blog/?p=321
-b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* input )
+b3CastOutput b3RayCastCapsuleOld( const b3Capsule* shape, const b3RayCastInput* input )
 {
 	b3Vec3 c1 = shape->center1;
 	b3Vec3 c2 = shape->center2;
@@ -268,8 +481,7 @@ int b3CollideMoverAndCapsule( b3PlaneResult* result, const b3Capsule* shape, con
 {
 	float totalRadius = mover->radius + shape->radius;
 
-	b3SegmentDistanceResult approach =
-		b3SegmentDistance( shape->center1, shape->center2, mover->center1, mover->center2 );
+	b3SegmentDistanceResult approach = b3SegmentDistance( shape->center1, shape->center2, mover->center1, mover->center2 );
 
 	// The normal points from the shape toward the mover.
 	float distance;
