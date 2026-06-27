@@ -272,6 +272,321 @@ static int PointInShapeTest( void )
 }
 #endif
 
+// Shared assertions for a surface hit. The normal points outward toward the ray,
+// the point sits on the surface, and the point lies on the ray at the reported fraction.
+static int CheckCastHit( b3CastOutput out, b3Vec3 origin, b3Vec3 translation, b3Vec3 point, b3Vec3 normal,
+						 float fraction, float tol )
+{
+	ENSURE( out.hit );
+	ENSURE_SMALL( out.fraction - fraction, tol );
+	ENSURE_SMALL( out.point.x - point.x, tol );
+	ENSURE_SMALL( out.point.y - point.y, tol );
+	ENSURE_SMALL( out.point.z - point.z, tol );
+	ENSURE_SMALL( out.normal.x - normal.x, tol );
+	ENSURE_SMALL( out.normal.y - normal.y, tol );
+	ENSURE_SMALL( out.normal.z - normal.z, tol );
+
+	b3Vec3 onRay = b3MulAdd( origin, out.fraction, translation );
+	ENSURE_SMALL( b3Distance( out.point, onRay ), tol );
+	return 0;
+}
+
+static int RayCastSphereHitTest( void )
+{
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 1.0f };
+
+	// Hit along each principal axis. Surface at distance 3 over a length 8 ray.
+	{
+		b3RayCastInput input = { { -4.0f, 0.0f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastSphere( &s, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ -1.0f, 0.0f, 0.0f },
+						   ( b3Vec3 ){ -1.0f, 0.0f, 0.0f }, 3.0f / 8.0f, 1e-5f ) )
+			return 1;
+	}
+	{
+		b3RayCastInput input = { { 0.0f, 4.0f, 0.0f }, { 0.0f, -8.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastSphere( &s, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ 0.0f, 1.0f, 0.0f },
+						   ( b3Vec3 ){ 0.0f, 1.0f, 0.0f }, 3.0f / 8.0f, 1e-5f ) )
+			return 1;
+	}
+	{
+		b3RayCastInput input = { { 0.0f, 0.0f, -4.0f }, { 0.0f, 0.0f, 8.0f }, 1.0f };
+		b3CastOutput out = b3RayCastSphere( &s, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ 0.0f, 0.0f, -1.0f },
+						   ( b3Vec3 ){ 0.0f, 0.0f, -1.0f }, 3.0f / 8.0f, 1e-5f ) )
+			return 1;
+	}
+
+	// Offset center, hit partway along the ray.
+	{
+		b3Sphere s2 = { { 5.0f, 0.0f, 0.0f }, 2.0f };
+		b3RayCastInput input = { { 0.0f, 0.0f, 0.0f }, { 10.0f, 0.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastSphere( &s2, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ 3.0f, 0.0f, 0.0f },
+						   ( b3Vec3 ){ -1.0f, 0.0f, 0.0f }, 0.3f, 1e-5f ) )
+			return 1;
+	}
+
+	// Diagonal ray straight through the center.
+	{
+		float k = 0.70710678f;
+		b3RayCastInput input = { { -3.0f, -3.0f, 0.0f }, { 6.0f, 6.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastSphere( &s, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ -k, -k, 0.0f },
+						   ( b3Vec3 ){ -k, -k, 0.0f }, 0.382154f, 1e-4f ) )
+			return 1;
+	}
+
+	return 0;
+}
+
+static int RayCastSphereMissTest( void )
+{
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 1.0f };
+
+	// Pointing away.
+	{
+		b3RayCastInput input = { { -4.0f, 0.0f, 0.0f }, { -8.0f, 0.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastSphere( &s, &input ).hit == false );
+	}
+	// Passes wide of the sphere.
+	{
+		b3RayCastInput input = { { -4.0f, 3.0f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastSphere( &s, &input ).hit == false );
+	}
+	// Aimed at the sphere but the translation stops short.
+	{
+		b3RayCastInput input = { { -4.0f, 0.0f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 0.3f };
+		ENSURE( b3RayCastSphere( &s, &input ).hit == false );
+	}
+	return 0;
+}
+
+static int RayCastSphereClipTest( void )
+{
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 1.0f };
+
+	// The surface is reached at fraction 3/8. Straddle it with maxFraction.
+	{
+		b3RayCastInput input = { { -4.0f, 0.0f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 0.374f };
+		ENSURE( b3RayCastSphere( &s, &input ).hit == false );
+	}
+	{
+		b3RayCastInput input = { { -4.0f, 0.0f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 0.376f };
+		b3CastOutput out = b3RayCastSphere( &s, &input );
+		ENSURE( out.hit );
+		ENSURE_SMALL( out.fraction - 3.0f / 8.0f, 1e-5f );
+	}
+	return 0;
+}
+
+static int RayCastSphereInteriorTest( void )
+{
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 1.0f };
+
+	// Origin inside reports the origin with zero fraction.
+	{
+		b3RayCastInput input = { { 0.3f, 0.0f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastSphere( &s, &input );
+		ENSURE( out.hit );
+		ENSURE( out.fraction == 0.0f );
+		ENSURE_SMALL( b3Distance( out.point, input.origin ), FLT_EPSILON );
+	}
+	// Zero length ray inside.
+	{
+		b3RayCastInput input = { { 0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastSphere( &s, &input );
+		ENSURE( out.hit );
+		ENSURE_SMALL( b3Distance( out.point, input.origin ), FLT_EPSILON );
+	}
+	// Zero length ray outside.
+	{
+		b3RayCastInput input = { { 3.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastSphere( &s, &input ).hit == false );
+	}
+	return 0;
+}
+
+static int RayCastSphereGrazeTest( void )
+{
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 1.0f };
+
+	// Just inside the radius grazes a hit, just outside misses.
+	{
+		b3RayCastInput input = { { -4.0f, 0.999f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastSphere( &s, &input ).hit );
+	}
+	{
+		b3RayCastInput input = { { -4.0f, 1.001f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastSphere( &s, &input ).hit == false );
+	}
+	return 0;
+}
+
+// Capsule along x from -2 to 2, radius 1. Reused by the capsule ray cast subtests.
+static const b3Capsule rayCapsule = { { -2.0f, 0.0f, 0.0f }, { 2.0f, 0.0f, 0.0f }, 1.0f };
+
+static int RayCastCapsuleSideTest( void )
+{
+	// Perpendicular hit on the cylindrical side. Surface at distance 2 over a length 6 ray.
+	{
+		b3RayCastInput input = { { 0.0f, 3.0f, 0.0f }, { 0.0f, -6.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ 0.0f, 1.0f, 0.0f },
+						   ( b3Vec3 ){ 0.0f, 1.0f, 0.0f }, 1.0f / 3.0f, 1e-5f ) )
+			return 1;
+	}
+	// Same from +z to exercise the other transverse direction.
+	{
+		b3RayCastInput input = { { 0.0f, 0.0f, 3.0f }, { 0.0f, 0.0f, -6.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ 0.0f, 0.0f, 1.0f },
+						   ( b3Vec3 ){ 0.0f, 0.0f, 1.0f }, 1.0f / 3.0f, 1e-5f ) )
+			return 1;
+	}
+	// Side hit nearer the c1 end.
+	{
+		b3RayCastInput input = { { -1.0f, 3.0f, 0.0f }, { 0.0f, -6.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ -1.0f, 1.0f, 0.0f },
+						   ( b3Vec3 ){ 0.0f, 1.0f, 0.0f }, 1.0f / 3.0f, 1e-5f ) )
+			return 1;
+	}
+	return 0;
+}
+
+static int RayCastCapsuleObliqueTest( void )
+{
+	// Oblique ray in the z=0 plane. It crosses y=1 inside the cylinder span, so the
+	// normal stays transverse. Exercises the non perpendicular ray/axis solve where
+	// dot(axis, rayAxis) != 0.
+	b3RayCastInput input = { { -3.0f, 3.0f, 0.0f }, { 4.0f, -4.0f, 0.0f }, 1.0f };
+	b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+	return CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ -1.0f, 1.0f, 0.0f },
+						( b3Vec3 ){ 0.0f, 1.0f, 0.0f }, 0.5f, 1e-4f );
+}
+
+static int RayCastCapsuleCapTest( void )
+{
+	float k = 0.70710678f;
+
+	// Collinear ray hits the c2 hemisphere from beyond the end.
+	{
+		b3RayCastInput input = { { 5.0f, 0.0f, 0.0f }, { -8.0f, 0.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ 3.0f, 0.0f, 0.0f },
+						   ( b3Vec3 ){ 1.0f, 0.0f, 0.0f }, 1.0f / 4.0f, 1e-5f ) )
+			return 1;
+	}
+	// Off-axis ray through the c2 cap center, approaching from outside the cylinder.
+	{
+		b3RayCastInput input = { { 4.0f, 2.0f, 0.0f }, { -4.0f, -4.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ 2.0f + k, k, 0.0f },
+						   ( b3Vec3 ){ k, k, 0.0f }, 0.323223f, 1e-4f ) )
+			return 1;
+	}
+	// Mirror through the c1 cap center.
+	{
+		b3RayCastInput input = { { -4.0f, 2.0f, 0.0f }, { 4.0f, -4.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ -2.0f - k, k, 0.0f },
+						   ( b3Vec3 ){ -k, k, 0.0f }, 0.323223f, 1e-4f ) )
+			return 1;
+	}
+	return 0;
+}
+
+static int RayCastCapsuleMissTest( void )
+{
+	// Pointing away.
+	{
+		b3RayCastInput input = { { 0.0f, 3.0f, 0.0f }, { 0.0f, 4.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastCapsule( &rayCapsule, &input ).hit == false );
+	}
+	// Crosses above the axis more than a radius away.
+	{
+		b3RayCastInput input = { { 0.0f, 4.0f, 2.0f }, { 0.0f, -8.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastCapsule( &rayCapsule, &input ).hit == false );
+	}
+	// Aimed at the side but the translation stops short.
+	{
+		b3RayCastInput input = { { 0.0f, 5.0f, 0.0f }, { 0.0f, -1.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastCapsule( &rayCapsule, &input ).hit == false );
+	}
+	// Parallel to the axis and outside the cylinder.
+	{
+		b3RayCastInput input = { { 0.0f, 3.0f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastCapsule( &rayCapsule, &input ).hit == false );
+	}
+	// Descends past the rounded c2 end, beyond cap reach.
+	{
+		b3RayCastInput input = { { 4.0f, 3.0f, 0.0f }, { 0.0f, -6.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastCapsule( &rayCapsule, &input ).hit == false );
+	}
+	return 0;
+}
+
+static int RayCastCapsuleInteriorTest( void )
+{
+	// Origin on the axis between the caps.
+	{
+		b3RayCastInput input = { { 0.0f, 0.0f, 0.0f }, { 0.0f, -5.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		ENSURE( out.hit );
+		ENSURE( out.fraction == 0.0f );
+		ENSURE_SMALL( b3Distance( out.point, input.origin ), FLT_EPSILON );
+	}
+	// Origin inside the c2 hemisphere, past the cylinder end.
+	{
+		b3RayCastInput input = { { 2.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, 5.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		ENSURE( out.hit );
+		ENSURE( out.fraction == 0.0f );
+		ENSURE_SMALL( b3Distance( out.point, input.origin ), FLT_EPSILON );
+	}
+	// Zero length ray inside.
+	{
+		b3RayCastInput input = { { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		ENSURE( out.hit );
+		ENSURE_SMALL( b3Distance( out.point, input.origin ), FLT_EPSILON );
+	}
+	// Zero length ray outside.
+	{
+		b3RayCastInput input = { { 0.0f, 3.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastCapsule( &rayCapsule, &input ).hit == false );
+	}
+	return 0;
+}
+
+static int RayCastCapsuleDegenerateTest( void )
+{
+	// Coincident centers collapse to a sphere.
+	b3Capsule c = { { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, 1.0f };
+	b3RayCastInput input = { { -4.0f, 0.0f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 1.0f };
+	b3CastOutput out = b3RayCastCapsule( &c, &input );
+	return CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ -1.0f, 0.0f, 0.0f },
+						( b3Vec3 ){ -1.0f, 0.0f, 0.0f }, 3.0f / 8.0f, 1e-5f );
+}
+
+static int RayCastCapsuleClipTest( void )
+{
+	// The side hit occurs at fraction 1/3. Straddle it with maxFraction.
+	{
+		b3RayCastInput input = { { 0.0f, 3.0f, 0.0f }, { 0.0f, -6.0f, 0.0f }, 0.3f };
+		ENSURE( b3RayCastCapsule( &rayCapsule, &input ).hit == false );
+	}
+	{
+		b3RayCastInput input = { { 0.0f, 3.0f, 0.0f }, { 0.0f, -6.0f, 0.0f }, 0.5f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		ENSURE( out.hit );
+		ENSURE_SMALL( out.fraction - 1.0f / 3.0f, 1e-5f );
+	}
+	return 0;
+}
+
 static int RayCastShapeTest( void )
 {
 	b3RayCastInput input = {
@@ -318,6 +633,20 @@ int ShapeTest( void )
 	RUN_SUBTEST( ShapeAABBTest );
 	// RUN_SUBTEST( PointInShapeTest );
 	RUN_SUBTEST( RayCastShapeTest );
+
+	RUN_SUBTEST( RayCastSphereHitTest );
+	RUN_SUBTEST( RayCastSphereMissTest );
+	RUN_SUBTEST( RayCastSphereClipTest );
+	RUN_SUBTEST( RayCastSphereInteriorTest );
+	RUN_SUBTEST( RayCastSphereGrazeTest );
+
+	RUN_SUBTEST( RayCastCapsuleSideTest );
+	RUN_SUBTEST( RayCastCapsuleObliqueTest );
+	RUN_SUBTEST( RayCastCapsuleCapTest );
+	RUN_SUBTEST( RayCastCapsuleMissTest );
+	RUN_SUBTEST( RayCastCapsuleInteriorTest );
+	RUN_SUBTEST( RayCastCapsuleDegenerateTest );
+	RUN_SUBTEST( RayCastCapsuleClipTest );
 
 	return 0;
 }

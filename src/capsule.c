@@ -314,14 +314,14 @@ b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* inp
 		return b3RayCastSphere( &sphere, input );
 	}
 
-	// Hit point on capsule side.
+	// Hit point on capsule side, relative to c1.
 	b3Vec3 p = b3MulAdd( s, tr, rayAxis );
 
 	// Hit normal.
 	b3Vec3 normal = b3MulSub( p, tc, axis );
 	normal = b3Normalize( normal );
 
-	output.point = p;
+	output.point = b3Add( c1, p );
 	output.normal = normal;
 	output.fraction = b3ClampFloat( tr / rayLength, 0.0f, input->maxFraction );
 	output.hit = true;
