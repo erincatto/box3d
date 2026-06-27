@@ -1517,10 +1517,10 @@ public:
 			}
 		}
 
-		DrawTextLine( "Long ray casts versus sphere, capsule, hull, mesh, height field" );
-		DrawTextLine( "Origin distance %.0f km. Green hit is accurate, orange is drifting, red marks an accuracy miss.",
+		DrawTextLine( "Long ray casts" );
+		DrawTextLine( "Origin %.0f km. Green: accurate, Orange: drifting, Red: miss.",
 					  m_rayLengthKilometers );
-		DrawTextLine( "Accuracy miss rate: sphere %.0f%%  capsule %.0f%%  hull %.0f%%  mesh %.0f%%  field %.0f%%",
+		DrawTextLine( "Failures: sphere %.0f%%  capsule %.0f%%  hull %.0f%%  mesh %.0f%%  hf %.0f%%",
 					  100.0f * m_failRate[0], 100.0f * m_failRate[1], 100.0f * m_failRate[2], 100.0f * m_failRate[3],
 					  100.0f * m_failRate[4] );
 	}

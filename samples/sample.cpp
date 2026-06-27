@@ -1871,6 +1871,14 @@ static void DrawInfoPanel( SampleContext* context )
 	ImGui::TextColored( HexColor( b3_colorLightGray ), "%s", entry.Category );
 	ImGui::Separator();
 
+	if ( context->pause )
+	{
+		ImGui::TextColored( HexColor( b3_colorRed ), "PAUSED" );
+		ImGui::SameLine();
+		ImGui::TextDisabled( "(p)" );
+		ImGui::Separator();
+	}
+
 	const float frameMs = (float)( sapp_frame_duration() * 1000.0 );
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "%.1f ms", frameMs );
 	ImGui::TextColored( HexColor( b3_colorSeaGreen ), "step %d", context->sample->m_stepCount );
@@ -1967,6 +1975,12 @@ static void DrawHud( SampleContext* context )
 	float fontSize = ImGui::GetFontSize();
 
 	DrawScreenStringFormat( 5, (int)( 1.5f * fontSize ), MakeColor( b3_colorYellow ), "%s : %s", entry.Category, entry.Name );
+
+	if ( context->pause )
+	{
+		DrawScreenString( 5, (int)( 3.0f * fontSize ), MakeColor( b3_colorRed ), "****PAUSED****" );
+	}
+
 	DrawScreenStringFormat( 5, context->camera.m_height - (int)( 1.5f * fontSize ), MakeColor( b3_colorSeaGreen ),
 							"%.1f ms  step %d", 1000.0f * (float)sapp_frame_duration(), context->sample->m_stepCount );
 }

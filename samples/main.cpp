@@ -321,13 +321,6 @@ static void OnFrame( void )
 	SetTransparentDynamic( s_context.transparentDynamic );
 	s_context.sample->ResetText();
 
-	// Pause banner only with the UI up, matching Box2D.
-	if ( s_context.pause && s_context.showUI )
-	{
-		s_context.sample->DrawTextLine( "****PAUSED****" );
-		s_context.sample->DrawTextLine( "" );
-	}
-
 	s_context.sample->Step();
 	s_context.sample->Render();
 
