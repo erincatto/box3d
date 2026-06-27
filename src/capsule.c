@@ -94,14 +94,6 @@ static b3CastOutput b3CastRayAgainstCap( b3Vec3 p, b3Vec3 q, b3Vec3 c, float r, 
 	return output;
 }
 
-static b3CastOutput b3TransformCapsuleResult( b3CastOutput result, b3Quat rotation, b3Vec3 translation )
-{
-	b3CastOutput out = result;
-	out.point = b3Add( b3RotateVector( rotation, result.point ), translation );
-	out.normal = b3RotateVector( rotation, result.normal );
-	return out;
-}
-
 bool b3OverlapCapsule( const b3Capsule* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
 {
 	b3DistanceInput input;
@@ -115,6 +107,8 @@ bool b3OverlapCapsule( const b3Capsule* shape, b3Transform shapeTransform, const
 	return output.distance < B3_OVERLAP_SLOP;
 }
 
+// Precision Improvements for Ray / Sphere Intersection - Ray Tracing Gems 2019
+// http://www.codercorner.com/blog/?p=321
 b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* input )
 {
 	B3_ASSERT( b3IsValidRay( input ) );
@@ -325,141 +319,6 @@ b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* inp
 	output.fraction = b3ClampFloat( tr / rayLength, 0.0f, input->maxFraction );
 	output.hit = true;
 	return output;
-}
-
-// todo_erin implement precision improvement
-// Precision Improvements for Ray / Sphere Intersection - Ray Tracing Gems 2019
-// http://www.codercorner.com/blog/?p=321
-b3CastOutput b3RayCastCapsuleOld( const b3Capsule* shape, const b3RayCastInput* input )
-{
-	b3Vec3 c1 = shape->center1;
-	b3Vec3 c2 = shape->center2;
-	float r = shape->radius;
-
-	// Initialize result structure
-	b3CastOutput output = { 0 };
-
-	// Compute height and handle degenerate capsules
-	float height = b3Distance( c1, c2 );
-	if ( height < 1000.0f * FLT_MIN )
-	{
-		b3Vec3 sphereCenter = b3MulSV( 0.5f, b3Add( shape->center1, shape->center2 ) );
-		b3Sphere sphere = { sphereCenter, shape->radius };
-		return b3RayCastSphere( &sphere, input );
-	}
-
-	// Transform ray and capsule into local space capsule space
-	b3Quat rotation = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3MulSV( 1.0f / height, b3Sub( c2, c1 ) ) );
-	b3Vec3 offset = c1;
-
-	// Capsule starts at the origin and is along the y-axis
-	b3Vec3 a = b3Vec3_zero;
-	b3Vec3 b = { 0.0f, height, 0.0f };
-	b3Vec3 ab = b3Sub( b, a );
-
-	// Ray expressed relative to capsule space (capsule along y-axis)
-	b3Vec3 p = b3InvRotateVector( rotation, b3Sub( input->origin, offset ) );
-	b3Vec3 q = b3Add( p, b3InvRotateVector( rotation, input->translation ) );
-	b3Vec3 pq = b3Sub( q, p );
-
-	// Ray 2D translation length squared
-	float k1 = pq.x * pq.x + pq.z * pq.z;
-
-	// Ray start point 2D separation squared from circle
-	float k3 = p.x * p.x + p.z * p.z - r * r;
-
-	// Parallel case (2D ray translation is zero)
-	if ( k1 < 1000.0f * FLT_MIN )
-	{
-		if ( k3 > 0.0f )
-		{
-			// Parallel and outside
-			return output;
-		}
-
-		if ( 0.0f <= p.y && p.y <= height )
-		{
-			// Parallel and inside
-			output.hit = true;
-			output.point = input->origin;
-			return output;
-		}
-
-		// Below cylinder and casting upwards
-		if ( p.y < 0.0f && pq.y > 0.0f )
-		{
-			output = b3CastRayAgainstCap( p, q, a, r, input->maxFraction );
-			return b3TransformCapsuleResult( output, rotation, offset );
-		}
-
-		// Above cylinder and casting downwards
-		if ( p.y > height && pq.y < 0.0f )
-		{
-			output = b3CastRayAgainstCap( p, q, b, r, input->maxFraction );
-			return b3TransformCapsuleResult( output, rotation, offset );
-		}
-
-		// Above or below and casting away from cylinder
-		return output;
-	}
-
-	// Non-parallel case
-	float k2 = pq.x * p.x + pq.z * p.z;
-
-	float discriminant = k2 * k2 - k1 * k3;
-	if ( discriminant < 0.0f )
-	{
-		// No real roots - no intersection
-		return output;
-	}
-
-	float t = ( -k2 - sqrtf( discriminant ) ) / k1;
-	if ( t > input->maxFraction )
-	{
-		// Segment approaching cylinder, but not quite getting there.
-		return output;
-	}
-
-	// Don't skip t < 0. This means that we start in the *infinite* cylinder and still might hit a cap
-
-	// This is the point on the ray that hits the infinite cylinder
-	b3Vec3 c = b3MulAdd( p, t, pq );
-
-	// This is the cylinder hit point relative to the capsule base
-	b3Vec3 ac = b3Sub( c, a );
-
-	// Fraction of the cylinder hit point along the capsule axis
-	float s = b3Dot( ac, ab ) / ( height * height );
-
-	if ( s < 0.0f )
-	{
-		// X projects outside A, run test through sphere at A
-		output = b3CastRayAgainstCap( p, q, a, r, input->maxFraction );
-		return b3TransformCapsuleResult( output, rotation, offset );
-	}
-
-	if ( s > 1.0f )
-	{
-		// X projects outside B, run test through sphere at B
-		output = b3CastRayAgainstCap( p, q, b, r, input->maxFraction );
-		return b3TransformCapsuleResult( output, rotation, offset );
-	}
-
-	if ( t < 0.0f )
-	{
-		// Ray starts inside
-		output.hit = true;
-		output.point = input->origin;
-		return output;
-	}
-
-	// Ray hits cylinder inside segment AB
-	output.fraction = t;
-	output.point = c;
-	output.normal = b3Normalize( (b3Vec3){ c.x, 0.0f, c.z } );
-	output.hit = true;
-
-	return b3TransformCapsuleResult( output, rotation, offset );
 }
 
 b3CastOutput b3ShapeCastCapsule( const b3Capsule* capsule, const b3ShapeCastInput* input )

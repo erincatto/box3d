@@ -501,26 +501,30 @@ B3_API bool b3OverlapMesh( const b3Mesh* shape, b3Transform shapeTransform, cons
 /// Overlap shape versus sphere
 B3_API bool b3OverlapSphere( const b3Sphere* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
 
-/// Ray cast versus sphere in local space. Initial overlap is treated as a miss.
+/// Ray cast versus sphere in local space. A zero length ray is a point query. Initial overlap
+/// reports a hit at the ray origin with zero fraction and zero normal.
 B3_API b3CastOutput b3RayCastSphere( const b3Sphere* shape, const b3RayCastInput* input );
 
-/// Ray cast versus hollow sphere in local space.
+/// Ray cast versus a hollow sphere shell in local space. Unlike the solid sphere a ray starting
+/// inside is not an overlap: it passes through and hits the far wall.
 B3_API b3CastOutput b3RayCastHollowSphere( const b3Sphere* shape, const b3RayCastInput* input );
 
-/// Ray cast versus capsule in local space. Initial overlap is treated as a miss.
+/// Ray cast versus capsule in local space. A zero length ray is a point query. Initial overlap
+/// reports a hit at the ray origin with zero fraction and zero normal.
 B3_API b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* input );
-B3_API b3CastOutput b3RayCastCapsuleOld( const b3Capsule* shape, const b3RayCastInput* input );
 
-/// Ray cast versus compound in local space. Initial overlap is treated as a miss.
+/// Ray cast versus compound in local space. A zero length ray is a point query. Initial overlap
+/// with a child reports a hit at the ray origin with zero fraction and zero normal.
 B3_API b3CastOutput b3RayCastCompound( const b3CompoundData* shape, const b3RayCastInput* input );
 
-/// Ray cast versus hull shape in local space. Initial overlap is treated as a miss.
+/// Ray cast versus hull shape in local space. A zero length ray is a point query. Initial overlap
+/// reports a hit at the ray origin with zero fraction and zero normal.
 B3_API b3CastOutput b3RayCastHull( const b3HullData* shape, const b3RayCastInput* input );
 
-/// Ray cast versus mesh in local space.
+/// Ray cast versus mesh in local space. A thin surface with no interior, so there is no overlap case.
 B3_API b3CastOutput b3RayCastMesh( const b3Mesh* shape, const b3RayCastInput* input );
 
-/// Ray cast versus height field in local space.
+/// Ray cast versus height field in local space. A thin surface with no interior, so there is no overlap case.
 B3_API b3CastOutput b3RayCastHeightField( const b3HeightFieldData* shape, const b3RayCastInput* input );
 
 /// Shape cast versus a sphere. Initial overlap is treated as a miss.
