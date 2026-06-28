@@ -57,6 +57,11 @@ The presets in `CMakePresets.json` give one build flow on every platform and are
 - Linux: `cmake --preset linux-release` then `cmake --build --preset linux-release`
 - macOS: `cmake --preset macos` then `cmake --build --preset macos-release`
 
+Run the samples app (must be in the Box3D directory).
+
+- Bash: `./build/bin/Release/samples`
+- Cmd: `.\build\bin\Release\samples.exe`
+
 ## Building for Visual Studio
 
 - Install [Visual Studio](https://visualstudio.microsoft.com/)
