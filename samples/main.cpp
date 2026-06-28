@@ -90,6 +90,9 @@ static void OnInit( void )
 
 	s_context.Load();
 
+	// First run with no settings opens with the controls window up.
+	s_context.showControls = s_context.newUser;
+
 	int cores = (int)std::thread::hardware_concurrency();
 	s_context.workerCount = b3ClampInt( cores / 2, 1, 8 );
 	s_context.windowWidth = sapp_width();
@@ -116,12 +119,11 @@ static void OnInit( void )
 
 static void OnEvent( const sapp_event* e )
 {
-	// Esc quits even with ImGui focus so a text field can't trap the app.
-	if ( e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_ESCAPE )
-	{
-		sapp_request_quit();
-		return;
-	}
+	//if ( e->type == SAPP_EVENTTYPE_KEY_DOWN || e->type == SAPP_EVENTTYPE_CHAR )
+	//{
+	//	volatile int dummy = 0;
+	//	dummy = 32;
+	//}
 
 	bool uiCaptured = false;
 	if (s_context.camera.m_thirdPerson == false)
@@ -162,6 +164,29 @@ static void OnEvent( const sapp_event* e )
 						s_context.showUI = !s_context.showUI;
 						break;
 
+					case KEY_ESCAPE:
+						// Layered cancel. An open picker is an ImGui popup that
+						// already swallowed this. So peel the controls window, then
+						// the selection. Quit lives on Ctrl+Q now.
+						if ( s_context.showControls )
+						{
+							s_context.showControls = false;
+						}
+						else
+						{
+							ClearSelection();
+						}
+						break;
+
+					case KEY_Q:
+						if ( mods & MOD_CTRL )
+						{
+							sapp_request_quit();
+							break;
+						}
+						s_context.sample->Keyboard( e->key_code, ACTION_PRESS, mods );
+						break;
+
 					case KEY_O:
 						if ( mods & MOD_CTRL )
 						{
@@ -176,6 +201,9 @@ static void OnEvent( const sapp_event* e )
 						break;
 
 					case KEY_P:
+						// Pause stays on P. Space is not bound here on purpose. Global
+						// keys are dispatched before the sample sees them, so claiming
+						// Space would steal jump from the Mover sample.
 						s_context.pause = !s_context.pause;
 						break;
 
@@ -196,7 +224,6 @@ static void OnEvent( const sapp_event* e )
 						break;
 
 					case KEY_F:
-					case KEY_HOME:
 					{
 						// Frame the selection, or let the sample frame its whole scene when nothing is
 						// selected. A non-body selection such as a recorded query supplies its own bounds and
@@ -234,6 +261,16 @@ static void OnEvent( const sapp_event* e )
 
 		case SAPP_EVENTTYPE_KEY_UP:
 			SetKeyDown( e->key_code, false );
+			break;
+
+		case SAPP_EVENTTYPE_CHAR:
+			// ? toggles the controls window. Read the typed character so it works
+			// on any layout and a text field can still type a literal ?, since the
+			// picker captures the event before it reaches here.
+			if ( e->char_code == '?' && e->key_repeat == false )
+			{
+				s_context.showControls = !s_context.showControls;
+			}
 			break;
 
 		case SAPP_EVENTTYPE_MOUSE_DOWN:

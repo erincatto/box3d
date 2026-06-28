@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erin Catto
 // SPDX-License-Identifier: MIT
 
-// todo get rid of this file
+// These mappings exist to make porting samples from Box2D easier.
 
 #pragma once
 
@@ -19,6 +19,7 @@ enum
 	KEY_M = SAPP_KEYCODE_M,
 	KEY_O = SAPP_KEYCODE_O,
 	KEY_P = SAPP_KEYCODE_P,
+	KEY_Q = SAPP_KEYCODE_Q,
 	KEY_R = SAPP_KEYCODE_R,
 	KEY_S = SAPP_KEYCODE_S,
 	KEY_T = SAPP_KEYCODE_T,
@@ -27,7 +28,6 @@ enum
 	KEY_SPACE = SAPP_KEYCODE_SPACE,
 	KEY_ESCAPE = SAPP_KEYCODE_ESCAPE,
 	KEY_TAB = SAPP_KEYCODE_TAB,
-	KEY_HOME = SAPP_KEYCODE_HOME,
 	KEY_LEFT_SHIFT = SAPP_KEYCODE_LEFT_SHIFT,
 	KEY_LEFT_BRACKET = SAPP_KEYCODE_LEFT_BRACKET,
 	KEY_RIGHT_BRACKET = SAPP_KEYCODE_RIGHT_BRACKET,

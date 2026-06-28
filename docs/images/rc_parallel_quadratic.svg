@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 560" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="qEnd" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+  </defs>
+  <rect width="660" height="560" fill="#ffffff"/>
+
+  <text x="24" y="32" font-size="17" font-weight="bold" fill="#222">The quadratic in tr, and the stable root</text>
+  <text x="24" y="54" font-size="13" fill="#555">Squared distance from the moving ray point to the axis, as a function of ray distance tr.</text>
+
+  <!-- axes -->
+  <line x1="100" y1="355" x2="610" y2="355" stroke="#333" stroke-width="1.4" marker-end="url(#qEnd)"/>
+  <line x1="100" y1="355" x2="100" y2="70" stroke="#333" stroke-width="1.4" marker-end="url(#qEnd)"/>
+  <text x="592" y="378" font-size="13" fill="#333">tr</text>
+  <text x="60" y="80" font-size="12.5" fill="#333">dist&#178;</text>
+
+  <!-- inside-cylinder shaded region -->
+  <path d="M233,250 L280,284 L340,300 L400,284 L447,250 Z" fill="#fdecef"/>
+
+  <!-- r^2 level -->
+  <line x1="100" y1="250" x2="590" y2="250" stroke="#d1242f" stroke-width="1.3" stroke-dasharray="6 4"/>
+  <text x="596" y="254" font-size="13" fill="#d1242f">r&#178;</text>
+
+  <!-- parabola -->
+  <polyline points="120,90 160,159 200,215 233,250 280,284 340,300 400,284 447,250 480,215 520,159 560,90"
+            fill="none" stroke="#1f6feb" stroke-width="2.2"/>
+
+  <!-- tr = 0 marker -->
+  <line x1="120" y1="90" x2="120" y2="355" stroke="#bbb" stroke-width="1" stroke-dasharray="3 3"/>
+  <circle cx="120" cy="90" r="4" fill="#1f6feb"/>
+  <text x="70" y="92" font-size="12" fill="#1f6feb">sc2</text>
+  <text x="104" y="372" font-size="12" fill="#555">tr = 0</text>
+
+  <!-- near root -->
+  <line x1="233" y1="250" x2="233" y2="355" stroke="#d1242f" stroke-width="1" stroke-dasharray="3 3"/>
+  <circle cx="233" cy="250" r="5" fill="#d1242f"/>
+  <text x="206" y="372" font-size="12.5" fill="#d1242f">tr (entry)</text>
+
+  <!-- far root -->
+  <circle cx="447" cy="250" r="5" fill="none" stroke="#333" stroke-width="1.6"/>
+  <text x="455" y="246" font-size="12" fill="#555">far root (exit)</text>
+
+  <!-- vertex -->
+  <circle cx="340" cy="300" r="3" fill="#1f6feb"/>
+  <text x="300" y="320" font-size="11.5" fill="#555">closest approach</text>
+
+  <text x="150" y="205" font-size="11.5" fill="#a23">inside the cylinder (dist&#178; &lt; r&#178;)</text>
+
+  <!-- explanation panel -->
+  <rect x="40" y="405" width="580" height="138" rx="6" fill="#f6f8fa" stroke="#e2e6ea" stroke-width="1"/>
+  <text x="56" y="428" font-size="13" font-weight="bold" fill="#222">Why  tr = &#947; / (&#8722;&#946; + &#8730;disc)  rather than the textbook root</text>
+  <text x="56" y="452" font-size="12.5" fill="#333">quadratic:   perp2&#183;tr&#178; + 2&#946;&#183;tr + &#947; = 0      ( &#946; = sc&#183;perp,  &#947; = sc2 &#8722; r&#178;,  perp2 = det )</text>
+  <text x="56" y="474" font-size="12.5" fill="#333">textbook near root:   tr = (&#8722;&#946; &#8722; &#8730;disc) / perp2</text>
+  <text x="56" y="496" font-size="12.5" fill="#8a5300">ray &#8594; parallel:   perp2 &#8594; 0   and   &#8730;disc &#8594; |&#946;| = &#8722;&#946;   &#8658;   &#8722;&#946; &#8722; &#8730;disc &#8594; 0   (cancellation), &#247; tiny perp2 &#8594; 0/0</text>
+  <text x="56" y="520" font-size="12.5" fill="#1a7f37">used form:   tr = &#947; / (&#8722;&#946; + &#8730;disc)   &#8212; denominator is a sum of two positives: no cancellation, no divide by det</text>
+</svg>

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 410" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="mBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f6feb"/></marker>
+    <marker id="mGray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker>
+    <marker id="mRed"  viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#d1242f"/></marker>
+    <marker id="mEnd"  viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker>
+    <marker id="mStart" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M10,0 L0,5 L10,10 z" fill="#333"/></marker>
+  </defs>
+  <rect width="760" height="410" fill="#ffffff"/>
+
+  <text x="24" y="32" font-size="17" font-weight="bold" fill="#222">Near-parallel branch — side view (plane through the axis)</text>
+  <text x="24" y="54" font-size="13" fill="#555">Ray almost parallel to the capsule axis; origin outside the infinite cylinder.</text>
+
+  <!-- infinite cylinder: walls and fill -->
+  <rect x="60" y="185" width="645" height="130" fill="#eaf1f8"/>
+  <line x1="60" y1="185" x2="705" y2="185" stroke="#7fa8cc" stroke-width="1.6"/>
+  <line x1="60" y1="315" x2="705" y2="315" stroke="#7fa8cc" stroke-width="1.6"/>
+  <text x="568" y="178" font-size="12.5" fill="#3b6790">infinite cylinder wall</text>
+
+  <!-- faint hemispherical caps to show the full capsule -->
+  <path d="M120,185 A65,65 0 0 0 120,315" fill="none" stroke="#c4d2e0" stroke-width="1.4" stroke-dasharray="4 3"/>
+  <path d="M600,185 A65,65 0 0 1 600,315" fill="none" stroke="#c4d2e0" stroke-width="1.4" stroke-dasharray="4 3"/>
+
+  <!-- capsule axis -->
+  <line x1="60" y1="250" x2="120" y2="250" stroke="#555" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <line x1="120" y1="250" x2="600" y2="250" stroke="#555" stroke-width="2"/>
+  <line x1="600" y1="250" x2="705" y2="250" stroke="#555" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <line x1="515" y1="250" x2="560" y2="250" stroke="#555" stroke-width="2" marker-end="url(#mGray)"/>
+  <text x="520" y="242" font-size="12.5" fill="#555">a&#8321; (axis dir)</text>
+
+  <!-- endpoints -->
+  <circle cx="120" cy="250" r="3.5" fill="#333"/>
+  <text x="110" y="272" font-size="13" fill="#333">c&#8321;</text>
+  <circle cx="600" cy="250" r="3.5" fill="#333"/>
+  <text x="592" y="272" font-size="13" fill="#333">c&#8322;</text>
+
+  <!-- radius dimension -->
+  <line x1="300" y1="250" x2="300" y2="185" stroke="#333" stroke-width="1" marker-start="url(#mStart)" marker-end="url(#mEnd)"/>
+  <text x="306" y="222" font-size="13" fill="#333">r</text>
+
+  <!-- ray origin -->
+  <circle cx="150" cy="110" r="4" fill="#1f6feb"/>
+  <text x="86" y="103" font-size="12.5" fill="#1f6feb">ray origin</text>
+
+  <!-- sc: perpendicular offset axis -> origin -->
+  <line x1="150" y1="250" x2="150" y2="116" stroke="#d1242f" stroke-width="1.6" marker-end="url(#mRed)"/>
+  <text x="156" y="172" font-size="13" fill="#d1242f">sc</text>
+  <text x="156" y="190" font-size="11.5" fill="#d1242f">|sc| &gt; r</text>
+
+  <!-- the ray: origin (150,110) -> (690,235), grazes top wall at (474,185) -->
+  <line x1="150" y1="110" x2="690" y2="235" stroke="#1f6feb" stroke-width="2" marker-end="url(#mBlue)"/>
+  <text x="244" y="120" font-size="12.5" fill="#1f6feb">a&#8322; (ray dir), nearly &#8741; a&#8321;</text>
+
+  <!-- near hit on the cylinder wall -->
+  <circle cx="474" cy="185" r="4.5" fill="#d1242f"/>
+  <text x="430" y="170" font-size="12.5" fill="#d1242f">near hit on cylinder</text>
+
+  <!-- tr label along the ray -->
+  <text x="392" y="150" font-size="13" fill="#1f6feb">tr (ray distance)</text>
+
+  <!-- captions -->
+  <text x="24" y="384" font-size="12.5" fill="#444">det = 1 &#8722; (a&#8321;&#183;a&#8322;)&#178; &#8776; 0 here, so the Cramer's-rule closest-point solve divides by ~0 and loses all precision.</text>
+  <text x="24" y="402" font-size="12.5" fill="#444">Fix: intersect the ray with the infinite cylinder using only the parts perpendicular to the axis (next figure).</text>
+</svg>

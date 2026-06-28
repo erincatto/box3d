@@ -1696,24 +1696,24 @@ static void DrawMenuBar( SampleContext* context )
 			ImGui::EndMenu();
 		}
 
-		static bool showHelp = context->newUser;
 		static bool showAbout = false;
 		if ( ImGui::BeginMenu( "Help" ) )
 		{
-			ImGui::MenuItem( "Controls", nullptr, &showHelp );
+			ImGui::MenuItem( "Controls", "?", &context->showControls );
 			ImGui::MenuItem( "About", nullptr, &showAbout );
 			ImGui::EndMenu();
 		}
 
 		ImGui::EndMainMenuBar();
 
-		if ( showHelp )
+		if ( context->showControls )
 		{
-			ImGui::SetNextWindowPos( { context->camera.m_width * 0.5f, context->camera.m_height * 0.5f }, ImGuiCond_Appearing,
+			ImGui::SetNextWindowPos( { context->camera.m_width * 0.5f, context->camera.m_height * 0.35f }, ImGuiCond_Appearing,
 									 { 0.5f, 0.5f } );
 			ImGui::SetNextWindowSize( { 26.0f * fontSize, 0.0f }, ImGuiCond_Appearing );
 
-			if ( ImGui::Begin( "Controls", &showHelp, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize ) )
+			if ( ImGui::Begin( "Controls", &context->showControls,
+							   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize ) )
 			{
 				ImGui::SeparatorText( "Keyboard" );
 				if ( ImGui::BeginTable( "keys", 2, ImGuiTableFlags_SizingFixedFit ) )
@@ -1725,8 +1725,10 @@ static void DrawMenuBar( SampleContext* context )
 					DrawRow( "R", "Restart sample" );
 					DrawRow( "[  ]", "Previous / next sample" );
 					DrawRow( "Ctrl+O", "Open sample picker" );
-					DrawRow( "F / Home", "Frame selection / world" );
-					DrawRow( "Esc", "Quit" );
+					DrawRow( "F", "Frame selection / world" );
+					DrawRow( "?", "Show / hide controls" );
+					DrawRow( "Esc", "Cancel / close" );
+					DrawRow( "Ctrl+Q", "Quit" );
 					ImGui::EndTable();
 				}
 
@@ -1737,6 +1739,7 @@ static void DrawMenuBar( SampleContext* context )
 					DrawRow( "Ctrl + left drag", "Move bodies (mouse joint)" );
 					DrawRow( "Alt + left drag", "Orbit camera" );
 					DrawRow( "Alt + middle drag", "Pan camera" );
+					DrawRow( "Alt + right drag", "Zoom (dolly)" );
 					DrawRow( "Right drag", "Fly look (WASD to move)" );
 					DrawRow( "Scroll", "Zoom" );
 					DrawRow( "Shift + left", "Shoot (Ctrl spin, Alt ragdoll)" );
@@ -1855,6 +1858,13 @@ static void DrawSamplePicker( SampleContext* context )
 		if ( commit && filteredCount > 0 )
 		{
 			SelectSample( context, filtered[highlight], false );
+			ImGui::CloseCurrentPopup();
+		}
+
+		// The active search field eats the first Esc, so dismiss here instead of
+		// relying on the popup's default nav close.
+		if ( ImGui::IsKeyPressed( ImGuiKey_Escape, false ) )
+		{
 			ImGui::CloseCurrentPopup();
 		}
 

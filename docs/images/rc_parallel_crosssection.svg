@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 500" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="cBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f6feb"/></marker>
+    <marker id="cRed"  viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#d1242f"/></marker>
+    <marker id="cGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1a7f37"/></marker>
+  </defs>
+  <rect width="640" height="500" fill="#ffffff"/>
+
+  <text x="24" y="32" font-size="17" font-weight="bold" fill="#222">Reduction to 2D: ray vs circle in the plane &#8869; to the axis</text>
+  <text x="24" y="54" font-size="13" fill="#555">Project out the axis component. The infinite cylinder becomes a circle of radius r.</text>
+
+  <!-- cylinder cross-section -->
+  <circle cx="270" cy="270" r="110" fill="#eaf1f8" stroke="#7fa8cc" stroke-width="1.8"/>
+  <text x="270" y="408" font-size="12.5" fill="#3b6790" text-anchor="middle">circle of radius r</text>
+
+  <!-- axis point (out of page) -->
+  <circle cx="270" cy="270" r="6" fill="none" stroke="#555" stroke-width="1.5"/>
+  <circle cx="270" cy="270" r="1.6" fill="#555"/>
+  <text x="284" y="287" font-size="12.5" fill="#555">a&#8321; (out of page)</text>
+
+  <!-- radius -->
+  <line x1="270" y1="270" x2="380" y2="270" stroke="#333" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="320" y="263" font-size="13" fill="#333">r</text>
+
+  <!-- sc: from axis to projected origin -->
+  <line x1="270" y1="270" x2="68" y2="97" stroke="#d1242f" stroke-width="1.8" marker-end="url(#cRed)"/>
+  <text x="150" y="166" font-size="13" fill="#d1242f">sc</text>
+
+  <!-- projected origin -->
+  <circle cx="60" cy="90" r="4" fill="#1f6feb"/>
+  <text x="40" y="80" font-size="12.5" fill="#1f6feb">projected origin</text>
+
+  <!-- perp: ray velocity in this plane -->
+  <line x1="60" y1="90" x2="102" y2="158" stroke="#1a7f37" stroke-width="1.8" marker-end="url(#cGreen)"/>
+  <text x="108" y="140" font-size="13" fill="#1a7f37">perp</text>
+
+  <!-- projected ray line through the circle -->
+  <line x1="60" y1="90" x2="250" y2="402" stroke="#1f6feb" stroke-width="1.6" stroke-dasharray="6 4"/>
+
+  <!-- intersections -->
+  <circle cx="161" cy="256" r="5" fill="#d1242f"/>
+  <text x="36" y="262" font-size="12" fill="#d1242f">near root &#8594; tr</text>
+  <circle cx="233" cy="373" r="5" fill="none" stroke="#333" stroke-width="1.6"/>
+  <text x="243" y="380" font-size="12" fill="#555">far root</text>
+
+  <!-- legend / formulas panel -->
+  <line x1="420" y1="118" x2="420" y2="402" stroke="#e2e2e2" stroke-width="1"/>
+  <text x="440" y="135" font-size="12.5" fill="#333">Quantities used by the branch</text>
+  <text x="440" y="165" font-size="12.5" fill="#d1242f">sc</text>
+  <text x="462" y="165" font-size="12.5" fill="#444">= origin offset &#8869; axis,  sc2 = |sc|&#178;</text>
+  <text x="440" y="190" font-size="12.5" fill="#1a7f37">perp</text>
+  <text x="478" y="190" font-size="12.5" fill="#444">= a&#8322; &#8722; a&#8321;&#8322; a&#8321;   (ray dir &#8869; axis)</text>
+  <text x="440" y="215" font-size="12.5" fill="#444">perp2 = |perp|&#178; = det</text>
+  <text x="440" y="240" font-size="12.5" fill="#444">&#946; = sc &#183; perp        (signed, length)</text>
+  <text x="440" y="265" font-size="12.5" fill="#444">&#947; = sc2 &#8722; r&#178; &#8805; 0   (origin outside)</text>
+  <text x="440" y="290" font-size="12.5" fill="#444">disc = &#946;&#178; &#8722; perp2&#183;&#947;</text>
+
+  <text x="440" y="325" font-size="12.5" fill="#8a5300">&#946; &#8805; 0  &#8594; moving away &#8594; miss</text>
+  <text x="440" y="348" font-size="12.5" fill="#8a5300">disc &lt; 0 &#8594; never reaches r &#8594; miss</text>
+  <text x="440" y="378" font-size="12.5" fill="#1a7f37">otherwise: near root is the entry tr</text>
+
+  <!-- caption -->
+  <text x="24" y="452" font-size="12.5" fill="#444">In this plane the axis is a single point, so the problem is exactly &#8220;ray from an outside point hits a circle.&#8221;</text>
+  <text x="24" y="472" font-size="12.5" fill="#444">Solving here never divides by the tiny det, which is what made the general solve fail.</text>
+</svg>

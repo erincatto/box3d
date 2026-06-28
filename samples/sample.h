@@ -74,6 +74,10 @@ struct SampleContext
 	bool showMetrics = false;
 	bool openSamplePicker = false;
 
+	// Controls help window (Help > Controls, toggled with ?). Promoted to the
+	// context so the key handler can reach it. Seeded from newUser after Load.
+	bool showControls = false;
+
 	// Deferred request from the Replay > Open menu. The native file dialog
 	// blocks on a nested run loop, so it must run outside the frame (top of
 	// OnFrame) rather than mid-frame inside the ImGui callback, which would
