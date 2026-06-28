@@ -6,6 +6,8 @@
 #include <memory>
 #include <vector>
 
+#include <stdint.h>
+
 namespace mapbox {
 
 namespace util {
