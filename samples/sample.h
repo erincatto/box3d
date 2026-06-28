@@ -74,6 +74,12 @@ struct SampleContext
 	bool showMetrics = false;
 	bool openSamplePicker = false;
 
+	// Deferred request from the Replay > Open menu. The native file dialog
+	// blocks on a nested run loop, so it must run outside the frame (top of
+	// OnFrame) rather than mid-frame inside the ImGui callback, which would
+	// re-enter the render loop. See OpenReplayFileDialog.
+	bool openReplayPicker = false;
+
 	// Render toggles fed into FrameInput each frame. They live here, not in
 	// main.cpp, so the Render menu and the frame loop share one source.
 	bool enableShadows = true;
@@ -243,6 +249,11 @@ int RegisterReplay( const char* category, const char* name, SampleCreateFcn* fcn
 // Destroy the active sample and build the selected one. restart keeps the camera
 // by leaving the restart flag set while the new sample constructs.
 void SelectSample( SampleContext* context, int selection, bool restart );
+
+// Run the native "open replay" file picker and, on success, hand the chosen
+// file to the Replay viewer. Must be called outside the frame (the dialog spins
+// a blocking nested run loop), driven by SampleContext::openReplayPicker.
+void OpenReplayFileDialog( SampleContext* context );
 
 // The single host UI callback: menu bar, sample picker, info panel, and the
 // bottom diagnostics drawer.

@@ -1335,6 +1335,25 @@ void SelectSample( SampleContext* context, int selection, bool restart )
 	context->restart = false;
 }
 
+void OpenReplayFileDialog( SampleContext* context )
+{
+	if ( g_replayIndex < 0 )
+	{
+		return;
+	}
+
+	NFD_Init();
+	nfdu8char_t* outPath = nullptr;
+	nfdu8filteritem_t filter[1] = { { "Box3D recording", "b3rec" } };
+	if ( NFD_OpenDialogU8( &outPath, filter, 1, nullptr ) == NFD_OKAY )
+	{
+		snprintf( context->replayFile, sizeof( context->replayFile ), "%s", outPath );
+		NFD_FreePathU8( outPath );
+		SelectSample( context, g_replayIndex, false );
+	}
+	NFD_Quit();
+}
+
 // Subsequence fuzzy match. Returns a score (higher is better) or -1 if the
 // needle is not a subsequence of the haystack. Bonuses for a prefix match, a
 // word start, and a contiguous run, so "stack" ranks Pyramid > Stack sensibly.
@@ -1668,16 +1687,11 @@ static void DrawMenuBar( SampleContext* context )
 		{
 			if ( ImGui::MenuItem( "Open..." ) )
 			{
-				NFD_Init();
-				nfdu8char_t* outPath = nullptr;
-				nfdu8filteritem_t filter[1] = { { "Box3D recording", "b3rec" } };
-				if ( NFD_OpenDialogU8( &outPath, filter, 1, nullptr ) == NFD_OKAY )
-				{
-					snprintf( context->replayFile, sizeof( context->replayFile ), "%s", outPath );
-					NFD_FreePathU8( outPath );
-					SelectSample( context, g_replayIndex, false );
-				}
-				NFD_Quit();
+				// Defer the native picker to the top of the next frame. Running it
+				// here would block on a nested run loop mid-frame (after the buffers
+				// were uploaded and the ImGui frame began), re-entering the render
+				// loop. See OpenReplayFileDialog and SampleContext::openReplayPicker.
+				context->openReplayPicker = true;
 			}
 			ImGui::EndMenu();
 		}

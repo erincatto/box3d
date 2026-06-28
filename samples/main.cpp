@@ -314,6 +314,16 @@ static void OnFrame( void )
 		return;
 	}
 
+	// Handle a deferred Replay > Open request before any GPU work this frame.
+	// The native picker blocks on a nested run loop. Running it here (no pass
+	// open, no buffers updated, no ImGui frame begun) keeps it from re-entering
+	// a half-built frame the way it did when invoked from inside the UI callback.
+	if ( s_context.openReplayPicker )
+	{
+		s_context.openReplayPicker = false;
+		OpenReplayFileDialog( &s_context );
+	}
+
 	const float dt = (float)sapp_frame_duration();
 	const int W = sapp_width();
 	const int H = sapp_height();
