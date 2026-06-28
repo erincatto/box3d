@@ -91,7 +91,6 @@ void SampleContext::Save()
 	}
 	fprintf( file, "{\n" );
 	fprintf( file, "  \"sampleIndex\": %d,\n", sampleIndex );
-	fprintf( file, "  \"newUser\": %d,\n", false );
 	fprintf( file, "  \"drawShapes\": %s,\n", gd->drawShapes ? "true" : "false" );
 	fprintf( file, "  \"drawJoints\": %s,\n", gd->drawJoints ? "true" : "false" );
 	fprintf( file, "  \"drawContacts\": %s,\n", gd->drawContacts ? "true" : "false" );
@@ -133,6 +132,7 @@ void SampleContext::Load()
 		return;
 	}
 
+	// Settings file exists, so it is not a new user.
 	newUser = false;
 
 	jsmn_parser parser;
