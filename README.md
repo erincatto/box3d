@@ -4,7 +4,7 @@
 
 Box3D is a 3D physics engine for games.
 
-## Build Status
+## Build status
 
 [![Build Status](https://github.com/erincatto/box3d/actions/workflows/build.yml/badge.svg)](https://github.com/erincatto/box3d/actions)
 
@@ -43,13 +43,13 @@ Box3D is a 3D physics engine for games.
 - Graphical user interface with imgui
 - Many samples to demonstrate features and performance
 
-## Building All Platforms
+## Building all platforms
 
 - Install [CMake](https://cmake.org/)
 - Install [git](https://git-scm.com/)
 - Ensure these run from the command line
 
-## Building with CMake presets
+## Building with CMake presets (recommended)
 
 The presets in `CMakePresets.json` give one build flow on every platform and are picked up automatically by Visual Studio, VS Code, and CLion (open the folder and choose a preset). From the command line:
 
@@ -59,8 +59,9 @@ The presets in `CMakePresets.json` give one build flow on every platform and are
 
 Run the samples app (must be in the Box3D directory).
 
-- Bash: `./build/bin/Release/samples`
-- Cmd: `.\build\bin\Release\samples.exe`
+- Windows: `.\build\bin\Release\samples.exe`
+- Linux: `./build/bin/samples`
+- macOS: `./build/bin/Release/samples`
 
 ## Building for Visual Studio
 
@@ -148,7 +149,7 @@ The user manual lives in [`docs/`](docs/) and is built with Doxygen. Enable the 
 
 Please do not submit pull requests. Instead, please file an issue for bugs or feature requests. For support, please visit the Discord server.
 
-## Giving Feedback
+## Giving feedback
 
 Please file an issue or start a chat on discord. You can also use [GitHub Discussions](https://github.com/erincatto/box3d/discussions).
 
