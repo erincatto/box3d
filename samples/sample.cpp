@@ -30,9 +30,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include <thread>
 
-#define INFO_PANEL_WIDTH 16.0f
+#define INFO_PANEL_WIDTH 20.0f
 
 // Load a file. You must free the character array.
 static char* ReadFile( int& size, const char* filename )
@@ -92,6 +91,7 @@ void SampleContext::Save()
 	}
 	fprintf( file, "{\n" );
 	fprintf( file, "  \"sampleIndex\": %d,\n", sampleIndex );
+	fprintf( file, "  \"newUser\": %d,\n", false );
 	fprintf( file, "  \"drawShapes\": %s,\n", gd->drawShapes ? "true" : "false" );
 	fprintf( file, "  \"drawJoints\": %s,\n", gd->drawJoints ? "true" : "false" );
 	fprintf( file, "  \"drawContacts\": %s,\n", gd->drawContacts ? "true" : "false" );
@@ -133,6 +133,8 @@ void SampleContext::Load()
 	{
 		return;
 	}
+
+	newUser = false;
 
 	jsmn_parser parser;
 	jsmntok_t tokens[MAX_TOKENS];
@@ -1686,7 +1688,7 @@ static void DrawMenuBar( SampleContext* context )
 			ImGui::EndMenu();
 		}
 
-		static bool showHelp = false;
+		static bool showHelp = context->newUser;
 		static bool showAbout = false;
 		if ( ImGui::BeginMenu( "Help" ) )
 		{

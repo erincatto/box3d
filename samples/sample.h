@@ -87,6 +87,10 @@ struct SampleContext
 	int debugView = 0;
 
 	int sampleIndex = 0;
+
+	// No settings file found yet. The first run opens the replay viewer with the
+	// controls window up, so there is something to watch and a key to every action.
+	bool newUser = true;
 };
 
 class Sample

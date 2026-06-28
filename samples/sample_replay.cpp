@@ -253,10 +253,8 @@ public:
 			m_camera->SetView( 30.0f, 22.0f, 14.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
-		// The timeline scrubber lives in the diagnostics drawer, so open it and start paused.
 		m_prevShowMetrics = m_context->showMetrics;
 		m_context->showMetrics = true;
-		m_context->pause = true;
 		m_selectTimelineTab = true;
 
 		// Z-up is a replay-only view choice and has no toggle elsewhere, so restore it on exit

@@ -49,7 +49,21 @@ static int CompareSamples( const void* a, const void* b )
 
 static void SortSamples()
 {
+	// Sorting reorders the table, so recover the replay viewer's slot by identity.
+	SampleCreateFcn* replayFcn = ( g_replayIndex >= 0 ) ? g_sampleEntries[g_replayIndex].CreateFcn : nullptr;
 	qsort( g_sampleEntries, g_sampleCount, sizeof( SampleEntry ), CompareSamples );
+	if ( replayFcn != nullptr )
+	{
+		g_replayIndex = -1;
+		for ( int i = 0; i < g_sampleCount; ++i )
+		{
+			if ( g_sampleEntries[i].CreateFcn == replayFcn )
+			{
+				g_replayIndex = i;
+				break;
+			}
+		}
+	}
 }
 
 // Single host UI callback fired from inside StartUIFrame: menu bar, panels, and
@@ -83,9 +97,15 @@ static void OnInit( void )
 
 	SortSamples();
 
+	// A first run with no settings opens straight into the replay viewer.
+	int index = s_context.sampleIndex;
+	if ( s_context.newUser && g_replayIndex >= 0 )
+	{
+		index = g_replayIndex;
+	}
+
 	// --sample N selects a registered sample by sorted index, overriding the
 	// persisted one. Lets a headless --frames run target a specific sample.
-	int index = s_context.sampleIndex;
 	if ( s_sampleOverride >= 0 && s_sampleOverride < g_sampleCount )
 	{
 		index = s_sampleOverride;
