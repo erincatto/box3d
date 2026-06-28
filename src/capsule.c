@@ -81,19 +81,6 @@ b3AABB b3ComputeSweptCapsuleAABB( const b3Capsule* shape, b3Transform xf1, b3Tra
 	return aabb;
 }
 
-static b3CastOutput b3CastRayAgainstCap( b3Vec3 p, b3Vec3 q, b3Vec3 c, float r, float maxFraction )
-{
-	b3Sphere sphere = { c, r };
-	b3RayCastInput input = {
-		.origin = p,
-		.translation = b3Sub( q, p ),
-		.maxFraction = maxFraction,
-	};
-
-	b3CastOutput output = b3RayCastSphere( &sphere, &input );
-	return output;
-}
-
 bool b3OverlapCapsule( const b3Capsule* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
 {
 	b3DistanceInput input;
@@ -238,44 +225,65 @@ b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* inp
 	b3Vec3 a2 = rayAxis;
 	float a12 = b3Dot( a1, a2 );
 
+	// Ray distance to the near intersection with the infinite cylinder. Length units.
+	float tr;
+
 	float det = 1.0f - a12 * a12;
 	if ( det < FLT_EPSILON )
 	{
-		// Parallel
-		return output;
+		// Ray nearly parallel to the capsule axis. The closest point solve below divides by det,
+		// so it loses all precision here and a slowly converging ray would be missed. Intersect the
+		// ray with the infinite cylinder directly using the components perpendicular to the axis.
+		// The origin is outside the cylinder, so a hit needs the ray to close in on it.
+		b3Vec3 dPerp = b3MulSub( a2, a12, a1 );
+		float detPerp = b3LengthSquared( dPerp );
+		float beta = b3Dot( sc, dPerp );
+		float gamma = sc2 - r * r;
+
+		// Casting away from the axis, or the perpendicular gap never closes to the radius.
+		float disc = beta * beta - detPerp * gamma;
+		if ( beta >= 0.0f || disc < 0.0f )
+		{
+			return output;
+		}
+
+		// Near root, written to dodge the (-beta - sqrt) cancellation as the ray nears parallel.
+		tr = gamma / ( -beta + sqrtf( disc ) );
 	}
-
-	float invDet = 1.0f / det;
-	float sa1 = u;
-	float sa2 = b3Dot( s, a2 );
-
-	float t1 = ( sa1 - a12 * sa2 ) * invDet;
-	float t2 = ( a12 * sa1 - sa2 ) * invDet;
-
-	// Closest points
-	b3Vec3 p1 = b3MulSV( t1, a1 );
-	b3Vec3 p2 = b3MulAdd( s, t2, a2 );
-
-	// Vector from closest point on infinite capsule to infinite ray.
-	b3Vec3 g = b3Sub( p2, p1 );
-
-	float g2 = b3LengthSquared( g );
-	if ( g2 > r * r )
+	else
 	{
-		// Early out: closest point on infinite ray is outside infinite cylinder.
-		return output;
+		// Closest points between the infinite ray and the infinite capsule axis.
+		float invDet = 1.0f / det;
+		float sa1 = u;
+		float sa2 = b3Dot( s, a2 );
+
+		float t1 = ( sa1 - a12 * sa2 ) * invDet;
+		float t2 = ( a12 * sa1 - sa2 ) * invDet;
+
+		// Closest points
+		b3Vec3 p1 = b3MulSV( t1, a1 );
+		b3Vec3 p2 = b3MulAdd( s, t2, a2 );
+
+		// Vector from closest point on infinite capsule to infinite ray.
+		b3Vec3 g = b3Sub( p2, p1 );
+
+		float g2 = b3LengthSquared( g );
+		if ( g2 > r * r )
+		{
+			// Early out: closest point on infinite ray is outside infinite cylinder.
+			return output;
+		}
+
+		// Intersect the infinite ray with the infinite cylinder. Like ray versus sphere this is done
+		// relative to the closest point to avoid round-off errors. Length units, not a fraction.
+		// https://en.wikipedia.org/wiki/Line-cylinder_intersection
+		float h = sqrtf( ( r * r - g2 ) * invDet );
+
+		tr = t2 - h;
 	}
-
-	// Compute the intersection of the infinite ray with the infinite cylinder. Like ray versus sphere,
-	// this is done relative to the closest point to avoid round-off errors. Not a fraction, has length units.
-	// https://en.wikipedia.org/wiki/Line-cylinder_intersection
-	float h = sqrtf( ( r * r - g2 ) * invDet );
-
-	// This is the ray distance at the intersection point. Length units.
-	float tr = t2 - h;
 
 	// Outside ray?
-	if (tr < 0.0f || input->maxFraction * rayLength < tr)
+	if ( tr < 0.0f || input->maxFraction * rayLength < tr )
 	{
 		return output;
 	}

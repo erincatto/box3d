@@ -346,7 +346,7 @@ static int RayCastSphereHitTest( void )
 		b3RayCastInput input = { { -3.0f, -3.0f, 0.0f }, { 6.0f, 6.0f, 0.0f }, 1.0f };
 		b3CastOutput out = b3RayCastSphere( &s, &input );
 		if ( CheckCastHit( out, input.origin, input.translation, ( b3Vec3 ){ -k, -k, 0.0f },
-						   ( b3Vec3 ){ -k, -k, 0.0f }, 0.382154f, 1e-4f ) )
+						   ( b3Vec3 ){ -k, -k, 0.0f }, 0.382149f, 1e-4f ) )
 			return 1;
 	}
 
@@ -599,6 +599,44 @@ static int RayCastCapsuleClipTest( void )
 	return 0;
 }
 
+// A ray within a hair of the capsule axis must still hit when it slowly converges onto the
+// surface. The closest point solver is ill conditioned in this band, so this guards the near
+// parallel fallback that intersects the infinite cylinder directly.
+static int RayCastCapsuleParallelTest( void )
+{
+	// Capsule along y. A long ray almost parallel to the axis drifts inward from just outside the
+	// cylinder and dips through the far endcap. The naive solve loses this hit to a determinant of zero.
+	b3Capsule axisY = { { 0.0f, 0.0f, 0.0f }, { 0.0f, 10.0f, 0.0f }, 1.0f };
+	{
+		b3RayCastInput input = { { 1.0001f, 100.0f, 0.0f }, { -0.001f, -200.0f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &axisY, &input );
+		ENSURE( out.hit );
+
+		// The hit lands on the capsule surface and on the ray.
+		b3Vec3 onSeg = b3PointToSegmentDistance( axisY.center1, axisY.center2, out.point );
+		ENSURE_SMALL( b3Distance( out.point, onSeg ) - axisY.radius, 1e-3f );
+		b3Vec3 onRay = b3MulAdd( input.origin, out.fraction, input.translation );
+		ENSURE_SMALL( b3Distance( out.point, onRay ), 1e-3f );
+	}
+
+	// Near parallel ray converging onto the x-axis capsule from far away.
+	{
+		b3RayCastInput input = { { -1000.0f, 1.0001f, 0.0f }, { 2000.0f, -0.001f, 0.0f }, 1.0f };
+		b3CastOutput out = b3RayCastCapsule( &rayCapsule, &input );
+		ENSURE( out.hit );
+		b3Vec3 onSeg = b3PointToSegmentDistance( rayCapsule.center1, rayCapsule.center2, out.point );
+		ENSURE_SMALL( b3Distance( out.point, onSeg ) - rayCapsule.radius, 1e-3f );
+	}
+
+	// Exactly parallel and outside the cylinder still misses.
+	{
+		b3RayCastInput input = { { 0.0f, 3.0f, 0.0f }, { 8.0f, 0.0f, 0.0f }, 1.0f };
+		ENSURE( b3RayCastCapsule( &rayCapsule, &input ).hit == false );
+	}
+
+	return 0;
+}
+
 // Zero length rays and initial overlap behave the same across the solid shapes. A moving ray
 // and a zero length ray that both start inside report the origin with zero fraction, and a zero
 // length ray that starts outside misses.
@@ -756,10 +794,13 @@ static int RayCastFarOriginTest( void )
 	}
 
 	// The closest point formulation keeps the error at the single precision floor: it grows only
-	// linearly with origin distance, error ~ distance * FLT_EPSILON, with no catastrophic loss.
+	// linearly with origin distance, error ~ distance * FLT_EPSILON, with no catastrophic loss. This
+	// holds out to a million units. At ten million the origin coordinates carry a meter sized ULP,
+	// larger than the unit radius, so the ray genuinely drops the hit. That row is printed for insight
+	// but left unasserted rather than baking in the breakdown.
 	for ( int i = 0; i < ARRAY_COUNT( distances ); ++i )
 	{
-		if ( distances[i] <= 1.0e5f )
+		if ( distances[i] < 1.0e7f )
 		{
 			double floor = 16.0 * distances[i] * FLT_EPSILON + 2.0e-6;
 			ENSURE( worstSphere[i] < floor );
@@ -833,6 +874,7 @@ int ShapeTest( void )
 	RUN_SUBTEST( RayCastCapsuleInteriorTest );
 	RUN_SUBTEST( RayCastCapsuleDegenerateTest );
 	RUN_SUBTEST( RayCastCapsuleClipTest );
+	RUN_SUBTEST( RayCastCapsuleParallelTest );
 
 	RUN_SUBTEST( RayCastOverlapConventionTest );
 	RUN_SUBTEST( RayCastFarOriginTest );
