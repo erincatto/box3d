@@ -193,17 +193,18 @@ bool HandleEvent( const sapp_event* e )
 		return false;
 	}
 
-	bool handled = simgui_handle_event( e );
+	// Always feed the event to ImGui so its input state stays current, but ignore the
+	// return value. simgui_handle_event folds keyboard and mouse capture into one bool,
+	// so a panel merely under the cursor would swallow the global shortcut keys.
+	simgui_handle_event( e );
 	const ImGuiIO& io = ImGui::GetIO();
-
-	if ( handled )
-	{
-		return true;
-	}
 
 	if ( e->type == SAPP_EVENTTYPE_KEY_DOWN || e->type == SAPP_EVENTTYPE_KEY_UP || e->type == SAPP_EVENTTYPE_CHAR )
 	{
-		return io.WantCaptureKeyboard;
+		// Only swallow keys while a text field is being edited. A focused panel raises
+		// WantCaptureKeyboard, which otherwise gates Pause and the other globals behind
+		// clicking the 3D view first.
+		return io.WantTextInput;
 	}
 
 	if ( e->type == SAPP_EVENTTYPE_MOUSE_DOWN || e->type == SAPP_EVENTTYPE_MOUSE_UP || e->type == SAPP_EVENTTYPE_MOUSE_MOVE ||

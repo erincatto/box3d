@@ -231,32 +231,37 @@ b3CastOutput b3RayCastCapsule( const b3Capsule* shape, const b3RayCastInput* inp
 	float det = 1.0f - a12 * a12;
 	if ( det < FLT_EPSILON )
 	{
-		// Ray nearly parallel to the capsule axis. The closest point solve below divides by det,
-		// so it loses all precision here and a slowly converging ray would be missed. Intersect the
-		// ray with the infinite cylinder directly using the components perpendicular to the axis.
-		// The origin is outside the cylinder, so a hit needs the ray to close in on it.
+		// Solve the 2D problem of ray versus circle starting at the ray origin, where the circle is
+		// the axial view of the infinite capsule cylinder. This works well when the ray origin is
+		// not too far from the capsule axis.
 
 		// Instead of a cross product, subtract the parallel part to get a perpendicular vector. Non-dimensional.
 		b3Vec3 perp = b3MulSub( a2, a12, a1 );
 		float perp2 = b3LengthSquared( perp );
 
-		// Project to origin to c1 vector onto the perpendicular vector. beta has length units.
+		// Project to origin to infinite capsule axis vector onto the perpendicular vector. beta has length units.
 		float beta = b3Dot( sc, perp );
 
+		// Setup quadratic root finder.
 		float gamma = sc2 - r * r;
 
-		// Casting away from the axis, or the perpendicular gap never closes to the radius.
+		// Discriminant
 		float disc = beta * beta - perp2 * gamma;
+
+		// Casting away from the axis, or the perpendicular gap never closes to the radius.
 		if ( beta >= 0.0f || disc < 0.0f )
 		{
 			return output;
 		}
 
-		// Near root, written to dodge the (-beta - sqrt) cancellation as the ray nears parallel.
+		// Quadratic near root. Expressed in an alternate form to avoid the (-beta - sqrt) cancellation as
+		// the ray nears parallel.
 		tr = gamma / ( -beta + sqrtf( disc ) );
 	}
 	else
 	{
+		// Ray and capsules axes are not parallel.
+
 		// Closest points between the infinite ray and the infinite capsule axis.
 		float invDet = 1.0f / det;
 		float sa1 = u;
