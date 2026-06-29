@@ -30,7 +30,12 @@ typedef void b3TaskCallback( void* taskContext );
 /// @ingroup world
 typedef void* b3EnqueueTaskCallback( b3TaskCallback* task, void* taskContext, void* userContext, const char* taskName );
 
-/// Finishes a user task object that wraps a Box3D task.
+/// Finishes a user task object that wraps a Box3D task. This must block until the task has completed.
+/// The step blocks here on the tasks it spawned, so b3World_Step holds its stack across every
+/// fork/join. Drive it from a thread you can dedicate to the step, or from a fiber this callback can
+/// park to free the underlying thread. In a job system that cannot park a job's stack, do not call
+/// b3World_Step from inside a job: a job that blocks on its own sub-jobs without yielding its thread
+/// can deadlock. The in-tree scheduler instead runs other pending tasks on the waiting thread.
 /// @ingroup world
 typedef void b3FinishTaskCallback( void* userTask, void* userContext );
 
@@ -175,10 +180,9 @@ typedef struct b3WorldDef
 	/// Number of workers to use with the provided task system. Box3D performs best when using only
 	/// performance cores and accessing a single L2 cache. Efficiency cores and hyper-threading provide
 	/// little benefit and may even harm performance.
-	/// @note Box3D does not create threads. This is the number of threads your applications has created
-	/// that you are allocating to b3World_Step.
-	/// @warning Do not modify the default value unless you are also providing a task system and providing
-	/// task callbacks (enqueueTask and finishTask).
+	/// This is clamped to the range [1, B3_MAX_WORKERS]. Using a value above 1 will turn on multithreading.
+	/// If task callbacks are provided then Box3D will use the user provided task system. Otherwise Box3D
+	/// will create threads and use an internal scheduler.
 	uint32_t workerCount;
 
 	/// function to spawn task

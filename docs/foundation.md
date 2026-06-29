@@ -175,6 +175,15 @@ void MyFinishTask(void* userTask, void* userContext)
 }
 ```
 
+`MyFinishTask` must block until the task has completed. Because the step blocks here on the tasks it
+spawned, `b3World_Step` holds its stack across every fork and join inside the step. This has a
+consequence for how you drive it. Run `b3World_Step` from a thread you can dedicate to the step, or
+from a fiber that `MyFinishTask` can park so the underlying thread is freed to run the queued tasks.
+In a job system that cannot park a job's stack, do not call `b3World_Step` from inside a job: a job
+that blocks on the sub-jobs it spawned without yielding its thread starves the workers it is waiting
+on and can deadlock. The alternative is help-while-wait, where the waiting thread runs other pending
+tasks itself. This is what the in-tree scheduler does, which is why it needs no fiber.
+
 Box3D ships an in-tree scheduler (`src/scheduler.h`) used by the test suite and samples.
 You can adapt it or use it directly:
 

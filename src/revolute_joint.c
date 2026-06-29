@@ -219,6 +219,13 @@ float b3RevoluteJoint_GetMaxMotorTorque( b3JointId jointId )
 	return base->revoluteJoint.maxMotorTorque;
 }
 
+float b3RevoluteJoint_GetMotorTorque( b3JointId jointId )
+{
+	b3World* world = b3GetWorld( jointId.world0 );
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
+	return world->inv_h * base->revoluteJoint.motorImpulse;
+}
+
 b3Vec3 b3GetRevoluteJointForce( b3World* world, b3JointSim* base )
 {
 	b3Vec3 force = b3MulSV( world->inv_h, base->revoluteJoint.linearImpulse );

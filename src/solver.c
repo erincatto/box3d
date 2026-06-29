@@ -1821,7 +1821,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			}
 		}
 
-		// The calling thread of b2World_Step also enters b2SolverTask as worker 0 and races for the
+		// The calling thread of b3World_Step also enters b3SolverTask as worker 0 and races for the
 		// orchestrator slot via the CAS inside. This guarantees progress even when the user's task
 		// system can't run the queued worker 0 promptly: it might schedule out of order, have fewer
 		// threads than workerCount, or invert priority by parking the calling thread in finishTaskFcn.

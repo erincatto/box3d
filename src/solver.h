@@ -249,7 +249,7 @@ typedef struct b3StepContext
 	char padding2[64];
 
 	// Race flag claimed by whichever runner reaches b3SolverTask with workerIndex 0 first.
-	// The calling thread of b2World_Step also races for this slot so the orchestrator can
+	// The calling thread of b3World_Step also races for this slot so the orchestrator can
 	// always make progress, regardless of how the user's task system schedules tasks (out
 	// of order, fewer threads than workers, or synchronously inside enqueueTaskFcn). The
 	// loser of the race no-ops as workerIndex 0.

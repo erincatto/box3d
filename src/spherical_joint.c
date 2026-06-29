@@ -245,6 +245,15 @@ float b3SphericalJoint_GetMaxMotorTorque( b3JointId jointId )
 	return base->sphericalJoint.maxMotorTorque;
 }
 
+b3Vec3 b3SphericalJoint_GetMotorTorque( b3JointId jointId )
+{
+	b3World* world = b3GetWorld( jointId.world0 );
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
+
+	// Motor impulse is angular in 3D, so the torque is a vector
+	return b3MulSV( world->inv_h, base->sphericalJoint.motorImpulse );
+}
+
 b3Vec3 b3GetSphericalJointForce( b3World* world, b3JointSim* base )
 {
 	b3Vec3 force = b3MulSV( world->inv_h, base->sphericalJoint.linearImpulse );

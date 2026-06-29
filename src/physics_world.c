@@ -2203,6 +2203,28 @@ void* b3World_GetUserData( b3WorldId worldId )
 	return world->userData;
 }
 
+void b3World_SetFrictionCallback( b3WorldId worldId, b3FrictionCallback* callback )
+{
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return;
+	}
+
+	world->frictionCallback = callback != NULL ? callback : b3DefaultFrictionCallback;
+}
+
+void b3World_SetRestitutionCallback( b3WorldId worldId, b3RestitutionCallback* callback )
+{
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return;
+	}
+
+	world->restitutionCallback = callback != NULL ? callback : b3DefaultRestitutionCallback;
+}
+
 void b3World_SetWorkerCount( b3WorldId worldId, int count )
 {
 	b3World* world = b3GetUnlockedWorldFromId( worldId );

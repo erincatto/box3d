@@ -5,7 +5,7 @@
 
 typedef struct b3World b3World;
 
-// Callback invoked by b2ParallelFor to process a range of items. May be called
+// Callback invoked by b3ParallelFor to process a range of items. May be called
 // multiple times per worker: work is divided into blocks that workers claim
 // atomically, so a worker that finishes early picks up the next unclaimed
 // block instead of sitting idle. workerIndex is the worker identity and is

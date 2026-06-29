@@ -140,6 +140,13 @@ b3DebugDraw b3DefaultDebugDraw( void )
 	draw.DrawBoxFcn = b3EmptyDrawBox;
 	draw.DrawStringFcn = b3EmptyDrawString;
 
+	// Not too small, not too big.
+	float h = 100.0f * b3GetLengthUnitsPerMeter();
+	draw.drawingBounds = (b3AABB){
+		.lowerBound = { -h, -h, -h },
+		.upperBound = { h, h, h },
+	};
+
 	draw.jointScale = 1.0f;
 	draw.forceScale = 1.0f;
 

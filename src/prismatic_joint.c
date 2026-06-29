@@ -223,6 +223,47 @@ float b3PrismaticJoint_GetMaxMotorForce( b3JointId jointId )
 	return base->prismaticJoint.maxMotorForce;
 }
 
+float b3PrismaticJoint_GetMotorForce( b3JointId jointId )
+{
+	b3World* world = b3GetWorld( jointId.world0 );
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
+	return world->inv_h * base->prismaticJoint.motorImpulse;
+}
+
+float b3PrismaticJoint_GetSpeed( b3JointId jointId )
+{
+	b3World* world = b3GetWorld( jointId.world0 );
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
+
+	b3Body* bodyA = b3Array_Get( world->bodies, base->bodyIdA );
+	b3Body* bodyB = b3Array_Get( world->bodies, base->bodyIdB );
+	b3BodySim* bodySimA = b3GetBodySim( world, bodyA );
+	b3BodySim* bodySimB = b3GetBodySim( world, bodyB );
+	b3BodyState* stateA = b3GetBodyState( world, bodyA );
+	b3BodyState* stateB = b3GetBodyState( world, bodyB );
+
+	b3Quat qA = bodySimA->transform.q;
+	b3Quat qB = bodySimB->transform.q;
+
+	b3Vec3 axisA = b3RotateVector( qA, b3RotateVector( base->localFrameA.q, b3Vec3_axisX ) );
+	b3Vec3 rA = b3RotateVector( qA, b3Sub( base->localFrameA.p, bodySimA->localCenter ) );
+	b3Vec3 rB = b3RotateVector( qB, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
+
+	// Difference the centers in double so the speed stays exact far from the origin
+	b3Vec3 d = b3Add( b3SubPos( bodySimB->center, bodySimA->center ), b3Sub( rB, rA ) );
+
+	b3Vec3 vA = stateA ? stateA->linearVelocity : b3Vec3_zero;
+	b3Vec3 vB = stateB ? stateB->linearVelocity : b3Vec3_zero;
+	b3Vec3 wA = stateA ? stateA->angularVelocity : b3Vec3_zero;
+	b3Vec3 wB = stateB ? stateB->angularVelocity : b3Vec3_zero;
+
+	b3Vec3 vRel = b3Sub( b3Add( vB, b3Cross( wB, rB ) ), b3Add( vA, b3Cross( wA, rA ) ) );
+
+	// The axis moves with body A, so account for its rotation
+	float speed = b3Dot( d, b3Cross( wA, axisA ) ) + b3Dot( axisA, vRel );
+	return speed;
+}
+
 b3Vec3 b3GetPrismaticJointForce( b3World* world, b3JointSim* base )
 {
 	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
