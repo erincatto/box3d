@@ -91,7 +91,7 @@ typedef struct b3RecReader
 	int matScratchCap;
 
 	// Scratch for string reads: rotating slots, valid until the next 4 STR reads
-	char strBufs[4][B3_NAME_LENGTH + 1];
+	char strBufs[4][B3_BODY_NAME_LENGTH + 1];
 	int strNext;
 
 	// Preloaded geometry registry

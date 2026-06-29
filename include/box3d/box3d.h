@@ -500,7 +500,7 @@ B3_API b3BodyType b3Body_GetType( b3BodyId bodyId );
 /// properties regardless of the automatic mass setting.
 B3_API void b3Body_SetType( b3BodyId bodyId, b3BodyType type );
 
-/// Set the body name. Up to B3_NAME_LENGTH characters including null termination.
+/// Set the body name. Up to B3_BODY_NAME_LENGTH characters including null termination.
 B3_API void b3Body_SetName( b3BodyId bodyId, const char* name );
 
 /// Get the body name.

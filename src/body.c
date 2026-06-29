@@ -22,7 +22,7 @@
 #include <stddef.h>
 #include <string.h>
 
-_Static_assert( B3_NAME_LENGTH >= 0, "minimum name length" );
+_Static_assert( B3_BODY_NAME_LENGTH >= 0, "minimum name length" );
 
 // Get a validated body from a world using an id.
 b3Body* b3GetBodyFullId( b3World* world, b3BodyId bodyId )
@@ -274,10 +274,10 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	if ( def->name )
 	{
 #if defined( _MSC_VER )
-		strncpy_s( body->name, B3_NAME_LENGTH + 1, def->name, B3_NAME_LENGTH );
+		strncpy_s( body->name, B3_BODY_NAME_LENGTH + 1, def->name, B3_BODY_NAME_LENGTH );
 #else
-		strncpy( body->name, def->name, B3_NAME_LENGTH );
-		body->name[B3_NAME_LENGTH] = 0;
+		strncpy( body->name, def->name, B3_BODY_NAME_LENGTH );
+		body->name[B3_BODY_NAME_LENGTH] = 0;
 #endif
 	}
 	else
@@ -1733,10 +1733,10 @@ void b3Body_SetName( b3BodyId bodyId, const char* name )
 	if ( name )
 	{
 #if defined( _MSC_VER )
-		strncpy_s( body->name, B3_NAME_LENGTH + 1, name, B3_NAME_LENGTH );
+		strncpy_s( body->name, B3_BODY_NAME_LENGTH + 1, name, B3_BODY_NAME_LENGTH );
 #else
-		strncpy( body->name, name, B3_NAME_LENGTH );
-		body->name[B3_NAME_LENGTH] = 0;
+		strncpy( body->name, name, B3_BODY_NAME_LENGTH );
+		body->name[B3_BODY_NAME_LENGTH] = 0;
 #endif
 	}
 	else

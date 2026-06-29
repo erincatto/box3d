@@ -385,9 +385,9 @@ const char* b3RecR_STR( b3RecReader* rdr )
 	}
 
 	int n = (int)len;
-	if ( n > B3_NAME_LENGTH )
+	if ( n > B3_BODY_NAME_LENGTH )
 	{
-		n = B3_NAME_LENGTH;
+		n = B3_BODY_NAME_LENGTH;
 	}
 	b3RecRdrCheck( rdr, (int)len );
 	if ( rdr->ok && n > 0 )
@@ -2332,7 +2332,7 @@ static void b3RecLoadTags( b3RecReader* rdr, const uint8_t* rp, const uint8_t* d
 		{
 			break;
 		}
-		int n = len > B3_NAME_LENGTH ? B3_NAME_LENGTH : (int)len;
+		int n = len > B3_BODY_NAME_LENGTH ? B3_BODY_NAME_LENGTH : (int)len;
 		tags[loaded].key = key;
 		tags[loaded].id = id;
 		if ( n > 0 )

@@ -120,7 +120,7 @@ typedef struct b3RecTag
 {
 	uint64_t key;				   // hash of (id, name)
 	uint64_t id;				   // entity/actor id
-	char name[B3_NAME_LENGTH + 1]; // query label
+	char name[B3_BODY_NAME_LENGTH + 1]; // query label
 } b3RecTag;
 
 // User-owned recording buffer. The world appends into it while active; the host saves and
@@ -356,7 +356,7 @@ void b3RecWriteRegistry( b3Recording* rec );
 uint64_t b3HashQueryTag( uint64_t id, const char* name );
 
 // Record a key->(id, name) mapping once, deduped by key (a repeated key keeps its first id/name).
-// The name is clamped to B3_NAME_LENGTH.
+// The name is clamped to B3_BODY_NAME_LENGTH.
 void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* name );
 
 // Intern each large geometry kind and return a stable u32 id for use in create ops.

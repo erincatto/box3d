@@ -938,7 +938,7 @@ void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* na
 	tag->key = key;
 	tag->id = id;
 	int n = 0;
-	while ( name != NULL && name[n] != '\0' && n < B3_NAME_LENGTH )
+	while ( name != NULL && name[n] != '\0' && n < B3_BODY_NAME_LENGTH )
 	{
 		tag->name[n] = name[n];
 		n++;

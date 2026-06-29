@@ -1049,7 +1049,7 @@ static int AllOps( void )
 	b3ShapeId groundShapeId = b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
 	ENSURE( b3Shape_IsValid( groundShapeId ) );
 
-	// Dynamic body with a sphere shape. The name is intentionally longer than B3_NAME_LENGTH so
+	// Dynamic body with a sphere shape. The name is intentionally longer than B3_BODY_NAME_LENGTH so
 	// replay exercises the over-length name path in the body def reader.
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
