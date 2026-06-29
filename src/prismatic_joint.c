@@ -249,7 +249,7 @@ float b3PrismaticJoint_GetSpeed( b3JointId jointId )
 	b3Vec3 rA = b3RotateVector( qA, b3Sub( base->localFrameA.p, bodySimA->localCenter ) );
 	b3Vec3 rB = b3RotateVector( qB, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
-	// Difference the centers in double so the speed stays exact far from the origin
+	// Difference the centers in double so the speed stays exact far from the origin.
 	b3Vec3 d = b3Add( b3SubPos( bodySimB->center, bodySimA->center ), b3Sub( rB, rA ) );
 
 	b3Vec3 vA = stateA ? stateA->linearVelocity : b3Vec3_zero;
@@ -259,7 +259,7 @@ float b3PrismaticJoint_GetSpeed( b3JointId jointId )
 
 	b3Vec3 vRel = b3Sub( b3Add( vB, b3Cross( wB, rB ) ), b3Add( vA, b3Cross( wA, rA ) ) );
 
-	// The axis moves with body A, so account for its rotation
+	// The axis moves with body A, so account for its rotation.
 	float speed = b3Dot( d, b3Cross( wA, axisA ) ) + b3Dot( axisA, vRel );
 	return speed;
 }
