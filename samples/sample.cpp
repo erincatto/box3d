@@ -1122,6 +1122,11 @@ void Sample::DrawMetrics()
 
 void Sample::MouseDown( b3Vec2 p, int button, int modifiers )
 {
+	if ( m_camera->m_thirdPerson )
+	{
+		return;
+	}
+
 	if ( button == 0 && modifiers == 0 )
 	{
 		// Plain click selects the body under the cursor, any type. Empty space clears.
@@ -1602,7 +1607,7 @@ static void DrawMenuBar( SampleContext* context )
 			{
 				context->showUI = false;
 			}
-			if ( ImGui::MenuItem( "Frame Camera", "Home" ) )
+			if ( ImGui::MenuItem( "Frame Camera" ) )
 			{
 				b3AABB aabb = b3World_GetBounds( context->sample->m_worldId );
 				Camera& cam = context->camera;
@@ -2041,6 +2046,7 @@ void Sample::ToggleThirdPerson()
 	{
 		sapp_lock_mouse( true );
 		m_camera->m_thirdPerson = true;
+		ClearSelection();
 	}
 }
 

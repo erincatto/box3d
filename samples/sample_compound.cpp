@@ -498,7 +498,7 @@ public:
 			m_camera->SetView( 45.0f, 10.0f, 5.0f, position );
 		}
 
-		m_launchSpeedScale = 1.0f;
+		m_launchSpeedScale = 2.0f;
 		m_mover.Initialize( this, position );
 
 		{
