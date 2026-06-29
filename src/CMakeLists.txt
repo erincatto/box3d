@@ -93,6 +93,7 @@ set(BOX3D_INCLUDE_FILES
 	../include/box3d/base.h
 	../include/box3d/box3d.h
 	../include/box3d/collision.h
+	../include/box3d/config.h
 	../include/box3d/constants.h
 	../include/box3d/id.h
 	../include/box3d/math_functions.h
@@ -104,7 +105,7 @@ set(BOX3D_INCLUDE_FILES
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
 
-add_library(box3d STATIC ${BOX3D_SOURCE_FILES} ${BOX3D_INCLUDE_FILES})
+add_library(box3d ${BOX3D_SOURCE_FILES} ${BOX3D_INCLUDE_FILES})
 
 # target_link_libraries(box3d PRIVATE eastl)
 

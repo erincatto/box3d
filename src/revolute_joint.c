@@ -73,18 +73,16 @@ float b3RevoluteJoint_GetUpperLimit( b3JointId jointId )
 
 void b3RevoluteJoint_SetLimits( b3JointId jointId, float lowerLimitRadians, float upperLimitRadians )
 {
-	B3_ASSERT( lowerLimitRadians <= upperLimitRadians );
 	B3_ASSERT( b3IsValidFloat( lowerLimitRadians ) && b3IsValidFloat( upperLimitRadians ) );
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, RevoluteJointSetLimits, jointId, lowerLimitRadians, upperLimitRadians );
-	float lowerAngle = b3ClampFloat( lowerLimitRadians, -B3_PI, B3_PI );
-	float upperAngle = b3ClampFloat( upperLimitRadians, -B3_PI, B3_PI );
+
+	float lowerAngle = b3MinFloat( lowerLimitRadians, upperLimitRadians );
+	float upperAngle = b3MaxFloat( lowerLimitRadians, upperLimitRadians );
 
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
-	base->revoluteJoint.lowerAngle = lowerAngle;
-	base->revoluteJoint.upperAngle = upperAngle;
-	base->revoluteJoint.lowerImpulse = 0.0f;
-	base->revoluteJoint.upperImpulse = 0.0f;
+	base->revoluteJoint.lowerAngle = b3ClampFloat( lowerAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+	base->revoluteJoint.upperAngle = b3ClampFloat( upperAngle, -0.99f * B3_PI, 0.99f * B3_PI );
 }
 
 float b3RevoluteJoint_GetAngle( b3JointId jointId )

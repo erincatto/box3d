@@ -837,10 +837,10 @@ typedef struct b3RevoluteJointDef
 	/// A flag to enable joint limits.
 	bool enableLimit;
 
-	/// The lower angle for the joint limit in radians.
+	/// The lower angle for the joint limit in radians. Minimum of -0.99*pi radians.
 	float lowerAngle;
 
-	/// The upper angle for the joint limit in radians.
+	/// The upper angle for the joint limit in radians. Maximum of 0.99*pi radians.
 	float upperAngle;
 
 	/// A flag to enable the joint motor.
@@ -887,10 +887,10 @@ typedef struct b3SphericalJointDef
 	/// A flag to enable the twist limit. The twist is centered on the frameB z-axis.
 	bool enableTwistLimit;
 
-	/// The angle for the lower twist limit in radians. Valid range is [-pi, pi].
+	/// The angle for the lower twist limit in radians. Minimum of -0.99*pi radians.
 	float lowerTwistAngle;
 
-	/// The angle for the upper twist limit in radians. Valid range is [-pi, pi].
+	/// The angle for the upper twist limit in radians. Maximum of 0.99*pi radians.
 	float upperTwistAngle;
 
 	/// A flag to enable the joint motor

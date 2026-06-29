@@ -103,14 +103,13 @@ void b3SphericalJoint_SetTwistLimits( b3JointId jointId, float lowerLimitRadians
 	B3_ASSERT( b3IsValidFloat( lowerLimitRadians ) && b3IsValidFloat( upperLimitRadians ) );
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, SphericalJointSetTwistLimits, jointId, lowerLimitRadians, upperLimitRadians );
-	float lowerTwistAngle = b3MinFloat( lowerLimitRadians, upperLimitRadians );
-	float upperTwistAngle = b3MaxFloat( lowerLimitRadians, upperLimitRadians );
-	lowerTwistAngle = b3ClampFloat( lowerTwistAngle, -B3_PI, B3_PI );
-	upperTwistAngle = b3ClampFloat( upperTwistAngle, -B3_PI, B3_PI );
+
+	float lowerAngle = b3MinFloat( lowerLimitRadians, upperLimitRadians );
+	float upperAngle = b3MaxFloat( lowerLimitRadians, upperLimitRadians );
 
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
-	base->sphericalJoint.lowerTwistAngle = lowerTwistAngle;
-	base->sphericalJoint.upperTwistAngle = upperTwistAngle;
+	base->sphericalJoint.lowerTwistAngle = b3ClampFloat( lowerAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+	base->sphericalJoint.upperTwistAngle = b3ClampFloat( upperAngle, -0.99f * B3_PI, 0.99f * B3_PI );
 }
 
 float b3SphericalJoint_GetTwistAngle( b3JointId jointId )

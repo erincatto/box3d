@@ -581,9 +581,6 @@ b3JointId b3CreatePrismaticJoint( b3WorldId worldId, const b3PrismaticJointDef* 
 b3JointId b3CreateRevoluteJoint( b3WorldId worldId, const b3RevoluteJointDef* def )
 {
 	B3_CHECK_JOINT_DEF( def );
-	B3_ASSERT( def->lowerAngle <= def->upperAngle );
-	B3_ASSERT( def->lowerAngle >= -0.99f * B3_PI );
-	B3_ASSERT( def->upperAngle <= 0.99f * B3_PI );
 
 	b3World* world = b3GetUnlockedWorldFromId( worldId );
 	if (world == NULL)
@@ -599,10 +596,12 @@ b3JointId b3CreateRevoluteJoint( b3WorldId worldId, const b3RevoluteJointDef* de
 	joint->revoluteJoint.hertz = def->hertz;
 	joint->revoluteJoint.dampingRatio = def->dampingRatio;
 	joint->revoluteJoint.targetAngle = b3ClampFloat( def->targetAngle, -B3_PI, B3_PI );
-	joint->revoluteJoint.lowerAngle = b3MinFloat( def->lowerAngle, def->upperAngle );
-	joint->revoluteJoint.upperAngle = b3MaxFloat( def->lowerAngle, def->upperAngle );
-	joint->revoluteJoint.lowerAngle = b3ClampFloat( joint->revoluteJoint.lowerAngle, -B3_PI, B3_PI );
-	joint->revoluteJoint.upperAngle = b3ClampFloat( joint->revoluteJoint.upperAngle, -B3_PI, B3_PI );
+
+	float lowerAngle = b3MinFloat( def->lowerAngle, def->upperAngle );
+	float upperAngle = b3MaxFloat( def->lowerAngle, def->upperAngle );
+	joint->revoluteJoint.lowerAngle = b3ClampFloat( lowerAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+	joint->revoluteJoint.upperAngle = b3ClampFloat( upperAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+
 	joint->revoluteJoint.maxMotorTorque = def->maxMotorTorque;
 	joint->revoluteJoint.motorSpeed = def->motorSpeed;
 	joint->revoluteJoint.enableSpring = def->enableSpring;
@@ -617,9 +616,6 @@ b3JointId b3CreateRevoluteJoint( b3WorldId worldId, const b3RevoluteJointDef* de
 b3JointId b3CreateSphericalJoint( b3WorldId worldId, const b3SphericalJointDef* def )
 {
 	B3_CHECK_JOINT_DEF( def );
-	B3_ASSERT( def->lowerTwistAngle <= def->upperTwistAngle );
-	B3_ASSERT( def->lowerTwistAngle >= -0.99f * B3_PI );
-	B3_ASSERT( def->upperTwistAngle <= 0.99f * B3_PI );
 	B3_ASSERT( 0.0f <= def->coneAngle && def->coneAngle <= 0.99f * B3_PI );
 	B3_ASSERT( b3IsValidQuat( def->targetRotation ) );
 
@@ -638,10 +634,12 @@ b3JointId b3CreateSphericalJoint( b3WorldId worldId, const b3SphericalJointDef* 
 	joint->sphericalJoint.dampingRatio = def->dampingRatio;
 	joint->sphericalJoint.targetRotation = def->targetRotation;
 	joint->sphericalJoint.coneAngle = b3ClampFloat( def->coneAngle, 0.0f, 0.5f * B3_PI );
-	joint->sphericalJoint.lowerTwistAngle = b3MinFloat( def->lowerTwistAngle, def->upperTwistAngle );
-	joint->sphericalJoint.upperTwistAngle = b3MaxFloat( def->lowerTwistAngle, def->upperTwistAngle );
-	joint->sphericalJoint.lowerTwistAngle = b3ClampFloat( joint->sphericalJoint.lowerTwistAngle, -B3_PI, B3_PI );
-	joint->sphericalJoint.upperTwistAngle = b3ClampFloat( joint->sphericalJoint.upperTwistAngle, -B3_PI, B3_PI );
+
+	float lowerAngle = b3MinFloat( def->lowerTwistAngle, def->upperTwistAngle );
+	float upperAngle = b3MaxFloat( def->lowerTwistAngle, def->upperTwistAngle );
+	joint->sphericalJoint.lowerTwistAngle = b3ClampFloat( lowerAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+	joint->sphericalJoint.upperTwistAngle = b3ClampFloat( upperAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+
 	joint->sphericalJoint.maxMotorTorque = def->maxMotorTorque;
 	joint->sphericalJoint.motorVelocity = def->motorVelocity;
 	joint->sphericalJoint.enableSpring = def->enableSpring;

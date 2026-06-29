@@ -6,9 +6,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Compile-time options. Edit box3d/config.h, or define BOX3D_USER_CONFIG to
+// point at your own copy.
+#ifdef BOX3D_USER_CONFIG
+#include BOX3D_USER_CONFIG
+#endif
+#include "config.h"
+
 // clang-format off
 // 
 // Shared library macros
+// Predefine BOX3D_EXPORT to reuse an existing export/import scheme, for example
+// when compiling Box3D into another shared library.
+#ifndef BOX3D_EXPORT
 #if defined(_WIN32) && defined(box3d_EXPORTS)
 	// build the Windows DLL
 	#define BOX3D_EXPORT __declspec(dllexport)
@@ -21,6 +31,7 @@
 #else
 	// static library
 	#define BOX3D_EXPORT
+#endif
 #endif
 
 // C++ macros
