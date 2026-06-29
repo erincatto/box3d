@@ -37,6 +37,7 @@ extern int DistanceTest( void );
 extern int HeightFieldTest( void );
 extern int HullTest( void );
 extern int IdTest( void );
+extern int JointTest( void );
 extern int LargeWorldTest( void );
 extern int MathTest( void );
 extern int MoverTest( void );
@@ -106,6 +107,7 @@ int main( int argc, char** argv )
 	MAYBE_RUN_TEST( HeightFieldTest );
 	MAYBE_RUN_TEST( HullTest );
 	MAYBE_RUN_TEST( IdTest );
+	MAYBE_RUN_TEST( JointTest );
 	MAYBE_RUN_TEST( LargeWorldTest );
 	MAYBE_RUN_TEST( MathTest );
 	MAYBE_RUN_TEST( MoverTest );

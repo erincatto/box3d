@@ -1156,6 +1156,9 @@ static b3Vec3 b3GetJointConstraintTorque( b3World* world, b3Joint* joint )
 
 	switch ( joint->type )
 	{
+		case b3_parallelJoint:
+			return b3GetParallelJointTorque( world, base );
+
 		case b3_distanceJoint:
 			return b3Vec3_zero;
 

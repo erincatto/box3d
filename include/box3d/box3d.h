@@ -1382,7 +1382,6 @@ B3_API float b3PrismaticJoint_GetSpeed( b3JointId jointId );
  * @defgroup revolute_joint Revolute Joint
  * @brief A revolute joint allows for relative rotation about a single axis with no relative translation.
  *
- * The revolute joint is probably the most common joint. It can be used for ragdolls and chains.
  * Also called a *hinge* or *pin* joint.
  * @{
  */
