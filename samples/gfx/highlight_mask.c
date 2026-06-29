@@ -236,7 +236,6 @@ void AppendHighlightSphere( b3Transform transform, float radius, HighlightKind k
 		return;
 	if ( s_sphere.count >= MAX_HIGHLIGHTS_PER_KIND )
 	{
-		fprintf( stderr, "[highlight/error] sphere overflow: dropping (cap=%d)\n", MAX_HIGHLIGHTS_PER_KIND );
 		return;
 	}
 	mask_sphere_instance_t* inst = &s_sphere.cpu[s_sphere.count++];
@@ -251,7 +250,6 @@ void AppendHighlightCapsule( b3Transform transform, float halfLength, float radi
 		return;
 	if ( s_capsule.count >= MAX_HIGHLIGHTS_PER_KIND )
 	{
-		fprintf( stderr, "[highlight/error] capsule overflow: dropping (cap=%d)\n", MAX_HIGHLIGHTS_PER_KIND );
 		return;
 	}
 	mask_capsule_instance_t* inst = &s_capsule.cpu[s_capsule.count++];
@@ -269,7 +267,6 @@ void AppendHighlightGeometry( MeshHandle handle, b3Transform transform, b3Vec3 s
 		return;
 	if ( s_hull.count >= MAX_HIGHLIGHTS_PER_KIND )
 	{
-		fprintf( stderr, "[highlight/error] hull overflow: dropping (cap=%d)\n", MAX_HIGHLIGHTS_PER_KIND );
 		return;
 	}
 	MeshBuffers gb = { 0 };
