@@ -24,7 +24,7 @@ static inline uint32_t b3CTZ32( uint32_t block )
 // This function doesn't need to be fast, so using the Ivy Bridge fallback.
 static inline uint32_t b3CLZ32( uint32_t value )
 {
-#if 0
+#if 1
 
 	// Use BSR (Bit Scan Reverse) which is available on Ivy Bridge
 	unsigned long index;

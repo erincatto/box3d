@@ -15,7 +15,7 @@ set(BOX3D_SHARED_FILES
 	utils.h
 )
 
-add_library(shared ${BOX3D_SHARED_FILES})
+add_library(shared STATIC ${BOX3D_SHARED_FILES})
 
 set_target_properties(shared PROPERTIES
 	C_STANDARD 17
