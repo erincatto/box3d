@@ -451,6 +451,33 @@ static void OnCleanup( void )
 	exit( errors == 0 ? 0 : 1 );
 }
 
+// sokol_app diagnostics. Without a logger sokol answers a panic with a blind
+// abort() and no message. Most startup panics are context or window failures,
+// so print something actionable and exit clean instead of dumping core.
+static void OnAppLog( const char* tag, uint32_t logLevel, uint32_t logItemId, const char* message, uint32_t lineNr,
+					  const char* filename, void* userData )
+{
+	(void)tag;
+	(void)logItemId;
+	(void)filename;
+	(void)userData;
+	const char* level = ( logLevel == 0 ) ? "panic" : ( logLevel == 1 ) ? "error" : ( logLevel == 2 ) ? "warn" : "info";
+	fprintf( stderr, "[sapp/%s] %s (line %u)\n", level, message ? message : "(no message)", (unsigned)lineNr );
+
+	// Continuing past a panic is undefined in sokol, a null context then a
+	// segfault, so terminate. The usual cause is a driver below the GL version
+	// the renderer needs.
+	if ( logLevel == 0 )
+	{
+		fprintf( stderr,
+				 "\nBox3D could not create an OpenGL context. The samples renderer needs GL 4.5+.\n"
+				 "  Check driver:   glxinfo | grep \"core profile version\"\n"
+				 "  Software GL:     LIBGL_ALWAYS_SOFTWARE=1 ./build/bin/samples\n"
+				 "  Otherwise run on a GPU/driver supporting OpenGL 4.5 or newer.\n" );
+		exit( 1 );
+	}
+}
+
 sapp_desc sokol_main( int argc, char** argv )
 {
 	for ( int i = 1; i < argc; ++i )
@@ -470,6 +497,7 @@ sapp_desc sokol_main( int argc, char** argv )
 	desc.frame_cb = OnFrame;
 	desc.event_cb = OnEvent;
 	desc.cleanup_cb = OnCleanup;
+	desc.logger.func = OnAppLog;
 
 	// GL 4.5 for glClipControl (reverse-Z). Ignored on D3D11 / Metal.
 	desc.gl.major_version = 4;

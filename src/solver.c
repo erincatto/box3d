@@ -563,6 +563,10 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 		fastBodySim->rotation0 = q;
 		fastBodySim->center0 = center;
 
+		// The move event was written before CCD, so correct it with the impact pose
+		b3BodyMoveEvent* event = b3Array_Get( world->bodyMoveEvents, bodySimIndex );
+		event->transform = fastBodySim->transform;
+
 		// Prepare AABBs for broad-phase.
 		// Even though a body is fast, it may not move much. So the AABB may not need enlargement.
 
