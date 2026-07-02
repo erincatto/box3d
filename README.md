@@ -174,8 +174,9 @@ LLMs are used in the following areas:
 
 - unit tests
 - samples app
-- recording and replay
 - migrating code between Box2D and Box3D
 - build configuration
 - code reviews
 - benchmarking
+
+Elsewhere all code is developed and written by me. I take responsibility for every line of code in Box2D/3D.
