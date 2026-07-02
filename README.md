@@ -167,3 +167,15 @@ Box3D is developed by Erin Catto and uses the [MIT license](https://en.wikipedia
 Support development of Box3D through [Github Sponsors](https://github.com/sponsors/erincatto).
 
 Please consider starring this repository and subscribing to my [YouTube channel](https://www.youtube.com/@erin_catto).
+
+## LLM Usage
+
+LLMs are used in the following areas:
+
+- unit tests
+- samples app
+- recording and replay
+- migrating code between Box2D and Box3D
+- build configuration
+- code reviews
+- benchmarking
