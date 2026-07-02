@@ -681,7 +681,7 @@ static int TestMeshDrop( void )
 		b3World_Step( worldId, timeStep, subStepCount );
 
 		b3BodyEvents events = b3World_GetBodyEvents( worldId );
-		if (events.moveCount == 0)
+		if ( events.moveCount == 0 )
 		{
 			// All bodies sleeping
 			break;
@@ -1025,6 +1025,7 @@ static int TestContinuousMoveEvent( void )
 
 	float timeStep = 1.0f / 60.0f;
 	int subStepCount = 4;
+	bool haveMove = false;
 
 	for ( int step = 0; step < 30; ++step )
 	{
@@ -1036,10 +1037,12 @@ static int TestContinuousMoveEvent( void )
 		for ( int i = 0; i < events.moveCount; ++i )
 		{
 			b3BodyMoveEvent* event = events.moveEvents + i;
-			if ( event->bodyId.index1 != ballId.index1 )
+			if ( B3_ID_EQUALS( event->bodyId, ballId ) == false )
 			{
 				continue;
 			}
+
+			haveMove = true;
 
 			// The move event must carry the same pose the body reports, CCD rewind included
 			ENSURE( event->transform.p.x == xf.p.x );
@@ -1051,6 +1054,8 @@ static int TestContinuousMoveEvent( void )
 			ENSURE( event->transform.q.s == xf.q.s );
 		}
 	}
+
+	ENSURE( haveMove == true );
 
 	// Tunnel check
 	b3Pos finalPos = b3Body_GetPosition( ballId );

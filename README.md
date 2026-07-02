@@ -56,7 +56,7 @@ Box3D is a 3D physics engine for games.
 
 ## Building with CMake presets (recommended)
 
-The presets in `CMakePresets.json` give one build flow on every platform and are picked up automatically by Visual Studio, VS Code, and CLion (open the folder and choose a preset). From the command line:
+This uses the presets in `CMakePresets.json`.
 
 - Windows: `cmake --preset windows` then `cmake --build --preset windows-release`
 - Linux: `cmake --preset linux-release` then `cmake --build --preset linux-release`
@@ -99,10 +99,9 @@ Run the samples app (must be in the Box3D directory).
 ## Using Box3D in your project
 
 The core library has no dependencies beyond the C runtime (and `libm` on Unix). Linking it
-gives you the `box3d::box3d` target. When Box3D is consumed as a subproject it builds the
-library only; samples, tests, and benchmarks are skipped.
+gives you the `box3d::box3d` target.
 
-The recommended path is FetchContent, which pins a tag and needs no separate install step:
+I recommend to use FetchContent:
 
 ```cmake
 include(FetchContent)
@@ -152,7 +151,7 @@ The user manual lives in [`docs/`](docs/) and is built with Doxygen. Enable the 
 
 ## Contributing
 
-Please do not submit pull requests. Instead, please file an issue for bugs or feature requests. For support, please visit the Discord server.
+Pull requests are currently disabled. Instead, please file an issue for bugs or feature requests. For support, please visit the Discord server.
 
 ## Giving feedback
 
