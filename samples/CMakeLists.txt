@@ -194,6 +194,12 @@ target_include_directories(samples PRIVATE
 # benchmark/determinism helpers the samples lean on.
 target_link_libraries(samples PRIVATE gfx shared imgui implot sokol nfd)
 
+# MSVC auto-links winmm via a #pragma comment in main.cpp. MinGW ignores that
+# pragma, so link the timeBeginPeriod/timeEndPeriod library explicitly.
+if (MINGW)
+    target_link_libraries(samples PRIVATE winmm)
+endif()
+
 set_target_properties(samples PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON

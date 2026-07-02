@@ -78,28 +78,12 @@ public:
 		m_height = 0;
 		m_tree = {};
 
-		m_aabbMinX = nullptr;
-		m_aabbMinY = nullptr;
-		m_aabbMinZ = nullptr;
-		m_aabbMaxX = nullptr;
-		m_aabbMaxY = nullptr;
-		m_aabbMaxZ = nullptr;
-
 		CreateTree();
 	}
 
 	~TreeBenchmark() override
 	{
 		b3DynamicTree_Destroy( &m_tree );
-
-#ifdef _WIN32
-		_aligned_free( m_aabbMinX );
-		_aligned_free( m_aabbMinY );
-		_aligned_free( m_aabbMinZ );
-		_aligned_free( m_aabbMaxX );
-		_aligned_free( m_aabbMaxY );
-		_aligned_free( m_aabbMaxZ );
-#endif
 	}
 
 	// Breath-first search to compute node depth values start with 0 at the root.
@@ -154,15 +138,6 @@ public:
 		}
 
 		m_proxies.clear();
-
-#ifdef _WIN32
-		_aligned_free( m_aabbMinX );
-		_aligned_free( m_aabbMinY );
-		_aligned_free( m_aabbMinZ );
-		_aligned_free( m_aabbMaxX );
-		_aligned_free( m_aabbMaxY );
-		_aligned_free( m_aabbMaxZ );
-#endif
 
 		m_tree = b3DynamicTree_Create( 512 );
 
@@ -242,29 +217,6 @@ public:
 			// }
 		}
 
-#ifdef _WIN32
-		int proxyCount = m_proxies.size();
-		m_aabbMinX = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMinY = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMinZ = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMaxX = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMaxY = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMaxZ = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-
-		for ( int i = 0; i < proxyCount; ++i )
-		{
-			b3Vec3 lb = m_proxies[i].aabb.lowerBound;
-			b3Vec3 ub = m_proxies[i].aabb.upperBound;
-
-			m_aabbMinX[i] = lb.x;
-			m_aabbMinY[i] = lb.y;
-			m_aabbMinZ[i] = lb.z;
-			m_aabbMaxX[i] = ub.x;
-			m_aabbMaxY[i] = ub.y;
-			m_aabbMaxZ[i] = ub.z;
-		}
-#endif
-
 		printf( "max index = %d\n", maxAreaIndex );
 
 		// constexpr int n = m_isDebug ? 1000 : INT_MAX;
@@ -298,15 +250,6 @@ public:
 		}
 
 		m_proxies.clear();
-
-#ifdef _WIN32
-		_aligned_free( m_aabbMinX );
-		_aligned_free( m_aabbMinY );
-		_aligned_free( m_aabbMinZ );
-		_aligned_free( m_aabbMaxX );
-		_aligned_free( m_aabbMaxY );
-		_aligned_free( m_aabbMaxZ );
-#endif
 
 		{
 			//bool zUp = true;
@@ -343,29 +286,6 @@ public:
 			proxy.proxyId = i;
 			m_proxies[node->userData] = proxy;
 		}
-
-#ifdef _WIN32
-		int proxyCount = m_proxies.size();
-		m_aabbMinX = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMinY = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMinZ = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMaxX = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMaxY = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-		m_aabbMaxZ = (float*)_aligned_malloc( proxyCount * sizeof( float ), 32 );
-
-		for ( int i = 0; i < proxyCount; ++i )
-		{
-			b3Vec3 lb = m_proxies[i].aabb.lowerBound;
-			b3Vec3 ub = m_proxies[i].aabb.upperBound;
-
-			m_aabbMinX[i] = lb.x;
-			m_aabbMinY[i] = lb.y;
-			m_aabbMinZ[i] = lb.z;
-			m_aabbMaxX[i] = ub.x;
-			m_aabbMaxY[i] = ub.y;
-			m_aabbMaxZ[i] = ub.z;
-		}
-#endif
 
 		printf( "max index = %d\n", maxAreaIndex );
 
@@ -675,13 +595,6 @@ public:
 	const char* m_fileNames[m_fileCount];
 	FileConfig m_config[m_fileCount];
 	int m_fileIndex;
-
-	float* m_aabbMinX;
-	float* m_aabbMinY;
-	float* m_aabbMinZ;
-	float* m_aabbMaxX;
-	float* m_aabbMaxY;
-	float* m_aabbMaxZ;
 
 	std::unordered_map<uint64_t, Proxy> m_proxies;
 	std::vector<uint16_t> m_depths;
