@@ -451,29 +451,21 @@ static void OnCleanup( void )
 	exit( errors == 0 ? 0 : 1 );
 }
 
-// sokol_app diagnostics. Without a logger sokol answers a panic with a blind
-// abort() and no message. Most startup panics are context or window failures,
-// so print something actionable and exit clean instead of dumping core.
-static void OnAppLog( const char* tag, uint32_t logLevel, uint32_t logItemId, const char* message, uint32_t lineNr,
+static void OnAppLog( const char* tag, uint32_t logLevel, uint32_t logItemId, const char* message, uint32_t lineNumber,
 					  const char* filename, void* userData )
 {
 	(void)tag;
 	(void)logItemId;
 	(void)filename;
 	(void)userData;
-	const char* level = ( logLevel == 0 ) ? "panic" : ( logLevel == 1 ) ? "error" : ( logLevel == 2 ) ? "warn" : "info";
-	fprintf( stderr, "[sapp/%s] %s (line %u)\n", level, message ? message : "(no message)", (unsigned)lineNr );
+	(void)lineNumber;
 
-	// Continuing past a panic is undefined in sokol, a null context then a
-	// segfault, so terminate. The usual cause is a driver below the GL version
-	// the renderer needs.
+	const char* level = ( logLevel == 0 ) ? "panic" : ( logLevel == 1 ) ? "error" : ( logLevel == 2 ) ? "warn" : "info";
+	fprintf( stderr, "sokol(level %s) %s\n", level, message ? message : "(no message)" );
+
 	if ( logLevel == 0 )
 	{
-		fprintf( stderr,
-				 "\nBox3D could not create an OpenGL context. The samples renderer needs GL 4.5+.\n"
-				 "  Check driver:   glxinfo | grep \"core profile version\"\n"
-				 "  Software GL:     LIBGL_ALWAYS_SOFTWARE=1 ./build/bin/samples\n"
-				 "  Otherwise run on a GPU/driver supporting OpenGL 4.5 or newer.\n" );
+		fprintf( stderr, "Ensure you have OpenGL 4.5 if on Linux" );
 		exit( 1 );
 	}
 }
