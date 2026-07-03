@@ -149,6 +149,9 @@ struct b3RecPlayer
 	int recordedWorkerCount; // worker count requested for the replay world
 	b3AABB bounds;			 // accumulated world bounds, decoded from the trailing record
 	bool atEnd;
+	// Indicates all ops for the step have been consumed up to the world step op. The next sub-step
+	// will clear this and perform the world step.
+	bool atPreStep;	
 	int divergeFrame; // first frame that diverged, -1 until then
 
 	// Outliner body list, indexed by creation ordinal. Holes (null ids) mark destroyed bodies so

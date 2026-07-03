@@ -97,4 +97,4 @@ conventions and use clang format.
 ## Questions?
 
 Open a [Discussion](../../discussions) — that's the best place for anything not
-covered here. Thanks for helping make PROJECT_NAME better!
+covered here. Thanks for helping make Box3D better!

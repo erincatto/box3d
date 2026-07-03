@@ -226,6 +226,7 @@ public:
 		m_speed = 1.0f;
 		m_frameAccumulator = 0.0f;
 		m_loop = false;
+		m_subStepOnCreate = false;
 		m_selKind = SelNone;
 		m_selBodyOrdinal = -1;
 		m_selSlot = -1;
@@ -493,20 +494,30 @@ public:
 	}
 
 	// Advance one recorded step and keep the world pointer current (stable forward, refreshed cheaply).
-	void AdvanceOne()
+	// Staged first parks at a frame's pre-integration pose when it spawns bodies, so the creation
+	// transform is drawn before the solver moves them; the next advance runs the step.
+	void AdvanceOne( bool staged )
 	{
-		b3RecPlayer_StepFrame( m_player );
+		if ( staged )
+		{
+			b3RecPlayer_SubStepFrame( m_player );
+		}
+		else
+		{
+			b3RecPlayer_StepFrame( m_player );
+		}
 		m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
 	}
 
 	void Step() override
 	{
+		SetDrawOrigin( m_camera->DrawOrigin() );
+
 		// Generation runs inside the imgui frame (DrawLoadPopup). While it fast-forwards, the world is
 		// mid-replay, so hold off drawing it.
 		if ( m_generating )
 		{
 			m_stepCount = m_player != nullptr ? b3RecPlayer_GetFrame( m_player ) : 0;
-			SetDrawOrigin( m_camera->DrawOrigin() );
 			return;
 		}
 
@@ -517,7 +528,7 @@ public:
 				m_context->singleStep = b3MaxInt( 0, m_context->singleStep - 1 );
 				if ( b3RecPlayer_IsAtEnd( m_player ) == false )
 				{
-					AdvanceOne();
+					AdvanceOne( m_subStepOnCreate );
 				}
 				m_frameAccumulator = 0.0f;
 			}
@@ -541,15 +552,13 @@ public:
 							break;
 						}
 					}
-					AdvanceOne();
+					AdvanceOne( false );
 				}
 			}
 
 			// Keep the info panel "step N" line on the replay frame.
 			m_stepCount = b3RecPlayer_GetFrame( m_player );
 		}
-
-		SetDrawOrigin( m_camera->DrawOrigin() );
 
 		if ( B3_IS_NULL( m_replayWorldId ) )
 		{
@@ -714,8 +723,17 @@ public:
 		ImGui::SameLine();
 		if ( ImGui::Button( ">" ) )
 		{
-			b3RecPlayer_SeekFrame( m_player, frame + 1 );
-			m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
+			// Staged forward keeps the creation-pose park reachable and resumes it; a plain seek
+			// always lands on a whole frame and would skip past the pre-step.
+			if ( m_subStepOnCreate )
+			{
+				AdvanceOne( true );
+			}
+			else
+			{
+				b3RecPlayer_SeekFrame( m_player, frame + 1 );
+				m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
+			}
 			m_frameAccumulator = 0.0f;
 			m_context->pause = true;
 		}
@@ -759,8 +777,10 @@ public:
 			ImGui::TextColored( PanelColor( b3_colorRed ), "****DIVERGED****" );
 		}
 
-		ImGui::TextDisabled( "Frame %d / %d%s", b3RecPlayer_GetFrame( m_player ), m_info.frameCount,
-							 b3RecPlayer_IsAtEnd( m_player ) ? "  (end)" : "" );
+		const char* phaseTag = b3RecPlayer_IsAtEnd( m_player )		? "  (end)"
+							   : b3RecPlayer_IsAtPreStep( m_player ) ? "  (pre-step)"
+																	: "";
+		ImGui::TextDisabled( "Frame %d / %d%s", b3RecPlayer_GetFrame( m_player ), m_info.frameCount, phaseTag );
 
 		// Selection detail lives here in the info panel, not the Outline window, so the scene tree gets
 		// the full left column. The child takes the remaining panel height and scrolls a long detail.
@@ -1609,6 +1629,11 @@ public:
 		ImGui::Checkbox( "Loop", &m_loop );
 		ImGui::SameLine();
 
+		// Single-step parks at a frame's pre-integration pose when it spawns bodies, so a new body
+		// shows at its creation transform before the solver moves it. Forward single-step only.
+		ImGui::Checkbox( "Sub-step spawns", &m_subStepOnCreate );
+		ImGui::SameLine();
+
 		// Replaying at a different worker count re-partitions the constraint graph, a visual
 		// cross-thread determinism check. The setter applies it without rebuilding the world.
 		ImGui::PushItemWidth( 6.0f * fontSize );
@@ -1698,6 +1723,7 @@ public:
 	float m_speed;
 	float m_frameAccumulator;
 	bool m_loop;
+	bool m_subStepOnCreate; // single-step parks at a frame's pre-integration pose when it spawns bodies
 
 	bool m_selectTimelineTab; // one-shot: focus the Timeline tab on the next draw
 	bool m_prevShowMetrics;	  // restore the drawer state on exit

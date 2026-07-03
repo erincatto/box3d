@@ -1729,6 +1729,126 @@ static int GeometryHashCollision( void )
 	return 0;
 }
 
+// Staged stepping must reveal a mid-stream body at its creation transform. A body created and given an
+// impulse in one recorded step is first placed by CreateBody, then displaced by the following Step. Atomic
+// replay fuses the two, so the body is only ever seen already moved. Staged replay parks between them so
+// the pre-integration pose is drawable. Verify the parked pose is the creation transform, that atomic
+// replay does not show it, and that the extra park does not perturb the end state.
+static int StagedStepCreationPose( void )
+{
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId  worldId  = b3CreateWorld( &worldDef );
+	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
+
+	b3World_StartRecording( worldId, rec );
+
+	float timeStep     = 1.0f / 60.0f;
+	int   subStepCount = 4;
+
+	// A few empty steps so the creation lands inside the stream, not at frame 0.
+	const int leadFrames = 3;
+	for ( int i = 0; i < leadFrames; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	// The creation transform under test. No ground, so the body is the only create and stays ballistic.
+	// Components are exact in float so the round-trip pose compares tight.
+	const b3Pos spawn = { 1.0, 20.0, -2.0 };
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type     = b3_dynamicBody;
+	bodyDef.position = spawn;
+	b3BodyId bodyId  = b3CreateBody( worldId, &bodyDef );
+
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.density = 1.0f;
+	b3CreateSphereShape( bodyId, &shapeDef, &sphere );
+
+	// Impulse along +x so the first integrated step moves the body a visible distance off the spawn.
+	b3Body_ApplyLinearImpulseToCenter( bodyId, (b3Vec3){ 5.0f, 0.0f, 0.0f }, true );
+
+	const int creationFrame = leadFrames + 1;
+	b3World_Step( worldId, timeStep, subStepCount ); // advances to creationFrame
+
+	const int totalFrames = creationFrame + 3;
+	for ( int i = creationFrame; i < totalFrames; ++i )
+	{
+		b3World_Step( worldId, timeStep, subStepCount );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	const uint8_t* data = b3Recording_GetData( rec );
+	int            sz   = b3Recording_GetSize( rec );
+
+	// Atomic replay fuses the create and its step, so at the creation frame the body is already
+	// integrated and displaced along +x. Capture that pose and the final state hash.
+	b3RecPlayer* atomic = b3RecPlayer_Create( data, sz, 1 );
+	ENSURE( atomic != NULL );
+	b3Pos atomicPose = { 0.0, 0.0, 0.0 };
+	while ( !b3RecPlayer_IsAtEnd( atomic ) )
+	{
+		b3RecPlayer_StepFrame( atomic );
+		if ( b3RecPlayer_GetFrame( atomic ) == creationFrame )
+		{
+			b3BodyId id = b3RecPlayer_GetBodyId( atomic, 0 );
+			ENSURE( b3Body_IsValid( id ) );
+			atomicPose = b3Body_GetPosition( id );
+		}
+	}
+	ENSURE( b3RecPlayer_GetFrame( atomic ) == totalFrames );
+	ENSURE( !b3RecPlayer_HasDiverged( atomic ) );
+	ENSURE( atomicPose.x - spawn.x > 0.01 ); // the impulse moved it before it was ever seen
+	uint64_t atomicHash = b3HashWorldState( b3GetWorldFromId( b3RecPlayer_GetWorldId( atomic ) ) );
+	b3RecPlayer_Destroy( atomic );
+
+	// Staged replay: step forward until the first pre-step park. It must sit at the creation frame's
+	// pre-integration state with the new body at exactly its spawn transform.
+	b3RecPlayer* staged = b3RecPlayer_Create( data, sz, 1 );
+	ENSURE( staged != NULL );
+	while ( !b3RecPlayer_IsAtEnd( staged ) )
+	{
+		b3RecPlayer_SubStepFrame( staged );
+		if ( b3RecPlayer_IsAtPreStep( staged ) )
+		{
+			break;
+		}
+	}
+	ENSURE( b3RecPlayer_IsAtPreStep( staged ) );
+	ENSURE( b3RecPlayer_GetFrame( staged ) == creationFrame - 1 ); // parked before the step, frame not advanced
+
+	b3BodyId stagedId = b3RecPlayer_GetBodyId( staged, 0 );
+	ENSURE( b3Body_IsValid( stagedId ) );
+	b3Pos parkPose = b3Body_GetPosition( stagedId );
+	ENSURE_SMALL( parkPose.x - spawn.x, 1.0e-4 );
+	ENSURE_SMALL( parkPose.y - spawn.y, 1.0e-4 );
+	ENSURE_SMALL( parkPose.z - spawn.z, 1.0e-4 );
+
+	// Finishing the frame integrates the body, so it leaves the spawn pose on the next advance.
+	b3RecPlayer_SubStepFrame( staged );
+	ENSURE( b3RecPlayer_GetFrame( staged ) == creationFrame );
+	ENSURE( !b3RecPlayer_IsAtPreStep( staged ) );
+
+	// Run staged to the end: the same op stream, so it must land on the atomic end state bit for bit.
+	while ( !b3RecPlayer_IsAtEnd( staged ) )
+	{
+		b3RecPlayer_SubStepFrame( staged );
+	}
+	ENSURE( b3RecPlayer_GetFrame( staged ) == totalFrames );
+	ENSURE( !b3RecPlayer_HasDiverged( staged ) );
+	uint64_t stagedHash = b3HashWorldState( b3GetWorldFromId( b3RecPlayer_GetWorldId( staged ) ) );
+	ENSURE( stagedHash == atomicHash );
+	b3RecPlayer_Destroy( staged );
+
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( GeometryHashCollision );
@@ -1737,6 +1857,7 @@ int RecordingTest( void )
 	RUN_SUBTEST( HullDedup );
 	RUN_SUBTEST( MidStreamNoContacts );
 	RUN_SUBTEST( MidStreamContacts );
+	RUN_SUBTEST( StagedStepCreationPose );
 	RUN_SUBTEST( ScrubBackward );
 	RUN_SUBTEST( SeekWithHull );
 	RUN_SUBTEST( DebugShapeCallbacks );

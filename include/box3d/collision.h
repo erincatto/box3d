@@ -81,9 +81,6 @@ B3_API b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3Ray
 B3_API b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits,
 										  bool requireAllBits, b3TreeBoxCastCallbackFcn* callback, void* context );
 
-/// Validate this tree. For testing.
-B3_API void b3DynamicTree_Validate( const b3DynamicTree* tree );
-
 /// Get the height of the binary tree.
 B3_API int b3DynamicTree_GetHeight( const b3DynamicTree* tree );
 

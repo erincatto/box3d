@@ -315,12 +315,12 @@ typedef struct b3RecPlayer b3RecPlayer;
 /// Summary of a recording, read once at open so a viewer can frame and label it.
 typedef struct b3RecPlayerInfo
 {
-	int    frameCount;   // total recorded steps
-	int    workerCount;  // worker count requested for the replay world
-	float  timeStep;     // dt of the recorded steps
-	int    subStepCount; // recorded sub-steps
-	float  lengthScale;  // length units per meter in effect when recorded
-	b3AABB bounds;       // accumulated world bounds over the recording, zero-extent if unavailable
+	int frameCount;	   // total recorded steps
+	int workerCount;   // worker count requested for the replay world
+	float timeStep;	   // dt of the recorded steps
+	int subStepCount;  // recorded sub-steps
+	float lengthScale; // length units per meter in effect when recorded
+	b3AABB bounds;	   // accumulated world bounds over the recording, zero-extent if unavailable
 } b3RecPlayerInfo;
 
 /// Create a player over a recording. Owns a private copy of the bytes.
@@ -335,9 +335,14 @@ B3_API b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCo
 /// Destroy the player and free all memory. Restores the previous global length scale.
 B3_API void b3RecPlayer_Destroy( b3RecPlayer* player );
 
-/// Advance one frame: dispatch ops until the next Step completes.
+/// Advance one frame. dispatch ops until the next Step completes.
 /// @return true when a frame was stepped, false at end-of-recording
 B3_API bool b3RecPlayer_StepFrame( b3RecPlayer* player );
+
+/// Sub-step one frame. This will sub-step and return immediately after body creation.
+/// The next call will execute the time step. This allows bodies to be rendered
+/// at the creation pose.
+B3_API void b3RecPlayer_SubStepFrame( b3RecPlayer* player );
 
 /// Rewind to frame 0 (in-place restore so the world id stays stable).
 B3_API void b3RecPlayer_Restart( b3RecPlayer* player );
@@ -357,6 +362,9 @@ B3_API int b3RecPlayer_GetFrameCount( const b3RecPlayer* player );
 
 /// @return true when the op stream is exhausted
 B3_API bool b3RecPlayer_IsAtEnd( const b3RecPlayer* player );
+
+/// @return true when the op stream is paused between body creation and world step.
+B3_API bool b3RecPlayer_IsAtPreStep( const b3RecPlayer* player );
 
 /// @return true when any StateHash mismatch has been detected
 B3_API bool b3RecPlayer_HasDiverged( const b3RecPlayer* player );
@@ -412,7 +420,7 @@ B3_API b3BodyId b3RecPlayer_GetBodyId( const b3RecPlayer* player, int index );
 /// @param destroyDebugShape called when a replayed shape is removed; may be NULL
 /// @param context user context passed to both callbacks
 B3_API void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShapeCallback* createDebugShape,
-                                                b3DestroyDebugShapeCallback* destroyDebugShape, void* context );
+												b3DestroyDebugShapeCallback* destroyDebugShape, void* context );
 
 /// Draw the spatial queries recorded during the most recently replayed frame, layered on top of the
 /// world. Call after b3World_Draw. NULL draw function pointers are skipped.
@@ -438,23 +446,23 @@ typedef enum b3RecQueryType
 typedef struct b3RecQueryInfo
 {
 	b3RecQueryType type;
-	b3QueryFilter  filter;
-	b3AABB         aabb;        // world-space bounds of the query, swept for casts
-	b3Pos          origin;      // query origin (zero for overlap AABB)
-	b3Vec3         translation; // ray and cast translation
-	int            hitCount;    // number of recorded results
-	uint64_t       key;         // identity key, the hash of (id, name), 0 if untagged
-	uint64_t       id;          // query id, 0 if none
-	const char*    name;        // query label, NULL if none
+	b3QueryFilter filter;
+	b3AABB aabb;		// world-space bounds of the query, swept for casts
+	b3Pos origin;		// query origin (zero for overlap AABB)
+	b3Vec3 translation; // ray and cast translation
+	int hitCount;		// number of recorded results
+	uint64_t key;		// identity key, the hash of (id, name), 0 if untagged
+	uint64_t id;		// query id, 0 if none
+	const char* name;	// query label, NULL if none
 } b3RecQueryInfo;
 
 /// One result of a recorded spatial query.
 typedef struct b3RecQueryHit
 {
 	b3ShapeId shape;
-	b3Pos     point;
-	b3Vec3    normal;
-	float     fraction;
+	b3Pos point;
+	b3Vec3 normal;
+	float fraction;
 } b3RecQueryHit;
 
 /// @return the number of spatial queries recorded for the most recently replayed frame
@@ -767,8 +775,8 @@ B3_API bool b3Body_OverlapShape( b3BodyId bodyId, b3Pos origin, const b3ShapePro
 								 b3WorldTransform bodyTransform );
 
 /// Collide a character mover with a specific body using a specified body transform.
-B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin, const b3Capsule* mover,
-								b3QueryFilter filter, b3WorldTransform bodyTransform );
+B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin,
+								const b3Capsule* mover, b3QueryFilter filter, b3WorldTransform bodyTransform );
 
 /** @} */ // body
 
