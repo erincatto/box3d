@@ -297,6 +297,11 @@ static b3ShapeId b3CreateShape( b3BodyId bodyId, const b3ShapeDef* def, const vo
 	{
 		b3UpdateBodyMassData( world, body );
 	}
+	else if ( ( body->flags & b3_dirtyMass ) == 0 )
+	{
+		body->flags |= b3_dirtyMass;
+		b3SyncBodyFlags( world, body );
+	}
 
 	b3ValidateSolverSets( world );
 

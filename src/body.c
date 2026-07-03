@@ -72,7 +72,7 @@ b3BodyState* b3GetBodyState( b3World* world, b3Body* body )
 	return NULL;
 }
 
-static void b3SyncBodyFlags( b3World* world, b3Body* body )
+void b3SyncBodyFlags( b3World* world, b3Body* body )
 {
 	// Never sync transient flags
 	uint32_t flags = body->flags & ~b3_bodyTransientFlags;
@@ -800,6 +800,9 @@ int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int pla
 void b3UpdateBodyMassData( b3World* world, b3Body* body )
 {
 	b3BodySim* bodySim = b3GetBodySim( world, body );
+
+	// Mass is no longer dirty
+	body->flags &= ~b3_dirtyMass;
 
 	// Compute mass data from shapes. Each shape has its own density.
 	body->mass = 0.0f;
@@ -1839,6 +1842,21 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 
 	bodySim->invMass = body->mass > 0.0f ? 1.0f / body->mass : 0.0f;
 	bodySim->invInertiaLocal = b3Det( body->inertia ) > 0.0f ? b3InvertT( body->inertia ) : b3Mat3_zero;
+
+	// Update extents using supplied mass center.
+	bodySim->minExtent = B3_HUGE;
+	bodySim->maxExtent = b3Vec3_zero;
+	int shapeId = body->headShapeId;
+	while ( shapeId != B3_NULL_INDEX )
+	{
+		const b3Shape* s = b3Array_Get( world->shapes, shapeId );
+		b3ShapeExtent extent = b3ComputeShapeExtent( s, massData.center );
+		bodySim->minExtent = b3MinFloat( bodySim->minExtent, extent.minExtent );
+		bodySim->maxExtent = b3Max( bodySim->maxExtent, extent.maxExtent );
+		shapeId = s->nextShapeId;
+	}
+
+	body->flags &= ~b3_dirtyMass;
 }
 
 b3MassData b3Body_GetMassData( b3BodyId bodyId )

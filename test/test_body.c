@@ -7,6 +7,10 @@
 #include "box3d/collision.h"
 #include "box3d/math_functions.h"
 
+// Reach into internals to observe body extents and the dirty mass flag.
+#include "body.h"
+#include "physics_world.h"
+
 #include <float.h>
 
 // b3UpdateBodyMassData shifts each shape's inertia to the body center of mass with the parallel
@@ -117,9 +121,63 @@ static int FarCubeSphereMass( void )
 	return 0;
 }
 
+// Shapes added with updateBodyMass = false defer the mass update, which is also the only place
+// body extents are computed. A body that reaches the solver with minExtent == B3_HUGE never passes
+// the continuous collision gate. The dirty mass flag must track the deferral, and both
+// ApplyMassFromShapes and SetMassData must leave finite extents behind.
+static int DeferredMassExtents( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.density = 1.0f;
+	shapeDef.updateBodyMass = false;
+
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+
+	// Deferred create leaves mass and extents untouched but marks the body dirty.
+	b3BodyId applyId = b3CreateBody( worldId, &bodyDef );
+	b3CreateSphereShape( applyId, &shapeDef, &sphere );
+
+	b3World* world = b3GetWorld( applyId.world0 );
+	b3Body* applyBody = b3GetBodyFullId( world, applyId );
+	b3BodySim* applySim = b3GetBodySim( world, applyBody );
+
+	ENSURE( ( applyBody->flags & b3_dirtyMass ) != 0 );
+	ENSURE( applySim->minExtent == B3_HUGE );
+
+	// ApplyMassFromShapes computes extents and clears the flag.
+	b3Body_ApplyMassFromShapes( applyId );
+	ENSURE( ( applyBody->flags & b3_dirtyMass ) == 0 );
+	ENSURE( applySim->minExtent < B3_HUGE );
+
+	// SetMassData alone must also produce finite extents and clear the flag (the issue #35 repro).
+	b3BodyId massId = b3CreateBody( worldId, &bodyDef );
+	b3CreateSphereShape( massId, &shapeDef, &sphere );
+
+	b3Body* massBody = b3GetBodyFullId( world, massId );
+	b3BodySim* massSim = b3GetBodySim( world, massBody );
+	ENSURE( ( massBody->flags & b3_dirtyMass ) != 0 );
+
+	b3Matrix3 inertia = { { 0.2f, 0.0f, 0.0f }, { 0.0f, 0.2f, 0.0f }, { 0.0f, 0.0f, 0.2f } };
+	b3MassData massData = { 2.0f, { 0.0f, 0.0f, 0.0f }, inertia };
+	b3Body_SetMassData( massId, massData );
+
+	ENSURE( ( massBody->flags & b3_dirtyMass ) == 0 );
+	ENSURE( massSim->minExtent < B3_HUGE );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int BodyTest( void )
 {
 	RUN_SUBTEST( FarSingleSphereMass );
 	RUN_SUBTEST( FarCubeSphereMass );
+	RUN_SUBTEST( DeferredMassExtents );
 	return 0;
 }

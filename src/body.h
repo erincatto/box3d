@@ -57,6 +57,10 @@ enum b3BodyFlags
 
 	b3_bodyEnableContactRecycling = 0x00004000,
 
+	// The user deferred mass computation via the updateBodyMass shape option and mass
+	// data still hasn't been set.
+	b3_dirtyMass = 0x00008000,
+
 	// All lock flags
 	b3_allLocks = b3_lockLinearX | b3_lockLinearY | b3_lockLinearZ | b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
 
@@ -237,6 +241,7 @@ bool b3WakeBody( b3World* world, b3Body* body );
 bool b3WakeBodyWithLock( b3World* world, b3Body* body );
 
 void b3UpdateBodyMassData( b3World* world, b3Body* body );
+void b3SyncBodyFlags( b3World* world, b3Body* body );
 void b3DumpBody( b3World* world, b3Body* body );
 
 // Make a sweep relative to a base position to keep TOI in float precision far from the origin.
