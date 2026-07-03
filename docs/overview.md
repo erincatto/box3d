@@ -1,7 +1,7 @@
 # Overview {#mainpage}
 
 > **Caution**:
-> The written part of this docementation is a work in progress.
+> The written part of this manual is a work in progress.
 > It will be updated as v1.0 approaches.
 > The reference section should be complete and accurate.
 

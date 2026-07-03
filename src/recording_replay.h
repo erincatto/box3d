@@ -151,7 +151,7 @@ struct b3RecPlayer
 	bool atEnd;
 	// Indicates all ops for the step have been consumed up to the world step op. The next sub-step
 	// will clear this and perform the world step.
-	bool atPreStep;	
+	bool atPreStep;
 	int divergeFrame; // first frame that diverged, -1 until then
 
 	// Outliner body list, indexed by creation ordinal. Holes (null ids) mark destroyed bodies so

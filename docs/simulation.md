@@ -710,7 +710,7 @@ body. The density can be zero or positive. You should generally use
 similar densities for all your shapes. This will improve stacking
 stability.
 
-You may adjust the density of an existing body. You may choose up update the body mass immediately
+You may adjust the density of an existing body. You may choose up to update the body mass immediately
 or defer for a later call to `b3Body_ApplyMassFromShapes()`. Generally you should establish
 the shape density in `b3ShapeDef` and avoid modifying it later because this can be expensive,
 especially on a body with many shapes.

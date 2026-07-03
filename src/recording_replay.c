@@ -50,17 +50,6 @@ uint8_t b3RecR_U8( b3RecReader* rdr )
 	return rdr->data[rdr->cursor++];
 }
 
-// Read the next opcode without advancing the cursor.
-static uint8_t b3PeekOpcode( b3RecReader* rdr )
-{
-	b3RecRdrCheck( rdr, 1 );
-	if ( !rdr->ok )
-	{
-		return 0;
-	}
-	return rdr->data[rdr->cursor];
-}
-
 uint16_t b3RecR_U16( b3RecReader* rdr )
 {
 	b3RecRdrCheck( rdr, 2 );
@@ -3000,7 +2989,7 @@ void b3RecPlayer_SubStepFrame( b3RecPlayer* player )
 	}
 
 	// Reset the per-frame query store before this frame's records are dispatched.
-	if (player->atPreStep == false)
+	if ( player->atPreStep == false )
 	{
 		player->frameQueryCount = 0;
 		player->frameHitCount = 0;
@@ -3023,7 +3012,8 @@ void b3RecPlayer_SubStepFrame( b3RecPlayer* player )
 		// Once stepped, the StateHash is the only record still belonging to this frame. Anything else
 		// begins the next frame, so stop and let the next StepFrame consume it. Capture a keyframe at
 		// the boundary.
-		if ( stepped && player->rdr.data[player->rdr.cursor] != b3_recOpStateHash )
+		uint8_t currentOpCode = player->rdr.data[player->rdr.cursor];
+		if ( stepped && currentOpCode != b3_recOpStateHash )
 		{
 			if ( player->frame > player->lastKeyframeFrame && player->frame % player->keyframeInterval == 0 )
 			{
@@ -3032,7 +3022,7 @@ void b3RecPlayer_SubStepFrame( b3RecPlayer* player )
 			return;
 		}
 
-		if ( player->atPreStep == false && haveCreateBodyOp == true && b3PeekOpcode( &player->rdr ) == b3_recOpStep )
+		if ( player->atPreStep == false && haveCreateBodyOp == true && currentOpCode == b3_recOpStep )
 		{
 			player->atPreStep = true;
 			return;
