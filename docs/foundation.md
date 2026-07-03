@@ -1,8 +1,10 @@
 # Foundations
+
 Box3D provides minimal base functionality for allocation hooks and vector math. The C interface
 allows most runtime data and types to be defined internally in the `src` folder.
 
 ## Assertions
+
 Box3D will assert on bad input. This includes things like sending in NaN or infinity for values.
 It will assert if you use negative values for things that should only be positive, such as density.
 
@@ -13,6 +15,7 @@ You may wish to capture assertions in your application. In that case use `b3SetA
 lets you override the debugger break and/or perform your own error handling.
 
 ## Allocation
+
 Box3D uses memory efficiently and minimizes per-frame allocations by pooling memory. The engine
 quickly adapts to the simulation size. After the first step or two of simulation there should be
 no further per-frame allocations.
@@ -29,6 +32,7 @@ You can provide a custom allocator using `b3SetAllocator()` and query the total 
 allocated using `b3GetByteCount()`.
 
 ## Version
+
 The `b3Version` structure holds the current version so you can query it at run-time using
 `b3GetVersion()`.
 
@@ -120,89 +124,61 @@ b3Transform inv = b3InvertTransform(t);
 ```
 
 ### b3Matrix3
+
 3×3 matrix stored as three column vectors `cx`, `cy`, `cz`. Primarily used for inertia
 tensors and rotation matrices. Useful operations include `b3MulMV` (matrix-vector multiply),
 `b3MulMM` (matrix-matrix multiply), `b3Transpose`, `b3InvertMatrix`, and `b3MakeMatrixFromQuat`.
 
 ### b3AABB
+
 Axis-aligned bounding box with `lowerBound` and `upperBound` as `b3Vec3`. Helpers include
 `b3AABB_Overlaps`, `b3AABB_Contains`, `b3AABB_ContainsPoint`, `b3AABB_Union`,
 `b3AABB_Center`, `b3AABB_Extents`, `b3AABB_Inflate`, and `b3AABB_Transform`.
 
 ## Multithreading {#multi}
-Box3D has been highly optimized for multithreading. Multithreading is not required and by
-default Box3D runs single-threaded. If performance matters, you should consider wiring up
-the multithreading interface.
 
-Box3D does **not** create threads itself. You supply your own thread pool and hook it up through
-the world definition before calling `b3CreateWorld`. See `b3EnqueueTaskCallback`,
-`b3FinishTaskCallback`, `b3WorldDef::workerCount`, `b3WorldDef::enqueueTask`, and
-`b3WorldDef::finishTask`:
+Box3D has been optimized for multithreading. Multithreading is not required and by default Box3D will run single-threaded. If performance is important for your application, you should consider using the multithreading features.
+
+### Internal scheduler
+
+Box3D has a built-in task scheduler that creates threads. You can use the built-in scheduler by setting the worker count in the world definition. This example shows how to use 4 workers. In this case Box3D will create 3 threads, and count the thread that calls `b3World_Step` as the fourth worker. I recommend to use the core count of the CPU as the worker count, not counting hyper-threads or efficiency cores.
 
 ```c
 b3WorldDef worldDef = b3DefaultWorldDef();
-worldDef.workerCount     = myThreadCount;
-worldDef.enqueueTask     = MyEnqueueTask;
-worldDef.finishTask      = MyFinishTask;
-worldDef.userTaskContext = myScheduler;
-
-b3WorldId worldId = b3CreateWorld(&worldDef);
+worldDef.workerCount = 4;
 ```
 
-Your `MyEnqueueTask` callback receives a `b3TaskCallback*` function pointer plus a context
-pointer that must be forwarded to the task exactly once on a worker thread. Return a non-null
-`void*` handle representing your pending task object, or null if the work was executed
-serially inside the callback (Box3D then skips the corresponding `b3FinishTaskCallback`).
+### External scheduler
+
+You can optionally connect your own task scheduler if you want more control.  Multithreading is established for each Box3D world you create and must be hooked up to the world definition. See `b3TaskCallback()`, `b3EnqueueTaskCallback()`, and `b3FinishTaskCallback()` for more details. Also see `b3WorldDef::workerCount`, `b3WorldDef::enqueueTask`, and `b3WorldDef::finishTask`.
 
 ```c
-// Enqueue callback signature
+// Implement b3EnqueueTaskCallback
 void* MyEnqueueTask(b3TaskCallback* task, void* taskContext,
                     void* userContext, const char* taskName)
 {
     MyTask* t = AllocTask();
     t->task        = task;
     t->taskContext = taskContext;
-    SubmitToThreadPool(t);   // runs task(taskContext) on a worker
-    return t;                // non-null => Box3D will call MyFinishTask(t, ...)
+    SubmitToThreadPool(t);
+    return t;
 }
 
-// Finish callback signature
+// Implement b3FinishTaskCallback
 void MyFinishTask(void* userTask, void* userContext)
 {
     MyTask* t = (MyTask*)userTask;
     WaitForCompletion(t);
     FreeTask(t);
 }
-```
-
-`MyFinishTask` must block until the task has completed. Because the step blocks here on the tasks it
-spawned, `b3World_Step` holds its stack across every fork and join inside the step. This has a
-consequence for how you drive it. Run `b3World_Step` from a thread you can dedicate to the step, or
-from a fiber that `MyFinishTask` can park so the underlying thread is freed to run the queued tasks.
-In a job system that cannot park a job's stack, do not call `b3World_Step` from inside a job: a job
-that blocks on the sub-jobs it spawned without yielding its thread starves the workers it is waiting
-on and can deadlock. The alternative is help-while-wait, where the waiting thread runs other pending
-tasks itself. This is what the in-tree scheduler does, which is why it needs no fiber.
-
-Box3D ships an in-tree scheduler (`src/scheduler.h`) used by the test suite and samples.
-You can adapt it or use it directly:
-
-```c
-#include "scheduler.h"
-
-b3Scheduler* scheduler = b3CreateScheduler(workerCount);
 
 b3WorldDef worldDef = b3DefaultWorldDef();
-worldDef.workerCount     = workerCount;
-worldDef.enqueueTask     = b3SchedulerEnqueueTask;
-worldDef.finishTask      = b3SchedulerFinishTask;
-worldDef.userTaskContext = scheduler;
-
-b3WorldId worldId = b3CreateWorld(&worldDef);
-// ... simulate ...
-b3DestroyWorld(worldId);
-b3DestroyScheduler(scheduler);
+worldDef.enqueueTask = MyEnqueueTask;
+worldDef.finishTask = MyFinishTask;
+worldDef.workerCount = GetMyWorkerCount();
 ```
+
+### Threading model
 
 The multithreading design for Box3D is focused on [data parallelism](https://en.wikipedia.org/wiki/Data_parallelism).
 The goal is to use multiple cores to finish the world simulation as fast as possible.
@@ -213,26 +189,34 @@ main thread. Those are examples of task parallelism.
 So when you design your game loop, you should let Box3D *go wide* and use multiple cores to
 finish its work quickly, without other threads interacting with the Box3D world at the same time.
 
+It is expected that the thread that calls `b3World_Step` participates in making progress. Do not call
+`b3World_Step` and park that fiber. Tasks will only be enqueued on the thread that calls `b3World_Step`.
+`MyFinishTask` must block until the task has completed. Ideally your scheduler is helping make progress
+when `MyFinishTask` is called.
+
+### Avoiding race conditions
+
 In a multithreaded environment you must be careful to avoid [race conditions](https://en.wikipedia.org/wiki/Race_condition).
 Modifying the world while it is simulating will lead to unpredictable behavior and is never safe.
-It is also not safe to read data from a Box3D world while it is simulating; Box3D may move data
+It is also not safe to read data from a Box3D world while it is simulating. Box3D may move data
 structures to improve cache performance, so you could easily read garbage.
 
 > **Caution**:
-> Do not perform read or write operations on a Box3D world during `b3World_Step()`
-
-> **Caution**:
-> Do not write to the Box3D world from multiple threads
+> Do not perform read or write operations on a Box3D world during `b3World_Step()`.
+> Do not write to the Box3D world from multiple threads. Any operation that wakes
+> a body is not thread-safe.
 
 It *is safe* to do ray-casts, shape-casts, and overlap tests from multiple threads outside of
 `b3World_Step()`. Generally any read-only operation is safe to do multithreaded outside of
 `b3World_Step()`. This can be very useful if you have multithreaded game logic.
 
 ## Multithreading Multiple Worlds
+
 Some applications may wish to create multiple Box3D worlds and simulate them on different threads.
 This works fine because Box3D has very limited use of globals.
 
 There are a few caveats:
+
 - You will get a race condition if you create or destroy Box3D worlds from multiple threads. Use a mutex to guard those operations.
 - If you simulate multiple Box3D worlds simultaneously, they should probably not share a task system. Otherwise you risk preemption between worlds competing for the same workers.
 - Any callbacks you hook up to Box3D must be thread-safe, including memory allocators.
