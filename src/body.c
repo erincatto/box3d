@@ -891,7 +891,7 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 		// Shift to center of mass. This is safe because it can only increase.
 		b3Vec3 offset = b3Sub( localCenter, massData.center );
 		b3Matrix3 inertia = b3AddMM( massData.inertia, b3Steiner( massData.mass, offset ) );
-		body->inertia = b3AddMM(body->inertia, inertia);
+		body->inertia = b3AddMM( body->inertia, inertia );
 	}
 
 	b3StackFree( &world->stack, masses );
@@ -1839,7 +1839,6 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 	b3Pos center = b3TransformWorldPoint( bodySim->transform, massData.center );
 	bodySim->center = center;
 	bodySim->center0 = center;
-
 	bodySim->invMass = body->mass > 0.0f ? 1.0f / body->mass : 0.0f;
 
 	float det = b3Det( body->inertia );
@@ -1858,7 +1857,7 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 		bodySim->invInertiaLocal = b3Mat3_zero;
 		bodySim->invInertiaWorld = b3Mat3_zero;
 	}
-	
+
 	// Apply fixed rotation
 	if ( ( bodySim->flags & b3_fixedRotation ) == b3_fixedRotation )
 	{
