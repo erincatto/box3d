@@ -198,7 +198,8 @@ elseif (APPLE)
 	target_compile_options(box3d PRIVATE -Wmissing-prototypes -Wall -Wextra -pedantic)
 elseif (EMSCRIPTEN)
 	message(STATUS "Box3D on Emscripten")
-	target_compile_options(box3d PRIVATE -msimd128 -msse2)
+	# SSE2/wasm SIMD flags are set directory-wide in the top-level CMakeLists so the
+	# tests, which include simd.h, get them too.
 elseif (UNIX)
 	message(STATUS "Box3D using Unix")
 	target_compile_options(box3d PRIVATE -Wmissing-prototypes -Wall -Wextra -pedantic -Wno-unused-value)

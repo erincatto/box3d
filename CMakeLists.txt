@@ -90,6 +90,13 @@ option(BOX3D_DISABLE_SIMD "Disable SIMD math (slower)" OFF)
 option(BOX3D_COMPILE_WARNING_AS_ERROR "Compile warnings as errors" OFF)
 option(BOX3D_DOUBLE_PRECISION "Enable double precision for large worlds" OFF)
 
+# Emscripten maps the SSE2 path onto wasm SIMD128. simd.h is a header included by
+# non-library targets like the tests, so these flags must be directory-wide, not
+# PRIVATE to the box3d library.
+if (EMSCRIPTEN AND NOT BOX3D_DISABLE_SIMD)
+	add_compile_options(-msimd128 -msse2)
+endif()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_VERBOSE_MAKEFILE ON)

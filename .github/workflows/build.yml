@@ -115,6 +115,24 @@ jobs:
       working-directory: build
       run: ./bin/test
 
+  # Build-only: running the wasm test needs a node + pthread/SharedArrayBuffer harness.
+  # This still catches compile breaks in the box3d library and the test target.
+  emscripten:
+    name: emscripten
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: mymindstorm/setup-emsdk@v14
+
+    - name: Configure CMake
+      run: emcmake cmake -B build -DCMAKE_BUILD_TYPE=Debug -DBOX3D_SAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DBOX3D_VALIDATE=ON
+
+    - name: Build
+      run: cmake --build build --config Debug
+
   samples:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
