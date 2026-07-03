@@ -174,10 +174,186 @@ static int DeferredMassExtents( void )
 	return 0;
 }
 
+// b3Body_SetMassData overrides the mass properties directly, bypassing the shapes. It must derive
+// everything the solver reads from the supplied tensor: the inverse mass, the local inverse inertia,
+// and the world inverse inertia rotated by the body orientation. Fixed rotation zeros the angular part.
+// These tests drive it through the public getters, no shapes required.
+
+// Diagonal inertia with inverses that are exact in float, so tolerances stay tight.
+static const b3Matrix3 kDiagInertia = { { 2.0f, 0.0f, 0.0f }, { 0.0f, 4.0f, 0.0f }, { 0.0f, 0.0f, 8.0f } };
+
+static int SetMassDataRoundTrip( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ 5.0f, -3.0f, 2.0f };
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3Vec3 center = { 0.1f, 0.2f, 0.3f };
+	b3MassData massData = { 3.0f, center, kDiagInertia };
+	b3Body_SetMassData( bodyId, massData );
+
+	ENSURE_SMALL( b3Body_GetMass( bodyId ) - 3.0f, 1e-6f );
+	ENSURE_SMALL( b3Body_GetInverseMass( bodyId ) - 1.0f / 3.0f, 1e-6f );
+
+	b3MassData md = b3Body_GetMassData( bodyId );
+	ENSURE_SMALL( md.mass - 3.0f, 1e-6f );
+	ENSURE_SMALL( md.center.x - center.x, 1e-6f );
+	ENSURE_SMALL( md.center.y - center.y, 1e-6f );
+	ENSURE_SMALL( md.center.z - center.z, 1e-6f );
+	ENSURE_SMALL( md.inertia.cx.x - 2.0f, 1e-6f );
+	ENSURE_SMALL( md.inertia.cy.y - 4.0f, 1e-6f );
+	ENSURE_SMALL( md.inertia.cz.z - 8.0f, 1e-6f );
+
+	b3Vec3 localCenter = b3Body_GetLocalCenterOfMass( bodyId );
+	ENSURE_SMALL( localCenter.x - center.x, 1e-6f );
+	ENSURE_SMALL( localCenter.y - center.y, 1e-6f );
+	ENSURE_SMALL( localCenter.z - center.z, 1e-6f );
+
+	b3Matrix3 localInertia = b3Body_GetLocalRotationalInertia( bodyId );
+	ENSURE_SMALL( localInertia.cx.x - 2.0f, 1e-6f );
+	ENSURE_SMALL( localInertia.cy.y - 4.0f, 1e-6f );
+	ENSURE_SMALL( localInertia.cz.z - 8.0f, 1e-6f );
+
+	// Identity rotation, so the world inverse inertia is just the local inverse: diag(1/2, 1/4, 1/8).
+	b3Matrix3 invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
+	ENSURE_SMALL( invWorld.cx.x - 0.5f, 1e-5f );
+	ENSURE_SMALL( invWorld.cy.y - 0.25f, 1e-5f );
+	ENSURE_SMALL( invWorld.cz.z - 0.125f, 1e-5f );
+	ENSURE_SMALL( invWorld.cy.x, 1e-5f );
+	ENSURE_SMALL( invWorld.cz.x, 1e-5f );
+	ENSURE_SMALL( invWorld.cx.y, 1e-5f );
+	ENSURE_SMALL( invWorld.cz.y, 1e-5f );
+	ENSURE_SMALL( invWorld.cx.z, 1e-5f );
+	ENSURE_SMALL( invWorld.cy.z, 1e-5f );
+
+	// World center of mass is the body origin plus the local center under identity rotation.
+	b3Pos worldCenter = b3Body_GetWorldCenterOfMass( bodyId );
+	ENSURE_SMALL( worldCenter.x - ( 5.0f + center.x ), 1e-5f );
+	ENSURE_SMALL( worldCenter.y - ( -3.0f + center.y ), 1e-5f );
+	ENSURE_SMALL( worldCenter.z - ( 2.0f + center.z ), 1e-5f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+// The world inverse inertia must be the local inverse rotated into world space. A 90 degree turn about
+// z swaps the x and y principal moments, so diag(1/2, 1/4, 1/8) becomes diag(1/4, 1/2, 1/8). This is the
+// regression guard: before SetMassData rotated the tensor it left the world inverse inertia stale.
+static int SetMassDataWorldInertiaRotated( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.5f * B3_PI );
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3MassData massData = { 1.0f, { 0.0f, 0.0f, 0.0f }, kDiagInertia };
+	b3Body_SetMassData( bodyId, massData );
+
+	// The local inertia is stored untouched by the world transform.
+	b3Matrix3 localInertia = b3Body_GetLocalRotationalInertia( bodyId );
+	ENSURE_SMALL( localInertia.cx.x - 2.0f, 1e-6f );
+	ENSURE_SMALL( localInertia.cy.y - 4.0f, 1e-6f );
+	ENSURE_SMALL( localInertia.cz.z - 8.0f, 1e-6f );
+
+	b3Matrix3 invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
+	ENSURE_SMALL( invWorld.cx.x - 0.25f, 1e-4f );
+	ENSURE_SMALL( invWorld.cy.y - 0.5f, 1e-4f );
+	ENSURE_SMALL( invWorld.cz.z - 0.125f, 1e-4f );
+	ENSURE_SMALL( invWorld.cy.x, 1e-4f );
+	ENSURE_SMALL( invWorld.cz.x, 1e-4f );
+	ENSURE_SMALL( invWorld.cx.y, 1e-4f );
+	ENSURE_SMALL( invWorld.cz.y, 1e-4f );
+	ENSURE_SMALL( invWorld.cx.z, 1e-4f );
+	ENSURE_SMALL( invWorld.cy.z, 1e-4f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+// Fixed rotation must leave the mass intact but drive the whole angular inertia to zero, even when the
+// caller hands in a real tensor.
+static int SetMassDataFixedRotation( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.motionLocks.angularX = true;
+	bodyDef.motionLocks.angularY = true;
+	bodyDef.motionLocks.angularZ = true;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3MassData massData = { 5.0f, { 0.0f, 0.0f, 0.0f }, kDiagInertia };
+	b3Body_SetMassData( bodyId, massData );
+
+	ENSURE_SMALL( b3Body_GetMass( bodyId ) - 5.0f, 1e-6f );
+	ENSURE_SMALL( b3Body_GetInverseMass( bodyId ) - 0.2f, 1e-6f );
+
+	b3Matrix3 localInertia = b3Body_GetLocalRotationalInertia( bodyId );
+	ENSURE_SMALL( localInertia.cx.x, 1e-6f );
+	ENSURE_SMALL( localInertia.cy.y, 1e-6f );
+	ENSURE_SMALL( localInertia.cz.z, 1e-6f );
+
+	b3Matrix3 invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
+	ENSURE_SMALL( invWorld.cx.x, 1e-6f );
+	ENSURE_SMALL( invWorld.cy.y, 1e-6f );
+	ENSURE_SMALL( invWorld.cz.z, 1e-6f );
+
+	b3MassData md = b3Body_GetMassData( bodyId );
+	ENSURE_SMALL( md.inertia.cx.x, 1e-6f );
+	ENSURE_SMALL( md.inertia.cy.y, 1e-6f );
+	ENSURE_SMALL( md.inertia.cz.z, 1e-6f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+// Zero mass and a zero tensor have zero determinant, so the inverses must collapse to zero rather than
+// divide by it.
+static int SetMassDataZeroMass( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3MassData massData = { 0.0f, { 0.0f, 0.0f, 0.0f }, b3Mat3_zero };
+	b3Body_SetMassData( bodyId, massData );
+
+	ENSURE_SMALL( b3Body_GetInverseMass( bodyId ), 1e-6f );
+
+	b3Matrix3 localInertia = b3Body_GetLocalRotationalInertia( bodyId );
+	ENSURE_SMALL( localInertia.cx.x, 1e-6f );
+	ENSURE_SMALL( localInertia.cy.y, 1e-6f );
+	ENSURE_SMALL( localInertia.cz.z, 1e-6f );
+
+	b3Matrix3 invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
+	ENSURE_SMALL( invWorld.cx.x, 1e-6f );
+	ENSURE_SMALL( invWorld.cy.y, 1e-6f );
+	ENSURE_SMALL( invWorld.cz.z, 1e-6f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int BodyTest( void )
 {
 	RUN_SUBTEST( FarSingleSphereMass );
 	RUN_SUBTEST( FarCubeSphereMass );
 	RUN_SUBTEST( DeferredMassExtents );
+	RUN_SUBTEST( SetMassDataRoundTrip );
+	RUN_SUBTEST( SetMassDataWorldInertiaRotated );
+	RUN_SUBTEST( SetMassDataFixedRotation );
+	RUN_SUBTEST( SetMassDataZeroMass );
 	return 0;
 }
