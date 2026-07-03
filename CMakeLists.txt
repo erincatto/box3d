@@ -72,7 +72,7 @@ if (MSVC OR APPLE OR UNIX)
 			endif()
 		endif()
 	else()
-		if(MSVC)
+		if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND PROJECT_IS_TOP_LEVEL)
 			# enable hot reloading
 			add_compile_options("$<$<CONFIG:Debug>:/ZI>")
 			add_link_options("$<$<CONFIG:Debug>:/INCREMENTAL>")

@@ -1,4 +1,10 @@
 # Overview {#mainpage}
+
+> **Caution**:
+> The written part of this docementation is a work in progress.
+> It will be updated as v1.0 approaches.
+> The reference section should be complete and accurate.
+
 Box3D is a 3D rigid body simulation library for games. Programmers can
 use it in their games to make objects move in realistic ways and make
 the game world more interactive. From the game engine's point of view,
@@ -14,6 +20,7 @@ engine begin with the `b3` prefix. Hopefully this is sufficient to avoid
 name clashing with your application.
 
 ## Prerequisites
+
 In this manual I'll assume you are familiar with basic physics
 concepts, such as mass, force, torque, and impulses. If not, please
 first consult Google search and Wikipedia.
@@ -33,6 +40,7 @@ should be comfortable with compiling, linking, and debugging.
 > Box3D. There are many resources for this online.
 
 ## Scope
+
 This manual covers the majority of the Box3D API. However, not every
 aspect is covered. Please look at the Reference section and samples
 application included with Box3D to learn more.
@@ -45,6 +53,7 @@ Box3D may be out of sync with this manual.
 > latest version on the main branch.
 
 ## Feedback and Bugs
+
 Please file bugs and feature requests here:
 [Box3D Issues](https://github.com/erincatto/box3d/issues)
 
