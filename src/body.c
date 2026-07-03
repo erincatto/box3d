@@ -1841,7 +1841,31 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 	bodySim->center0 = center;
 
 	bodySim->invMass = body->mass > 0.0f ? 1.0f / body->mass : 0.0f;
-	bodySim->invInertiaLocal = b3Det( body->inertia ) > 0.0f ? b3InvertT( body->inertia ) : b3Mat3_zero;
+
+	float det = b3Det( body->inertia );
+	B3_ASSERT( det >= 0.0f );
+
+	if ( det > 0.0f )
+	{
+		// This call is faster than b3Invert
+		bodySim->invInertiaLocal = b3InvertT( body->inertia );
+
+		b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
+		bodySim->invInertiaWorld = b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
+	}
+	else
+	{
+		bodySim->invInertiaLocal = b3Mat3_zero;
+		bodySim->invInertiaWorld = b3Mat3_zero;
+	}
+	
+	// Apply fixed rotation
+	if ( ( bodySim->flags & b3_fixedRotation ) == b3_fixedRotation )
+	{
+		body->inertia = b3Mat3_zero;
+		bodySim->invInertiaLocal = b3Mat3_zero;
+		bodySim->invInertiaWorld = b3Mat3_zero;
+	}
 
 	// Update extents using supplied mass center.
 	bodySim->minExtent = B3_HUGE;
