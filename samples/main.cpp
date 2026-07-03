@@ -482,6 +482,16 @@ sapp_desc sokol_main( int argc, char** argv )
 		{
 			s_sampleOverride = atoi( argv[++i] );
 		}
+		else if ( strcmp( argv[i], "--replay" ) == 0 && i + 1 < argc )
+		{
+			const char* path = argv[++i];
+
+			if ( g_replayIndex >= 0 )
+			{
+				snprintf( s_context.replayFile, sizeof( s_context.replayFile ), "%s", path );
+				s_sampleOverride = g_replayIndex;
+			}
+		}
 	}
 
 	sapp_desc desc{};
