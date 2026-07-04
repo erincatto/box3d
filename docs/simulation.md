@@ -490,11 +490,12 @@ The body's mass data is available through the following functions:
 ```c
 float mass = b3Body_GetMass(myBodyId);
 b3Matrix3 inertia = b3Body_GetLocalRotationalInertia(myBodyId);
-b3Vec3 localCenter = b3Body_GetLocalCenterOfMass(myBodyId);
+b3Vec3 localCenter = b3Body_GetLocalCenter(myBodyId);
 b3MassData massData = b3Body_GetMassData(myBodyId);
 ```
 
 ### State Information
+
 There are many aspects to the body's state. You can access this state
 data through the following functions:
 
@@ -537,8 +538,8 @@ body that is a box. The body origin might be a corner of the box,
 while the center of mass is located at the center of the box.
 
 ```c
-b3Vec3 worldCenter = b3Body_GetWorldCenterOfMass(myBodyId);
-b3Vec3 localCenter = b3Body_GetLocalCenterOfMass(myBodyId);
+b3Pos worldCenter = b3Body_GetWorldCenter(myBodyId);
+b3Vec3 localCenter = b3Body_GetLocalCenter(myBodyId);
 ```
 
 You can access the linear and angular velocity. The linear velocity is
