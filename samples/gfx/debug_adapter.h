@@ -37,6 +37,14 @@ void SetShapeMaterial( b3ShapeId shapeId, Vec4 color, float metallic, float roug
 void SetTransparentDynamic( bool enabled );
 bool GetTransparentDynamic( void );
 
+// View box for compound child culling, world space. Set once per frame before
+// b3World_Draw. A compound then submits only the children overlapping this box
+// instead of walking its entire child set.
+void SetViewBounds( b3AABB bounds );
+
+// Children appended in the last draw, and the total across drawn compounds.
+int GetLastCompoundDrawStats( int* outTotal );
+
 void SetSelectedBody( b3BodyId bodyId );
 void SetSelectedShape( b3ShapeId shapeId );
 void ClearSelection( void );

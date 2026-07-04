@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "gfx/debug_adapter.h"
 #include "gfx/draw.h"
 #include "human.h"
 #include "mesh_loader.h"
@@ -696,6 +697,10 @@ public:
 		int treeBytes = b3DynamicTree_GetByteCount( &m_compound->tree );
 		int height = b3DynamicTree_GetHeight( &m_compound->tree );
 		DrawTextLine( "compound tree byte count = %d, height = %d", treeBytes, height );
+
+		int total = 0;
+		int drawn = GetLastCompoundDrawStats( &total );
+		DrawTextLine( "compound children drawn = %d / %d", drawn, total );
 	}
 
 	void Step() override

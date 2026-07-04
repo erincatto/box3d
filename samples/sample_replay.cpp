@@ -571,6 +571,7 @@ public:
 		MakeDebugDraw( &debugDraw );
 		ApplyGuiFlags( &debugDraw );
 		debugDraw.drawingBounds = m_camera->DrawBounds(); // view-distance box in length units around the eye
+		SetViewBounds( debugDraw.drawingBounds );
 
 		// Drive the shared outline highlight from the selection. A shape selection outlines that
 		// shape alone, a body selection outlines the whole body. Set before the draw so the mask

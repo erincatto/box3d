@@ -373,6 +373,7 @@ static void OnFrame( void )
 	// frame tracks load/unload without extra wiring. Live samples sit at 1 unit per
 	// meter, leaving the transform identity.
 	camera.SetRenderTransform( b3GetLengthUnitsPerMeter(), s_context.viewZUp );
+	camera.SetDrawDistance( s_context.drawDistance );
 
 	// Sync the draw origin to the camera eye once per frame, before any drawing. This must hold even
 	// for samples that drive their own Step without calling Sample::Step. Render re-syncs after Step

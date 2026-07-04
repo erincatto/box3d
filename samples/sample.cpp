@@ -102,6 +102,7 @@ void SampleContext::Save()
 	fprintf( file, "  \"exposure\": %g,\n", GetExposure() );
 	fprintf( file, "  \"sunStrength\": %g,\n", GetSun().strength );
 	fprintf( file, "  \"debugView\": %d,\n", debugView );
+	fprintf( file, "  \"drawDistance\": %g,\n", drawDistance );
 	fprintf( file, "  \"showHullEdges\": %s,\n", GetEdgeOverlayParams().showHulls ? "true" : "false" );
 	fprintf( file, "  \"showEdgeConvexity\": %s,\n", GetEdgeOverlayParams().showEdgeConvexity ? "true" : "false" );
 	fprintf( file, "  \"replayKeyframeBudgetMB\": %d,\n", replayKeyframeBudgetMB );
@@ -236,6 +237,15 @@ void SampleContext::Load()
 			strncpy( buffer, s, count );
 			buffer[count] = 0;
 			debugView = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 0, 4 );
+		}
+		else if ( jsoneq( data, &tokens[i], "drawDistance" ) == 0 )
+		{
+			int count = tokens[i + 1].end - tokens[i + 1].start;
+			assert( count < 32 );
+			const char* s = data + tokens[i + 1].start;
+			strncpy( buffer, s, count );
+			buffer[count] = 0;
+			drawDistance = b3ClampFloat( strtof( buffer, nullptr ), 1.0f, Camera::kViewDistance );
 		}
 		else if ( jsoneq( data, &tokens[i], "showHullEdges" ) == 0 )
 		{
@@ -490,6 +500,9 @@ void Sample::Step()
 	// createDebugShape. The camera derives it from the view distance, in length units
 	// around the simulation eye, matching the broad-phase tree and the far plane.
 	debugDraw.drawingBounds = m_camera->DrawBounds();
+
+	// Same view box drives compound child culling in the adapter.
+	SetViewBounds( debugDraw.drawingBounds );
 
 	ApplyGuiFlags( &debugDraw );
 
@@ -1643,6 +1656,9 @@ static void DrawMenuBar( SampleContext* context )
 			}
 			ImGui::Separator();
 			ImGui::MenuItem( "Diagnostics", "M", &context->showMetrics );
+			ImGui::PushItemWidth( 8.0f * fontSize );
+			ImGui::SliderFloat( "Draw Distance", &context->drawDistance, 10.0f, Camera::kViewDistance, "%.0f m" );
+			ImGui::PopItemWidth();
 			ImGui::Separator();
 			if ( ImGui::BeginMenu( "Scale" ) )
 			{

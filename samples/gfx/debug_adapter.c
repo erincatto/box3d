@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define BOX3D_USER_SHAPE_CAPACITY 65536
 #define BOX3D_FREELIST_END ( -1 )
@@ -79,9 +80,15 @@ typedef struct
 		DebugSphere sphere;
 		DebugCapsule capsule;
 		DebugMesh geom;
+		// firstChild walks every child. To draw only the visible ones the
+		// compound tree is queried by child index, so keep the source data
+		// and a childIndex to pool slot map alongside the list head.
 		struct
 		{
 			int firstChild;
+			const b3CompoundData* data;
+			int* childMap;
+			int childMapCount;
 		} compound;
 	};
 } DebugShape;
@@ -115,6 +122,14 @@ typedef struct
 	b3DebugDraw guiDraw;
 
 	bool transparentDynamic;
+
+	// View box for compound child culling, world space, refreshed once per frame.
+	b3AABB viewBounds;
+	bool hasViewBounds;
+
+	// Compound children appended vs total this frame. Diagnostic readout.
+	int lastCompoundAppended;
+	int lastCompoundTotal;
 } AdapterState;
 
 static AdapterState s_adapter;
@@ -145,6 +160,10 @@ void InitAdapter( void )
 	s_adapter.selectedShapeId = b3_nullShapeId;
 	s_adapter.transparentDynamic = false;
 
+	s_adapter.hasViewBounds = false;
+	s_adapter.lastCompoundAppended = 0;
+	s_adapter.lastCompoundTotal = 0;
+
 	s_adapter.guiDraw = b3DefaultDebugDraw();
 	s_adapter.guiDraw.drawShapes = true;
 }
@@ -161,6 +180,13 @@ void ResetAdapterPool( void )
 		{
 			ReleaseMeshReference( us->geom.handle );
 		}
+		else if ( us->kind == Box3DUS_Compound )
+		{
+			// A scene switch can sweep the pool before the destroy callback fires,
+			// so free the child map here too.
+			free( us->compound.childMap );
+			us->compound.childMap = NULL;
+		}
 		us->kind = Box3DUS_Free;
 		us->nextFree = ( i + 1 < BOX3D_USER_SHAPE_CAPACITY ) ? ( i + 1 ) : BOX3D_FREELIST_END;
 	}
@@ -172,6 +198,10 @@ void ResetAdapterPool( void )
 	s_adapter.selectedBodyId = b3_nullBodyId;
 	s_adapter.selectedShapeId = b3_nullShapeId;
 	s_adapter.transparentDynamic = false;
+
+	s_adapter.hasViewBounds = false;
+	s_adapter.lastCompoundAppended = 0;
+	s_adapter.lastCompoundTotal = 0;
 }
 
 b3DebugDraw* GetGuiDraw( void )
@@ -208,6 +238,25 @@ void SetTransparentDynamic( bool enabled )
 bool GetTransparentDynamic( void )
 {
 	return s_adapter.transparentDynamic;
+}
+
+void SetViewBounds( b3AABB bounds )
+{
+	s_adapter.viewBounds = bounds;
+	s_adapter.hasViewBounds = true;
+
+	// Called once per frame ahead of the draw walk, so clear the child tally here.
+	s_adapter.lastCompoundAppended = 0;
+	s_adapter.lastCompoundTotal = 0;
+}
+
+int GetLastCompoundDrawStats( int* outTotal )
+{
+	if ( outTotal != NULL )
+	{
+		*outTotal = s_adapter.lastCompoundTotal;
+	}
+	return s_adapter.lastCompoundAppended;
 }
 
 void SetGroundShape( b3ShapeId shapeId )
@@ -595,12 +644,26 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 		DebugShape* us = &s_adapter.pool[index];
 		us->kind = Box3DUS_Compound;
 		PopulateCommonFields( us, debugShape );
-		us->compound.firstChild = -1;
 
 		// Flatten the children once. The fixed pool never relocates, so the
 		// parent pointer stays valid while children are allocated.
 		const b3CompoundData* compound = debugShape->compound;
 		const int total = compound->capsuleCount + compound->hullCount + compound->meshCount + compound->sphereCount;
+
+		// Keep the source data for the cull query and map each tree child index to
+		// its pool slot. A NULL map falls back to walking every child.
+		us->compound.firstChild = -1;
+		us->compound.data = compound;
+		us->compound.childMapCount = total;
+		us->compound.childMap = ( total > 0 ) ? (int*)malloc( (size_t)total * sizeof( int ) ) : NULL;
+		if ( us->compound.childMap != NULL )
+		{
+			for ( int i = 0; i < total; ++i )
+			{
+				us->compound.childMap[i] = -1;
+			}
+		}
+
 		int prev = -1;
 		for ( int i = 0; i < total; ++i )
 		{
@@ -609,6 +672,10 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 			if ( childIndex < 0 )
 			{
 				continue; // skip a child we couldn't register, keep the rest
+			}
+			if ( us->compound.childMap != NULL )
+			{
+				us->compound.childMap[i] = childIndex;
 			}
 			if ( prev < 0 )
 			{
@@ -650,6 +717,8 @@ static void DestroyDebugShape( void* userShape, void* context )
 			FreeDebugShape( ci );
 			ci = next;
 		}
+		free( us->compound.childMap );
+		us->compound.childMap = NULL;
 	}
 	else if ( us->kind == Box3DUS_Hull || us->kind == Box3DUS_Mesh || us->kind == Box3DUS_HeightField )
 	{
@@ -701,6 +770,44 @@ static void AppendResolvedShape( const DebugShape* us, b3Transform baseTransform
 			AppendHighlightGeometry( us->geom.handle, baseTransform, us->geom.scale, hk );
 		}
 	}
+}
+
+// Context for the compound cull query. Carries the resolved material and the
+// body relative transform so each visited child appends exactly as the full
+// walk would.
+typedef struct
+{
+	const DebugShape* parent;
+	b3Transform shapeRelative;
+	Vec4 color;
+	float metallic;
+	float roughness;
+	TransparentShadowCast shadowCast;
+	HighlightKind hk;
+	int appended;
+} CompoundCullContext;
+
+// The compound tree stores child indices. Remap to the pool slot the flatten
+// pass assigned, then append the child under the body transform.
+static bool CompoundCullCallback( int proxyId, uint64_t userData, void* context )
+{
+	(void)proxyId;
+	CompoundCullContext* ctx = (CompoundCullContext*)context;
+	const int childIndex = (int)userData;
+	if ( childIndex < 0 || childIndex >= ctx->parent->compound.childMapCount )
+	{
+		return true;
+	}
+	const int slot = ctx->parent->compound.childMap[childIndex];
+	if ( slot < 0 )
+	{
+		return true; // child could not be registered at create
+	}
+	const DebugShape* child = &s_adapter.pool[slot];
+	b3Transform base = b3MulTransforms( ctx->shapeRelative, child->childTransform );
+	AppendResolvedShape( child, base, ctx->color, ctx->metallic, ctx->roughness, ctx->shadowCast, ctx->hk );
+	ctx->appended += 1;
+	return true;
 }
 
 static bool DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexColor color, void* context )
@@ -760,10 +867,45 @@ static bool DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexCo
 
 	if ( us->kind == Box3DUS_Compound )
 	{
-		for ( int ci = us->compound.firstChild; ci != -1; ci = s_adapter.pool[ci].nextChild )
+		bool cull = s_adapter.hasViewBounds && us->compound.data != NULL && us->compound.childMap != NULL;
+
+		b3AABB viewRel = s_adapter.viewBounds;
+		if ( cull )
 		{
-			b3Transform base = b3MulTransforms( shapeRelative, s_adapter.pool[ci].childTransform );
-			AppendResolvedShape( &s_adapter.pool[ci], base, c, metallic, roughness, shadowCast, hk );
+			// Shift the view box into the draw origin frame the primitives render in.
+			b3Pos origin = GetDrawOrigin();
+			viewRel.lowerBound = b3SubPos( b3ToPos( s_adapter.viewBounds.lowerBound ), origin );
+			viewRel.upperBound = b3SubPos( b3ToPos( s_adapter.viewBounds.upperBound ), origin );
+
+			// If the whole compound sits inside the view the query returns every child,
+			// so walking the list is cheaper. Both boxes are in the draw origin frame.
+			b3AABB rootRel = b3AABB_Transform( shapeRelative, b3DynamicTree_GetRootBounds( &us->compound.data->tree ) );
+			if ( b3AABB_Contains( viewRel, rootRel ) )
+			{
+				cull = false;
+			}
+		}
+
+		if ( cull )
+		{
+			// Rotate the view box into compound local space to query the child tree.
+			b3AABB localCull = b3AABB_Transform( b3InvertTransform( shapeRelative ), viewRel );
+
+			CompoundCullContext ctx = { us, shapeRelative, c, metallic, roughness, shadowCast, hk, 0 };
+			b3DynamicTree_Query( &us->compound.data->tree, localCull, ~0ull, false, CompoundCullCallback, &ctx );
+
+			s_adapter.lastCompoundAppended += ctx.appended;
+			s_adapter.lastCompoundTotal += us->compound.childMapCount;
+		}
+		else
+		{
+			for ( int ci = us->compound.firstChild; ci != -1; ci = s_adapter.pool[ci].nextChild )
+			{
+				b3Transform base = b3MulTransforms( shapeRelative, s_adapter.pool[ci].childTransform );
+				AppendResolvedShape( &s_adapter.pool[ci], base, c, metallic, roughness, shadowCast, hk );
+			}
+			s_adapter.lastCompoundAppended += us->compound.childMapCount;
+			s_adapter.lastCompoundTotal += us->compound.childMapCount;
 		}
 	}
 	else

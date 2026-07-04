@@ -56,6 +56,7 @@ struct SampleContext
 
 	float hertz = 60.0f;
 	float recycleDistance = 0.05f;
+	float drawDistance = 100.0f; // meters, view/cull box half extent, persisted
 	int subStepCount = 4;
 	int workerCount = 1;
 	bool transparentDynamic = false;
