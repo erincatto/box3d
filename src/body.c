@@ -302,6 +302,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	body->id = bodyId;
 	body->sleepThreshold = def->sleepThreshold;
 	body->sleepTime = 0.0f;
+	body->sleepVelocity = 0.0f;
 	body->mass = 0.0f;
 	body->inertia = b3Mat3_zero;
 	body->type = def->type;
