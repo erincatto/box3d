@@ -46,7 +46,7 @@ quaternions in both modes, so the trig and the cross-platform determinism proper
 
 The public API uses these types wherever it accepts or returns a world position: `b3BodyDef.position`,
 `b3Body_GetPosition` / `b3Body_GetTransform`, `b3Body_SetTransform`, `b3Body_GetWorldPoint` /
-`b3Body_GetLocalPoint`, `b3Body_GetWorldCenterOfMass`, the explosion and ray-cast origins, contact
+`b3Body_GetLocalPoint`, `b3Body_GetWorldCenter`, the explosion and ray-cast origins, contact
 and ray-cast result points, and the body move event. With double precision off these are all the
 float types they have always been, so existing code compiles unchanged.
 

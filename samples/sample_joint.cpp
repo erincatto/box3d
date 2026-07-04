@@ -1161,7 +1161,7 @@ public:
 		b3Vec3 linearVelocity = b3Body_GetLinearVelocity( m_bodyId );
 		float kineticEnergy = 0.5f * b3Dot( angularVelocity, b3MulMV( massData.inertia, angularVelocity ) );
 		kineticEnergy += 0.5f * massData.mass * b3Dot( linearVelocity, linearVelocity );
-		b3Pos center = b3Body_GetWorldCenterOfMass( m_bodyId );
+		b3Pos center = b3Body_GetWorldCenter( m_bodyId );
 		b3Vec3 gravity = b3World_GetGravity( m_worldId );
 		float potentialEnergy = -massData.mass * center.y * gravity.y;
 		DrawTextLine( "kinetic energy = %g", kineticEnergy );

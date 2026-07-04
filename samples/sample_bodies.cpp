@@ -334,23 +334,37 @@ public:
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.0f, 2.0f, 0.0f };
 		bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, -0.5f * B3_PI );
-		bodyDef.angularVelocity = { 0.01f, 0.01f, 10.0f };
 		bodyDef.gravityScale = 0.0f;
-		b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+		m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.updateBodyMass = false;
 		b3HullData* cylinder = b3CreateCylinder( 0.6f, 0.15f, 0.0f, 32 );
 		b3BoxHull box = b3MakeBoxHull( 1.0f, 0.05f, 0.1f );
-		b3CreateHullShape( bodyId, &shapeDef, cylinder );
-		b3CreateHullShape( bodyId, &shapeDef, &box.base );
+		b3CreateHullShape( m_bodyId, &shapeDef, cylinder );
+		b3CreateHullShape( m_bodyId, &shapeDef, &box.base );
+		b3Body_ApplyMassFromShapes( m_bodyId );
+
+		// Set the angular velocity after creating the shapes and the local center of mass is fixed.
+		b3Body_SetAngularVelocity( m_bodyId, { 0.01f, 0.01f, 10.0f } );
 
 		b3DestroyHull( cylinder );
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		b3Pos c = b3Body_GetWorldCenter( m_bodyId );
+		DrawTextLine( "center %.3g %.3g %.3g", c.x, c.y, c.z );
 	}
 
 	static Sample* Create( SampleContext* sampleContext )
 	{
 		return new GyroscopicTorque( sampleContext );
 	}
+
+	b3BodyId m_bodyId;
 };
 
 static int sampleGyroscopicTorque = RegisterSample( "Bodies", "Gyroscopic Torque", GyroscopicTorque::Create );
@@ -631,7 +645,7 @@ public:
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 			b3Pos origin = pickRay.origin + 10.0f * b3Normalize( pickRay.translation );
-			m_transform.p = m_baseTranslation + b3SubPos(origin, m_origin);
+			m_transform.p = m_baseTranslation + b3SubPos( origin, m_origin );
 		}
 	}
 

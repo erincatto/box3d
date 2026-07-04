@@ -1249,7 +1249,7 @@ struct RigidbodyCharacter
 		// 3. TryStep — 4-phase step-up
 		m_didStep = TryStep( m_stepUpHeight );
 
-		m_massCenterWorld = b3Body_GetWorldCenterOfMass( m_bodyId );
+		m_massCenterWorld = b3Body_GetWorldCenter( m_bodyId );
 	}
 
 	// --- PostStep: RestoreStep + Reground + CategorizeGround ---

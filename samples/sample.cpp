@@ -2292,7 +2292,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		float invMassB = b3Body_GetInverseMass( bodyId );
 		b3Matrix3 invIB = b3Body_GetWorldInverseRotationalInertia( bodyId );
 
-		b3Pos pB = b3Body_GetWorldCenterOfMass( bodyId );
+		b3Pos pB = b3Body_GetWorldCenter( bodyId );
 		b3Vec3 rB = b3SubPos( point, pB );
 
 		b3Vec3 rnB = b3Cross( rB, normal );
