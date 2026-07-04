@@ -160,7 +160,8 @@ void* MyEnqueueTask(b3TaskCallback* task, void* taskContext,
     MyTask* t = AllocTask();
     t->task        = task;
     t->taskContext = taskContext;
-    SubmitToThreadPool(t);
+    Scheduler* myScheduler = (Scheduler*)userContact;
+    SubmitToThreadPool(myScheduler, t);
     return t;
 }
 
@@ -175,6 +176,7 @@ void MyFinishTask(void* userTask, void* userContext)
 b3WorldDef worldDef = b3DefaultWorldDef();
 worldDef.enqueueTask = MyEnqueueTask;
 worldDef.finishTask = MyFinishTask;
+worldDef.userTaskContext = myScheduler;
 worldDef.workerCount = GetMyWorkerCount();
 ```
 
