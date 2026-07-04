@@ -21,4 +21,4 @@ if /i "%~1"=="fresh" (
     )
 )
 
-cmake -S . -B build -G "Visual Studio 17 2022"```
+cmake -S . -B build -G "Visual Studio 17 2022"

@@ -5894,7 +5894,7 @@ _SOKOL_PRIVATE void _sapp_macos_frame(void) {
     [_sapp.macos.window makeKeyAndOrderFront:nil];
     _sapp_macos_update_dimensions();
 
-    // Disabling for https://github.com/erincatto/box3d/issues/37
+    // See https://github.com/erincatto/box3d/issues/37
     // [NSEvent setMouseCoalescingEnabled:NO];
 
     // workaround for window not being focused during a long init callback

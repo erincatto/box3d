@@ -803,6 +803,7 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 
 	// Mass is no longer dirty
 	body->flags &= ~b3_dirtyMass;
+	b3SyncBodyFlags( world, body );
 
 	// Compute mass data from shapes. Each shape has its own density.
 	body->mass = 0.0f;
@@ -1832,6 +1833,10 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3BodySim* bodySim = b3GetBodySim( world, body );
 
+	// Mass is no longer dirty
+	body->flags &= ~b3_dirtyMass;
+	b3SyncBodyFlags( world, body );
+
 	body->mass = massData.mass;
 	body->inertia = massData.inertia;
 	bodySim->localCenter = massData.center;
@@ -1878,8 +1883,6 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 		bodySim->maxExtent = b3Max( bodySim->maxExtent, extent.maxExtent );
 		shapeId = s->nextShapeId;
 	}
-
-	body->flags &= ~b3_dirtyMass;
 }
 
 b3MassData b3Body_GetMassData( b3BodyId bodyId )

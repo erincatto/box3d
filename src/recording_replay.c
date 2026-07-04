@@ -3032,11 +3032,13 @@ void b3RecPlayer_SubStepFrame( b3RecPlayer* player )
 		if ( op < 0 )
 		{
 			player->atEnd = true;
+			player->atPreStep = false;
 			return;
 		}
 		if ( op == b3_recOpDestroyWorld ) // end of recording
 		{
 			player->atEnd = true;
+			player->atPreStep = false;
 			return;
 		}
 
