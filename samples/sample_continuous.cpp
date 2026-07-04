@@ -666,7 +666,7 @@ public:
 				continue;
 			}
 
-			b3Pos massCenter = b3Body_GetWorldCenterOfMass( bodyId );
+			b3Pos massCenter = b3Body_GetWorldCenter( bodyId );
 			if ( massCenter.y < -2.0f )
 			{
 				IndexPair pair = ConvertToPair( b3Body_GetUserData( bodyId ) );

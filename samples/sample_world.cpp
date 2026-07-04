@@ -101,7 +101,7 @@ public:
 
 		// Height of the top box above the ground, measured in the offset's own frame. This holds
 		// steady at any offset under double precision and drifts once float runs out of resolution.
-		b3Vec3 top = b3SubPos( b3Body_GetWorldCenterOfMass( m_topBodyId ), m_base );
+		b3Vec3 top = b3SubPos( b3Body_GetWorldCenter( m_topBodyId ), m_base );
 
 		DrawTextLine( "double precision: %s", b3IsDoublePrecision() ? "ON" : "OFF" );
 		DrawTextLine( "world offset: %.1f km", m_offsetKilometers );

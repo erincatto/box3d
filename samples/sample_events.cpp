@@ -160,7 +160,7 @@ public:
 			{
 				b3Body_ApplyMassFromShapes( bodyId );
 
-				b3Pos center = b3Body_GetWorldCenterOfMass( bodyId );
+				b3Pos center = b3Body_GetWorldCenter( bodyId );
 				b3Vec3 omega = { 0.0f, 0.0f, -1.0f * velocityScale };
 				b3Vec3 v = b3Cross( omega, b3SubPos( center, b3OffsetPos( b3Pos_zero, origin ) ) );
 				b3Body_SetAngularVelocity( bodyId, omega );
@@ -272,7 +272,7 @@ public:
 		b3BoxHull dynamicBox = b3MakeTransformedBoxHull( 0.5f, 10.0f, 0.5f, { { 0.0f, 10.0f, 0.0f }, b3Quat_identity } );
 		b3CreateHullShape( m_bodyId, &shapeDef, &dynamicBox.base );
 
-		b3Pos center = b3Body_GetWorldCenterOfMass( m_bodyId );
+		b3Pos center = b3Body_GetWorldCenter( m_bodyId );
 
 		b3Vec3 r = b3SubPos( pivot, center );
 		float rr = b3LengthSquared( r );
@@ -635,7 +635,7 @@ public:
 		if ( B3_IS_NON_NULL( m_contactId ) && b3Contact_IsValid( m_contactId ) )
 		{
 			b3ContactData data = b3Contact_GetData( m_contactId );
-			b3Pos centerOfMass = b3Body_GetWorldCenterOfMass( b3Shape_GetBody( data.shapeIdA ) );
+			b3Pos centerOfMass = b3Body_GetWorldCenter( b3Shape_GetBody( data.shapeIdA ) );
 
 			for ( int i = 0; i < data.manifoldCount; ++i )
 			{
@@ -822,7 +822,7 @@ public:
 		{
 			b3BodyId sensorBodyId = b3Shape_GetBody( sensorShapeId );
 			b3WorldTransform t = b3Body_GetTransform( sensorBodyId );
-			t.p = b3Body_GetWorldCenterOfMass( sensorBodyId );
+			t.p = b3Body_GetWorldCenter( sensorBodyId );
 			m_transforms[m_transformCount] = t;
 			m_transformCount += 1;
 		}

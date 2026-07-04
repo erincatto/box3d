@@ -1800,7 +1800,7 @@ b3Matrix3 b3Body_GetWorldInverseRotationalInertia( b3BodyId bodyId )
 	return sim->invInertiaWorld;
 }
 
-b3Vec3 b3Body_GetLocalCenterOfMass( b3BodyId bodyId )
+b3Vec3 b3Body_GetLocalCenter( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1808,7 +1808,7 @@ b3Vec3 b3Body_GetLocalCenterOfMass( b3BodyId bodyId )
 	return bodySim->localCenter;
 }
 
-b3Pos b3Body_GetWorldCenterOfMass( b3BodyId bodyId )
+b3Pos b3Body_GetWorldCenter( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
@@ -1841,10 +1841,19 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 	body->inertia = massData.inertia;
 	bodySim->localCenter = massData.center;
 
+	b3Pos oldCenter = bodySim->center;
 	b3Pos center = b3TransformWorldPoint( bodySim->transform, massData.center );
 	bodySim->center = center;
 	bodySim->center0 = center;
 	bodySim->invMass = body->mass > 0.0f ? 1.0f / body->mass : 0.0f;
+
+	// Update center of mass velocity
+	b3BodyState* state = b3GetBodyState( world, body );
+	if ( state != NULL )
+	{
+		b3Vec3 deltaLinear = b3Cross( state->angularVelocity, b3SubPos( bodySim->center, oldCenter ) );
+		state->linearVelocity = b3Add( state->linearVelocity, deltaLinear );
+	}
 
 	float det = b3Det( body->inertia );
 	B3_ASSERT( det >= 0.0f );

@@ -749,7 +749,7 @@ static void CreateTrees( b3WorldId worldId, int scale )
 
 		float velocityScale = 0.5f + ( 0.5f * bodyIndex ) / bodyCount;
 		b3Body_ApplyMassFromShapes( bodyId );
-		b3Pos center = b3Body_GetWorldCenterOfMass( bodyId );
+		b3Pos center = b3Body_GetWorldCenter( bodyId );
 		b3Vec3 omega = { 0.0f, 0.0f, velocityScale * angularVelocity };
 		b3Vec3 v = b3Cross( omega, b3SubPos( center, bodyDef.position ) );
 		b3Body_SetAngularVelocity( bodyId, omega );

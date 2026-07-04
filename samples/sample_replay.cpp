@@ -938,7 +938,7 @@ public:
 		int count = b3Body_GetContactData( body, contacts, capacity );
 		for ( int i = 0; i < count; ++i )
 		{
-			b3Pos originA = b3Body_GetWorldCenterOfMass( b3Shape_GetBody( contacts[i].shapeIdA ) );
+			b3Pos originA = b3Body_GetWorldCenter( b3Shape_GetBody( contacts[i].shapeIdA ) );
 			for ( int m = 0; m < contacts[i].manifoldCount; ++m )
 			{
 				const b3Manifold* manifold = &contacts[i].manifolds[m];
@@ -965,7 +965,7 @@ public:
 			}
 			b3BodyId body = b3Shape_GetBody( shape );
 			DrawAxes( b3Body_GetTransform( body ), 0.5f );
-			DrawPoint( b3Body_GetWorldCenterOfMass( body ), 8.0f, MakeColor( b3_colorYellow ) );
+			DrawPoint( b3Body_GetWorldCenter( body ), 8.0f, MakeColor( b3_colorYellow ) );
 			DrawBodyContacts( body );
 		}
 		else if ( m_selKind == SelBody )
@@ -976,7 +976,7 @@ public:
 				return;
 			}
 			DrawAxes( b3Body_GetTransform( body ), 0.5f );
-			DrawPoint( b3Body_GetWorldCenterOfMass( body ), 8.0f, MakeColor( b3_colorYellow ) );
+			DrawPoint( b3Body_GetWorldCenter( body ), 8.0f, MakeColor( b3_colorYellow ) );
 			DrawBodyContacts( body );
 		}
 		else if ( m_selKind == SelJoint )
@@ -990,11 +990,11 @@ public:
 			b3BodyId b = b3Joint_GetBodyB( joint );
 			if ( b3Body_IsValid( a ) )
 			{
-				DrawPoint( b3Body_GetWorldCenterOfMass( a ), 8.0f, MakeColor( b3_colorMagenta ) );
+				DrawPoint( b3Body_GetWorldCenter( a ), 8.0f, MakeColor( b3_colorMagenta ) );
 			}
 			if ( b3Body_IsValid( b ) )
 			{
-				DrawPoint( b3Body_GetWorldCenterOfMass( b ), 8.0f, MakeColor( b3_colorMagenta ) );
+				DrawPoint( b3Body_GetWorldCenter( b ), 8.0f, MakeColor( b3_colorMagenta ) );
 			}
 		}
 	}

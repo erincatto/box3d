@@ -208,7 +208,7 @@ static int SetMassDataRoundTrip( void )
 	ENSURE_SMALL( md.inertia.cy.y - 4.0f, 1e-6f );
 	ENSURE_SMALL( md.inertia.cz.z - 8.0f, 1e-6f );
 
-	b3Vec3 localCenter = b3Body_GetLocalCenterOfMass( bodyId );
+	b3Vec3 localCenter = b3Body_GetLocalCenter( bodyId );
 	ENSURE_SMALL( localCenter.x - center.x, 1e-6f );
 	ENSURE_SMALL( localCenter.y - center.y, 1e-6f );
 	ENSURE_SMALL( localCenter.z - center.z, 1e-6f );
@@ -231,7 +231,7 @@ static int SetMassDataRoundTrip( void )
 	ENSURE_SMALL( invWorld.cy.z, 1e-5f );
 
 	// World center of mass is the body origin plus the local center under identity rotation.
-	b3Pos worldCenter = b3Body_GetWorldCenterOfMass( bodyId );
+	b3Pos worldCenter = b3Body_GetWorldCenter( bodyId );
 	ENSURE_SMALL( worldCenter.x - ( 5.0f + center.x ), 1e-5f );
 	ENSURE_SMALL( worldCenter.y - ( -3.0f + center.y ), 1e-5f );
 	ENSURE_SMALL( worldCenter.z - ( 2.0f + center.z ), 1e-5f );

@@ -636,10 +636,10 @@ B3_API float b3Body_GetInverseMass( b3BodyId bodyId );
 B3_API b3Matrix3 b3Body_GetWorldInverseRotationalInertia( b3BodyId bodyId );
 
 /// Get the center of mass position of the body in local space
-B3_API b3Vec3 b3Body_GetLocalCenterOfMass( b3BodyId bodyId );
+B3_API b3Vec3 b3Body_GetLocalCenter( b3BodyId bodyId );
 
 /// Get the center of mass position of the body in world space
-B3_API b3Pos b3Body_GetWorldCenterOfMass( b3BodyId bodyId );
+B3_API b3Pos b3Body_GetWorldCenter( b3BodyId bodyId );
 
 /// Override the body's mass properties. Normally this is computed automatically using the
 /// shape geometry and density. This information is lost if a shape is added or removed or if the
