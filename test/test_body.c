@@ -346,6 +346,45 @@ static int SetMassDataZeroMass( void )
 	return 0;
 }
 
+// The stored linear velocity tracks the center of mass. Moving the center picks a different material
+// point, so a spinning body must have its velocity re-referenced by omega x (newCenter - oldCenter),
+// otherwise the mass edit silently injects or drains kinetic energy. Under identity rotation the world
+// shift equals the supplied local center, keeping the expected values exact in float.
+static int SetMassDataConsistentVelocity( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ 7.0f, 1.0f, -4.0f };
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	// Spin about the origin center, then shift the center of mass off the origin.
+	b3Vec3 omega = { 1.0f, 2.0f, 4.0f };
+	b3Body_SetLinearVelocity( bodyId, (b3Vec3){ 1.0f, -2.0f, 3.0f } );
+	b3Body_SetAngularVelocity( bodyId, omega );
+
+	b3Vec3 center = { 0.5f, 0.25f, 0.125f };
+	b3MassData massData = { 3.0f, center, kDiagInertia };
+	b3Body_SetMassData( bodyId, massData );
+
+	// omega x center = ( 2*0.125 - 4*0.25, 4*0.5 - 1*0.125, 1*0.25 - 2*0.5 ) = ( -0.75, 1.875, -0.75 )
+	b3Vec3 v = b3Body_GetLinearVelocity( bodyId );
+	ENSURE_SMALL( v.x - ( 1.0f - 0.75f ), 1e-6f );
+	ENSURE_SMALL( v.y - ( -2.0f + 1.875f ), 1e-6f );
+	ENSURE_SMALL( v.z - ( 3.0f - 0.75f ), 1e-6f );
+
+	// Only the reference point moved, the angular velocity is untouched.
+	b3Vec3 w = b3Body_GetAngularVelocity( bodyId );
+	ENSURE_SMALL( w.x - omega.x, 1e-6f );
+	ENSURE_SMALL( w.y - omega.y, 1e-6f );
+	ENSURE_SMALL( w.z - omega.z, 1e-6f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int BodyTest( void )
 {
 	RUN_SUBTEST( FarSingleSphereMass );
@@ -355,5 +394,6 @@ int BodyTest( void )
 	RUN_SUBTEST( SetMassDataWorldInertiaRotated );
 	RUN_SUBTEST( SetMassDataFixedRotation );
 	RUN_SUBTEST( SetMassDataZeroMass );
+	RUN_SUBTEST( SetMassDataConsistentVelocity );
 	return 0;
 }
