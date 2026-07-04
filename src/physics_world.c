@@ -1413,6 +1413,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 
 			b3Body* body = b3Array_Get( world->bodies, bodyId );
 			b3BodySim* bodySim = b3GetBodySim( world, body );
+			b3BodyState* bodyState = b3GetBodyState( world, body );
 
 			if ( draw->drawBodyNames && body->name[0] != 0 )
 			{
@@ -1433,6 +1434,29 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 				char buffer[32];
 				snprintf( buffer, 32, "  %.2f", body->mass );
 				draw->DrawStringFcn( p, buffer, b3_colorWhite, draw->context );
+			}
+
+			if ( draw->drawSleep && bodyState != NULL )
+			{
+				b3HexColor colors[4] = {b3_colorBlue, b3_colorSkyBlue, b3_colorOrange, b3_colorRed};
+
+				b3HexColor color = b3_colorBlack;
+				if (body->sleepThreshold > 0.0f)
+				{
+					float ratio = body->sleepVelocity / body->sleepThreshold;
+					int index = b3ClampInt( (int)ratio, 0, 3 );
+					color = colors[index];
+				}
+
+				b3Pos center = bodySim->center;
+				draw->DrawPointFcn( center, 10.0f, color, draw->context );
+
+				b3Vec3 offset = { 0.1f, 0.1f, 0.1f };
+				b3Pos p = b3OffsetPos( center, offset );
+
+				char buffer[32];
+				snprintf( buffer, 32, "  %.3f", body->sleepVelocity );
+				draw->DrawStringFcn( p, buffer, color, draw->context );
 			}
 
 			if ( draw->drawJoints )

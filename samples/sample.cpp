@@ -1633,6 +1633,7 @@ static void DrawMenuBar( SampleContext* context )
 			ImGui::MenuItem( "Joint Extras", nullptr, &gd->drawJointExtras );
 			ImGui::MenuItem( "Bounds", nullptr, &gd->drawBounds );
 			ImGui::MenuItem( "Mass", nullptr, &gd->drawMass );
+			ImGui::MenuItem( "Sleep", nullptr, &gd->drawSleep );
 			ImGui::MenuItem( "Body Names", nullptr, &gd->drawBodyNames );
 			ImGui::MenuItem( "Graph Colors", nullptr, &gd->drawGraphColors );
 			ImGui::MenuItem( "Islands", nullptr, &gd->drawIslands );

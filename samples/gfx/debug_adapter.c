@@ -219,6 +219,7 @@ void ApplyGuiFlags( b3DebugDraw* out )
 	out->drawJointExtras = s_adapter.guiDraw.drawJointExtras;
 	out->drawBounds = s_adapter.guiDraw.drawBounds;
 	out->drawMass = s_adapter.guiDraw.drawMass;
+	out->drawSleep = s_adapter.guiDraw.drawSleep;
 	out->drawBodyNames = s_adapter.guiDraw.drawBodyNames;
 	out->drawContacts = s_adapter.guiDraw.drawContacts;
 	out->drawAnchorA = s_adapter.guiDraw.drawAnchorA;

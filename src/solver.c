@@ -724,6 +724,8 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		// cache miss here, however I need the shape list below
 		b3Body* body = bodies + sim->bodyId;
 		body->bodyMoveIndex = simIndex;
+		body->sleepVelocity = sleepVelocity;
+
 		moveEvents[simIndex].userData = body->userData;
 		moveEvents[simIndex].transform = sim->transform;
 		moveEvents[simIndex].bodyId = (b3BodyId){ sim->bodyId + 1, worldId, body->generation };
