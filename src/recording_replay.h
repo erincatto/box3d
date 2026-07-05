@@ -91,8 +91,11 @@ typedef struct b3RecReader
 	int matScratchCap;
 
 	// Scratch for string reads: rotating slots, valid until the next 4 STR reads
-	char strBufs[4][B3_BODY_NAME_LENGTH + 1];
-	int strNext;
+	char bodyStrBufs[4][B3_BODY_NAME_LENGTH + 1];
+	int bodyStrNext;
+
+	char shapeStrBufs[4][B3_SHAPE_NAME_LENGTH + 1];
+	int shapeStrNext;
 
 	// Preloaded geometry registry
 	b3RegistrySlot* slots;
@@ -230,7 +233,8 @@ b3Filter b3RecR_FILTER( b3RecReader* rdr );
 b3SurfaceMaterial b3RecR_MATERIAL( b3RecReader* rdr );
 b3MassData b3RecR_MASSDATA( b3RecReader* rdr );
 b3MotionLocks b3RecR_LOCKS( b3RecReader* rdr );
-const char* b3RecR_STR( b3RecReader* rdr );
+const char* b3RecR_BODYSTR( b3RecReader* rdr );
+const char* b3RecR_SHAPESTR( b3RecReader* rdr );
 b3ExplosionDef b3RecR_EXPLOSIONDEF( b3RecReader* rdr );
 b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr );
 b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr );

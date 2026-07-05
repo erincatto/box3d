@@ -289,7 +289,7 @@ void b3RecW_LOCKS( b3RecBuffer* buf, b3MotionLocks v )
 	b3RecW_BOOL( buf, v.angularZ );
 }
 
-void b3RecW_STR( b3RecBuffer* buf, const char* s )
+static void b3RecW_STR( b3RecBuffer* buf, const char* s )
 {
 	if ( s == NULL )
 	{
@@ -306,6 +306,16 @@ void b3RecW_STR( b3RecBuffer* buf, const char* s )
 	{
 		b3RecBufAppend( buf, s, len );
 	}
+}
+
+void b3RecW_BODYSTR( b3RecBuffer* buf, const char* s )
+{
+	b3RecW_STR( buf, s );
+}
+
+void b3RecW_SHAPESTR( b3RecBuffer* buf, const char* s )
+{
+	b3RecW_STR( buf, s );
 }
 
 // Hand-written def helpers. Zero pointer and cookie fields before serializing.

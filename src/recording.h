@@ -47,7 +47,7 @@ typedef struct b3World b3World;
 
 // Minor tracks op-stream additions that keep the 48 byte header shape (e.g. the spatial query ops).
 // Minor 2 added the QueryTag op and the interned query-tag table at the tail of the registry block.
-#define B3_REC_VERSION_MAJOR 2
+#define B3_REC_VERSION_MAJOR 3
 #define B3_REC_VERSION_MINOR 2
 
 // File header, fixed 48 bytes, little-endian. Contains the registry locator so the player
@@ -170,7 +170,8 @@ typedef b3Filter b3RecCType_FILTER;
 typedef b3SurfaceMaterial b3RecCType_MATERIAL;
 typedef b3MassData b3RecCType_MASSDATA;
 typedef b3MotionLocks b3RecCType_LOCKS;
-typedef const char* b3RecCType_STR;
+typedef const char* b3RecCType_BODYSTR;
+typedef const char* b3RecCType_SHAPESTR;
 typedef b3WorldId b3RecCType_WORLDID;
 typedef b3BodyId b3RecCType_BODYID;
 typedef b3ShapeId b3RecCType_SHAPEID;
@@ -245,7 +246,8 @@ void b3RecW_FILTER( b3RecBuffer* buf, b3Filter v );
 void b3RecW_MATERIAL( b3RecBuffer* buf, b3SurfaceMaterial v );
 void b3RecW_MASSDATA( b3RecBuffer* buf, b3MassData v );
 void b3RecW_LOCKS( b3RecBuffer* buf, b3MotionLocks v );
-void b3RecW_STR( b3RecBuffer* buf, const char* s );
+void b3RecW_BODYSTR( b3RecBuffer* buf, const char* s );
+void b3RecW_SHAPESTR( b3RecBuffer* buf, const char* s );
 void b3RecW_EXPLOSIONDEF( b3RecBuffer* buf, b3ExplosionDef v );
 void b3RecW_BODYDEF( b3RecBuffer* buf, b3BodyDef v );
 void b3RecW_SHAPEDEF( b3RecBuffer* buf, b3ShapeDef v );

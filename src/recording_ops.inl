@@ -45,7 +45,7 @@ B3_REC_OP( 0x11, DestroyBody, RET_NONE, ARG( BODYID, body ) )
 B3_REC_OP( 0x20, BodySetTransform, RET_NONE, ARG( BODYID, body ) ARG( POSITION, position ) ARG( QUAT, rotation ) )
 B3_REC_OP( 0x21, BodySetLinearVelocity, RET_NONE, ARG( BODYID, body ) ARG( VEC3, v ) )
 B3_REC_OP( 0x22, BodySetType, RET_NONE, ARG( BODYID, body ) ARG( I32, type ) )
-B3_REC_OP( 0x23, BodySetName, RET_NONE, ARG( BODYID, body ) ARG( STR, name ) )
+B3_REC_OP( 0x23, BodySetName, RET_NONE, ARG( BODYID, body ) ARG( BODYSTR, name ) )
 B3_REC_OP( 0x24, BodySetAngularVelocity, RET_NONE, ARG( BODYID, body ) ARG( VEC3, w ) )
 B3_REC_OP( 0x25, BodySetTargetTransform, RET_NONE, ARG( BODYID, body ) ARG( WORLDXF, target ) ARG( F32, timeStep ) ARG( BOOL, wake ) )
 B3_REC_OP( 0x26, BodyApplyForce, RET_NONE, ARG( BODYID, body ) ARG( VEC3, force ) ARG( POSITION, point ) ARG( BOOL, wake ) )
@@ -92,7 +92,7 @@ B3_REC_OP( 0x59, ShapeSetSphere, RET_NONE, ARG( SHAPEID, shape ) ARG( SPHERE, sp
 B3_REC_OP( 0x5A, ShapeSetCapsule, RET_NONE, ARG( SHAPEID, shape ) ARG( CAPSULE, capsule ) )
 B3_REC_OP( 0x5B, ShapeApplyWind, RET_NONE,
 		   ARG( SHAPEID, shape ) ARG( VEC3, wind ) ARG( F32, drag ) ARG( F32, lift ) ARG( F32, maxSpeed ) ARG( BOOL, wake ) )
-B3_REC_OP( 0x5C, ShapeSetName, RET_NONE, ARG( SHAPEID, shape ) ARG( STR, name ) )
+B3_REC_OP( 0x5C, ShapeSetName, RET_NONE, ARG( SHAPEID, shape ) ARG( SHAPESTR, name ) )
 
 // Joint create and destroy
 B3_REC_OP( 0x90, CreateParallelJoint, RET_JOINTID, ARG( WORLDID, world ) ARG( PARALLELJOINTDEF, def ) )
@@ -132,7 +132,7 @@ B3_REC_OP( 0xAB, DistanceJointEnableMotor, RET_NONE, ARG( JOINTID, joint ) ARG( 
 B3_REC_OP( 0xAC, DistanceJointSetMotorSpeed, RET_NONE, ARG( JOINTID, joint ) ARG( F32, motorSpeed ) )
 B3_REC_OP( 0xAD, DistanceJointSetMaxMotorForce, RET_NONE, ARG( JOINTID, joint ) ARG( F32, force ) )
 
-// Motor joint (3D: linear/angular velocities are vec3)
+// Motor joint
 B3_REC_OP( 0xAE, MotorJointSetLinearVelocity, RET_NONE, ARG( JOINTID, joint ) ARG( VEC3, velocity ) )
 B3_REC_OP( 0xAF, MotorJointSetAngularVelocity, RET_NONE, ARG( JOINTID, joint ) ARG( VEC3, velocity ) )
 B3_REC_OP( 0xB0, MotorJointSetMaxVelocityForce, RET_NONE, ARG( JOINTID, joint ) ARG( F32, maxForce ) )
@@ -166,7 +166,7 @@ B3_REC_OP( 0xC7, RevoluteJointEnableMotor, RET_NONE, ARG( JOINTID, joint ) ARG( 
 B3_REC_OP( 0xC8, RevoluteJointSetMotorSpeed, RET_NONE, ARG( JOINTID, joint ) ARG( F32, motorSpeed ) )
 B3_REC_OP( 0xC9, RevoluteJointSetMaxMotorTorque, RET_NONE, ARG( JOINTID, joint ) ARG( F32, torque ) )
 
-// Spherical joint (3D-only)
+// Spherical joint
 B3_REC_OP( 0xCA, SphericalJointEnableConeLimit, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, enableLimit ) )
 B3_REC_OP( 0xCB, SphericalJointSetConeLimit, RET_NONE, ARG( JOINTID, joint ) ARG( F32, angleRadians ) )
 B3_REC_OP( 0xCC, SphericalJointEnableTwistLimit, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, enableLimit ) )
@@ -185,7 +185,7 @@ B3_REC_OP( 0xD6, WeldJointSetLinearDampingRatio, RET_NONE, ARG( JOINTID, joint )
 B3_REC_OP( 0xD7, WeldJointSetAngularHertz, RET_NONE, ARG( JOINTID, joint ) ARG( F32, hertz ) )
 B3_REC_OP( 0xD8, WeldJointSetAngularDampingRatio, RET_NONE, ARG( JOINTID, joint ) ARG( F32, dampingRatio ) )
 
-// Wheel joint (Box3D uses Suspension/Spin/Steering naming)
+// Wheel joint
 B3_REC_OP( 0xD9, WheelJointEnableSuspension, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, flag ) )
 B3_REC_OP( 0xDA, WheelJointSetSuspensionHertz, RET_NONE, ARG( JOINTID, joint ) ARG( F32, hertz ) )
 B3_REC_OP( 0xDB, WheelJointSetSuspensionDampingRatio, RET_NONE, ARG( JOINTID, joint ) ARG( F32, dampingRatio ) )
@@ -194,8 +194,7 @@ B3_REC_OP( 0xDD, WheelJointSetSuspensionLimits, RET_NONE, ARG( JOINTID, joint ) 
 B3_REC_OP( 0xDE, WheelJointEnableSpinMotor, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, flag ) )
 B3_REC_OP( 0xDF, WheelJointSetSpinMotorSpeed, RET_NONE, ARG( JOINTID, joint ) ARG( F32, speed ) )
 
-// Wheel joint continued, overflow past the 0xDF range. Opcodes are arbitrary and need not match
-// Box2D, so the wheel ops keep 0xE0-0xE7 and queries follow at 0xE8.
+// Wheel joint continued, overflow past the 0xDF range.
 B3_REC_OP( 0xE0, WheelJointSetMaxSpinTorque, RET_NONE, ARG( JOINTID, joint ) ARG( F32, torque ) )
 B3_REC_OP( 0xE1, WheelJointEnableSteering, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, flag ) )
 B3_REC_OP( 0xE2, WheelJointSetSteeringHertz, RET_NONE, ARG( JOINTID, joint ) ARG( F32, hertz ) )
@@ -206,9 +205,7 @@ B3_REC_OP( 0xE6, WheelJointSetSteeringLimits, RET_NONE, ARG( JOINTID, joint ) AR
 B3_REC_OP( 0xE7, WheelJointSetTargetSteeringAngle, RET_NONE, ARG( JOINTID, joint ) ARG( F32, radians ) )
 
 // Spatial queries. Inputs flow through the manifest (reader side). The hit tail and result are
-// hand-written in recording.c / recording_replay.c since they are variable length. Query geometry is
-// relative to the origin so a recording reproduces queries far from the world origin. OverlapAABB has
-// no origin in 3D: the box is already world space.
+// hand-written in recording.c / recording_replay.c since they are variable length.
 B3_REC_OP( 0xE8, QueryOverlapAABB, RET_NONE, ARG( WORLDID, world ) ARG( AABB, aabb ) ARG( QUERYFILTER, filter ) )
 B3_REC_OP( 0xE9, QueryOverlapShape, RET_NONE,
 		   ARG( WORLDID, world ) ARG( POSITION, origin ) ARG( SHAPEPROXY, proxy ) ARG( QUERYFILTER, filter ) )
@@ -231,5 +228,5 @@ B3_REC_OP( 0xEF, QueryTag, RET_NONE, ARG( U64, key ) )
 
 B3_REC_OP( 0xF1, StateHash, RET_NONE, ARG( WORLDID, world ) ARG( U64, hash ) )
 
-// Accumulated world bounds over the whole recording, written once at stop. Informational.
+// Accumulated world bounds over the whole recording, written once at stop.
 B3_REC_OP( 0xF2, RecordingBounds, RET_NONE, ARG( AABB, bounds ) )

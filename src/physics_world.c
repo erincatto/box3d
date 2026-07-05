@@ -3,8 +3,6 @@
 
 #include "physics_world.h"
 
-#include "recording.h"
-
 #include "arena_allocator.h"
 #include "bitset.h"
 #include "body.h"
@@ -18,6 +16,7 @@
 #include "joint.h"
 #include "parallel_for.h"
 #include "platform.h"
+#include "recording.h"
 #include "scheduler.h"
 #include "sensor.h"
 #include "shape.h"
@@ -1173,7 +1172,7 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 
 		// Fold this step's world bounds into the recording so a viewer can frame the whole motion.
 		b3AABB worldBounds = { 0 };
-		bool   haveBounds = false;
+		bool haveBounds = false;
 		for ( int i = 0; i < b3_bodyTypeCount; ++i )
 		{
 			b3DynamicTree* tree = world->broadPhase.trees + i;
@@ -1182,8 +1181,8 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 				continue;
 			}
 			b3AABB bounds = b3DynamicTree_GetRootBounds( tree );
-			worldBounds   = haveBounds ? b3AABB_Union( worldBounds, bounds ) : bounds;
-			haveBounds    = true;
+			worldBounds = haveBounds ? b3AABB_Union( worldBounds, bounds ) : bounds;
+			haveBounds = true;
 		}
 		if ( haveBounds )
 		{
@@ -1413,7 +1412,6 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 
 			b3Body* body = b3Array_Get( world->bodies, bodyId );
 			b3BodySim* bodySim = b3GetBodySim( world, body );
-			b3BodyState* bodyState = b3GetBodyState( world, body );
 
 			if ( draw->drawBodyNames && body->name[0] != 0 )
 			{
@@ -1436,27 +1434,32 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 				draw->DrawStringFcn( p, buffer, b3_colorWhite, draw->context );
 			}
 
-			if ( draw->drawSleep && bodyState != NULL )
+			if ( draw->drawSleep )
 			{
-				b3HexColor colors[4] = {b3_colorBlue, b3_colorSkyBlue, b3_colorOrange, b3_colorRed};
+				b3BodyState* bodyState = b3GetBodyState( world, body );
 
-				b3HexColor color = b3_colorBlack;
-				if (body->sleepThreshold > 0.0f)
+				if ( bodyState != NULL )
 				{
-					float ratio = body->sleepVelocity / body->sleepThreshold;
-					int index = b3ClampInt( (int)ratio, 0, 3 );
-					color = colors[index];
+					b3HexColor colors[4] = { b3_colorBlue, b3_colorSkyBlue, b3_colorOrange, b3_colorRed };
+
+					b3HexColor color = b3_colorBlack;
+					if ( body->sleepThreshold > 0.0f )
+					{
+						float ratio = body->sleepVelocity / body->sleepThreshold;
+						int index = b3ClampInt( (int)ratio, 0, 3 );
+						color = colors[index];
+					}
+
+					b3Pos center = bodySim->center;
+					draw->DrawPointFcn( center, 10.0f, color, draw->context );
+
+					b3Vec3 offset = { 0.1f, 0.1f, 0.1f };
+					b3Pos p = b3OffsetPos( center, offset );
+
+					char buffer[32];
+					snprintf( buffer, 32, "  %.3f", body->sleepVelocity );
+					draw->DrawStringFcn( p, buffer, color, draw->context );
 				}
-
-				b3Pos center = bodySim->center;
-				draw->DrawPointFcn( center, 10.0f, color, draw->context );
-
-				b3Vec3 offset = { 0.1f, 0.1f, 0.1f };
-				b3Pos p = b3OffsetPos( center, offset );
-
-				char buffer[32];
-				snprintf( buffer, 32, "  %.3f", body->sleepVelocity );
-				draw->DrawStringFcn( p, buffer, color, draw->context );
 			}
 
 			if ( draw->drawJoints )
@@ -1595,7 +1598,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 								draw->DrawSegmentFcn( p1, p2, frictionColor, draw->context );
 								draw->DrawPointFcn( p1, 5.0f, frictionColor, draw->context );
 
-								p1 = b3OffsetPos( p1, b3MulSV(0.05f * lengthScale, normal) );
+								p1 = b3OffsetPos( p1, b3MulSV( 0.05f * lengthScale, normal ) );
 								char buffer[32];
 								snprintf( buffer, B3_ARRAY_COUNT( buffer ), "%.2f", b3Length( frictionForce ) );
 								draw->DrawStringFcn( p1, buffer, b3_colorWhite, draw->context );
