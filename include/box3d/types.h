@@ -3003,7 +3003,7 @@ typedef struct b3DebugDraw
 	/// Option to draw the mass and center of mass of dynamic bodies
 	bool drawMass;
 
-	/// Option to draw the sleep information dynamic and kinematic bodies
+	/// Option to draw the sleep information for dynamic and kinematic bodies
 	bool drawSleep;
 
 	/// Option to draw body names

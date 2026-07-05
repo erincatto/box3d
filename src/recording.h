@@ -45,9 +45,12 @@ typedef struct b3World b3World;
 // Magic 'B3RC' in little-endian: bytes B(0x42) 3(0x33) R(0x52) C(0x43)
 #define B3_REC_MAGIC 0x43523342u
 
-// Minor tracks op-stream additions that keep the 48 byte header shape (e.g. the spatial query ops).
-// Minor 2 added the QueryTag op and the interned query-tag table at the tail of the registry block.
+// Major recording version is bumped when writers change.
+// Major version 3 added shape names
 #define B3_REC_VERSION_MAJOR 3
+
+// Minor tracks op-stream additions that keep the 48 byte header shape.
+// Minor version 2 added the QueryTag op and the interned query-tag table at the tail of the registry block.
 #define B3_REC_VERSION_MINOR 2
 
 // File header, fixed 48 bytes, little-endian. Contains the registry locator so the player
