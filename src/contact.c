@@ -243,7 +243,7 @@ void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int chil
 
 	B3_ASSERT( shapeA->sensorIndex == B3_NULL_INDEX && shapeB->sensorIndex == B3_NULL_INDEX );
 
-	if ( shapeA->enableContactEvents || shapeB->enableContactEvents )
+	if ( ( shapeA->flags & b3_enableContactEvents ) || ( shapeB->flags & b3_enableContactEvents ) )
 	{
 		contact->flags |= b3_contactEnableContactEvents;
 	}
@@ -317,7 +317,7 @@ void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int chil
 		b3MaxFloat( b3GetShapeMaterials( shapeA )[0].rollingResistance, b3GetShapeMaterials( shapeB )[0].rollingResistance ) *
 		maxRadius;
 
-	if ( shapeA->enablePreSolveEvents || shapeB->enablePreSolveEvents )
+	if ( ( shapeA->flags & b3_enablePreSolveEvents ) || ( shapeB->flags & b3_enablePreSolveEvents ) )
 	{
 		contact->flags |= b3_simEnablePreSolveEvents;
 	}
@@ -707,7 +707,7 @@ static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* c
 		}
 	}
 
-	if ( shapeA->enableHitEvents || shapeB->enableHitEvents )
+	if ( ( shapeA->flags & b3_enableHitEvents ) || ( shapeB->flags & b3_enableHitEvents ) )
 	{
 		contact->flags |= b3_simEnableHitEvent;
 	}
@@ -721,8 +721,9 @@ static bool b3UpdateConvexContact( b3World* world, int workerIndex, b3Contact* c
 
 // Update the contact manifold and touching status.
 // Note: do not assume the shape AABBs are overlapping or are valid.
-bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Shape* shapeA, b3Vec3 localCenterA, b3WorldTransform xfA,
-					  b3Shape* shapeB, b3Vec3 localCenterB, b3WorldTransform xfB, bool isFast, b3Arena arena )
+bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Shape* shapeA, b3Vec3 localCenterA,
+					  b3WorldTransform xfA, b3Shape* shapeB, b3Vec3 localCenterB, b3WorldTransform xfB, bool isFast,
+					  b3Arena arena )
 {
 	bool touching;
 
@@ -769,7 +770,7 @@ bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Sha
 			touching = b3ComputeMeshManifolds( world, workerIndex, contact, &childShapeA, child.materialIndices, xfChild, shapeB,
 											   xfB, isFast, arena );
 
-			if ( touching && ( shapeA->enableHitEvents || shapeB->enableHitEvents ) )
+			if ( touching && ( ( shapeA->flags & b3_enableHitEvents ) || ( shapeB->flags & b3_enableHitEvents ) ) )
 			{
 				contact->flags |= b3_simEnableHitEvent;
 			}
@@ -821,7 +822,7 @@ bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Sha
 		// Compute mesh manifolds
 		touching = b3ComputeMeshManifolds( world, workerIndex, contact, shapeA, NULL, xfA, shapeB, xfB, isFast, arena );
 
-		if ( touching && ( shapeA->enableHitEvents || shapeB->enableHitEvents ) )
+		if ( touching && ( ( shapeA->flags & b3_enableHitEvents ) || ( shapeB->flags & b3_enableHitEvents ) ) )
 		{
 			contact->flags |= b3_simEnableHitEvent;
 		}

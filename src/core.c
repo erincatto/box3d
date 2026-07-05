@@ -295,6 +295,25 @@ int b3FetchAddMeshDumpIndex( void )
 	return result;
 }
 
+void b3StrCpy(char* dst, int size, const char* src)
+{
+	B3_ASSERT( size > 0 );
+
+	if ( src != NULL )
+	{
+#if defined( _MSC_VER )
+		strncpy_s( dst, size, src, size - 1 );
+#else
+		strncpy( dst, src, size - 1 );
+		dst[size - 1] = 0;
+#endif
+	}
+	else
+	{
+		memset( dst, 0, size );
+	}
+}
+
 void b3WriteBinaryFile( void* data, int size, const char* fileName )
 {
 	if ( data == NULL || size <= 0 || fileName == NULL )

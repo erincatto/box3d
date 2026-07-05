@@ -271,19 +271,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 
 	b3Body* body = b3Array_Get( world->bodies, bodyId );
 
-	if ( def->name )
-	{
-#if defined( _MSC_VER )
-		strncpy_s( body->name, B3_BODY_NAME_LENGTH + 1, def->name, B3_BODY_NAME_LENGTH );
-#else
-		strncpy( body->name, def->name, B3_BODY_NAME_LENGTH );
-		body->name[B3_BODY_NAME_LENGTH] = 0;
-#endif
-	}
-	else
-	{
-		memset( body->name, 0, sizeof( body->name ) );
-	}
+	b3StrCpy( body->name, B3_BODY_NAME_LENGTH + 1, def->name );
 
 	body->userData = def->userData;
 	body->setIndex = setId;
@@ -1734,20 +1722,7 @@ void b3Body_SetName( b3BodyId bodyId, const char* name )
 	B3_REC( world, BodySetName, bodyId, name );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-
-	if ( name )
-	{
-#if defined( _MSC_VER )
-		strncpy_s( body->name, B3_BODY_NAME_LENGTH + 1, name, B3_BODY_NAME_LENGTH );
-#else
-		strncpy( body->name, name, B3_BODY_NAME_LENGTH );
-		body->name[B3_BODY_NAME_LENGTH] = 0;
-#endif
-	}
-	else
-	{
-		memset( body->name, 0, sizeof( body->name ) );
-	}
+	b3StrCpy( body->name, B3_BODY_NAME_LENGTH + 1, name );
 }
 
 const char* b3Body_GetName( b3BodyId bodyId )
@@ -2418,18 +2393,18 @@ bool b3Body_IsContactRecyclingEnabled( b3BodyId bodyId )
 	return ( body->flags & b3_bodyEnableContactRecycling ) != 0;
 }
 
-void b3Body_EnableHitEvents( b3BodyId bodyId, bool enableHitEvents )
+void b3Body_EnableHitEvents( b3BodyId bodyId, bool flag )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 
-	B3_REC( world, BodyEnableHitEvents, bodyId, enableHitEvents );
+	B3_REC( world, BodyEnableHitEvents, bodyId, flag );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	int shapeId = body->headShapeId;
 	while ( shapeId != B3_NULL_INDEX )
 	{
 		b3Shape* shape = b3Array_Get( world->shapes, shapeId );
-		shape->enableHitEvents = enableHitEvents;
+		shape->flags = flag ? shape->flags | b3_enableHitEvents : shape->flags & ~b3_enableHitEvents;
 		shapeId = shape->nextShapeId;
 	}
 }

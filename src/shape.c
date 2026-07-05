@@ -19,6 +19,8 @@
 #include <inttypes.h>
 #include <stdio.h>
 
+_Static_assert( B3_SHAPE_NAME_LENGTH >= 0, "minimum name length" );
+
 static b3Shape* b3GetShape( b3World* world, b3ShapeId shapeId )
 {
 	int id = shapeId.index1 - 1;
@@ -178,18 +180,20 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 	shape->filter = def->filter;
 	shape->userData = def->userData;
 	shape->userShape = NULL;
-	shape->enlargedAABB = false;
-	shape->enableSensorEvents = def->enableSensorEvents;
-	shape->enableContactEvents = def->enableContactEvents;
-	shape->enableCustomFiltering = def->enableCustomFiltering;
-	shape->enableHitEvents = def->enableHitEvents;
-	shape->enablePreSolveEvents = def->enablePreSolveEvents;
+	shape->flags = 0;
+	shape->flags |= def->enableSensorEvents ? b3_enableSensorEvents : 0;
+	shape->flags |= def->enableContactEvents ? b3_enableContactEvents : 0;
+	shape->flags |= def->enableCustomFiltering ? b3_enableCustomFiltering : 0;
+	shape->flags |= def->enableHitEvents ? b3_enableHitEvents : 0;
+	shape->flags |= def->enablePreSolveEvents ? b3_enablePreSolveEvents : 0;
 	shape->proxyKey = B3_NULL_INDEX;
 	shape->localCentroid = b3GetShapeCentroid( shape );
 	shape->aabbMargin = b3ComputeShapeMargin( shape );
 	shape->aabb = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
 	shape->fatAABB = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
 	shape->generation += 1;
+
+	b3StrCpy( shape->name, B3_SHAPE_NAME_LENGTH + 1, def->name );
 
 	if ( shape->type == b3_compoundShape )
 	{
@@ -1133,6 +1137,23 @@ void* b3Shape_GetUserData( b3ShapeId shapeId )
 	return shape->userData;
 }
 
+void b3Shape_SetName( b3ShapeId shapeId, const char* name )
+{
+	b3World* world = b3GetWorld( shapeId.world0 );
+
+	B3_REC( world, ShapeSetName, shapeId, name );
+
+	b3Shape* shape = b3GetShape( world, shapeId );
+	b3StrCpy( shape->name, B3_SHAPE_NAME_LENGTH + 1, name );
+}
+
+const char* b3Shape_GetName( b3ShapeId shapeId )
+{
+	b3World* world = b3GetWorld( shapeId.world0 );
+	b3Shape* shape = b3GetShape( world, shapeId );
+	return shape->name;
+}
+
 bool b3Shape_IsSensor( b3ShapeId shapeId )
 {
 	b3World* world = b3GetWorld( shapeId.world0 );
@@ -1394,14 +1415,14 @@ void b3Shape_EnableSensorEvents( b3ShapeId shapeId, bool flag )
 	B3_REC( world, ShapeEnableSensorEvents, shapeId, flag );
 
 	b3Shape* shape = b3GetShape( world, shapeId );
-	shape->enableSensorEvents = flag;
+	shape->flags = flag ? shape->flags | b3_enableSensorEvents : shape->flags & ~b3_enableSensorEvents;
 }
 
 bool b3Shape_AreSensorEventsEnabled( b3ShapeId shapeId )
 {
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
-	return shape->enableSensorEvents;
+	return shape->flags & b3_enableSensorEvents;
 }
 
 void b3Shape_EnableContactEvents( b3ShapeId shapeId, bool flag )
@@ -1415,14 +1436,14 @@ void b3Shape_EnableContactEvents( b3ShapeId shapeId, bool flag )
 	B3_REC( world, ShapeEnableContactEvents, shapeId, flag );
 
 	b3Shape* shape = b3GetShape( world, shapeId );
-	shape->enableContactEvents = flag;
+	shape->flags = flag ? shape->flags | b3_enableContactEvents : shape->flags & ~b3_enableContactEvents;
 }
 
 bool b3Shape_AreContactEventsEnabled( b3ShapeId shapeId )
 {
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
-	return shape->enableContactEvents;
+	return shape->flags & b3_enableContactEvents;
 }
 
 void b3Shape_EnablePreSolveEvents( b3ShapeId shapeId, bool flag )
@@ -1436,14 +1457,14 @@ void b3Shape_EnablePreSolveEvents( b3ShapeId shapeId, bool flag )
 	B3_REC( world, ShapeEnablePreSolveEvents, shapeId, flag );
 
 	b3Shape* shape = b3GetShape( world, shapeId );
-	shape->enablePreSolveEvents = flag;
+	shape->flags = flag ? shape->flags | b3_enablePreSolveEvents : shape->flags & ~b3_enablePreSolveEvents;
 }
 
 bool b3Shape_ArePreSolveEventsEnabled( b3ShapeId shapeId )
 {
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
-	return shape->enablePreSolveEvents;
+	return shape->flags & b3_enablePreSolveEvents;
 }
 
 void b3Shape_EnableHitEvents( b3ShapeId shapeId, bool flag )
@@ -1457,14 +1478,14 @@ void b3Shape_EnableHitEvents( b3ShapeId shapeId, bool flag )
 	B3_REC( world, ShapeEnableHitEvents, shapeId, flag );
 
 	b3Shape* shape = b3GetShape( world, shapeId );
-	shape->enableHitEvents = flag;
+	shape->flags = flag ? shape->flags | b3_enableHitEvents : shape->flags & ~b3_enableHitEvents;
 }
 
 bool b3Shape_AreHitEventsEnabled( b3ShapeId shapeId )
 {
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
-	return shape->enableHitEvents;
+	return shape->flags & b3_enableHitEvents;
 }
 
 b3ShapeType b3Shape_GetType( b3ShapeId shapeId )

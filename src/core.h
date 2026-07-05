@@ -160,3 +160,5 @@ void b3OpenDump( const char* fileName );
 void b3Dump( const char* string, ... );
 void b3CloseDump( void );
 int b3FetchAddMeshDumpIndex( void );
+
+void b3StrCpy( char* dst, int size, const char* src );

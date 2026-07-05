@@ -12,6 +12,16 @@
 typedef struct b3BroadPhase b3BroadPhase;
 typedef struct b3World b3World;
 
+typedef enum b3ShapeFlags
+{
+	b3_enableSensorEvents = 0x01,
+	b3_enableContactEvents = 0x02,
+	b3_enableCustomFiltering = 0x04,
+	b3_enableHitEvents = 0x08,
+	b3_enablePreSolveEvents = 0x10,
+	b3_enlargedAABB = 0x20,
+} b3ShapeFlags;
+
 typedef struct b3Shape
 {
 	int id;
@@ -29,21 +39,13 @@ typedef struct b3Shape
 	b3AABB fatAABB;
 	b3Vec3 localCentroid;
 
-	b3SurfaceMaterial material;
 	int materialCount;
+	b3SurfaceMaterial material;
 	b3SurfaceMaterial* materials;
 
 	b3Filter filter;
 	void* userData;
 	void* userShape;
-
-	uint16_t generation;
-	bool enableSensorEvents;
-	bool enableContactEvents;
-	bool enableCustomFiltering;
-	bool enableHitEvents;
-	bool enablePreSolveEvents;
-	bool enlargedAABB;
 
 	union
 	{
@@ -55,6 +57,10 @@ typedef struct b3Shape
 		const b3CompoundData* compound;
 	};
 
+	uint16_t generation;
+	// b3ShapeFlags
+	uint8_t flags;
+	char name[B3_SHAPE_NAME_LENGTH + 1];
 } b3Shape;
 
 // A single material shape keeps its material inline. Multi material meshes and compounds own a heap

@@ -105,9 +105,8 @@ B3_API float b3GetStallThreshold( void );
 
 /// Maximum length of the shape name. Can be 0 if you don't need names.
 /// Note: this gates recording capability.
-/// todo waiting on this because it breaks existing recordings
 #ifndef B3_SHAPE_NAME_LENGTH
-#define B3_SHAPE_NAME_LENGTH 18
+#define B3_SHAPE_NAME_LENGTH 10
 #endif
 
 /// The maximum number of contact points between two touching shapes.

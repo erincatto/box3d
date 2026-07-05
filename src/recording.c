@@ -319,7 +319,7 @@ _Static_assert( sizeof( void* ) != 8 || sizeof( b3ExplosionDef ) == 32 || sizeof
 				"b3ExplosionDef changed: update b3RecW_EXPLOSIONDEF and b3RecR_EXPLOSIONDEF together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3BodyDef ) == 104 || sizeof( b3BodyDef ) == 120,
 				"b3BodyDef changed: update b3RecW_BODYDEF and b3RecR_BODYDEF together" );
-_Static_assert( sizeof( void* ) != 8 || sizeof( b3ShapeDef ) == 112,
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3ShapeDef ) == 120,
 				"b3ShapeDef changed: update b3RecW_SHAPEDEF and b3RecR_SHAPEDEF together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3ParallelJointDef ) == 128,
 				"b3ParallelJointDef changed: update b3RecW_PARALLELJOINTDEF and its reader together" );
@@ -375,6 +375,8 @@ void b3RecW_BODYDEF( b3RecBuffer* buf, b3BodyDef v )
 
 void b3RecW_SHAPEDEF( b3RecBuffer* buf, b3ShapeDef v )
 {
+	b3RecW_STR( buf, v.name );
+
 	// userData: not preserved
 	b3RecW_U64( buf, 0u );
 	// Per-triangle materials: length-prefixed so the reader can rebuild the array.

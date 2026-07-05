@@ -362,9 +362,9 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 		return true;
 	}
 
-	// Skip sensors unless the shapes want sensor events
+	// Skip sensors unless both shapes want sensor events
 	bool isSensor = shape->sensorIndex != B3_NULL_INDEX;
-	if ( isSensor && ( shape->enableSensorEvents == false || fastShape->enableSensorEvents == false ) )
+	if ( isSensor && ( ( shape->flags & b3_enableSensorEvents ) == 0 || ( fastShape->flags & b3_enableSensorEvents ) == 0 ) )
 	{
 		return true;
 	}
@@ -396,7 +396,7 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 	}
 
 	// Custom user filtering
-	if ( shape->enableCustomFiltering || fastShape->enableCustomFiltering )
+	if ( ( shape->flags & b3_enableCustomFiltering ) != 0 || ( fastShape->flags & b3_enableCustomFiltering ) != 0 )
 	{
 		b3CustomFilterFcn* customFilterFcn = world->customFilterFcn;
 		if ( customFilterFcn != NULL )
@@ -440,7 +440,7 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 	{
 		bool didHit = true;
 
-		if ( didHit && ( shape->enablePreSolveEvents || fastShape->enablePreSolveEvents ) )
+		if ( didHit && ( ( shape->flags & b3_enablePreSolveEvents ) || ( fastShape->flags & b3_enablePreSolveEvents ) ) )
 		{
 			b3ShapeId shapeIdA = { shape->id + 1, world->worldId, shape->generation };
 			b3ShapeId shapeIdB = { fastShape->id + 1, world->worldId, fastShape->generation };
@@ -585,7 +585,7 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 				shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
 
-				shape->enlargedAABB = true;
+				shape->flags |= b3_enlargedAABB;
 				fastBodySim->flags |= b3_enlargeBounds;
 			}
 
@@ -617,7 +617,7 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 					.upperBound = b3Add( shape->aabb.upperBound, aabbMargin ),
 				};
 
-				shape->enlargedAABB = true;
+				shape->flags |= b3_enlargedAABB;
 				fastBodySim->flags |= b3_enlargeBounds;
 			}
 
@@ -832,14 +832,14 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 				b3AABB aabb = b3ComputeFatShapeAABB( shape, transform, speculativeScalar );
 				shape->aabb = aabb;
 
-				B3_ASSERT( shape->enlargedAABB == false );
+				B3_ASSERT( (shape->flags & b3_enlargedAABB) == 0 );
 
 				if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 				{
 					float marginScalar = shape->aabbMargin;
 					b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
 					shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
-					shape->enlargedAABB = true;
+					shape->flags |= b3_enlargedAABB;
 
 					// Bit-set to keep the move array sorted
 					b3SetBit( enlargedSimBitSet, simIndex );
@@ -2136,10 +2136,10 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 							// The AABB may not have been enlarged, despite the body being flagged as enlarged.
 							// For example, a body with multiple shapes may have not have all shapes enlarged.
 							// A fast body may have been flagged as enlarged despite having no shapes enlarged.
-							if ( shape->enlargedAABB )
+							if ( shape->flags & b3_enlargedAABB )
 							{
 								b3BroadPhase_EnlargeProxy( broadPhase, shape->proxyKey, shape->fatAABB );
-								shape->enlargedAABB = false;
+								shape->flags &= ~b3_enlargedAABB;
 							}
 
 							shapeId = shape->nextShapeId;
@@ -2201,14 +2201,14 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			while ( shapeId != B3_NULL_INDEX )
 			{
 				b3Shape* shape = shapeArray + shapeId;
-				if ( shape->enlargedAABB == false )
+				if ( (shape->flags & b3_enlargedAABB) == 0 )
 				{
 					shapeId = shape->nextShapeId;
 					continue;
 				}
 
 				// clear flag
-				shape->enlargedAABB = false;
+				shape->flags &= ~b3_enlargedAABB;
 
 				int proxyKey = shape->proxyKey;
 				int proxyId = B3_PROXY_ID( proxyKey );

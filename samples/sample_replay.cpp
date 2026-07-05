@@ -778,9 +778,9 @@ public:
 			ImGui::TextColored( PanelColor( b3_colorRed ), "****DIVERGED****" );
 		}
 
-		const char* phaseTag = b3RecPlayer_IsAtEnd( m_player )		? "  (end)"
+		const char* phaseTag = b3RecPlayer_IsAtEnd( m_player )		 ? "  (end)"
 							   : b3RecPlayer_IsAtPreStep( m_player ) ? "  (pre-step)"
-																	: "";
+																	 : "";
 		ImGui::TextDisabled( "Frame %d / %d%s", b3RecPlayer_GetFrame( m_player ), m_info.frameCount, phaseTag );
 
 		// Selection detail lives here in the info panel, not the Outline window, so the scene tree gets
@@ -1197,8 +1197,8 @@ public:
 		int count = b3RecPlayer_GetBodyCount( m_player );
 		for ( int ord = 0; ord < count; ++ord )
 		{
-			b3BodyId body = b3RecPlayer_GetBodyId( m_player, ord );
-			if ( B3_IS_NULL( body ) || b3Body_IsValid( body ) == false )
+			b3BodyId bodyId = b3RecPlayer_GetBodyId( m_player, ord );
+			if ( B3_IS_NULL( bodyId ) || b3Body_IsValid( bodyId ) == false )
 			{
 				continue;
 			}
@@ -1206,10 +1206,15 @@ public:
 			bool ownsSelection =
 				m_selBodyOrdinal == ord && ( m_selKind == SelBody || m_selKind == SelShape || m_selKind == SelJoint );
 
-			const char* name = b3Body_GetName( body );
+			const char* bodyName = b3Body_GetName( bodyId );
+			if ( bodyName == nullptr || bodyName[0] == 0 )
+			{
+				b3BodyType bodyType = b3Body_GetType( bodyId );
+				bodyName = ReplayBodyTypeName( bodyType );
+			}
+
 			char label[64];
-			snprintf( label, sizeof( label ), "Body %d  %s###b%d", ord,
-					  ( name != nullptr && name[0] != '\0' ) ? name : ReplayBodyTypeName( b3Body_GetType( body ) ), ord );
+			snprintf( label, sizeof( label ), "Body %d  %s###b%d", ord, bodyName, ord );
 
 			ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
 			if ( m_selKind == SelBody && m_selBodyOrdinal == ord )
@@ -1237,12 +1242,17 @@ public:
 				continue;
 			}
 
-			BodyShapes( m_shapeBuffer, body );
+			BodyShapes( m_shapeBuffer, bodyId );
 			for ( int s = 0; s < (int)m_shapeBuffer.size(); ++s )
 			{
-				b3ShapeType shapeType = b3Shape_GetType( m_shapeBuffer[s] );
+				const char* shapeName = b3Shape_GetName( m_shapeBuffer[s] );
+				if ( shapeName == nullptr || shapeName[0] == 0 )
+				{
+					b3ShapeType shapeType = b3Shape_GetType( m_shapeBuffer[s] );
+					shapeName = ReplayShapeTypeName( shapeType );
+				}
 				char sl[64];
-				snprintf( sl, sizeof( sl ), "Shape %d  %s###b%ds%d", s, ReplayShapeTypeName( shapeType ), ord, s );
+				snprintf( sl, sizeof( sl ), "Shape %d  %s###b%ds%d", s, shapeName, ord, s );
 				ImGuiTreeNodeFlags lf =
 					ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 				if ( m_selKind == SelShape && m_selBodyOrdinal == ord && m_selSlot == s )
@@ -1263,7 +1273,7 @@ public:
 			}
 
 			b3JointId joints[16];
-			int jn = b3Body_GetJoints( body, joints, 16 );
+			int jn = b3Body_GetJoints( bodyId, joints, 16 );
 			for ( int j = 0; j < jn; ++j )
 			{
 				char jl[64];

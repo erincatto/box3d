@@ -508,7 +508,7 @@ B3_API b3BodyType b3Body_GetType( b3BodyId bodyId );
 /// properties regardless of the automatic mass setting.
 B3_API void b3Body_SetType( b3BodyId bodyId, b3BodyType type );
 
-/// Set the body name. Up to B3_BODY_NAME_LENGTH characters including null termination.
+/// Set the body name. Up to B3_BODY_NAME_LENGTH characters excluding null termination.
 B3_API void b3Body_SetName( b3BodyId bodyId, const char* name );
 
 /// Get the body name.
@@ -729,7 +729,7 @@ B3_API bool b3Body_IsContactRecyclingEnabled( b3BodyId bodyId );
 
 /// Enable/disable hit events on all shapes
 /// @see b3ShapeDef::enableHitEvents
-B3_API void b3Body_EnableHitEvents( b3BodyId bodyId, bool enableHitEvents );
+B3_API void b3Body_EnableHitEvents( b3BodyId bodyId, bool flag );
 
 /// Get the world that owns this body
 B3_API b3WorldId b3Body_GetWorld( b3BodyId bodyId );
@@ -845,6 +845,12 @@ B3_API b3WorldId b3Shape_GetWorld( b3ShapeId shapeId );
 
 /// Returns true if the shape is a sensor
 B3_API bool b3Shape_IsSensor( b3ShapeId shapeId );
+
+/// Set the shape name. Up to B3_SHAPE_NAME_LENGTH characters excluding null termination.
+B3_API void b3Shape_SetName( b3ShapeId shapeId, const char* name );
+
+/// Get the shape name.
+B3_API const char* b3Shape_GetName( b3ShapeId shapeId );
 
 /// Set the user data for a shape
 B3_API void b3Shape_SetUserData( b3ShapeId shapeId, void* userData );

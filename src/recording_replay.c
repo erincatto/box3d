@@ -441,6 +441,8 @@ b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr )
 b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 {
 	b3ShapeDef def = b3DefaultShapeDef();
+
+	def.name = b3RecR_STR( rdr );
 	(void)b3RecR_U64( rdr ); // userData placeholder
 
 	int matCount = b3RecR_I32( rdr );
@@ -1074,6 +1076,11 @@ static void b3RecDispatch_CreateCompoundShape( const b3RecArgs_CreateCompoundSha
 static void b3RecDispatch_DestroyShape( const b3RecArgs_DestroyShape* a, b3RecReader* rdr )
 {
 	b3DestroyShape( b3RecMakeShapeId( rdr, a->shape ), a->updateBodyMass );
+}
+
+static void b3RecDispatch_ShapeSetName( const b3RecArgs_ShapeSetName* a, b3RecReader* rdr )
+{
+	b3Shape_SetName( b3RecMakeShapeId( rdr, a->shape ), a->name );
 }
 
 static void b3RecDispatch_ShapeSetDensity( const b3RecArgs_ShapeSetDensity* a, b3RecReader* rdr )

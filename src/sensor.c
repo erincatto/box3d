@@ -53,7 +53,7 @@ static bool b3OverlapSensor( b3Shape* sensorShape, b3Transform sensorTransform, 
 			return b3OverlapCapsule( &sensorShape->capsule, b3Transform_identity, &localProxy );
 
 		case b3_compoundShape:
-			return b3OverlapCompound( sensorShape->compound , b3Transform_identity, &localProxy );
+			return b3OverlapCompound( sensorShape->compound, b3Transform_identity, &localProxy );
 
 		case b3_heightShape:
 			return b3OverlapHeightField( sensorShape->heightField, b3Transform_identity, &localProxy );
@@ -115,7 +115,7 @@ static bool b3SensorQueryCallback( int proxyId, uint64_t userData, void* context
 	}
 
 	// Are sensor events enabled on the other shape?
-	if ( otherShape->enableSensorEvents == false )
+	if ( ( otherShape->flags & b3_enableSensorEvents ) == 0 )
 	{
 		return true;
 	}
@@ -133,7 +133,7 @@ static bool b3SensorQueryCallback( int proxyId, uint64_t userData, void* context
 	}
 
 	// Custom user filter
-	if ( sensorShape->enableCustomFiltering || otherShape->enableCustomFiltering )
+	if ( ( sensorShape->flags & b3_enableCustomFiltering ) || ( otherShape->flags & b3_enableCustomFiltering ) )
 	{
 		b3CustomFilterFcn* customFilterFcn = queryContext->world->customFilterFcn;
 		if ( customFilterFcn != NULL )
@@ -207,7 +207,7 @@ static void b3SensorTask( int startIndex, int endIndex, int workerIndex, void* c
 		b3Array_Clear( sensor->hits );
 
 		b3Body* body = b3Array_Get( world->bodies, sensorShape->bodyId );
-		if ( body->setIndex == b3_disabledSet || sensorShape->enableSensorEvents == false )
+		if ( body->setIndex == b3_disabledSet || ( sensorShape->flags & b3_enableSensorEvents ) == 0 )
 		{
 			if ( sensor->overlaps1.count != 0 )
 			{

@@ -281,7 +281,7 @@ static bool b3PairQueryCallback( int proxyId, uint64_t userData, void* context )
 	}
 
 	// Custom user filter
-	if ( shapeA->enableCustomFiltering || shapeB->enableCustomFiltering )
+	if ( ( shapeA->flags & b3_enableCustomFiltering ) || ( shapeB->flags & b3_enableCustomFiltering ) )
 	{
 		b3CustomFilterFcn* customFilterFcn = queryContext->world->customFilterFcn;
 		if ( customFilterFcn != NULL )
