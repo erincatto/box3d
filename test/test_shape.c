@@ -3,11 +3,13 @@
 
 #include "test_macros.h"
 
+#include "box3d/box3d.h"
 #include "box3d/collision.h"
 #include "box3d/math_functions.h"
 
 #include <float.h>
 #include <math.h>
+#include <string.h>
 
 static b3Capsule capsule = { { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, 1.0f };
 static b3Sphere sphere = { { 1.0f, 0.0f, 0.0f }, 1.0f };
@@ -852,12 +854,130 @@ static int RayCastShapeTest( void )
 	return 0;
 }
 
+// The shape stores its name inline, capped at B3_SHAPE_NAME_LENGTH with a reserved null. The stored value
+// is the source truncated to the cap, so derive the expectation from the cap and stay valid at any length.
+static int CheckShapeName( b3ShapeId shapeId, const char* expected )
+{
+	const char* got = b3Shape_GetName( shapeId );
+	ENSURE( got != NULL );
+
+	int srcLen = expected != NULL ? (int)strlen( expected ) : 0;
+	int expectLen = srcLen < B3_SHAPE_NAME_LENGTH ? srcLen : B3_SHAPE_NAME_LENGTH;
+	ENSURE( (int)strlen( got ) == expectLen );
+	if ( expectLen > 0 )
+	{
+		ENSURE( strncmp( got, expected, (size_t)expectLen ) == 0 );
+	}
+	return 0;
+}
+
+// Cover the def path, the setter, over-length truncation, and the NULL clear. A zero cap collapses every
+// case to the empty string, which the length-derived check handles without a special branch.
+static int ShapeNameTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+
+	// Default def leaves the name empty.
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.density = 1.0f;
+	b3ShapeId shapeId = b3CreateSphereShape( bodyId, &shapeDef, &s );
+	if ( CheckShapeName( shapeId, "" ) )
+		return 1;
+
+	// Name carried on the def.
+	shapeDef.name = "box";
+	b3ShapeId namedId = b3CreateSphereShape( bodyId, &shapeDef, &s );
+	if ( CheckShapeName( namedId, "box" ) )
+		return 1;
+
+	// Setter overwrites.
+	b3Shape_SetName( shapeId, "wheel" );
+	if ( CheckShapeName( shapeId, "wheel" ) )
+		return 1;
+
+	// Over-length name truncates to the cap.
+	b3Shape_SetName( shapeId, "abcdefghijklmnopqrstuvwxyz" );
+	if ( CheckShapeName( shapeId, "abcdefghijklmnopqrstuvwxyz" ) )
+		return 1;
+
+	// NULL clears the name.
+	b3Shape_SetName( shapeId, NULL );
+	if ( CheckShapeName( shapeId, "" ) )
+		return 1;
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+// The event enables moved from separate bools to a shared bit field. Each accessor must touch only its own
+// bit, so start with all set and flip them one at a time, checking the rest hold.
+static int ShapeFlagsTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.density = 1.0f;
+	shapeDef.enableSensorEvents = true;
+	shapeDef.enableContactEvents = true;
+	shapeDef.enableHitEvents = true;
+	shapeDef.enablePreSolveEvents = true;
+	b3ShapeId shapeId = b3CreateSphereShape( bodyId, &shapeDef, &s );
+
+	// The def carries every enable through to the shape.
+	ENSURE( b3Shape_AreSensorEventsEnabled( shapeId ) );
+	ENSURE( b3Shape_AreContactEventsEnabled( shapeId ) );
+	ENSURE( b3Shape_AreHitEventsEnabled( shapeId ) );
+	ENSURE( b3Shape_ArePreSolveEventsEnabled( shapeId ) );
+
+	// Clearing one leaves the rest set.
+	b3Shape_EnableSensorEvents( shapeId, false );
+	ENSURE( b3Shape_AreSensorEventsEnabled( shapeId ) == false );
+	ENSURE( b3Shape_AreContactEventsEnabled( shapeId ) );
+	ENSURE( b3Shape_AreHitEventsEnabled( shapeId ) );
+	ENSURE( b3Shape_ArePreSolveEventsEnabled( shapeId ) );
+
+	// Setting it back does not disturb the others.
+	b3Shape_EnableSensorEvents( shapeId, true );
+	b3Shape_EnableHitEvents( shapeId, false );
+	ENSURE( b3Shape_AreSensorEventsEnabled( shapeId ) );
+	ENSURE( b3Shape_AreContactEventsEnabled( shapeId ) );
+	ENSURE( b3Shape_AreHitEventsEnabled( shapeId ) == false );
+	ENSURE( b3Shape_ArePreSolveEventsEnabled( shapeId ) );
+
+	// Clear two more and confirm only the remaining bit stays set.
+	b3Shape_EnableContactEvents( shapeId, false );
+	b3Shape_EnablePreSolveEvents( shapeId, false );
+	ENSURE( b3Shape_AreSensorEventsEnabled( shapeId ) );
+	ENSURE( b3Shape_AreContactEventsEnabled( shapeId ) == false );
+	ENSURE( b3Shape_AreHitEventsEnabled( shapeId ) == false );
+	ENSURE( b3Shape_ArePreSolveEventsEnabled( shapeId ) == false );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int ShapeTest( void )
 {
 	box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
 
 	RUN_SUBTEST( ShapeMassTest );
 	RUN_SUBTEST( ShapeAABBTest );
+	RUN_SUBTEST( ShapeNameTest );
+	RUN_SUBTEST( ShapeFlagsTest );
 	// RUN_SUBTEST( PointInShapeTest );
 	RUN_SUBTEST( RayCastShapeTest );
 

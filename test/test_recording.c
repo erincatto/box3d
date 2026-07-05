@@ -1053,6 +1053,8 @@ static int AllOps( void )
 
 	b3ShapeDef sphereShapeDef = b3DefaultShapeDef();
 	sphereShapeDef.density = 1.0f;
+	// Over-length shape name so replay exercises the clamp in the shape def reader, like the body above.
+	sphereShapeDef.name = "sphereNameThatExceedsTheLimit";
 	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
 	b3ShapeId sphereShapeId = b3CreateSphereShape( bodyId, &sphereShapeDef, &sphere );
 	ENSURE( b3Shape_IsValid( sphereShapeId ) );
@@ -1159,7 +1161,7 @@ static int AllOps( void )
 
 	// Shape mutators: SetFriction, SetRestitution, SetDensity, SetSurfaceMaterial, SetFilter,
 	// EnableSensorEvents, EnableContactEvents, EnableHitEvents, EnablePreSolveEvents, ApplyWind,
-	// SetSphere, SetCapsule
+	// SetSphere, SetCapsule, SetName
 	b3Shape_SetFriction( boxShapeId, 0.3f );
 	b3Shape_SetRestitution( capsuleShapeId, 0.5f );
 	b3Shape_SetDensity( boxShapeId, 3.0f, true );
@@ -1179,6 +1181,7 @@ static int AllOps( void )
 	b3Shape_SetSphere( sphereShapeId, &newSphere );
 	b3Capsule newCapsule = { { 0.0f, -0.3f, 0.0f }, { 0.0f, 0.3f, 0.0f }, 0.3f };
 	b3Shape_SetCapsule( capsuleShapeId, &newCapsule );
+	b3Shape_SetName( boxShapeId, "box" );
 
 	// Body mutators: SetTransform, SetLinearVelocity/AngularVelocity (Vec3), SetName,
 	// damping, gravity scale, sleep threshold, SetAwake, EnableSleep, SetBullet, SetMotionLocks,
@@ -1849,9 +1852,97 @@ static int StagedStepCreationPose( void )
 	return 0;
 }
 
+// Shape names are debug only and do not feed the determinism hash, so b3ValidateReplay cannot catch a
+// broken name round-trip. Replay through the player and read the names back to prove the def field and
+// the ShapeSetName op survive serialization. Holds for any B3_SHAPE_NAME_LENGTH, including 0.
+static int ShapeNameReplay( void )
+{
+	// Replay must reproduce exactly what the shape stores: its source truncated to B3_SHAPE_NAME_LENGTH.
+	// Asserting the shape cap rather than the body cap also traps the shared string reader, which clamps
+	// to the body length, from silently shortening shape names if the two caps ever cross.
+	const char* names[3] = {
+		"def",                        // carried on the shape def, survives whole
+		"set",                        // applied after create through the setter op
+		"abcdefghijklmnopqrstuvwxyz", // over-length, forces the clamp
+	};
+
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	b3World_StartRecording( worldId, rec );
+
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+
+	// One shape per body so read-back never depends on per-body shape ordering.
+	for ( int i = 0; i < 3; ++i )
+	{
+		b3BodyDef bd = b3DefaultBodyDef();
+		bd.type = b3_dynamicBody;
+		bd.position = (b3Pos){ 3.0f * (float)i, 5.0f, 0.0f };
+		b3BodyId body = b3CreateBody( worldId, &bd );
+
+		b3ShapeDef sd = b3DefaultShapeDef();
+		sd.density = 1.0f;
+		if ( i != 1 )
+		{
+			sd.name = names[i];
+		}
+		b3ShapeId shape = b3CreateSphereShape( body, &sd, &sphere );
+		if ( i == 1 )
+		{
+			b3Shape_SetName( shape, names[i] );
+		}
+	}
+
+	for ( int i = 0; i < 4; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	const uint8_t* data = b3Recording_GetData( rec );
+	int sz = b3Recording_GetSize( rec );
+
+	b3RecPlayer* player = b3RecPlayer_Create( data, sz, 1 );
+	ENSURE( player != NULL );
+	while ( b3RecPlayer_StepFrame( player ) )
+	{
+	}
+	ENSURE( b3RecPlayer_HasDiverged( player ) == false );
+
+	// Body ordinals follow creation order in the replayed world.
+	for ( int i = 0; i < 3; ++i )
+	{
+		b3BodyId body = b3RecPlayer_GetBodyId( player, i );
+		ENSURE( b3Body_IsValid( body ) );
+
+		b3ShapeId shape;
+		ENSURE( b3Body_GetShapes( body, &shape, 1 ) == 1 );
+		const char* got = b3Shape_GetName( shape );
+		ENSURE( got != NULL );
+
+		int srcLen = (int)strlen( names[i] );
+		int expectLen = srcLen < B3_SHAPE_NAME_LENGTH ? srcLen : B3_SHAPE_NAME_LENGTH;
+		ENSURE( (int)strlen( got ) == expectLen );
+		if ( expectLen > 0 )
+		{
+			ENSURE( strncmp( got, names[i], (size_t)expectLen ) == 0 );
+		}
+	}
+
+	b3RecPlayer_Destroy( player );
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( GeometryHashCollision );
+	RUN_SUBTEST( ShapeNameReplay );
 	RUN_SUBTEST( SphereRoundTrip );
 	RUN_SUBTEST( EmptyWorldRoundTrip );
 	RUN_SUBTEST( HullDedup );
