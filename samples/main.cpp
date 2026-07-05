@@ -493,6 +493,10 @@ sapp_desc sokol_main( int argc, char** argv )
 				s_sampleOverride = g_replayIndex;
 			}
 		}
+		else if ( strcmp( argv[i], "--zup" ) == 0 )
+		{
+			s_context.viewZUp = true;
+		}
 	}
 
 	sapp_desc desc{};
