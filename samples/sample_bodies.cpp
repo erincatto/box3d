@@ -369,6 +369,76 @@ public:
 
 static int sampleGyroscopicTorque = RegisterSample( "Bodies", "Gyroscopic Torque", GyroscopicTorque::Create );
 
+// todo this doesn't behave correctly because the friction center is influenced by speculative points
+#if 0
+// Spinning tops.
+// Ported from PEEL (GyroscopicPrecession).
+class GyroscopicPrecession : public Sample
+{
+public:
+	explicit GyroscopicPrecession( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 25.0f, 55.0f, { 0.0f, 2.0f, 0.0f } );
+		}
+
+		AddGroundBox( 30.0f );
+
+		// Top shape: a wide n-gon rim up top and a point at the origin, so it balances on its tip.
+		constexpr int numSegs = 7;
+		constexpr float r = 2.0f;
+		constexpr float h = 2.0f;
+		b3Vec3 hullPoints[numSegs + 1];
+		const float dphi = 2.0f * B3_PI / numSegs;
+		for ( int i = 0; i < numSegs; ++i )
+		{
+			hullPoints[i] = { r * cosf( i * dphi ), h, r * sinf( i * dphi ) };
+		}
+		hullPoints[numSegs] = b3Vec3_zero;
+		b3HullData* hull = b3CreateHull( hullPoints, numSegs + 1, numSegs + 1 );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		// Tilt the symmetry axis, then spin about that tilted axis so gravity induces precession.
+		b3Quat rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 15.0f * B3_PI / 180.0f );
+		b3Vec3 angularVelocity = b3RotateVector( rotation, { 0.0f, 75.0f, 0.0f } );
+
+		constexpr int count = 1;
+		constexpr float separation = 6.0f;
+		for ( int x = 0; x < count; ++x )
+		{
+			for ( int z = 0; z < count; ++z )
+			{
+				b3BodyDef bodyDef = b3DefaultBodyDef();
+				bodyDef.type = b3_dynamicBody;
+				bodyDef.position = { ( x - count / 2 ) * separation, h, ( z - count / 2 ) * separation };
+				bodyDef.rotation = rotation;
+				bodyDef.gravityScale = 0.0f;
+
+				// The spin rate exceeds the default cap, so bypass it as the test intends.
+				bodyDef.allowFastRotation = true;
+
+				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+				b3CreateHullShape( bodyId, &shapeDef, hull );
+
+				b3Body_SetAngularVelocity( bodyId, angularVelocity );
+			}
+		}
+
+		b3DestroyHull( hull );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new GyroscopicPrecession( context );
+	}
+};
+
+static int sampleGyroscopicPrecession = RegisterSample( "Bodies", "Gyroscopic Precession", GyroscopicPrecession::Create );
+#endif
+
 class Weeble : public Sample
 {
 public:

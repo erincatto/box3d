@@ -203,14 +203,16 @@ static inline b3Quat b3QuatFromExponentialMap( b3Vec3 v )
 /// q2 = q1 + 0.5 * omega * q1
 static inline b3Quat b3IntegrateRotation( b3Quat q1, b3Vec3 deltaRotation )
 {
+#if 1
 	// https://fgiesen.wordpress.com/2012/08/24/quaternion-differentiation/
 	b3Quat qd = { b3MulSV( 0.5f, deltaRotation ), 0.0f };
 	qd = b3MulQuat( qd, q1 );
 	b3Quat q2 = { b3Add( q1.v, qd.v ), qd.s + q1.s };
 	q2 = b3NormalizeQuat( q2 );
 	return q2;
-
-	// return b3NormalizeQuat( b3MulQuat(b3QuatFromExponentialMap( deltaRotation ), q1) );
+#else
+	return b3NormalizeQuat( b3MulQuat(b3QuatFromExponentialMap( deltaRotation ), q1) );
+#endif
 }
 
 // Pseudo angular velocity from a quaternion target
