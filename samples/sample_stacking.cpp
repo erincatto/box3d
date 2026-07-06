@@ -452,7 +452,7 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.baseMaterial.rollingResistance = 0.1f;
 			char buffer[16];
-			snprintf( buffer, sizeof( buffer ), "box_%d", i );
+			snprintf( buffer, sizeof( buffer ), "box_%.3d", i );
 			shapeDef.name = buffer;
 			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
 		}
