@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: MIT
 
 #include "gfx/debug_adapter.h"
-#include "gfx/draw.h"
 #include "gfx/keycodes.h"
 #include "imgui.h"
 #include "mesh_loader.h"
 #include "sample.h"
 
 #include "box3d/box3d.h"
+
+#include <stdio.h>
 
 class CardHouseThick : public Sample
 {
