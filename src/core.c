@@ -138,9 +138,6 @@ void b3SetAllocator( b3AllocFcn* allocFcn, b3FreeFcn* freeFcn )
 	b3_freeFcn = freeFcn;
 }
 
-// Use 16 byte alignment for everything
-#define B3_ALIGNMENT 16
-
 void* b3Alloc( size_t size )
 {
 	if ( size == 0 )

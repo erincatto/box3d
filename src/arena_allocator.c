@@ -30,30 +30,29 @@ void* b3StackAlloc( b3Stack* stack, int size, const char* name )
 		return NULL;
 	}
 
-	// ensure allocation is 32 byte aligned to support 256-bit SIMD
-	int size32 = ( ( size - 1 ) | 0x1F ) + 1;
+	int alignedSize = ( ( size - 1 ) | ( B3_ALIGNMENT - 1 ) ) + 1;
 
 	b3StackEntry entry;
-	entry.size = size32;
+	entry.size = alignedSize;
 	entry.name = name;
-	if ( stack->index + size32 > stack->capacity )
+	if ( stack->index + alignedSize > stack->capacity )
 	{
 		// fall back to the heap (undesirable)
-		entry.data = (char*)b3Alloc( size32 );
+		entry.data = (char*)b3Alloc( alignedSize );
 		entry.usedMalloc = true;
 
-		B3_ASSERT( ( (uintptr_t)entry.data & 0x1F ) == 0 );
+		B3_ASSERT( ( (uintptr_t)entry.data & ( B3_ALIGNMENT - 1 ) ) == 0 );
 	}
 	else
 	{
 		entry.data = stack->memory + stack->index;
 		entry.usedMalloc = false;
-		stack->index += size32;
+		stack->index += alignedSize;
 
-		B3_ASSERT( ( (uintptr_t)entry.data & 0x1F ) == 0 );
+		B3_ASSERT( ( (uintptr_t)entry.data & ( B3_ALIGNMENT - 1 ) ) == 0 );
 	}
 
-	stack->allocation += size32;
+	stack->allocation += alignedSize;
 	if ( stack->allocation > stack->maxAllocation )
 	{
 		stack->maxAllocation = stack->allocation;

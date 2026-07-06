@@ -108,6 +108,9 @@ typedef struct b3AtomicU32
 	uint32_t value;
 } b3AtomicU32;
 
+// Minimum memory alignment used for all allocations
+#define B3_ALIGNMENT 16
+
 // Returns the number of elements of an array
 #define B3_ARRAY_COUNT( A ) (int)( sizeof( A ) / sizeof( A[0] ) )
 

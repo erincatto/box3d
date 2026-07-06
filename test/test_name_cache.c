@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "name_map.h"
+#include "name_cache.h"
 #include "test_macros.h"
 
 #include "box3d/base.h"
