@@ -62,9 +62,6 @@ b3DynamicTree b3DynamicTree_Create( int proxyCapacity )
 
 	tree.nodes = (b3TreeNode*)b3Alloc( tree.nodeCapacity * sizeof( b3TreeNode ) );
 
-	// Better to have 64 byte alignment
-	B3_VALIDATE( ( (uintptr_t)tree.nodes & 0x3F ) == 0 );
-
 	memset( tree.nodes, 0, tree.nodeCapacity * sizeof( b3TreeNode ) );
 
 	// Build a linked list for the free list.
