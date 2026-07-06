@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "name_map.h"
+
 #include "recording.h"
 
 #define NAME b3NameMap
@@ -12,6 +13,34 @@
 #define MALLOC_FN b3Alloc
 #define FREE_FN b3Free
 #include "verstable.h"
+
+#define FNV32_OFFSET_BASIS 0x811c9dc5u
+#define FNV32_PRIME 0x01000193u
+
+// This is designed to hash small strings and while avoiding collisions
+// for a 32-bit hash.
+// Note: changing this will break recordings
+uint32_t b3Hash32( const void* data, size_t length )
+{
+	// Cast to unsigned to avoid sign extension
+	const unsigned char* p = data;
+
+	// FNV-1a
+	uint32_t h = FNV32_OFFSET_BASIS;
+	for ( size_t i = 0; i < length; ++i )
+	{
+		h ^= p[i];
+		h *= FNV32_PRIME;
+	}
+
+	// Murmur3 finalizer to help with short strings
+	h ^= h >> 16;
+	h *= 0x85ebca6bu;
+	h ^= h >> 13;
+	h *= 0xc2b2ae35u;
+	h ^= h >> 16;
+	return h;
+}
 
 b3NameCache b3CreateNameCache( void )
 {
@@ -27,7 +56,7 @@ b3NameCache b3CreateNameCache( void )
 void b3DestroyNameCache( b3NameCache* cache )
 {
 	int count = cache->entries.count;
-	for (int i = 0; i < count; ++i)
+	for ( int i = 0; i < count; ++i )
 	{
 		b3NameEntry* entry = cache->entries.data + i;
 		b3Free( entry->name, entry->length + 1 );
@@ -46,8 +75,7 @@ uint32_t b3AddName( b3NameCache* cache, const char* name )
 	}
 
 	size_t length = strlen( name );
-	// todo try vt_wyhash
-	uint32_t id = (uint32_t)b3Hash64Blob( (const uint8_t*)name, (int)length );
+	uint32_t id = b3Hash32( name, length );
 
 	id = id == 0 ? 1 : id;
 
@@ -55,7 +83,7 @@ uint32_t b3AddName( b3NameCache* cache, const char* name )
 	b3NameMap_itr itr = b3NameMap_get( map, id );
 	if ( b3NameMap_is_end( itr ) == false )
 	{
-		if ( strcmp( cache->entries.data[itr.data->val].name, name ) != 0)
+		if ( strcmp( cache->entries.data[itr.data->val].name, name ) != 0 )
 		{
 			// Different name, same hash
 			b3Log( "Hash collision on %s", name );
@@ -99,7 +127,7 @@ void b3LoadName( b3NameCache* cache, uint32_t id, char* name, int length )
 		return;
 	}
 
-	if ( name[0] == 0)
+	if ( name[0] == 0 )
 	{
 		b3Free( name, length + 1 );
 		return;
