@@ -59,6 +59,19 @@ static const char* s_bodyNames[] = {
 	"a_very_long_body_name_that_exceeds_any_inline_name_buffer",
 };
 
+// Each box also carries a named hull shape. Shapes could not hold a name at all before the cache
+// (the old inline shape buffer had length 0), so this is a new path. Two shapes share a name for
+// dedup, one shape shares a body's name to prove shape ids intern independently, and one is far
+// longer than any inline buffer.
+static const char* s_shapeNames[] = {
+	"box_hull",
+	"box_hull",
+	"crate",
+	"a_very_long_shape_name_that_never_fit_the_old_inline_buffer",
+};
+
+_Static_assert( ARRAY_COUNT( s_shapeNames ) == ARRAY_COUNT( s_bodyNames ), "name arrays must stay parallel" );
+
 static void BuildNamedScene( b3WorldId worldId )
 {
 	b3World_SetGravity( worldId, (b3Vec3){ 0.0f, -10.0f, 0.0f } );
@@ -80,6 +93,7 @@ static void BuildNamedScene( b3WorldId worldId )
 		bodyDef.position = (b3Pos){ 0.0f, 1.0f + 1.1f * (float)i, 0.0f };
 		bodyDef.name = s_bodyNames[i];
 		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+		boxShape.name = s_shapeNames[i];
 		b3CreateHullShape( bodyId, &boxShape, &box.base );
 	}
 }
@@ -92,13 +106,19 @@ static int CheckReplayNames( b3RecPlayer* player )
 		ENSURE( b3Body_IsValid( id ) );
 		const char* name = b3Body_GetName( id );
 		ENSURE( name != NULL && strcmp( name, s_bodyNames[i] ) == 0 );
+
+		// Shape names ride the same world cache, so the snapshot must restore them too.
+		b3ShapeId shapeId;
+		ENSURE( b3Body_GetShapes( id, &shapeId, 1 ) == 1 );
+		const char* shapeName = b3Shape_GetName( shapeId );
+		ENSURE( shapeName != NULL && strcmp( shapeName, s_shapeNames[i] ) == 0 );
 	}
 	return 0;
 }
 
 // Names live on the world, so the world snapshot must carry them. Record a snapshot-seeded session
-// and confirm every body's name resolves on the reconstructed replay world.
-static int BodyNameRoundTrip( void )
+// and confirm every body and shape name resolves on the reconstructed replay world.
+static int NameRoundTrip( void )
 {
 	b3Recording* rec = b3CreateRecording( 0 );
 	ENSURE( rec != NULL );
@@ -186,7 +206,7 @@ static int RollbackNames( void )
 int NameCacheTest( void )
 {
 	RUN_SUBTEST( CacheUnit );
-	RUN_SUBTEST( BodyNameRoundTrip );
+	RUN_SUBTEST( NameRoundTrip );
 	RUN_SUBTEST( RollbackNames );
 	return 0;
 }
