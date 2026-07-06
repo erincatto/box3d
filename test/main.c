@@ -41,6 +41,7 @@ extern int JointTest( void );
 extern int LargeWorldTest( void );
 extern int MathTest( void );
 extern int MoverTest( void );
+extern int NameCacheTest( void );
 extern int RecordingTest( void );
 extern int ShapeTest( void );
 extern int TableTest( void );
@@ -111,6 +112,7 @@ int main( int argc, char** argv )
 	MAYBE_RUN_TEST( LargeWorldTest );
 	MAYBE_RUN_TEST( MathTest );
 	MAYBE_RUN_TEST( MoverTest );
+	MAYBE_RUN_TEST( NameCacheTest );
 	MAYBE_RUN_TEST( RecordingTest );
 	MAYBE_RUN_TEST( ShapeTest );
 	MAYBE_RUN_TEST( TableTest );

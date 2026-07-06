@@ -373,10 +373,10 @@ b3MotionLocks b3RecR_LOCKS( b3RecReader* rdr )
 }
 
 // Rotating set of static string buffers, valid until the next 4 STR reads.
-const char* b3RecR_BODYSTR( b3RecReader* rdr )
+const char* b3RecR_STR( b3RecReader* rdr )
 {
-	char* buf = rdr->bodyStrBufs[rdr->bodyStrNext];
-	rdr->bodyStrNext = ( rdr->bodyStrNext + 1 ) & 3;
+	char* buf = rdr->strBufs[rdr->strNext];
+	rdr->strNext = ( rdr->strNext + 1 ) & 3;
 
 	uint16_t len = b3RecR_U16( rdr );
 	if ( len == 0xFFFFu )
@@ -385,35 +385,9 @@ const char* b3RecR_BODYSTR( b3RecReader* rdr )
 	}
 
 	int n = (int)len;
-	if ( n > B3_BODY_NAME_LENGTH )
+	if ( n > B3_MAX_NAME_LENGTH )
 	{
-		n = B3_BODY_NAME_LENGTH;
-	}
-	b3RecRdrCheck( rdr, (int)len );
-	if ( rdr->ok && n > 0 )
-	{
-		memcpy( buf, rdr->data + rdr->cursor, (size_t)n );
-	}
-	rdr->cursor += (int)len;
-	buf[n] = '\0';
-	return buf;
-}
-
-const char* b3RecR_SHAPESTR( b3RecReader* rdr )
-{
-	char* buf = rdr->shapeStrBufs[rdr->shapeStrNext];
-	rdr->shapeStrNext = ( rdr->shapeStrNext + 1 ) & 3;
-
-	uint16_t len = b3RecR_U16( rdr );
-	if ( len == 0xFFFFu )
-	{
-		return NULL;
-	}
-
-	int n = (int)len;
-	if ( n > B3_SHAPE_NAME_LENGTH )
-	{
-		n = B3_SHAPE_NAME_LENGTH;
+		n = B3_MAX_NAME_LENGTH;
 	}
 	b3RecRdrCheck( rdr, (int)len );
 	if ( rdr->ok && n > 0 )
@@ -451,7 +425,7 @@ b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr )
 	def.angularDamping = b3RecR_F32( rdr );
 	def.gravityScale = b3RecR_F32( rdr );
 	def.sleepThreshold = b3RecR_F32( rdr );
-	def.name = b3RecR_BODYSTR( rdr );
+	def.name = b3RecR_STR( rdr );
 	(void)b3RecR_U64( rdr ); // userData placeholder
 	def.motionLocks = b3RecR_LOCKS( rdr );
 	def.enableSleep = b3RecR_BOOL( rdr );
@@ -468,7 +442,7 @@ b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 {
 	b3ShapeDef def = b3DefaultShapeDef();
 
-	def.name = b3RecR_SHAPESTR( rdr );
+	def.name = b3RecR_STR( rdr );
 	(void)b3RecR_U64( rdr ); // userData placeholder
 
 	int matCount = b3RecR_I32( rdr );
@@ -2366,7 +2340,7 @@ static void b3RecLoadTags( b3RecReader* rdr, const uint8_t* rp, const uint8_t* d
 		{
 			break;
 		}
-		int n = len > B3_BODY_NAME_LENGTH ? B3_BODY_NAME_LENGTH : (int)len;
+		int n = len > B3_QUERY_NAME_LENGTH ? B3_QUERY_NAME_LENGTH : (int)len;
 		tags[loaded].key = key;
 		tags[loaded].id = id;
 		if ( n > 0 )
@@ -3133,12 +3107,13 @@ void b3RecPlayer_Restart( b3RecPlayer* player )
 
 void b3RecPlayer_SeekFrame( b3RecPlayer* player, int targetFrame )
 {
-	player->atPreStep = false;
-
 	if ( player == NULL )
 	{
 		return;
 	}
+	
+	player->atPreStep = false;
+
 	if ( targetFrame < 0 )
 	{
 		targetFrame = 0;

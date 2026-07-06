@@ -1042,12 +1042,11 @@ static int AllOps( void )
 	b3ShapeId groundShapeId = b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
 	ENSURE( b3Shape_IsValid( groundShapeId ) );
 
-	// Dynamic body with a sphere shape. The name is intentionally longer than B3_BODY_NAME_LENGTH so
-	// replay exercises the over-length name path in the body def reader.
+	// Dynamic body with a sphere shape.
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
 	bodyDef.position = (b3Pos){ 0.0f, 5.0f, 0.0f };
-	bodyDef.name = "testBodyWithVeryLongNameThatExceedsTheNameLength";
+	bodyDef.name = "testBodyWithVeryLongNameThatIsAVeryLongNameLength";
 	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 	ENSURE( b3Body_IsValid( bodyId ) );
 
@@ -1854,10 +1853,9 @@ static int StagedStepCreationPose( void )
 
 // Shape names are debug only and do not feed the determinism hash, so b3ValidateReplay cannot catch a
 // broken name round-trip. Replay through the player and read the names back to prove the def field and
-// the ShapeSetName op survive serialization. Holds for any B3_SHAPE_NAME_LENGTH, including 0.
+// the ShapeSetName op survive serialization.
 static int ShapeNameReplay( void )
 {
-	// Replay must reproduce exactly what the shape stores: its source truncated to B3_SHAPE_NAME_LENGTH.
 	// Asserting the shape cap rather than the body cap also traps the shared string reader, which clamps
 	// to the body length, from silently shortening shape names if the two caps ever cross.
 	const char* names[3] = {
@@ -1926,11 +1924,10 @@ static int ShapeNameReplay( void )
 		ENSURE( got != NULL );
 
 		int srcLen = (int)strlen( names[i] );
-		int expectLen = srcLen < B3_SHAPE_NAME_LENGTH ? srcLen : B3_SHAPE_NAME_LENGTH;
-		ENSURE( (int)strlen( got ) == expectLen );
-		if ( expectLen > 0 )
+		ENSURE( (int)strlen( got ) == srcLen );
+		if ( srcLen > 0 )
 		{
-			ENSURE( strncmp( got, names[i], (size_t)expectLen ) == 0 );
+			ENSURE( strncmp( got, names[i], (size_t)srcLen ) == 0 );
 		}
 	}
 

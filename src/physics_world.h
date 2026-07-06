@@ -9,6 +9,7 @@
 #include "broad_phase.h"
 #include "constraint_graph.h"
 #include "id_pool.h"
+#include "name_map.h"
 
 #include "box3d/types.h"
 
@@ -181,6 +182,9 @@ typedef struct b3World
 	// type into this header.
 	void* hullDatabase;
 
+	// Name cache for shape and body names. This works with recording.
+	b3NameCache names;
+
 	// This is a dense array of sensor data.
 	b3Array( b3Sensor ) sensors;
 
@@ -258,6 +262,10 @@ typedef struct b3World
 
 	void* userData;
 
+	// Non-NULL while a recording session is active. Set by b3World_StartRecording,
+	// cleared by b3World_StopRecording. Hooks in mutators check this before writing.
+	struct b3Recording* recording;
+
 	// latest inverse sub-step
 	float inv_h;
 
@@ -274,11 +282,6 @@ typedef struct b3World
 	// This indicates there is a world write operation in progress. This is for debugging and
 	// not a real mutex. This should have minimal performance impact.
 	bool locked;
-
-	// Non-NULL while a recording session is active. Set by b3World_StartRecording,
-	// cleared by b3World_StopRecording. Hooks in mutators check this before writing.
-	struct b3Recording* recording;
-
 	bool enableWarmStarting;
 	bool enableContinuous;
 	bool enableSpeculative;

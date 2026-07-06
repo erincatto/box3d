@@ -245,13 +245,6 @@ B3_API void b3World_RebuildStaticTree( b3WorldId worldId );
 /// This is for internal testing
 B3_API void b3World_EnableSpeculative( b3WorldId worldId, bool flag );
 
-/// Dump world to a text file. Saves only awake bodies and associated static bodies.
-/// Meshes are saved to binary b3m files.
-B3_API void b3World_DumpAwake( b3WorldId worldId );
-
-/// Dump world to a text file. Meshes are saved to binary b3m files.
-B3_API void b3World_Dump( b3WorldId worldId );
-
 /**
  * @defgroup recording Recording
  * @brief Record and replay world state for debugging.
@@ -508,7 +501,7 @@ B3_API b3BodyType b3Body_GetType( b3BodyId bodyId );
 /// properties regardless of the automatic mass setting.
 B3_API void b3Body_SetType( b3BodyId bodyId, b3BodyType type );
 
-/// Set the body name. Up to B3_BODY_NAME_LENGTH characters excluding null termination.
+/// Set the body name.
 B3_API void b3Body_SetName( b3BodyId bodyId, const char* name );
 
 /// Get the body name.
@@ -846,7 +839,7 @@ B3_API b3WorldId b3Shape_GetWorld( b3ShapeId shapeId );
 /// Returns true if the shape is a sensor
 B3_API bool b3Shape_IsSensor( b3ShapeId shapeId );
 
-/// Set the shape name. Up to B3_SHAPE_NAME_LENGTH characters excluding null termination.
+/// Set the shape name.
 B3_API void b3Shape_SetName( b3ShapeId shapeId, const char* name );
 
 /// Get the shape name.

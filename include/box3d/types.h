@@ -302,7 +302,7 @@ typedef struct b3BodyDef
 	/// Sleep speed threshold, default is 0.05 meters per second
 	float sleepThreshold;
 
-	/// Optional body name for debugging. Up to B3_BODY_NAME_LENGTH characters (including null termination)
+	/// Optional body name for debugging.
 	const char* name;
 
 	/// Use this to store application specific body data.

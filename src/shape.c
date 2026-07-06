@@ -17,9 +17,7 @@
 #include "box3d/box3d.h"
 
 #include <inttypes.h>
-#include <stdio.h>
-
-_Static_assert( B3_SHAPE_NAME_LENGTH >= 0, "minimum name length" );
+//#include <stdio.h>
 
 static b3Shape* b3GetShape( b3World* world, b3ShapeId shapeId )
 {
@@ -191,9 +189,8 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 	shape->aabbMargin = b3ComputeShapeMargin( shape );
 	shape->aabb = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
 	shape->fatAABB = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
+	shape->nameId = b3AddName( &world->names, def->name );
 	shape->generation += 1;
-
-	b3StrCpy( shape->name, B3_SHAPE_NAME_LENGTH + 1, def->name );
 
 	if ( shape->type == b3_compoundShape )
 	{
@@ -1144,14 +1141,14 @@ void b3Shape_SetName( b3ShapeId shapeId, const char* name )
 	B3_REC( world, ShapeSetName, shapeId, name );
 
 	b3Shape* shape = b3GetShape( world, shapeId );
-	b3StrCpy( shape->name, B3_SHAPE_NAME_LENGTH + 1, name );
+	shape->nameId = b3AddName( &world->names, name );
 }
 
 const char* b3Shape_GetName( b3ShapeId shapeId )
 {
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
-	return shape->name;
+	return b3FindName( &world->names, shape->nameId );
 }
 
 bool b3Shape_IsSensor( b3ShapeId shapeId )
@@ -2395,101 +2392,4 @@ uint64_t b3GetShapeUserMaterialId( const b3Shape* shape, int childIndex, int tri
 
 	materialIndex = b3ClampInt( materialIndex, 0, shape->materialCount - 1 );
 	return b3GetShapeMaterials( shape )[materialIndex].userMaterialId;
-}
-
-void b3DumpShape( b3World* world, int shapeIndex )
-{
-	b3Shape* shape = b3Array_Get( world->shapes, shapeIndex );
-
-	b3Dump( "    b3ShapeDef sd = b3DefaultShapeDef();\n" );
-
-	// printf("%" PRIx64 ";\n", t);
-	b3Dump( "    sd.density = %.9g;\n", shape->density );
-	b3Dump( "    sd.isSensor = bool(%d);\n", shape->sensorIndex != B3_NULL_INDEX );
-	b3Dump( "    sd.filter.categoryBits = 0x%" PRIx64 ";\n", shape->filter.categoryBits );
-	b3Dump( "    sd.filter.maskBits = 0x%" PRIx64 ";\n", shape->filter.maskBits );
-	b3Dump( "    sd.filter.groupIndex = %d;\n", shape->filter.groupIndex );
-
-	B3_ASSERT( shape->materialCount >= 1 );
-	const b3SurfaceMaterial* m = b3GetShapeMaterials( shape );
-	b3Dump( "    sd.baseMaterial.friction = %.9g;\n", m->friction );
-	b3Dump( "    sd.baseMaterial.restitution = %.9g;\n", m->restitution );
-	b3Dump( "    sd.baseMaterial.rollingResistance = %.9g;\n", m->rollingResistance );
-
-	switch ( shape->type )
-	{
-		case b3_capsuleShape:
-		{
-			b3Capsule* s = &shape->capsule;
-			b3Dump( "    b3CapsuleShape shape;\n" );
-			b3Dump( "    shape.center1 = {%.9g, %.9g, %.9g};\n", s->center1.x, s->center1.y, s->center1.z );
-			b3Dump( "    shape.center2 = {%.9g, %.9g, %.9g};\n", s->center2.x, s->center2.y, s->center2.z );
-			b3Dump( "    shape.radius = %.9g;\n", s->radius );
-			b3Dump( "    b3CreateCapsuleShape(bodyId, &sd, &shape);\n" );
-		}
-		break;
-
-		case b3_compoundShape:
-		{
-			// todo
-		}
-		break;
-
-		case b3_heightShape:
-		{
-			// todo
-		}
-		break;
-
-		case b3_hullShape:
-		{
-			const b3HullData* s = shape->hull;
-			int vertexCount = s->vertexCount;
-			const b3Vec3* vs = b3GetHullPoints( s );
-			b3Dump( "    b3Vec3 vs[%d];\n", vertexCount );
-			for ( int i = 0; i < vertexCount; ++i )
-			{
-				b3Dump( "    vs[%d] = {%.9g, %.9g, %.9g};\n", i, vs[i].x, vs[i].y, vs[i].z );
-			}
-			b3Dump( "    b3HullData* hullData = b3CreateHull(vs, %d, %d);\n", vertexCount, vertexCount );
-			b3Dump( "    b3CreateHullShape(bodyId, &sd, hullData);\n" );
-			b3Dump( "    b3DestroyHull(hullData);\n" );
-		}
-		break;
-
-		case b3_meshShape:
-		{
-			const b3MeshData* s = shape->mesh.data;
-			b3Vec3 scale = shape->mesh.scale;
-			int meshIndex = b3FetchAddMeshDumpIndex();
-			char buffer[64];
-			snprintf( buffer, 64, "mesh_dump_%d.b3m", meshIndex );
-			b3WriteBinaryFile( (void*)s, s->byteCount, buffer );
-
-			b3Dump( "    int dataSize = 0;\n" );
-			b3Dump( "    b3MeshData* data = (b3MeshData*)b3ReadBinaryFile(dumpPrefix, \"%s\", &dataSize);\n", buffer );
-			b3Dump( "    if (data == nullptr || data->version != B3_MESH_VERSION || data->byteCount != dataSize)\n" );
-			b3Dump( "    {\n" );
-			b3Dump( "        return;\n" );
-			b3Dump( "    }\n" );
-			b3Dump( "    b3Vec3 scale = { %.9g, %.9g, %.9g };\n", scale.x, scale.y, scale.z );
-			b3Dump( "    b3CreateMeshShape(bodyId, &sd, data, scale);\n" );
-			// Host code must have this container and destroy the mesh data when the world is destroyed.
-			b3Dump( "    m_meshes.push_back(data);\n" );
-		}
-		break;
-
-		case b3_sphereShape:
-		{
-			b3Sphere* s = &shape->sphere;
-			b3Dump( "    b3SphereShape shape;\n" );
-			b3Dump( "    shape.center = {%.9g, %.9g, %.9g};\n", s->center.x, s->center.y, s->center.z );
-			b3Dump( "    shape.radius = %.9g;\n", s->radius );
-			b3Dump( "    b3CreateSphereShape(bodyId, &sd, &shape);\n" );
-		}
-		break;
-
-		default:
-			return;
-	}
 }

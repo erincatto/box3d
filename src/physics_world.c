@@ -290,6 +290,8 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 	world->hullDatabase = b3Alloc( sizeof( b3HullMap ) );
 	b3HullMap_init( world->hullDatabase );
 
+	world->names = b3CreateNameCache();
+
 	world->contactIdPool = b3CreateIdPool();
 	b3Array_Reserve( world->contacts, b3MaxInt( 16, def->capacity.contactCount ) );
 
@@ -472,6 +474,8 @@ void b3DestroyWorld( b3WorldId worldId )
 	b3HullMap_cleanup( world->hullDatabase );
 	b3Free( world->hullDatabase, sizeof( b3HullMap ) );
 	world->hullDatabase = NULL;
+
+	b3DestroyNameCache( &world->names );
 
 	b3Array_Destroy( world->shapes );
 	b3Array_Destroy( world->contacts );
@@ -1413,12 +1417,16 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 			b3Body* body = b3Array_Get( world->bodies, bodyId );
 			b3BodySim* bodySim = b3GetBodySim( world, body );
 
-			if ( draw->drawBodyNames && body->name[0] != 0 )
+			if ( draw->drawBodyNames && body->nameId != B3_NULL_NAME )
 			{
 				b3Vec3 offset = { 0.05f, 0.05f, 0.05f };
 				b3WorldTransform transform = { bodySim->center, bodySim->transform.q };
 				b3Pos p = b3TransformWorldPoint( transform, offset );
-				draw->DrawStringFcn( p, body->name, b3_colorOrange, draw->context );
+				const char* name = b3FindName( &world->names, body->nameId );
+				if (name != NULL)
+				{
+					draw->DrawStringFcn( p, name, b3_colorOrange, draw->context );
+				}
 			}
 
 			if ( draw->drawMass && body->type == b3_dynamicBody )
@@ -4142,123 +4150,3 @@ void b3ValidateContacts( b3World* world )
 }
 
 #endif
-
-#define NAME int_set
-#define KEY_TY int
-#define MALLOC_FN b3Alloc
-#define FREE_FN b3Free
-#define HASH_FN vt_hash_integer
-#define CMPR_FN vt_cmpr_integer
-#include "verstable.h"
-
-void b3World_DumpAwake( b3WorldId worldId )
-{
-	b3World* world = b3GetWorldFromId( worldId );
-	if ( world->locked == true )
-	{
-		return;
-	}
-
-	b3OpenDump( "box3d_dump.inl" );
-
-	b3Vec3 g = world->gravity;
-	b3Dump( "b3Vec3 gravity = {%.9g, %.9g, %.9g};\n", g.x, g.y, g.z );
-	b3Dump( "b3World_SetGravity(m_worldId, gravity);\n" );
-
-	b3Dump( "std::vector<b3BodyId> bodies;\n" );
-	b3Dump( "std::vector<b3JointId> joints;\n\n" );
-
-	int_set staticBodies;
-	int_set_init( &staticBodies );
-
-	b3Body* bodies = world->bodies.data;
-	for ( int i = 0; i < world->bodies.count; ++i )
-	{
-		b3Body* body = bodies + i;
-
-		if ( body->id == B3_NULL_INDEX )
-		{
-			continue;
-		}
-
-		if ( body->setIndex != b3_awakeSet )
-		{
-			continue;
-		}
-
-		b3DumpBody( world, body );
-
-		// Gather
-		int edgeKey = body->headContactKey;
-		while ( edgeKey != B3_NULL_INDEX )
-		{
-			int contactId = edgeKey >> 1;
-			int edgeIndex = edgeKey & 1;
-
-			b3Contact* contact = b3Array_Get( world->contacts, contactId );
-			edgeKey = contact->edges[edgeIndex].nextKey;
-
-			if ( ( contact->flags & b3_contactTouchingFlag ) == 0 )
-			{
-				continue;
-			}
-
-			int otherIndex = 1 - edgeIndex;
-			b3Body* otherBody = b3Array_Get( world->bodies, contact->edges[otherIndex].bodyId );
-			if ( otherBody->setIndex == b3_staticSet )
-			{
-				(void)int_set_insert( &staticBodies, otherBody->id );
-			}
-		}
-	}
-
-	// Dump the bodies that are touching
-	for ( int_set_itr itr = int_set_first( &staticBodies ); int_set_is_end( itr ) == false; itr = int_set_next( itr ) )
-	{
-		b3Body* body = b3Array_Get( world->bodies, itr.data->key );
-		b3DumpBody( world, body );
-	}
-
-	int_set_cleanup( &staticBodies );
-
-	b3CloseDump();
-}
-
-void b3World_Dump( b3WorldId worldId )
-{
-	b3World* world = b3GetWorldFromId( worldId );
-
-	if ( world->locked == true )
-	{
-		return;
-	}
-
-	b3OpenDump( "box3d_dump.inl" );
-
-	b3Vec3 g = world->gravity;
-	b3Dump( "b3Vec3 gravity = {%.9g, %.9g, %.9g};\n", g.x, g.y, g.z );
-	b3Dump( "b3World_SetGravity(m_worldId, gravity);\n" );
-
-	b3Dump( "std::vector<b3BodyId> bodies;\n" );
-	b3Dump( "std::vector<b3JointId> joints;\n\n" );
-
-	b3Body* bodies = world->bodies.data;
-	for ( int i = 0; i < world->bodies.count; ++i )
-	{
-		b3Body* body = bodies + i;
-
-		if ( body->id == B3_NULL_INDEX )
-		{
-			continue;
-		}
-
-		if ( body->setIndex != b3_awakeSet )
-		{
-			continue;
-		}
-
-		b3DumpBody( world, body );
-	}
-
-	b3CloseDump();
-}

@@ -461,7 +461,9 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 	float ms = b3GetMilliseconds( ticks );
 	if ( ms > 1000.0f * b3GetStallThreshold() )
 	{
-		b3Log( "CCD stall: duration %.1f ms for %s versus %s", ms, fastBody->name, body->name );
+		const char* nameFast = b3FindNameWithDefault( &world->names, fastBody->nameId, "NULL" );
+		const char* name = b3FindNameWithDefault( &world->names, body->nameId, "NULL" );
+		b3Log( "CCD stall: duration %.1f ms for %s versus %s", ms, nameFast, name );
 	}
 
 	// Continue query
@@ -642,11 +644,12 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	float ms = b3GetMilliseconds( ticks );
 	if ( ms > 1000.0f * b3GetStallThreshold() )
 	{
+		const char* nameFast = b3FindNameWithDefault( &world->names, fastBody->nameId, "NULL" );
 		b3Vec3 c1 = sweep.c1;
 		b3Vec3 c2 = sweep.c2;
 		int vc = context.visitCount;
-		b3Log( "CCD stall: duration %.1f ms and visit count %d for %s: c1 = (%g, %g, %g), c2 = (%g, %g, %g)", ms, vc,
-			   fastBody->name, c1.x, c1.y, c1.z, c2.x, c2.y, c2.z );
+		b3Log( "CCD stall: duration %.1f ms and visit count %d for %s: c1 = (%g, %g, %g), c2 = (%g, %g, %g)", ms, vc, nameFast,
+			   c1.x, c1.y, c1.z, c2.x, c2.y, c2.z );
 	}
 
 	b3TracyCZoneEnd( ccd );
@@ -692,7 +695,8 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 
 		if ( b3IsValidVec3( v ) == false || b3IsValidVec3( w ) == false )
 		{
-			b3Log( "unstable: %s", bodies[sim->bodyId].name );
+			const char* name = b3FindNameWithDefault( &world->names, bodies[sim->bodyId].nameId, "NULL" );
+			b3Log( "unstable: %s", name );
 		}
 
 		B3_ASSERT( b3IsValidVec3( v ) );
@@ -832,7 +836,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 				b3AABB aabb = b3ComputeFatShapeAABB( shape, transform, speculativeScalar );
 				shape->aabb = aabb;
 
-				B3_ASSERT( (shape->flags & b3_enlargedAABB) == 0 );
+				B3_ASSERT( ( shape->flags & b3_enlargedAABB ) == 0 );
 
 				if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
 				{
@@ -2201,7 +2205,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			while ( shapeId != B3_NULL_INDEX )
 			{
 				b3Shape* shape = shapeArray + shapeId;
-				if ( (shape->flags & b3_enlargedAABB) == 0 )
+				if ( ( shape->flags & b3_enlargedAABB ) == 0 )
 				{
 					shapeId = shape->nextShapeId;
 					continue;

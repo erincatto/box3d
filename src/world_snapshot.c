@@ -361,6 +361,50 @@ static void b3DesSolverSet( b3SnapReader* r, b3SolverSet* set )
 	b3DesPodArray( r, set->islandSims );
 }
 
+static void b3SerNames( b3RecBuffer* buf, const b3NameCache* cache )
+{
+	b3SnapW_I32( buf, cache->entries.count );
+	int count = cache->entries.count;
+	for ( int i = 0; i < count; ++i )
+	{
+		const b3NameEntry* entry = cache->entries.data + i;
+		b3SnapW_U32( buf, entry->hash );
+		b3SnapW_I32( buf, entry->length );
+		b3RecBufAppend( buf, entry->name, entry->length );
+	}
+}
+
+static void b3DesNames( b3SnapReader* r, b3NameCache* cache )
+{
+	int count = b3SnapR_I32( r );
+
+	if ( r->ok && b3SnapCheckCount( r, count, (int)sizeof( b3NameEntry ), 8 ) == false )
+	{
+		r->ok = false;
+	}
+
+	if ( r->ok == false )
+	{
+		return;
+	}
+
+	b3Array_Reserve( cache->entries, count );
+	for ( int i = 0; i < count; ++i )
+	{
+		uint32_t hash = b3SnapR_U32( r );
+		int length = b3SnapR_I32( r );
+		if ( r->ok == false || length < 0 || length > r->size - r->cursor )
+		{
+			r->ok = false;
+			return;
+		}
+		char* name = b3Alloc( length + 1 );
+		b3SnapR_Bytes( r, name, length );
+		name[length] = 0;
+		b3LoadName( cache, hash, name, length );
+	}
+}
+
 // Graph color: bodySet (non-overflow only) + jointSims + convexContacts + contacts
 static void b3SerGraphColor( b3RecBuffer* buf, const b3GraphColor* color, bool isOverflow )
 {
@@ -437,7 +481,7 @@ static void b3DesWorldConfig( b3SnapReader* r, b3World* world )
 
 // Shapes carry pointer fields: materials, userData, userShape, and the geometry union.
 // Serialize the POD scalars with pointers nulled, then the owned materials array, then geometry.
-// A single material lives inline in the struct image. The name is a fixed array, also inline.
+// A single material lives inline in the struct image.
 // Hull/mesh/heightField/compound are interned into the recording registry; sphere/capsule inline.
 static void b3SerShapes( b3RecBuffer* buf, b3World* world, b3Recording* rec )
 {
@@ -1048,6 +1092,8 @@ int b3SerializeWorld( b3World* world, b3RecBuffer* buf, b3Recording* rec )
 		b3SerGraphColor( buf, &graph->colors[c], c == B3_OVERFLOW_INDEX );
 	}
 
+	b3SerNames( buf, &world->names );
+
 	return buf->size - startSize;
 }
 
@@ -1282,6 +1328,8 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 			b3DesGraphColor( r, &graph->colors[c], c == B3_OVERFLOW_INDEX );
 		}
 	}
+
+	b3DesNames( r, &world->names );
 
 	return r->ok;
 }

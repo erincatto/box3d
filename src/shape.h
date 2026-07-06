@@ -47,6 +47,12 @@ typedef struct b3Shape
 	void* userData;
 	void* userShape;
 
+	uint32_t nameId;
+	uint16_t generation;
+
+	// b3ShapeFlags
+	uint8_t flags;
+
 	union
 	{
 		b3Capsule capsule;
@@ -57,10 +63,6 @@ typedef struct b3Shape
 		const b3CompoundData* compound;
 	};
 
-	uint16_t generation;
-	// b3ShapeFlags
-	uint8_t flags;
-	char name[B3_SHAPE_NAME_LENGTH + 1];
 } b3Shape;
 
 // A single material shape keeps its material inline. Multi material meshes and compounds own a heap
@@ -134,7 +136,6 @@ static inline int b3GetHeightFieldTriangleCount( const b3HeightFieldData* height
 // Mesh
 b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleIndex );
 bool b3IsValidMesh( const b3MeshData* meshData );
-void b3DumpShape( b3World* world, int shapeIndex );
 
 static inline bool b3ShouldShapesCollide( b3Filter filterA, b3Filter filterB )
 {

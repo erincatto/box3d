@@ -46,12 +46,12 @@ typedef struct b3World b3World;
 #define B3_REC_MAGIC 0x43523342u
 
 // Major recording version is bumped when writers change.
-// Major version 3 added shape names
+// Major version 3 added shape names.
 #define B3_REC_VERSION_MAJOR 3
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.
-// Minor version 2 added the QueryTag op and the interned query-tag table at the tail of the registry block.
-#define B3_REC_VERSION_MINOR 2
+// Minor version 3 added name cache.
+#define B3_REC_VERSION_MINOR 3
 
 // File header, fixed 48 bytes, little-endian. Contains the registry locator so the player
 // can load geometry before replaying any ops.
@@ -116,6 +116,8 @@ typedef struct b3GeometryRegistry
 	void* dedupMap;
 } b3GeometryRegistry;
 
+#define B3_QUERY_NAME_LENGTH 64
+
 // Query tag from b3QueryFilter.
 // Stored once per key in the trailing block so a tagged query carries only the 8 byte key on the wire.
 // Shared by the recorder (accumulate) and the player (load).
@@ -123,7 +125,7 @@ typedef struct b3RecTag
 {
 	uint64_t key;				   // hash of (id, name)
 	uint64_t id;				   // entity/actor id
-	char name[B3_BODY_NAME_LENGTH + 1]; // query label
+	char name[B3_QUERY_NAME_LENGTH + 1]; // query label
 } b3RecTag;
 
 // User-owned recording buffer. The world appends into it while active; the host saves and
@@ -173,8 +175,7 @@ typedef b3Filter b3RecCType_FILTER;
 typedef b3SurfaceMaterial b3RecCType_MATERIAL;
 typedef b3MassData b3RecCType_MASSDATA;
 typedef b3MotionLocks b3RecCType_LOCKS;
-typedef const char* b3RecCType_BODYSTR;
-typedef const char* b3RecCType_SHAPESTR;
+typedef const char* b3RecCType_STR;
 typedef b3WorldId b3RecCType_WORLDID;
 typedef b3BodyId b3RecCType_BODYID;
 typedef b3ShapeId b3RecCType_SHAPEID;
@@ -361,7 +362,6 @@ void b3RecWriteRegistry( b3Recording* rec );
 uint64_t b3HashQueryTag( uint64_t id, const char* name );
 
 // Record a key->(id, name) mapping once, deduped by key (a repeated key keeps its first id/name).
-// The name is clamped to B3_BODY_NAME_LENGTH.
 void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* name );
 
 // Intern each large geometry kind and return a stable u32 id for use in create ops.
