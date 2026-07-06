@@ -3500,11 +3500,11 @@ void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int q
 			char label[64];
 			if ( name != NULL && name[0] != '\0' && id != 0 )
 			{
-				snprintf( label, sizeof( label ), "%s (%" PRIu64 ")", name, id );
+				snprintf( label, sizeof( label ), "%.40s (%" PRIu64 ")", name, id );
 			}
 			else if ( name != NULL && name[0] != '\0' )
 			{
-				snprintf( label, sizeof( label ), "%s", name );
+				snprintf( label, sizeof( label ), "%.40s", name );
 			}
 			else
 			{
