@@ -9,7 +9,7 @@
 #include "broad_phase.h"
 #include "constraint_graph.h"
 #include "id_pool.h"
-#include "name_map.h"
+#include "name_cache.h"
 
 #include "box3d/types.h"
 

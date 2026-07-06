@@ -51,13 +51,13 @@ float b3GetLengthUnitsPerMeter( void )
 
 static float b3_stallThreshold = FLT_MAX;
 
-void b3SetStallThreshold(float seconds)
+void b3SetStallThreshold( float seconds )
 {
 	B3_ASSERT( b3IsValidFloat( seconds ) && seconds > 0.0f );
 	b3_stallThreshold = seconds;
 }
 
-float b3GetStallThreshold(void)
+float b3GetStallThreshold( void )
 {
 	return b3_stallThreshold;
 }
@@ -138,8 +138,8 @@ void b3SetAllocator( b3AllocFcn* allocFcn, b3FreeFcn* freeFcn )
 	b3_freeFcn = freeFcn;
 }
 
-// Use 64 byte alignment for everything to align to 64 byte cache line and works with 256bit SIMD.
-#define B3_ALIGNMENT 64
+// Use 16 byte alignment for everything
+#define B3_ALIGNMENT 16
 
 void* b3Alloc( size_t size )
 {
@@ -152,38 +152,38 @@ void* b3Alloc( size_t size )
 	// todo this is not true, Box3D allocates a lot.
 	b3AtomicFetchAddInt( &b3_byteCount, (int)size );
 
-	// Allocation must be a multiple of 32 or risk a seg fault
+	// Allocation must be a multiple of B3_ALIGNMENT (required by spec).
 	// https://en.cppreference.com/w/c/memory/aligned_alloc
-	int size64 = ( ( (int)size - 1 ) | 0x3F ) + 1;
+	int alignedSize = ( ( (int)size - 1 ) | ( B3_ALIGNMENT - 1 ) ) + 1;
 
 	if ( b3_allocFcn != NULL )
 	{
-		void* ptr = b3_allocFcn( size64, B3_ALIGNMENT );
+		void* ptr = b3_allocFcn( alignedSize, B3_ALIGNMENT );
 		b3TracyCAlloc( ptr, size );
 
 		B3_ASSERT( ptr != NULL );
-		B3_ASSERT( ( (uintptr_t)ptr & 0x3F ) == 0 );
+		B3_ASSERT( ( (uintptr_t)ptr & ( B3_ALIGNMENT - 1 ) ) == 0 );
 
 		return ptr;
 	}
 
 #ifdef B3_PLATFORM_WINDOWS
-	void* ptr = _aligned_malloc( size64, B3_ALIGNMENT );
+	void* ptr = _aligned_malloc( alignedSize, B3_ALIGNMENT );
 #elif defined( B3_PLATFORM_ANDROID )
 	void* ptr = NULL;
-	if ( posix_memalign( &ptr, B3_ALIGNMENT, size64 ) != 0 )
+	if ( posix_memalign( &ptr, B3_ALIGNMENT, alignedSize ) != 0 )
 	{
 		// allocation failed, exit the application
 		exit( EXIT_FAILURE );
 	}
 #else
-	void* ptr = aligned_alloc( B3_ALIGNMENT, size64 );
+	void* ptr = aligned_alloc( B3_ALIGNMENT, alignedSize );
 #endif
 
 	b3TracyCAlloc( ptr, size );
 
 	B3_ASSERT( ptr != NULL );
-	B3_ASSERT( ( (uintptr_t)ptr & 0x3F ) == 0 );
+	B3_ASSERT( ( (uintptr_t)ptr & ( B3_ALIGNMENT - 1 ) ) == 0 );
 
 	return ptr;
 }
@@ -215,8 +215,6 @@ void b3Free( void* mem, size_t size )
 
 void* b3GrowAlloc( void* oldMem, int oldSize, int newSize )
 {
-	// todo try _aligned_realloc
-
 	B3_ASSERT( newSize > oldSize );
 	void* newMem = b3Alloc( newSize );
 	if ( oldSize > 0 )
@@ -295,7 +293,7 @@ int b3FetchAddMeshDumpIndex( void )
 	return result;
 }
 
-void b3StrCpy(char* dst, int size, const char* src)
+void b3StrCpy( char* dst, int size, const char* src )
 {
 	B3_ASSERT( size > 0 );
 

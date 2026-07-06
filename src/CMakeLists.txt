@@ -47,8 +47,8 @@ set(BOX3D_SOURCE_FILES
 	mesh_contact.c
 	motor_joint.c
 	mover.c
-	name_map.c
-	name_map.h
+	name_cache.c
+	name_cache.h
 	parallel_for.c
 	parallel_for.h
 	parallel_joint.c
