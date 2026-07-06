@@ -5,6 +5,8 @@
 
 #include "recording.h"
 
+#include <string.h>
+
 #define NAME b3NameMap
 #define KEY_TY uint32_t
 #define VAL_TY int

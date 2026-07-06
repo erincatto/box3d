@@ -20,7 +20,6 @@
 #include "box3d/id.h"
 
 #include <stddef.h>
-//#include <string.h>
 
 // Get a validated body from a world using an id.
 b3Body* b3GetBodyFullId( b3World* world, b3BodyId bodyId )
@@ -1673,7 +1672,7 @@ const char* b3Body_GetName( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	return b3FindName( &world->names, body->nameId );
+	return b3FindNameWithDefault( &world->names, body->nameId, "" );
 }
 
 void b3Body_SetUserData( b3BodyId bodyId, void* userData )

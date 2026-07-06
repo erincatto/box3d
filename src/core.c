@@ -255,41 +255,7 @@ static FILE* b3OpenFile( const char* fileName, const char* mode )
 	return file;
 }
 
-FILE* b3_dumpFile = NULL;
-int b3_meshIndex = 0;
-
-void b3OpenDump( const char* fileName )
-{
-	B3_ASSERT( b3_dumpFile == NULL );
-	b3_dumpFile = b3OpenFile( fileName, "w" );
-}
-
-void b3Dump( const char* string, ... )
-{
-	if ( b3_dumpFile == NULL )
-	{
-		return;
-	}
-
-	va_list args;
-	va_start( args, string );
-	vfprintf( b3_dumpFile, string, args );
-	va_end( args );
-}
-
-void b3CloseDump( void )
-{
-	fclose( b3_dumpFile );
-	b3_dumpFile = NULL;
-}
-
-int b3FetchAddMeshDumpIndex( void )
-{
-	int result = b3_meshIndex;
-	b3_meshIndex += 1;
-	return result;
-}
-
+// Not used. Keeping around in case I need this.
 void b3StrCpy( char* dst, int size, const char* src )
 {
 	B3_ASSERT( size > 0 );
@@ -307,75 +273,4 @@ void b3StrCpy( char* dst, int size, const char* src )
 	{
 		memset( dst, 0, size );
 	}
-}
-
-void b3WriteBinaryFile( void* data, int size, const char* fileName )
-{
-	if ( data == NULL || size <= 0 || fileName == NULL )
-	{
-		return;
-	}
-
-	FILE* file = b3OpenFile( fileName, "wb" );
-	if ( file == NULL )
-	{
-		return;
-	}
-
-	// Write binary blob; ignore partial-write errors for simplicity
-	(void)fwrite( data, 1, (size_t)size, file );
-	fclose( file );
-}
-
-void* b3ReadBinaryFile( const char* prefix, const char* fileName, int* memSize )
-{
-	*memSize = 0;
-
-	if ( prefix == NULL || fileName == NULL )
-	{
-		return NULL;
-	}
-
-	char buffer[128];
-	snprintf( buffer, sizeof( buffer ), "%s%s", prefix, fileName );
-
-	FILE* file = b3OpenFile( buffer, "rb" );
-	if ( file == NULL )
-	{
-		return NULL;
-	}
-
-	// Determine file size
-	if ( fseek( file, 0, SEEK_END ) != 0 )
-	{
-		fclose( file );
-		return NULL;
-	}
-
-	long size = ftell( file );
-	if ( size <= 0 )
-	{
-		fclose( file );
-		return NULL;
-	}
-
-	// Rewind
-	if ( fseek( file, 0, SEEK_SET ) != 0 )
-	{
-		fclose( file );
-		return NULL;
-	}
-
-	void* data = b3Alloc( (size_t)size );
-	size_t readCount = fread( data, 1, (size_t)size, file );
-	fclose( file );
-
-	if ( readCount != (size_t)size )
-	{
-		b3Free( data, (size_t)size );
-		return NULL;
-	}
-
-	*memSize = (int)size;
-	return data;
 }

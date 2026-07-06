@@ -186,8 +186,4 @@ B3_API void b3Sleep( int milliseconds );
 #define B3_HASH_INIT 5381
 B3_API uint32_t b3Hash( uint32_t hash, const uint8_t* data, int count );
 
-// Dump file support functions
-B3_API void b3WriteBinaryFile( void* data, int size, const char* fileName );
-B3_API void* b3ReadBinaryFile( const char* prefix, const char* fileName, int* memSize );
-
 //! @endcond

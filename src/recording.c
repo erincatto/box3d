@@ -308,16 +308,6 @@ static void b3RecW_STR( b3RecBuffer* buf, const char* s )
 	}
 }
 
-void b3RecW_BODYSTR( b3RecBuffer* buf, const char* s )
-{
-	b3RecW_STR( buf, s );
-}
-
-void b3RecW_SHAPESTR( b3RecBuffer* buf, const char* s )
-{
-	b3RecW_STR( buf, s );
-}
-
 // Hand-written def helpers. Zero pointer and cookie fields before serializing.
 // Readers call b3Default*Def() first to get the cookie, then overwrite fields.
 

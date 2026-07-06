@@ -253,8 +253,6 @@ void b3RecW_FILTER( b3RecBuffer* buf, b3Filter v );
 void b3RecW_MATERIAL( b3RecBuffer* buf, b3SurfaceMaterial v );
 void b3RecW_MASSDATA( b3RecBuffer* buf, b3MassData v );
 void b3RecW_LOCKS( b3RecBuffer* buf, b3MotionLocks v );
-void b3RecW_BODYSTR( b3RecBuffer* buf, const char* s );
-void b3RecW_SHAPESTR( b3RecBuffer* buf, const char* s );
 void b3RecW_EXPLOSIONDEF( b3RecBuffer* buf, b3ExplosionDef v );
 void b3RecW_BODYDEF( b3RecBuffer* buf, b3BodyDef v );
 void b3RecW_SHAPEDEF( b3RecBuffer* buf, b3ShapeDef v );

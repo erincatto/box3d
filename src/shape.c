@@ -16,9 +16,6 @@
 
 #include "box3d/box3d.h"
 
-#include <inttypes.h>
-//#include <stdio.h>
-
 static b3Shape* b3GetShape( b3World* world, b3ShapeId shapeId )
 {
 	int id = shapeId.index1 - 1;
@@ -1148,7 +1145,7 @@ const char* b3Shape_GetName( b3ShapeId shapeId )
 {
 	b3World* world = b3GetWorld( shapeId.world0 );
 	b3Shape* shape = b3GetShape( world, shapeId );
-	return b3FindName( &world->names, shape->nameId );
+	return b3FindNameWithDefault( &world->names, shape->nameId, "" );
 }
 
 bool b3Shape_IsSensor( b3ShapeId shapeId )
