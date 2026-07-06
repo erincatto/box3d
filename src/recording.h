@@ -116,16 +116,19 @@ typedef struct b3GeometryRegistry
 	void* dedupMap;
 } b3GeometryRegistry;
 
-#define B3_QUERY_NAME_LENGTH 64
+// Limit the maximum query name length to make recording simpler. Query names longer than this
+// probably indicate a bug in user code.
+#define B3_MAX_QUERY_NAME_LENGTH 64
 
 // Query tag from b3QueryFilter.
 // Stored once per key in the trailing block so a tagged query carries only the 8 byte key on the wire.
 // Shared by the recorder (accumulate) and the player (load).
 typedef struct b3RecTag
 {
-	uint64_t key;				   // hash of (id, name)
-	uint64_t id;				   // entity/actor id
-	char name[B3_QUERY_NAME_LENGTH + 1]; // query label
+	// hash of (id, queryName)
+	uint64_t key;				  
+	uint64_t id;
+	char queryName[B3_MAX_QUERY_NAME_LENGTH + 1];
 } b3RecTag;
 
 // User-owned recording buffer. The world appends into it while active; the host saves and

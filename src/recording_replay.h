@@ -72,6 +72,8 @@ typedef struct b3RegistrySlot
 	void* live;		// reconstructed live object, freed after b3DestroyWorld
 } b3RegistrySlot;
 
+// This is uses to simplify the scratch buffer lifetime. Names longer than this probably
+// indicate a bug.
 #define B3_MAX_NAME_LENGTH 256
 
 // Reader state threaded through the replay loop and all dispatch functions
@@ -92,9 +94,9 @@ typedef struct b3RecReader
 	b3SurfaceMaterial* matScratch;
 	int matScratchCap;
 
-	// Scratch for string reads: rotating slots, valid until the next 4 STR reads
-	char strBufs[4][B3_MAX_NAME_LENGTH + 1];
-	int strNext;
+	// Scratch for string reads. Used by b3RecR_STR to pass names to b3BodyDef and b3ShapeDef.
+	char stringBuffers[4][B3_MAX_NAME_LENGTH + 1];
+	int nextString;
 
 	// Preloaded geometry registry
 	b3RegistrySlot* slots;
@@ -136,7 +138,7 @@ typedef struct b3RecKeyframe
 	int bodyIdCount;
 } b3RecKeyframe;
 
-struct b3RecPlayer
+typedef struct b3RecPlayer
 {
 	uint8_t* data; // owned copy of recording bytes
 	int size;
@@ -202,7 +204,7 @@ struct b3RecPlayer
 	// Pre-populated recording used by b3SerializeWorld during keyframe capture.
 	// Its registry mirrors rdr.slots so geometry ids stay stable.
 	b3Recording* keyframeRec;
-};
+} b3RecPlayer;
 
 // Read primitives
 uint8_t b3RecR_U8( b3RecReader* rdr );

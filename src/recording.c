@@ -950,12 +950,12 @@ void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* na
 	tag->key = key;
 	tag->id = id;
 	int n = 0;
-	while ( name != NULL && name[n] != '\0' && n < B3_QUERY_NAME_LENGTH )
+	while ( name != NULL && name[n] != '\0' && n < B3_MAX_QUERY_NAME_LENGTH )
 	{
-		tag->name[n] = name[n];
+		tag->queryName[n] = name[n];
 		n++;
 	}
-	tag->name[n] = '\0';
+	tag->queryName[n] = '\0';
 	b3RecTagMap_insert( map, key, index );
 }
 
@@ -978,7 +978,7 @@ void b3RecWriteRegistry( b3Recording* rec )
 	{
 		b3RecW_U64( &rec->buffer, rec->tags[i].key );
 		b3RecW_U64( &rec->buffer, rec->tags[i].id );
-		b3RecW_STR( &rec->buffer, rec->tags[i].name );
+		b3RecW_STR( &rec->buffer, rec->tags[i].queryName );
 	}
 }
 

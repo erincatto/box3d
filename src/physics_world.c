@@ -27,6 +27,7 @@
 #include "box3d/constants.h"
 
 #include <float.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -2417,8 +2418,8 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	total += hullMapBytes + hullDataBytes;
 
 	b3Log( "hulls" );
-	b3Log( "database: %llu (%d, %d)", (unsigned long long)hullMapBytes, hullCount, hullBucketCount );
-	b3Log( "hull data: %llu", (unsigned long long)hullDataBytes );
+	b3Log( "database: %d (%d, %d)", (int)hullMapBytes, hullCount, hullBucketCount );
+	b3Log( "hull data: %d", (int)hullDataBytes );
 
 	// broad-phase
 	int staticTreeBytes = b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_staticBody );
@@ -2565,7 +2566,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	total += world->stack.capacity;
 	b3Log( "stack allocator: %d", world->stack.capacity );
 
-	b3Log( "total: %llu", (unsigned long long)total );
+	b3Log( "total: %u KB", (uint32_t) (total / 1024 ) );
 }
 
 void b3World_DumpShapeBounds( b3WorldId worldId, b3BodyType type )

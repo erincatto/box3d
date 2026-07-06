@@ -11,6 +11,7 @@
 
 #include <ctype.h>
 #include <float.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -179,7 +180,7 @@ static void FormatQueryLabel( char* out, int cap, const char* name, uint64_t id,
 {
 	if ( name != nullptr && id != 0 )
 	{
-		snprintf( out, cap, "%s (%llu)", name, (unsigned long long)id );
+		snprintf( out, cap, "%s (%" PRIu64 ")", name, id );
 	}
 	else if ( name != nullptr )
 	{
@@ -187,7 +188,7 @@ static void FormatQueryLabel( char* out, int cap, const char* name, uint64_t id,
 	}
 	else if ( id != 0 )
 	{
-		snprintf( out, cap, "#%llu", (unsigned long long)id );
+		snprintf( out, cap, "#%" PRIu64, id );
 	}
 	else
 	{
@@ -1141,8 +1142,8 @@ public:
 			char base[64];
 			FormatQueryLabel( base, sizeof( base ), row.name, row.id, row.type, row.kindOrdinal );
 			char text[112];
-			snprintf( text, sizeof( text ), "f%-5d %s  (%d)  cat 0x%llx", row.frame, base, row.hitCount,
-					  (unsigned long long)row.filter.categoryBits );
+			snprintf( text, sizeof( text ), "f%-5d %s  (%d)  cat 0x%" PRIx64, row.frame, base, row.hitCount,
+					  row.filter.categoryBits );
 			if ( ContainsNoCase( text, m_querySearch ) == false )
 			{
 				continue;
@@ -1449,8 +1450,8 @@ public:
 		ImGui::Text( "id      %d", shape.index1 );
 		ImGui::Text( "type     %s", ReplayShapeTypeName( b3Shape_GetType( shape ) ) );
 		b3Filter f = b3Shape_GetFilter( shape );
-		ImGui::Text( "category 0x%016llx", (unsigned long long)f.categoryBits );
-		ImGui::Text( "mask     0x%016llx", (unsigned long long)f.maskBits );
+		ImGui::Text( "category 0x%016" PRIx64, f.categoryBits );
+		ImGui::Text( "mask     0x%016" PRIx64, f.maskBits );
 		ImGui::Text( "group    %d", f.groupIndex );
 		ImGui::Text( "density  %.3g", b3Shape_GetDensity( shape ) );
 		ImGui::Text( "friction %.3g", b3Shape_GetFriction( shape ) );
@@ -1557,7 +1558,7 @@ public:
 		}
 		if ( q.id != 0 )
 		{
-			ImGui::Text( "id       %llu", (unsigned long long)q.id );
+			ImGui::Text( "id       %" PRIu64, q.id );
 		}
 		if ( q.key != 0 )
 		{
@@ -1567,8 +1568,8 @@ public:
 		{
 			ImGui::Text( "type     %s #%d", ReplayQueryTypeName( q.type ), m_selQueryKindOrdinal );
 		}
-		ImGui::Text( "category 0x%016llx", (unsigned long long)q.filter.categoryBits );
-		ImGui::Text( "mask     0x%016llx", (unsigned long long)q.filter.maskBits );
+		ImGui::Text( "category 0x%016" PRIx64, q.filter.categoryBits );
+		ImGui::Text( "mask     0x%016" PRIx64, q.filter.maskBits );
 		if ( q.type != b3_recQueryOverlapAABB )
 		{
 			ImGui::Text( "origin   (%.2f, %.2f, %.2f)", q.origin.x, q.origin.y, q.origin.z );
