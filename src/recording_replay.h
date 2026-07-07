@@ -72,7 +72,7 @@ typedef struct b3RegistrySlot
 	void* live;		// reconstructed live object, freed after b3DestroyWorld
 } b3RegistrySlot;
 
-// This is uses to simplify the scratch buffer lifetime. Names longer than this probably
+// This is used to simplify the scratch buffer lifetime. Names longer than this probably
 // indicate a bug.
 #define B3_MAX_NAME_LENGTH 256
 

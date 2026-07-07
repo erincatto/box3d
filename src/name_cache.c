@@ -129,7 +129,7 @@ void b3LoadName( b3NameCache* cache, uint32_t id, char* name, int length )
 		return;
 	}
 
-	if ( name[0] == 0 )
+	if ( name[0] == 0 || id == B3_NULL_NAME )
 	{
 		b3Free( name, length + 1 );
 		return;

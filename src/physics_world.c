@@ -1424,7 +1424,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 				b3WorldTransform transform = { bodySim->center, bodySim->transform.q };
 				b3Pos p = b3TransformWorldPoint( transform, offset );
 				const char* name = b3FindName( &world->names, body->nameId );
-				if (name != NULL)
+				if ( name != NULL )
 				{
 					draw->DrawStringFcn( p, name, b3_colorOrange, draw->context );
 				}
@@ -2549,7 +2549,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	total += world->stack.capacity;
 	b3Log( "stack allocator: %d", world->stack.capacity );
 
-	b3Log( "total: %u KB", (uint32_t) (total / 1024 ) );
+	b3Log( "total: %u KB", (uint32_t)( total / 1024 ) );
 }
 
 typedef struct WorldQueryContext
