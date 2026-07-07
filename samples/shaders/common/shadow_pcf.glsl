@@ -28,7 +28,7 @@ float sampleShadowTap( texture2DArray tex, samplerShadow smp, vec2 uv, float lay
 float sampleShadowPCF( texture2DArray tex, samplerShadow smp, int cascade, vec3 light_uv, float bias, float scale )
 {
 	// Must match SHADOW_RESOLUTION in shadow.h
-	const float size = 2048.0;
+	const float size = 4096.0;
 	const float inv_size = 1.0 / size;
 
 	float ly = float( cascade );

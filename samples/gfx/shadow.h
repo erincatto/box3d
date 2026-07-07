@@ -43,7 +43,7 @@ extern "C"
 #endif
 
 #define SHADOW_CASCADE_COUNT 3
-#define SHADOW_RESOLUTION 2048
+#define SHADOW_RESOLUTION 4096
 
 // Default cascade far split, view-space distance from the camera. Scenes
 // smaller than this keep the default range, larger ones widen it.
