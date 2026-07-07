@@ -387,27 +387,28 @@ static void BuildIcosphere( float ( *outVerts )[3], uint32_t* outIndices )
 }
 
 // Capsule proxy for shadows
-// 12-slice cylinder + two hemispherical caps with 2 latitude rings each
-// (alpha at pi/6 and pi/3, plus a single pole). Verts are encoded with two
-// vec3s, in_axis (scaled by halfLength) and in_radial (scaled by radius),
-// so the same proxy mesh works for any (halfLength, radius) pair.
+// Lat/long mesh: CAPSULE_SLICES azimuthal slices around the long axis, a
+// cylinder body, and two hemispherical caps with CAPSULE_CAP_RINGS interior
+// latitude rings plus a pole each. Verts are encoded with two vec3s, in_axis
+// (scaled by halfLength) and in_radial (scaled by radius), so the same proxy
+// mesh works for any (halfLength, radius) pair.
 //
-// Layout (74 vertices, 144 tris):
-// 0..11 body ring -X in_axis=(-1,0,0), in_radial=(0, cos beta, sin beta)
-// 12..23 body ring +X in_axis=(+1,0,0), in_radial=(0, cos beta, sin beta)
-// 24..35 +X cap ring alpha=pi/6 in_axis=(+1,0,0), in_radial=(sin alpha, cos alpha cos beta, cos alpha sin beta)
-// 36..47 +X cap ring alpha=pi/3 ditto with alpha=pi/3
-// 48 +X pole in_axis=(+1,0,0), in_radial=(1, 0, 0)
-// 49..60 -X cap ring alpha=pi/6 in_axis=(-1,0,0), in_radial=(-sin alpha, cos alpha cos beta, cos alpha sin beta)
-// 61..72 -X cap ring alpha=pi/3 ditto
-// 73 -X pole in_axis=(-1,0,0), in_radial=(-1, 0, 0)
+// An inscribed facet mesh casts a shadow up to 1 - cos(halfAz) cos(halfLat)
+// too small and its outline shows the slices. Scaling the radial vectors so
+// facets straddle the true surface halves the max silhouette error, at 32
+// slices it lands under 0.5% of radius, below a cascade texel.
 //
-// Caps share their equator ring with the body's end ring (the body ring
-// at +X is the +X cap's alpha=0 equator, etc.), saves 24 verts and avoids
-// any seam in the depth render.
-#define CAPSULE_SLICES 12
-#define CAPSULE_VERTICES 74
-#define CAPSULE_INDICES ( 144 * 3 )
+// Vertex layout:
+// - body ring -X, then body ring +X (these double as the caps' equators)
+// - +X cap: interior rings equator->pole order, then the pole
+// - -X cap: same
+//
+// Caps share their equator ring with the body's end ring, saves a ring of
+// verts per cap and avoids any seam in the depth render.
+#define CAPSULE_SLICES 32
+#define CAPSULE_CAP_RINGS 7
+#define CAPSULE_VERTICES ( 2 * CAPSULE_SLICES + 2 * ( CAPSULE_CAP_RINGS * CAPSULE_SLICES + 1 ) )
+#define CAPSULE_INDICES ( 12 * CAPSULE_SLICES * ( CAPSULE_CAP_RINGS + 1 ) )
 
 typedef struct CapsuleVertex
 {
@@ -432,136 +433,122 @@ typedef struct CapsuleVertex
 static void BuildCapsuleProxy( CapsuleVertex* outVerts, uint32_t* outIndices )
 {
 	const float TWO_PI = 6.28318530717958647692f;
-	const float ALPHA1 = TWO_PI / 12.0f;		// pi/6
-	const float ALPHA2 = 2.0f * TWO_PI / 12.0f; // pi/3
+
+	// Quad centers of an inscribed lat/long mesh dip below the true surface
+	// by cos(halfAz) cos(halfLat). Scale all radials so facets straddle the
+	// surface, halving the max silhouette error. Uniform scale keeps the
+	// proxy a true capsule of radius scale * r, no seam at the equators.
+	const float halfAz = B3_PI / (float)CAPSULE_SLICES;
+	const float halfLat = 0.25f * B3_PI / (float)( CAPSULE_CAP_RINGS + 1 );
+	const float scale = 2.0f / ( 1.0f + cosf( halfAz ) * cosf( halfLat ) );
 
 	// Vertices
 	int v = 0;
-	// 0..11: body ring -X
-	for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
+	// Body rings, -X then +X. These double as the caps' equators.
+	for ( int side = 0; side < 2; ++side )
 	{
-		const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
-		outVerts[v].axis[0] = -1.0f;
+		const float sx = ( side == 0 ) ? -1.0f : +1.0f;
+		for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
+		{
+			const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
+			outVerts[v].axis[0] = sx;
+			outVerts[v].axis[1] = 0.0f;
+			outVerts[v].axis[2] = 0.0f;
+			outVerts[v].radial[0] = 0.0f;
+			outVerts[v].radial[1] = scale * cosf( beta );
+			outVerts[v].radial[2] = scale * sinf( beta );
+		}
+	}
+	// Caps, +X then -X: interior latitude rings equator->pole, then the pole.
+	// Ring r sits at latitude alpha = r * (pi/2) / (rings + 1).
+	for ( int side = 0; side < 2; ++side )
+	{
+		const float sx = ( side == 0 ) ? +1.0f : -1.0f;
+		for ( int r = 1; r <= CAPSULE_CAP_RINGS; ++r )
+		{
+			const float alpha = 0.5f * B3_PI * (float)r / (float)( CAPSULE_CAP_RINGS + 1 );
+			for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
+			{
+				const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
+				outVerts[v].axis[0] = sx;
+				outVerts[v].axis[1] = 0.0f;
+				outVerts[v].axis[2] = 0.0f;
+				outVerts[v].radial[0] = scale * sx * sinf( alpha );
+				outVerts[v].radial[1] = scale * cosf( alpha ) * cosf( beta );
+				outVerts[v].radial[2] = scale * cosf( alpha ) * sinf( beta );
+			}
+		}
+		outVerts[v].axis[0] = sx;
 		outVerts[v].axis[1] = 0.0f;
 		outVerts[v].axis[2] = 0.0f;
-		outVerts[v].radial[0] = 0.0f;
-		outVerts[v].radial[1] = cosf( beta );
-		outVerts[v].radial[2] = sinf( beta );
+		outVerts[v].radial[0] = scale * sx;
+		outVerts[v].radial[1] = 0.0f;
+		outVerts[v].radial[2] = 0.0f;
+		++v;
 	}
-	// 12..23: body ring +X
-	for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
-	{
-		const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
-		outVerts[v].axis[0] = +1.0f;
-		outVerts[v].axis[1] = 0.0f;
-		outVerts[v].axis[2] = 0.0f;
-		outVerts[v].radial[0] = 0.0f;
-		outVerts[v].radial[1] = cosf( beta );
-		outVerts[v].radial[2] = sinf( beta );
-	}
-	// 24..35: +X cap ring alpha=pi/6
-	for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
-	{
-		const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
-		outVerts[v].axis[0] = +1.0f;
-		outVerts[v].axis[1] = 0.0f;
-		outVerts[v].axis[2] = 0.0f;
-		outVerts[v].radial[0] = sinf( ALPHA1 );
-		outVerts[v].radial[1] = cosf( ALPHA1 ) * cosf( beta );
-		outVerts[v].radial[2] = cosf( ALPHA1 ) * sinf( beta );
-	}
-	// 36..47: +X cap ring alpha=pi/3
-	for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
-	{
-		const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
-		outVerts[v].axis[0] = +1.0f;
-		outVerts[v].axis[1] = 0.0f;
-		outVerts[v].axis[2] = 0.0f;
-		outVerts[v].radial[0] = sinf( ALPHA2 );
-		outVerts[v].radial[1] = cosf( ALPHA2 ) * cosf( beta );
-		outVerts[v].radial[2] = cosf( ALPHA2 ) * sinf( beta );
-	}
-	// 48: +X pole
-	outVerts[v].axis[0] = +1.0f;
-	outVerts[v].axis[1] = 0.0f;
-	outVerts[v].axis[2] = 0.0f;
-	outVerts[v].radial[0] = +1.0f;
-	outVerts[v].radial[1] = 0.0f;
-	outVerts[v].radial[2] = 0.0f;
-	++v;
-	// 49..60: -X cap ring alpha=pi/6
-	for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
-	{
-		const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
-		outVerts[v].axis[0] = -1.0f;
-		outVerts[v].axis[1] = 0.0f;
-		outVerts[v].axis[2] = 0.0f;
-		outVerts[v].radial[0] = -sinf( ALPHA1 );
-		outVerts[v].radial[1] = cosf( ALPHA1 ) * cosf( beta );
-		outVerts[v].radial[2] = cosf( ALPHA1 ) * sinf( beta );
-	}
-	// 61..72: -X cap ring alpha=pi/3
-	for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
-	{
-		const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
-		outVerts[v].axis[0] = -1.0f;
-		outVerts[v].axis[1] = 0.0f;
-		outVerts[v].axis[2] = 0.0f;
-		outVerts[v].radial[0] = -sinf( ALPHA2 );
-		outVerts[v].radial[1] = cosf( ALPHA2 ) * cosf( beta );
-		outVerts[v].radial[2] = cosf( ALPHA2 ) * sinf( beta );
-	}
-	// 73: -X pole
-	outVerts[v].axis[0] = -1.0f;
-	outVerts[v].axis[1] = 0.0f;
-	outVerts[v].axis[2] = 0.0f;
-	outVerts[v].radial[0] = -1.0f;
-	outVerts[v].radial[1] = 0.0f;
-	outVerts[v].radial[2] = 0.0f;
-	++v;
 
 	// Indices
 	int index = 0;
 
-	// Body: ring -X (verts 0..11) to ring +X (verts 12..23). For slice i
-	// and i+1, the outward face winds from -X[i] up the slice direction
-	// (beta increasing) to -X[i+1], across to +X[i+1], down to +X[i].
+	// Body: ring -X to ring +X. For slice i and i+1, the outward face winds
+	// from -X[i] up the slice direction (beta increasing) to -X[i+1], across
+	// to +X[i+1], down to +X[i].
 	for ( int i = 0; i < CAPSULE_SLICES; ++i )
 	{
 		const int next = ( i + 1 ) % CAPSULE_SLICES;
-		const int mxi = i; // ring -X
-		const int mxn = next;
-		const int pxi = 12 + i; // ring +X
-		const int pxn = 12 + next;
-		CAPSULE_QUAD( mxi, mxn, pxn, pxi );
+		CAPSULE_QUAD( i, next, CAPSULE_SLICES + next, CAPSULE_SLICES + i );
 	}
 
-	// +X cap: equator (ring +X, 12..23) -> alpha=pi/6 ring (24..35) -> alpha=pi/3 (36..47) -> pole (48).
-	// Going outward, alpha increases. For slice i to i+1, the outward face
-	// winds equator[i] -> equator[i+1] -> ring1[i+1] -> ring1[i].
-	for ( int i = 0; i < CAPSULE_SLICES; ++i )
+	// +X cap: quad bands march outward from the equator (the +X body ring)
+	// through the latitude rings, then a fan to the pole. Going outward the
+	// face winds prev[i] -> prev[i+1] -> cur[i+1] -> cur[i].
 	{
-		const int next = ( i + 1 ) % CAPSULE_SLICES;
-		CAPSULE_QUAD( 12 + i, 12 + next, 24 + next, 24 + i );
-		CAPSULE_QUAD( 24 + i, 24 + next, 36 + next, 36 + i );
-		// Fan to pole: tri (ring2[i], ring2[i+1], pole).
-		outIndices[index++] = (uint32_t)( 36 + i );
-		outIndices[index++] = (uint32_t)( 36 + next );
-		outIndices[index++] = (uint32_t)48;
+		int prev = CAPSULE_SLICES;
+		int cur = 2 * CAPSULE_SLICES;
+		for ( int r = 0; r < CAPSULE_CAP_RINGS; ++r )
+		{
+			for ( int i = 0; i < CAPSULE_SLICES; ++i )
+			{
+				const int next = ( i + 1 ) % CAPSULE_SLICES;
+				CAPSULE_QUAD( prev + i, prev + next, cur + next, cur + i );
+			}
+			prev = cur;
+			cur += CAPSULE_SLICES;
+		}
+		const int pole = cur;
+		for ( int i = 0; i < CAPSULE_SLICES; ++i )
+		{
+			const int next = ( i + 1 ) % CAPSULE_SLICES;
+			outIndices[index++] = (uint32_t)( prev + i );
+			outIndices[index++] = (uint32_t)( prev + next );
+			outIndices[index++] = (uint32_t)pole;
+		}
 	}
 
-	// -X cap: equator (ring -X, 0..11) -> alpha=pi/6 ring (49..60) -> alpha=pi/3 (61..72) -> pole (73).
-	// Winding flipped relative to +X cap because the outward normal points
-	// toward -X, the "outside-front" side of each quad swaps slice order.
-	for ( int i = 0; i < CAPSULE_SLICES; ++i )
+	// -X cap: winding flipped relative to +X because the outward normal
+	// points toward -X, the "outside-front" side of each quad swaps slice
+	// order.
 	{
-		const int next = ( i + 1 ) % CAPSULE_SLICES;
-		CAPSULE_QUAD( 0 + next, 0 + i, 49 + i, 49 + next );
-		CAPSULE_QUAD( 49 + next, 49 + i, 61 + i, 61 + next );
-		// Fan to pole: tri (ring2[i+1], ring2[i], pole), opposite winding to +X.
-		outIndices[index++] = (uint32_t)( 61 + next );
-		outIndices[index++] = (uint32_t)( 61 + i );
-		outIndices[index++] = (uint32_t)73;
+		int prev = 0;
+		int cur = 2 * CAPSULE_SLICES + CAPSULE_CAP_RINGS * CAPSULE_SLICES + 1;
+		for ( int r = 0; r < CAPSULE_CAP_RINGS; ++r )
+		{
+			for ( int i = 0; i < CAPSULE_SLICES; ++i )
+			{
+				const int next = ( i + 1 ) % CAPSULE_SLICES;
+				CAPSULE_QUAD( prev + next, prev + i, cur + i, cur + next );
+			}
+			prev = cur;
+			cur += CAPSULE_SLICES;
+		}
+		const int pole = cur;
+		for ( int i = 0; i < CAPSULE_SLICES; ++i )
+		{
+			const int next = ( i + 1 ) % CAPSULE_SLICES;
+			outIndices[index++] = (uint32_t)( prev + next );
+			outIndices[index++] = (uint32_t)( prev + i );
+			outIndices[index++] = (uint32_t)pole;
+		}
 	}
 }
 

@@ -150,31 +150,9 @@ flat in vec4 v_base_color;
 flat in vec4 v_material;
 out vec4 out_color;
 
-// 3x3 PCF over a 1-texel radius. The comparison sampler returns 0..1
-// per tap (0 = occluded, 1 = lit). Uniform 1/9 weighting.
-//
-// Manually unrolled: the HLSL compiler emits warning X3570 ("gradient
-// instruction used in a loop with varying iteration") on the looped
-// version because texture uses implicit derivatives. Unrolling here
-// keeps cross-compilation clean on the D3D11 backend.
-float sampleShadowPCF( int cascade, vec3 light_uv, float bias )
-{
-	float t = 1.0 / 2048.0;
-	float ly = float( cascade );
-	float rz = light_uv.z - bias;
-	vec2 c = light_uv.xy;
-	float s = 0.0;
-	s += texture( sampler2DArrayShadow( tex_shadow, smp_shadow ), vec4( c.x - t, c.y - t, ly, rz ) );
-	s += texture( sampler2DArrayShadow( tex_shadow, smp_shadow ), vec4( c.x, c.y - t, ly, rz ) );
-	s += texture( sampler2DArrayShadow( tex_shadow, smp_shadow ), vec4( c.x + t, c.y - t, ly, rz ) );
-	s += texture( sampler2DArrayShadow( tex_shadow, smp_shadow ), vec4( c.x - t, c.y, ly, rz ) );
-	s += texture( sampler2DArrayShadow( tex_shadow, smp_shadow ), vec4( c.x, c.y, ly, rz ) );
-	s += texture( sampler2DArrayShadow( tex_shadow, smp_shadow ), vec4( c.x + t, c.y, ly, rz ) );
-	s += texture( sampler2DArrayShadow( tex_shadow, smp_shadow ), vec4( c.x - t, c.y + t, ly, rz ) );
-	s += texture( sampler2DArrayShadow( tex_shadow, smp_shadow ), vec4( c.x, c.y + t, ly, rz ) );
-	s += texture( sampler2DArrayShadow( tex_shadow, smp_shadow ), vec4( c.x + t, c.y + t, ly, rz ) );
-	return s / 9.0;
-}
+// The comparison sampler returns 0..1 per tap (0 = occluded, 1 = lit).
+// Kernel details and the X3570 unrolling note live in the include.
+#pragma sokol @include ../common/shadow_pcf.glsl
 
 float sampleCascade( int cascade, vec3 world_pos, float n_dot_l )
 {
@@ -205,12 +183,12 @@ float sampleCascade( int cascade, vec3 world_pos, float n_dot_l )
 	float texelDepthStep = 0.001;
 	float bias = clamp( texelDepthStep * tanAngle, 0.0005, 0.05 );
 
-	float pcf = sampleShadowPCF( cascade, light_uv, bias );
+	float pcf = sampleShadowPCF( tex_shadow, smp_shadow, cascade, light_uv, bias );
 
 	// Cascade 2 is the last cascade, sampleShadowCascaded's view-z blend
 	// has nothing to blend into beyond it. On flat ground at glancing sun
 	// angles PCF inside the cascade reads slightly below 1.0 (bias slop
-	// across a 3x3 kernel that covers ~5 cm of world per texel here), while
+	// across a kernel that covers ~5 cm of world per texel here), while
 	// fragments outside the cascade's spatial sphere fall through to the
 	// OOB return of 1.0. Without smoothing, cascade 2's UV boundary reads
 	// as a hexagonal polygon on the ground. Fade PCF toward 1.0 over the

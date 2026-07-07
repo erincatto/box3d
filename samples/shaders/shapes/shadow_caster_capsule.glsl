@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 // Shadow caster for capsules. As with the sphere caster, we substitute
-// a low-poly proxy mesh for the analytic impostor. The proxy is a
-// 12-slice cylinder with two hemispherical caps. Vertices are authored in
+// a proxy mesh for the analytic impostor. The proxy is a lat/long cylinder
+// with two hemispherical caps (see BuildCapsuleProxy in renderer.c for
+// counts and the silhouette-straddling scale). Vertices are authored in
 // a "unit-capsule" coordinate frame where each component carries enough
 // information to scale independently by halfLength and radius.
 //
