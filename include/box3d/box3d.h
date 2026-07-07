@@ -842,7 +842,7 @@ B3_API bool b3Shape_IsSensor( b3ShapeId shapeId );
 /// Set the shape name.
 B3_API void b3Shape_SetName( b3ShapeId shapeId, const char* name );
 
-/// Get the shape name. Returns and empty string if the name isn't set.
+/// Get the shape name. Returns an empty string if the name isn't set.
 B3_API const char* b3Shape_GetName( b3ShapeId shapeId );
 
 /// Set the user data for a shape

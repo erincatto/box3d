@@ -234,27 +234,6 @@ void* b3AllocZeroed( size_t size )
 	return mem;
 }
 
-static FILE* b3OpenFile( const char* fileName, const char* mode )
-{
-	FILE* file = NULL;
-
-#if defined( _MSC_VER )
-	errno_t e = fopen_s( &file, fileName, mode );
-	if ( e != 0 )
-	{
-		return NULL;
-	}
-#else
-	file = fopen( fileName, mode );
-	if ( file == NULL )
-	{
-		return NULL;
-	}
-#endif
-
-	return file;
-}
-
 // Not used. Keeping around in case I need this.
 void b3StrCpy( char* dst, int size, const char* src )
 {

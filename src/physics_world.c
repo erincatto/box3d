@@ -2314,23 +2314,6 @@ void b3World_StopRecording( b3WorldId worldId )
 	b3StopRecordingInternal( world );
 }
 
-static FILE* b3OpenFile( const char* fileName )
-{
-	FILE* file = NULL;
-
-#if defined( _MSC_VER )
-	errno_t e = fopen_s( &file, fileName, "w" );
-	if ( e != 0 )
-	{
-		return NULL;
-	}
-#else
-	file = fopen( fileName, "w" );
-#endif
-
-	return file;
-}
-
 void b3World_DumpMemoryStats( b3WorldId worldId )
 {
 	b3World* world = b3GetUnlockedWorldFromId( worldId );
@@ -2567,43 +2550,6 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	b3Log( "stack allocator: %d", world->stack.capacity );
 
 	b3Log( "total: %u KB", (uint32_t) (total / 1024 ) );
-}
-
-void b3World_DumpShapeBounds( b3WorldId worldId, b3BodyType type )
-{
-	B3_ASSERT( b3_staticBody <= type && type <= b3_dynamicBody );
-	b3World* world = b3GetUnlockedWorldFromId( worldId );
-	if ( world == NULL )
-	{
-		return;
-	}
-
-	FILE* file = b3OpenFile( "box3d_bounds.txt" );
-	if ( file == NULL )
-	{
-		return;
-	}
-
-	b3DynamicTree* tree = world->broadPhase.trees + type;
-	b3TreeNode* nodes = tree->nodes;
-
-	uint16_t requiredFlags = b3_allocatedNode | b3_leafNode;
-	int capacity = tree->nodeCapacity;
-	for ( int i = 0; i < capacity; ++i )
-	{
-		b3TreeNode* node = nodes + i;
-		if ( ( node->flags & requiredFlags ) != requiredFlags )
-		{
-			// skip internal and free nodes
-			continue;
-		}
-
-		b3Vec3 a = node->aabb.lowerBound;
-		b3Vec3 b = node->aabb.upperBound;
-		fprintf( file, "%.9f %.9f %.9f %.9f %.9f %.9f\n", a.x, a.y, a.z, b.x, b.y, b.z );
-	}
-
-	fclose( file );
 }
 
 typedef struct WorldQueryContext
