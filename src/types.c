@@ -75,6 +75,7 @@ b3ShapeDef b3DefaultShapeDef( void )
 	def.filter = b3DefaultFilter();
 	def.updateBodyMass = true;
 	def.invokeContactCreation = true;
+	def.enableSpeculativeContact = true;
 	def.internalValue = B3_SECRET_COOKIE;
 	return def;
 }

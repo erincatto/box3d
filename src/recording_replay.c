@@ -483,6 +483,7 @@ b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr )
 	def.enablePreSolveEvents = b3RecR_BOOL( rdr );
 	def.invokeContactCreation = b3RecR_BOOL( rdr );
 	def.updateBodyMass = b3RecR_BOOL( rdr );
+	def.enableSpeculativeContact = b3RecR_BOOL( rdr );
 	def.userData = NULL;
 	return def;
 }

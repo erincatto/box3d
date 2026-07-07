@@ -911,7 +911,7 @@ public:
 		};
 
 		b3CollideHullAndTriangle( &m_manifold, m_pointCapacity, m_hull, localTriangle[0], localTriangle[1], localTriangle[2],
-								  m_flags, &m_satCache );
+								  m_flags, &m_satCache, true );
 	}
 
 	int m_flags;

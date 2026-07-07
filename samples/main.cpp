@@ -201,9 +201,7 @@ static void OnEvent( const sapp_event* e )
 						break;
 
 					case KEY_P:
-						// Pause stays on P. Space is not bound here on purpose. Global
-						// keys are dispatched before the sample sees them, so claiming
-						// Space would steal jump from the Mover sample.
+					case KEY_PAUSE:
 						s_context.pause = !s_context.pause;
 						break;
 

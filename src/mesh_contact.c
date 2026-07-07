@@ -561,6 +561,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	// It leads to a small visual gap but seems to improve the quality of mesh
 	// collision, especially for hull versus mesh.
 	float restOffset = B3_MESH_REST_OFFSET;
+	bool enableSpeculative = contact->flags & b3_enableSpeculative;
 
 	// Make room for clip points
 	int pointBufferCapacity = B3_MAX_POINTS_PER_TRIANGLE * triangleCount;
@@ -618,8 +619,8 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 					cache->satCache = (b3SATCache){ 0 };
 				}
 
-				b3CollideHullAndTriangle( manifold, pointCapacity, hullB, vertices[0], vertices[1], vertices[2],
-										  triangle.flags, &cache->satCache );
+				b3CollideHullAndTriangle( manifold, pointCapacity, hullB, vertices[0], vertices[1], vertices[2], triangle.flags,
+										  &cache->satCache, enableSpeculative );
 				context->satCallCount += 1;
 				context->satCacheHitCount += cache->satCache.hit;
 				break;

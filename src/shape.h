@@ -20,6 +20,7 @@ typedef enum b3ShapeFlags
 	b3_enableHitEvents = 0x08,
 	b3_enablePreSolveEvents = 0x10,
 	b3_enlargedAABB = 0x20,
+	b3_enableSpeculative = 0x40,
 } b3ShapeFlags;
 
 typedef struct b3Shape

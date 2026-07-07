@@ -399,6 +399,7 @@ void b3RecW_SHAPEDEF( b3RecBuffer* buf, b3ShapeDef v )
 	b3RecW_BOOL( buf, v.enablePreSolveEvents );
 	b3RecW_BOOL( buf, v.invokeContactCreation );
 	b3RecW_BOOL( buf, v.updateBodyMass );
+	b3RecW_BOOL( buf, v.enableSpeculativeContact );
 	// internalValue omitted
 }
 

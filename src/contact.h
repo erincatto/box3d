@@ -65,8 +65,11 @@ enum b3ContactFlags
 	// This is a mesh contact
 	b3_simMeshContact = 0x00400000,
 
-
+	// Relative transform is cached for contact recycling
 	b3_relativeTransformValid = 0x00800000,
+
+	// Enable speculative contact points
+	b3_enableSpeculativePoints = 0x01000000,
 };
 
 // A contact edge is used to connect bodies and contacts together
