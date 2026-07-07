@@ -40,6 +40,7 @@ static struct
 	sg_sampler sampler;									  // comparison sampler (LESS_EQUAL, linear PCF)
 	Mat4 cascadeMatrices[SHADOW_CASCADE_COUNT];			  // light-space view-proj per cascade
 	float cascadeFarViewZ[SHADOW_CASCADE_COUNT];		  // far end (positive view-Z) per cascade
+	float cascadeRadius[SHADOW_CASCADE_COUNT];			  // bounding-sphere radius = ortho half-extent
 	bool inPass;										  // safety against unbalanced begin/end
 } s_shadow;
 
@@ -119,7 +120,7 @@ static void FrustumSliceCornersWorld( const Mat4* viewInv, const Mat4* proj, flo
 // post-translation. This pins the cascade to a fixed grid in light
 // space, small camera motions no longer cause the shadow texels to
 // drift relative to the casters.
-static Mat4 FitCascade( const Mat4* viewInv, const Mat4* proj, b3Vec3 dirToSun, float nearZ, float farZ )
+static Mat4 FitCascade( const Mat4* viewInv, const Mat4* proj, b3Vec3 dirToSun, float nearZ, float farZ, float* radiusOut )
 {
 	b3Vec3 corners[8];
 	FrustumSliceCornersWorld( viewInv, proj, nearZ, farZ, corners );
@@ -145,6 +146,7 @@ static Mat4 FitCascade( const Mat4* viewInv, const Mat4* proj, b3Vec3 dirToSun, 
 	{
 		radius = 0.01f;
 	}
+	*radiusOut = radius;
 
 	// Avoid a degenerate up vector when the sun is straight up/down.
 	b3Vec3 up = b3Vec3_axisY;
@@ -183,6 +185,12 @@ void InitShadows( void )
 	s_shadow.splitNear = SHADOW_SPLIT_NEAR;
 	s_shadow.splitFar = SHADOW_SPLIT_FAR;
 	s_shadow.splitLambda = SplitLambdaForRange( s_shadow.splitNear, s_shadow.splitFar );
+
+	// Sane ratios if a getter runs before the first FitShadows
+	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
+	{
+		s_shadow.cascadeRadius[i] = 1.0f;
+	}
 
 	sg_image_desc desc = { 0 };
 	desc.type = SG_IMAGETYPE_ARRAY;
@@ -285,7 +293,7 @@ void FitShadows( const Mat4* viewInv, const Mat4* proj )
 
 	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 	{
-		s_shadow.cascadeMatrices[i] = FitCascade( viewInv, proj, s_shadow.sunDir, splits[i], splits[i + 1] );
+		s_shadow.cascadeMatrices[i] = FitCascade( viewInv, proj, s_shadow.sunDir, splits[i], splits[i + 1], &s_shadow.cascadeRadius[i] );
 		s_shadow.cascadeFarViewZ[i] = splits[i + 1];
 	}
 }
@@ -332,6 +340,20 @@ float GetCascadeFarViewZ( int cascade )
 		return 0.0f;
 	}
 	return s_shadow.cascadeFarViewZ[cascade];
+}
+
+float GetCascadePcfScale( int cascade )
+{
+	if ( cascade < 0 || cascade >= SHADOW_CASCADE_COUNT )
+	{
+		return 1.0f;
+	}
+	// Texel world size is proportional to the cascade's ortho half-extent,
+	// so the radius ratio is the texel-size ratio. The floor keeps the
+	// shrunken kernel at least ~2 texels wide so bilinear smoothing still
+	// gets some support in the far cascades.
+	const float scale = s_shadow.cascadeRadius[0] / s_shadow.cascadeRadius[cascade];
+	return b3ClampFloat( scale, 0.25f, 1.0f );
 }
 
 sg_view GetShadowSampleView( void )

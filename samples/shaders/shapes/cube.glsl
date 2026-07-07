@@ -109,6 +109,7 @@ layout( binding = 1 ) uniform ub_pass
 	ivec4 flags;			  // .x = debug_view_mode
 	vec4 cascade_far_view_z;  // .xyz = far view-space Z per cascade
 	mat4 cascade_matrices[3]; // light-space view-proj per cascade
+	vec4 cascade_pcf_scale;	  // .xyz = PCF tap-offset scale per cascade (constant world penumbra)
 	mat4 view;				  // IBL: world->view rotation for view->world n_view transform
 	vec4 camera_pos_world;	  // IBL: world camera pos for V_world derivation
 	vec4 sh[9];				  // IBL diffuse SH coefficients (band 0..2, RGB in .xyz)
@@ -183,7 +184,7 @@ float sampleCascade( int cascade, vec3 world_pos, float n_dot_l )
 	float texelDepthStep = 0.001;
 	float bias = clamp( texelDepthStep * tanAngle, 0.0005, 0.05 );
 
-	float pcf = sampleShadowPCF( tex_shadow, smp_shadow, cascade, light_uv, bias );
+	float pcf = sampleShadowPCF( tex_shadow, smp_shadow, cascade, light_uv, bias, cascade_pcf_scale[cascade] );
 
 	// Cascade 2 is the last cascade, sampleShadowCascaded's view-z blend
 	// has nothing to blend into beyond it. On flat ground at glancing sun

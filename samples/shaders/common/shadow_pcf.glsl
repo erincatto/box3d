@@ -21,7 +21,11 @@ float sampleShadowTap( texture2DArray tex, samplerShadow smp, vec2 uv, float lay
 	return texture( sampler2DArrayShadow( tex, smp ), vec4( uv, layer, ref_z ) );
 }
 
-float sampleShadowPCF( texture2DArray tex, samplerShadow smp, int cascade, vec3 light_uv, float bias )
+// scale multiplies the tap offsets. Cascades cover different world sizes
+// per texel, the caller passes GetCascadePcfScale's texel-size ratio so
+// the penumbra keeps a constant world width instead of jumping from
+// crisp to blurry at every cascade boundary. 1.0 = the full 7x7 kernel.
+float sampleShadowPCF( texture2DArray tex, samplerShadow smp, int cascade, vec3 light_uv, float bias, float scale )
 {
 	// Must match SHADOW_RESOLUTION in shadow.h
 	const float size = 2048.0;
@@ -37,6 +41,12 @@ float sampleShadowPCF( texture2DArray tex, samplerShadow smp, int cascade, vec3 
 	float s = tuv.x + 0.5 - base.x;
 	float t = tuv.y + 0.5 - base.y;
 	base = ( base - 0.5 ) * inv_size;
+
+	// Shrinking the offsets bunches the 16 bilinear taps inside a smaller
+	// footprint. The box property degrades gracefully, at the 0.25 floor
+	// the taps still span ~2 texels and overlap through the hardware 2x2
+	// compare, so the response stays smooth.
+	float step = inv_size * scale;
 
 	float uw0 = 5.0 * s - 6.0;
 	float uw1 = 11.0 * s - 28.0;
@@ -59,25 +69,25 @@ float sampleShadowPCF( texture2DArray tex, samplerShadow smp, int cascade, vec3 
 	float v3 = -t / vw3 + 3.0;
 
 	float sum = 0.0;
-	sum += uw0 * vw0 * sampleShadowTap( tex, smp, base + vec2( u0, v0 ) * inv_size, ly, rz );
-	sum += uw1 * vw0 * sampleShadowTap( tex, smp, base + vec2( u1, v0 ) * inv_size, ly, rz );
-	sum += uw2 * vw0 * sampleShadowTap( tex, smp, base + vec2( u2, v0 ) * inv_size, ly, rz );
-	sum += uw3 * vw0 * sampleShadowTap( tex, smp, base + vec2( u3, v0 ) * inv_size, ly, rz );
+	sum += uw0 * vw0 * sampleShadowTap( tex, smp, base + vec2( u0, v0 ) * step, ly, rz );
+	sum += uw1 * vw0 * sampleShadowTap( tex, smp, base + vec2( u1, v0 ) * step, ly, rz );
+	sum += uw2 * vw0 * sampleShadowTap( tex, smp, base + vec2( u2, v0 ) * step, ly, rz );
+	sum += uw3 * vw0 * sampleShadowTap( tex, smp, base + vec2( u3, v0 ) * step, ly, rz );
 
-	sum += uw0 * vw1 * sampleShadowTap( tex, smp, base + vec2( u0, v1 ) * inv_size, ly, rz );
-	sum += uw1 * vw1 * sampleShadowTap( tex, smp, base + vec2( u1, v1 ) * inv_size, ly, rz );
-	sum += uw2 * vw1 * sampleShadowTap( tex, smp, base + vec2( u2, v1 ) * inv_size, ly, rz );
-	sum += uw3 * vw1 * sampleShadowTap( tex, smp, base + vec2( u3, v1 ) * inv_size, ly, rz );
+	sum += uw0 * vw1 * sampleShadowTap( tex, smp, base + vec2( u0, v1 ) * step, ly, rz );
+	sum += uw1 * vw1 * sampleShadowTap( tex, smp, base + vec2( u1, v1 ) * step, ly, rz );
+	sum += uw2 * vw1 * sampleShadowTap( tex, smp, base + vec2( u2, v1 ) * step, ly, rz );
+	sum += uw3 * vw1 * sampleShadowTap( tex, smp, base + vec2( u3, v1 ) * step, ly, rz );
 
-	sum += uw0 * vw2 * sampleShadowTap( tex, smp, base + vec2( u0, v2 ) * inv_size, ly, rz );
-	sum += uw1 * vw2 * sampleShadowTap( tex, smp, base + vec2( u1, v2 ) * inv_size, ly, rz );
-	sum += uw2 * vw2 * sampleShadowTap( tex, smp, base + vec2( u2, v2 ) * inv_size, ly, rz );
-	sum += uw3 * vw2 * sampleShadowTap( tex, smp, base + vec2( u3, v2 ) * inv_size, ly, rz );
+	sum += uw0 * vw2 * sampleShadowTap( tex, smp, base + vec2( u0, v2 ) * step, ly, rz );
+	sum += uw1 * vw2 * sampleShadowTap( tex, smp, base + vec2( u1, v2 ) * step, ly, rz );
+	sum += uw2 * vw2 * sampleShadowTap( tex, smp, base + vec2( u2, v2 ) * step, ly, rz );
+	sum += uw3 * vw2 * sampleShadowTap( tex, smp, base + vec2( u3, v2 ) * step, ly, rz );
 
-	sum += uw0 * vw3 * sampleShadowTap( tex, smp, base + vec2( u0, v3 ) * inv_size, ly, rz );
-	sum += uw1 * vw3 * sampleShadowTap( tex, smp, base + vec2( u1, v3 ) * inv_size, ly, rz );
-	sum += uw2 * vw3 * sampleShadowTap( tex, smp, base + vec2( u2, v3 ) * inv_size, ly, rz );
-	sum += uw3 * vw3 * sampleShadowTap( tex, smp, base + vec2( u3, v3 ) * inv_size, ly, rz );
+	sum += uw0 * vw3 * sampleShadowTap( tex, smp, base + vec2( u0, v3 ) * step, ly, rz );
+	sum += uw1 * vw3 * sampleShadowTap( tex, smp, base + vec2( u1, v3 ) * step, ly, rz );
+	sum += uw2 * vw3 * sampleShadowTap( tex, smp, base + vec2( u2, v3 ) * step, ly, rz );
+	sum += uw3 * vw3 * sampleShadowTap( tex, smp, base + vec2( u3, v3 ) * step, ly, rz );
 
 	return sum / 2704.0;
 }

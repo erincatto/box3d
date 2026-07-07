@@ -1668,6 +1668,7 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 	const sg_backend backend = sg_query_backend();
 	const float uvYSign = ( backend == SG_BACKEND_GLCORE || backend == SG_BACKEND_GLES3 ) ? 1.0f : -1.0f;
 	const Vec4 cascadeFarViewZ = MakeVec4( GetCascadeFarViewZ( 0 ), GetCascadeFarViewZ( 1 ), GetCascadeFarViewZ( 2 ), uvYSign );
+	const Vec4 cascadePcfScale = MakeVec4( GetCascadePcfScale( 0 ), GetCascadePcfScale( 1 ), GetCascadePcfScale( 2 ), 0.0f );
 	Mat4 cascadeMatrices[3];
 	for ( int i = 0; i < 3; ++i )
 	{
@@ -1713,6 +1714,7 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		up.sun_color = sunColor;
 		up.flags[0] = frame->debugMode;
 		up.cascade_far_view_z = cascadeFarViewZ;
+		up.cascade_pcf_scale = cascadePcfScale;
 		for ( int i = 0; i < 3; ++i )
 			up.cascade_matrices[i] = cascadeMatrices[i];
 		up.view = frame->view;
@@ -1761,6 +1763,7 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		sup.view_proj = viewProj;
 		sup.view = frame->view;
 		sup.cascade_far_view_z = cascadeFarViewZ;
+		sup.cascade_pcf_scale = cascadePcfScale;
 		for ( int i = 0; i < 3; ++i )
 			sup.cascade_matrices[i] = cascadeMatrices[i];
 		for ( int i = 0; i < 9; ++i )
@@ -1804,6 +1807,7 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		cup.view_proj = viewProj;
 		cup.view = frame->view;
 		cup.cascade_far_view_z = cascadeFarViewZ;
+		cup.cascade_pcf_scale = cascadePcfScale;
 		for ( int i = 0; i < 3; ++i )
 			cup.cascade_matrices[i] = cascadeMatrices[i];
 		for ( int i = 0; i < 9; ++i )
@@ -1856,6 +1860,7 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		gup.grid_offset = MakeVec4( frame->gridWrap.x, frame->gridWrap.y, frame->drawOrigin.x, frame->drawOrigin.z );
 		gup.view = frame->view;
 		gup.cascade_far_view_z = cascadeFarViewZ;
+		gup.cascade_pcf_scale = cascadePcfScale;
 		for ( int i = 0; i < 3; ++i )
 			gup.cascade_matrices[i] = cascadeMatrices[i];
 		for ( int i = 0; i < 9; ++i )
@@ -2266,6 +2271,7 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	const sg_backend backend = sg_query_backend();
 	const float uvYSign = ( backend == SG_BACKEND_GLCORE || backend == SG_BACKEND_GLES3 ) ? 1.0f : -1.0f;
 	const Vec4 cascadeFarViewZ = MakeVec4( GetCascadeFarViewZ( 0 ), GetCascadeFarViewZ( 1 ), GetCascadeFarViewZ( 2 ), uvYSign );
+	const Vec4 cascadePcfScale = MakeVec4( GetCascadePcfScale( 0 ), GetCascadePcfScale( 1 ), GetCascadePcfScale( 2 ), 0.0f );
 	Mat4 cascadeMatrices[3];
 	for ( int i = 0; i < 3; ++i )
 	{
@@ -2300,6 +2306,7 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	cubePass.sun_color = sunColor;
 	cubePass.flags[0] = frame->debugMode;
 	cubePass.cascade_far_view_z = cascadeFarViewZ;
+	cubePass.cascade_pcf_scale = cascadePcfScale;
 	for ( int i = 0; i < 3; ++i )
 	{
 		cubePass.cascade_matrices[i] = cascadeMatrices[i];
@@ -2322,6 +2329,7 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	spherePass.view_proj = view_proj;
 	spherePass.view = frame->view;
 	spherePass.cascade_far_view_z = cascadeFarViewZ;
+	spherePass.cascade_pcf_scale = cascadePcfScale;
 	for ( int i = 0; i < 3; ++i )
 		spherePass.cascade_matrices[i] = cascadeMatrices[i];
 	for ( int i = 0; i < 9; ++i )
@@ -2338,6 +2346,7 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	capsulePass.view_proj = view_proj;
 	capsulePass.view = frame->view;
 	capsulePass.cascade_far_view_z = cascadeFarViewZ;
+	capsulePass.cascade_pcf_scale = cascadePcfScale;
 	for ( int i = 0; i < 3; ++i )
 		capsulePass.cascade_matrices[i] = cascadeMatrices[i];
 	for ( int i = 0; i < 9; ++i )
@@ -2355,6 +2364,7 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	geomPass.grid_offset = MakeVec4( frame->gridWrap.x, frame->gridWrap.y, frame->drawOrigin.x, frame->drawOrigin.z );
 	geomPass.view = frame->view;
 	geomPass.cascade_far_view_z = cascadeFarViewZ;
+	geomPass.cascade_pcf_scale = cascadePcfScale;
 	for ( int i = 0; i < 3; ++i )
 		geomPass.cascade_matrices[i] = cascadeMatrices[i];
 	for ( int i = 0; i < 9; ++i )
