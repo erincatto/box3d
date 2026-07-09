@@ -668,6 +668,8 @@ static float b3CollideHullFace( b3LocalManifold* manifold, int pointCapacity, co
 	for ( int i = 0; i < pointCount; ++i )
 	{
 		b3ClipVertex* clipPoint = input + i;
+		minSeparation = b3MinFloat( minSeparation, clipPoint->separation );
+
 		if ( enableSpeculative == false && clipPoint->separation > 0.0f )
 		{
 			continue;
@@ -681,11 +683,11 @@ static float b3CollideHullFace( b3LocalManifold* manifold, int pointCapacity, co
 		pt->separation = clipPoint->separation;
 		pt->pair = b3FlipPair( clipPoint->pair );
 
-		minSeparation = b3MinFloat( minSeparation, clipPoint->separation );
 		finalPointCount += 1;
 	}
 
-	if ( minSeparation > B3_SPECULATIVE_DISTANCE )
+	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : 0.0f;
+	if ( minSeparation > speculativeDistance )
 	{
 		// This can occur with a stale SAT cache
 		manifold->pointCount = 0;
@@ -780,6 +782,7 @@ static float b3CollideTriangleFace( b3LocalManifold* manifold, int pointCapacity
 	for ( int i = 0; i < pointCount; ++i )
 	{
 		b3ClipVertex* clipPoint = input + i;
+		minSeparation = b3MinFloat( minSeparation, clipPoint->separation );
 
 		if ( enableSpeculative == false && clipPoint->separation > 0.0f )
 		{
@@ -795,11 +798,11 @@ static float b3CollideTriangleFace( b3LocalManifold* manifold, int pointCapacity
 		pt->separation = clipPoint->separation;
 		pt->pair = clipPoint->pair;
 
-		minSeparation = b3MinFloat( minSeparation, clipPoint->separation );
 		finalPointCount += 1;
 	}
 
-	if ( minSeparation >= B3_SPECULATIVE_DISTANCE )
+	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : 0.0f;
+	if ( minSeparation >= speculativeDistance )
 	{
 		// This can happens if the objects move a part while re-using a cached axis
 		*cache = (b3SATCache){ 0 };
