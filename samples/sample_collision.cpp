@@ -2367,9 +2367,9 @@ public:
 			float length = b3Length( d );
 			assert( b3AbsFloat( length - output.distance ) < 10.0f * FLT_EPSILON );
 			b3Vec3 n = b3Normalize( d );
-			assert( b3AbsFloat( n.x - output.normal.x ) < 100.0f * FLT_EPSILON );
-			assert( b3AbsFloat( n.y - output.normal.y ) < 100.0f * FLT_EPSILON );
-			assert( b3AbsFloat( n.z - output.normal.z ) < 100.0f * FLT_EPSILON );
+			assert( b3AbsFloat( n.x - output.normal.x ) < 0.0001f );
+			assert( b3AbsFloat( n.y - output.normal.y ) < 0.0001f );
+			assert( b3AbsFloat( n.z - output.normal.z ) < 0.0001f );
 		}
 
 		m_simplexCount = output.simplexCount;
