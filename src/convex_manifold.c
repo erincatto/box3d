@@ -306,8 +306,6 @@ static b3EdgeQuery b3QueryEdgeDirections( const b3HullData* hullA, const b3HullD
 				b3Vec3 axis = b3Normalize( b3Lerp( uB, vB, t ) );
 				float separation = b3Dot( axis, b3Sub( qA, qB ) );
 
-				// B3_ASSERT( b3AbsFloat( separation - separationOld ) < 100.0f * FLT_EPSILON );
-
 				if ( separation > maxSeparation )
 				{
 					// Continues to find the maximum separating axis
