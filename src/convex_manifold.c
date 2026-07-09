@@ -247,6 +247,8 @@ static b3EdgeQuery b3QueryEdgeDirections( const b3HullData* hullA, const b3HullD
 	// Work in frame A
 	b3Matrix3 matrix = b3MakeMatrixFromQuat( transformBtoA.q );
 
+	float squaredTolerance = 0.005f * 0.005f;
+
 	// Arranged to minimize transform operations
 	for ( int indexB = 0; indexB < hullB->edgeCount; indexB += 2 )
 	{
@@ -272,23 +274,39 @@ static b3EdgeQuery b3QueryEdgeDirections( const b3HullData* hullA, const b3HullD
 			b3Vec3 uA = planesA[edgeA->face].normal;
 			b3Vec3 vA = planesA[twinA->face].normal;
 
-			bool isMinkowski;
-			{
-				// Two edges build a face on the Minkowski sum if the associated arcs AB and CD intersect on the Gauss map.
-				// The associated arcs are defined by the adjacent face normals of each edge.
-				float cba = b3Dot( uB, eA );
-				float dba = b3Dot( vB, eA );
-				float adc = -b3Dot( uA, eB );
-				float bdc = -b3Dot( vA, eB );
+			// See "Collision Detection of Convex Polyhedra Based on Duality Transformation"
+			// Two edges build a face on the Minkowski sum if the associated arcs AB and CD intersect on the Gauss map.
+			// The associated arcs are defined by the adjacent face normals of each edge.
 
-				isMinkowski = cba * dba < 0.0f && adc * bdc < 0.0f && cba * bdc > 0.0f;
-			}
+			// These are signed volumes with an edge optimization to avoid cross products
+			// eA parallel to cross(vA, uA)
+			// eB parallel to cross(vB, uB)
+			// Since only signs are tested, length doesn't matter.
 
-			if ( isMinkowski )
+			float cba = b3Dot( uB, eA );
+			float dba = b3Dot( vB, eA );
+			float adc = -b3Dot( uA, eB );
+			float bdc = -b3Dot( vA, eB );
+
+			if ( cba * dba < 0.0f && adc * bdc < 0.0f && cba * bdc > 0.0f )
 			{
-				b3Vec3 centerA = hullA->center;
-				b3Vec3 centerB = b3TransformPoint( transformBtoA, hullB->center );
-				float separation = b3EdgeEdgeSeparation( qA, eA, centerA, qB, eB, centerB );
+				// Avoid nearly parallel edges that may lead to invalid separation values at the noise floor.
+				if ( b3MaxFloat( cba * cba, dba * dba ) < squaredTolerance * b3LengthSquared( eA ) )
+				{
+					continue;
+				}
+
+				// The intersection of the arcs on the Gauss map is the edge pair axis. Cast the
+				// arc of hull B (from uB to vB) against the plane containing the arc of hull A:
+				// (uB + (vB - uB) * t) . eA == 0, so t = cba / (cba - dba).
+				// The signs of cba and dba differ (Minkowski test), so the division is safe.
+				// The axis is perpendicular to both edges, so any point on each edge line
+				// realizes the separation and there is no need to orient by the hull centers.
+				float t = cba / ( cba - dba );
+				b3Vec3 axis = b3Normalize( b3Lerp( uB, vB, t ) );
+				float separation = b3Dot( axis, b3Sub( qA, qB ) );
+
+				// B3_ASSERT( b3AbsFloat( separation - separationOld ) < 100.0f * FLT_EPSILON );
 
 				if ( separation > maxSeparation )
 				{
@@ -1235,8 +1253,8 @@ static bool b3BuildFaceBContact( b3LocalManifold* manifold, int capacity, const 
 	return true;
 }
 
-static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hullA, const b3HullData* hullB, b3Transform transformBtoA,
-								b3EdgeQuery query, b3SATCache* cache )
+static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hullA, const b3HullData* hullB,
+								b3Transform transformBtoA, b3EdgeQuery query, b3SATCache* cache )
 {
 	// Work in shapeA coordinates
 	const b3HullHalfEdge* edgesA = b3GetHullEdges( hullA );
@@ -1302,8 +1320,8 @@ static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hul
 	return true;
 }
 
-void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB, b3Transform transformBtoA,
-					 b3SATCache* cache )
+void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
+					 b3Transform transformBtoA, b3SATCache* cache )
 {
 	manifold->pointCount = 0;
 

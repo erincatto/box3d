@@ -902,17 +902,6 @@ static void b3CollideHullAndTriangleEdges( b3LocalManifold* manifold, int capaci
 	manifold->feature = edgesFeatures[query.indexA];
 }
 
-// See "Collision Detection of Convex Polyhedra Based on Duality Transformation"
-// Simplified for triangle versus hull
-static inline bool b3IsTriangleMinkowskiFace( b3Vec3 triNormal, b3Vec3 triEdge, b3Vec3 hullNormal1, b3Vec3 hullNormal2,
-											  b3Vec3 hullEdge )
-{
-	float cab = b3Dot( hullNormal1, triEdge );
-	float dab = b3Dot( hullNormal2, triEdge );
-	float bcd = b3Dot( triNormal, hullEdge );
-	return cab * dab < 0.0f && cab * bcd > 0.0f;
-}
-
 b3AtomicInt b3_triangleConvexCalls;
 b3AtomicInt b3_triangleCacheHits;
 
@@ -1093,9 +1082,14 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 			b3Vec3 hullNormal1 = hullPlanes[edge2->face].normal;
 			b3Vec3 hullNormal2 = hullPlanes[twin2->face].normal;
 
-			// Confirm the edge pair is still a Minkowski face
-			bool isMinkowski = b3IsTriangleMinkowskiFace( trianglePlane.normal, triEdge, hullNormal1, hullNormal2, hullEdge );
-			if ( isMinkowski )
+			// Confirm the edge pair is still a Minkowski face.
+			// See "Collision Detection of Convex Polyhedra Based on Duality Transformation"
+			// Simplified for triangle versus hull.
+			float cab = b3Dot( hullNormal1, triEdge );
+			float dab = b3Dot( hullNormal2, triEdge );
+			float bcd = b3Dot( trianglePlane.normal, hullEdge );
+
+			if ( cab * dab < 0.0f && cab * bcd > 0.0f )
 			{
 				// Transform reference center of the first hull into local space of the second hull
 				float separation = b3EdgeEdgeSeparation( triPoint, triEdge, triangleCenter, hullPoint, hullEdge, hullA->center );
