@@ -46,8 +46,8 @@ typedef struct b3World b3World;
 #define B3_REC_MAGIC 0x43523342u
 
 // Major recording version is bumped when writers change.
-// Major version 3 added shape names.
-#define B3_REC_VERSION_MAJOR 3
+// Major version 4 added b3ShapeDef::enableSpeculativeContact
+#define B3_REC_VERSION_MAJOR 4
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.
 // Minor version 3 added name cache.
