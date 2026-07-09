@@ -160,11 +160,11 @@ static void OnEvent( const sapp_event* e )
 			{
 				switch ( e->key_code )
 				{
-					case KEY_TAB:
+					case SAPP_KEYCODE_TAB:
 						s_context.showUI = !s_context.showUI;
 						break;
 
-					case KEY_ESCAPE:
+					case SAPP_KEYCODE_ESCAPE:
 						// Layered cancel. An open picker is an ImGui popup that
 						// already swallowed this. So peel the controls window, then
 						// the selection. Quit lives on Ctrl+Q now.
@@ -179,7 +179,7 @@ static void OnEvent( const sapp_event* e )
 						break;
 
 					case KEY_Q:
-						if ( mods & MOD_CTRL )
+						if ( mods & SAPP_MODIFIER_CTRL )
 						{
 							sapp_request_quit();
 							break;
@@ -188,7 +188,7 @@ static void OnEvent( const sapp_event* e )
 						break;
 
 					case KEY_O:
-						if ( mods & MOD_CTRL )
+						if ( mods & SAPP_MODIFIER_CTRL )
 						{
 							// Ctrl+O opens the fuzzy picker. Force the UI visible so it shows.
 							s_context.showUI = true;
@@ -196,32 +196,32 @@ static void OnEvent( const sapp_event* e )
 						}
 						else
 						{
-							s_context.singleStep += ( mods & MOD_SHIFT ) ? 5 : 1;
+							s_context.singleStep += ( mods & SAPP_MODIFIER_SHIFT ) ? 5 : 1;
 						}
 						break;
 
-					case KEY_P:
-					case KEY_PAUSE:
+					case SAPP_KEYCODE_P:
+					case SAPP_KEYCODE_PAUSE:
 						s_context.pause = !s_context.pause;
 						break;
 
-					case KEY_M:
+					case SAPP_KEYCODE_M:
 						s_context.showMetrics = !s_context.showMetrics;
 						break;
 
-					case KEY_R:
+					case SAPP_KEYCODE_R:
 						SelectSample( &s_context, s_context.sampleIndex, true );
 						break;
 
-					case KEY_LEFT_BRACKET:
+					case SAPP_KEYCODE_LEFT_BRACKET:
 						SelectSample( &s_context, b3MaxInt( 0, s_context.sampleIndex - 1 ), false );
 						break;
 
-					case KEY_RIGHT_BRACKET:
+					case SAPP_KEYCODE_RIGHT_BRACKET:
 						SelectSample( &s_context, b3MinInt( g_sampleCount - 1, s_context.sampleIndex + 1 ), false );
 						break;
 
-					case KEY_F:
+					case SAPP_KEYCODE_F:
 					{
 						// Frame the selection, or let the sample frame its whole scene when nothing is
 						// selected. A non-body selection such as a recorded query supplies its own bounds and

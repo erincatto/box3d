@@ -513,6 +513,7 @@ typedef struct b3ShapeDef
 
 	/// Enable speculative collision. Leave this true unless you care about reducing ghost collision
 	/// more than continuous collision under rotation.
+	/// Experimental: this can only disable speculative contact between hulls and triangles (meshes and height fields).
 	bool enableSpeculativeContact;
 
 	/// Used internally to detect a valid definition. DO NOT SET.

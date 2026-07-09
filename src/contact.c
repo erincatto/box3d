@@ -230,7 +230,6 @@ void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int chil
 		}
 	}
 
-
 	// todo impose these restrictions to make life easier
 	B3_ASSERT( shapeB->type == b3_sphereShape || shapeB->type == b3_capsuleShape || shapeB->type == b3_hullShape );
 	// B3_ASSERT( bodyB->type != b3_staticBody );
@@ -249,7 +248,7 @@ void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int chil
 		contact->flags |= b3_contactEnableContactEvents;
 	}
 
-	if ( ( shapeA->flags & b3_enableSpeculative ) || (shapeB->flags & b3_enableSpeculative))
+	if ( ( shapeA->flags & b3_enableSpeculative ) && ( shapeB->flags & b3_enableSpeculative ) )
 	{
 		contact->flags |= b3_enableSpeculativePoints;
 	}

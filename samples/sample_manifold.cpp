@@ -232,7 +232,7 @@ public:
 			{
 				const b3LocalManifoldPoint& manifoldPoint = m_manifold.points[pointIndex];
 
-				b3Pos point = b3TransformWorldPoint(m_transformB, manifoldPoint.point );
+				b3Pos point = b3TransformWorldPoint( m_transformB, manifoldPoint.point );
 				DrawLine( point, point + length * normal, MakeColor( b3_colorWhite ) );
 
 				if ( manifoldPoint.separation > 0.0f )
@@ -247,8 +247,8 @@ public:
 				DrawString3D( point, MakeColor( b3_colorWhite ), "   %.2f", 100.0f * manifoldPoint.separation );
 
 				b3FeaturePair pair = manifoldPoint.pair;
-				DrawString3D( point + 0.025f * normal, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1,
-							  pair.index1, pair.owner2, pair.index2 );
+				DrawString3D( point + 0.025f * normal, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1,
+							  pair.owner2, pair.index2 );
 			}
 		}
 
@@ -829,15 +829,23 @@ public:
 			m_camera->SetView( 0.0f, 30.0f, 3.0f, b3Pos_zero );
 		}
 
-		m_triangle[0] = { 1.00000000, 0, 1.00000000 };
-		m_triangle[1] = { 1.00000000, 0, 0.00000000 };
-		m_triangle[2] = { 0.00000000, 0, 0.00000000 };
+		//m_triangle[0] = { 1.00000000, 0, 1.00000000 };
+		//m_triangle[1] = { 1.00000000, 0, 0.00000000 };
+		//m_triangle[2] = { 0.00000000, 0, 0.00000000 };
 
-		m_boxHull = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+		m_triangle[0x00000000] = { -1.82879996, -0.0253999997, -0.609600008 };
+		m_triangle[0x00000001] = { -1.82879996, -0.0253999997, -0.406399995 };
+		m_triangle[0x00000002] = { -1.79069996, 0.00000000, -0.406399995 };
+
+		float SRC = 0.0254f;
+		float bodyHalfWidth = 16.0f * SRC;
+		float bodyHalfHeight = 36.0f * SRC;
+
+		m_boxHull = b3MakeBoxHull( bodyHalfWidth, bodyHalfHeight, bodyHalfWidth );
 
 		m_transformA = b3WorldTransform_identity;
 		m_transformB = b3WorldTransform_identity;
-		m_transformB.p = { 0.0f, 0.45f, 0.1f };
+		m_transformB.p = { -2.16650009f, 0.912535489f, 0.00000000f };
 
 		// b3MeshEdgeFlags
 		m_flags = 0;

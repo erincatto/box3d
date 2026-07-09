@@ -603,7 +603,7 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.baseMaterial.friction = 0.0f;
 			shapeDef.baseMaterial.restitution = 0.0f;
-			shapeDef.baseMaterial.customColor = b3_colorLimeGreen;
+			//shapeDef.baseMaterial.customColor = b3_colorLimeGreen;
 
 			float volume = 8.0f * m_bodyHalfWidth * m_bodyHalfHeight * m_bodyHalfWidth;
 			shapeDef.density = m_characterMass / volume;
@@ -619,6 +619,8 @@ public:
 		m_maxLaunchSpeed = 0.0f;
 		m_launchMarkerCount = 0;
 		m_wasLaunched = false;
+
+		m_stepWhilePaused = true;
 	}
 
 	~SBoxGhostCollisions() override

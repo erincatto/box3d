@@ -171,16 +171,6 @@ void SampleContext::Load()
 			const char* s = data + tokens[i + 1].start;
 			GetGuiDraw()->drawShapes = strncmp( s, "true", 4 ) == 0;
 		}
-		else if ( jsoneq( data, &tokens[i], "drawJoints" ) == 0 )
-		{
-			const char* s = data + tokens[i + 1].start;
-			GetGuiDraw()->drawJoints = strncmp( s, "true", 4 ) == 0;
-		}
-		else if ( jsoneq( data, &tokens[i], "drawContacts" ) == 0 )
-		{
-			const char* s = data + tokens[i + 1].start;
-			GetGuiDraw()->drawContacts = strncmp( s, "true", 4 ) == 0;
-		}
 		else if ( jsoneq( data, &tokens[i], "enableShadows" ) == 0 )
 		{
 			const char* s = data + tokens[i + 1].start;

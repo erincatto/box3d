@@ -102,7 +102,7 @@ typedef void b3LogFcn( const char* message );
 B3_API void b3SetAllocator( b3AllocFcn* allocFcn, b3FreeFcn* freeFcn );
 
 /// Total bytes allocated by Box3D
-B3_API int32_t b3GetByteCount( void );
+B3_API int b3GetByteCount( void );
 
 /// Override the default assert callback.
 ///	@param assertFcn a non-null assert callback

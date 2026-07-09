@@ -561,7 +561,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	// It leads to a small visual gap but seems to improve the quality of mesh
 	// collision, especially for hull versus mesh.
 	float restOffset = B3_MESH_REST_OFFSET;
-	bool enableSpeculative = contact->flags & b3_enableSpeculative;
+	bool enableSpeculative = contact->flags & b3_enableSpeculativePoints;
 
 	// Make room for clip points
 	int pointBufferCapacity = B3_MAX_POINTS_PER_TRIANGLE * triangleCount;

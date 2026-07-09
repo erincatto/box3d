@@ -556,7 +556,7 @@ public:
 		g_randomSeed = (uint32_t)b3GetTicks();
 
 		bool simulateAll = true;
-		// g_randomSeed = 3963634789;
+		//g_randomSeed = 1910133196;
 
 		m_runCount += 1;
 		m_stepCount = 0;
@@ -569,7 +569,7 @@ public:
 				b3Vec3 linearVelocity = RandomVec3Uniform( -1.0f, 1.0f );
 				b3Vec3 angularVelocity = RandomVec3Uniform( -5.0f, 5.0f );
 
-				if ( simulateAll || ( i == 5 && j == 4 ) )
+				if ( simulateAll || ( i == 19 && j == 20 ) )
 				{
 					bodyDef.position = { 0.5f * ( i - 0.5f * m_gridCount ), 5.0f, 0.5f * ( j - 0.5f * m_gridCount ) };
 					bodyDef.linearVelocity = linearVelocity;
