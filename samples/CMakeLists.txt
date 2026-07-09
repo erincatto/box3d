@@ -1,5 +1,12 @@
 # Box3D samples
 
+# sokol's Cocoa/Metal backends are Objective-C. gfx/sokol_impl.c and
+# host/sokol_app_impl.c compile as OBJC, so enable the language here where the
+# samples need it. Consumers embedding box3d (no samples) don't require OBJC.
+if(APPLE)
+    enable_language(OBJC)
+endif()
+
 FetchContent_Declare(imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG        v1.92.7
