@@ -166,8 +166,9 @@ static int EdgeCacheTest( void )
 	b3CollideHulls( &manifold, 8, &hullA.base, &hullB.base, SlideX( 1.41f ), &cache );
 	ENSURE( manifold.pointCount == 1 );
 	ENSURE( cache.type == b3_edgePairAxis );
-	ENSURE( cache.indexA % 2 == 0 && cache.indexA < hullA.base.edgeCount );
-	ENSURE( cache.indexB % 2 == 0 && cache.indexB < hullB.base.edgeCount );
+	// Cached edges are the even half of each twin pair
+	ENSURE( ( cache.indexA & 1 ) == 0 && cache.indexA < hullA.base.edgeCount );
+	ENSURE( ( cache.indexB & 1 ) == 0 && cache.indexB < hullB.base.edgeCount );
 
 	float seededSeparation = cache.separation;
 	ENSURE_SMALL( seededSeparation - ( 1.41f - kRoot2 ), 1e-5f );
