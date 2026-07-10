@@ -185,9 +185,10 @@ static b3EdgeQuery b3QueryTriangleAndCapsuleEdges( const b3Vec3* vertices, b3Pla
 	b3Vec3 capsuleEdge = b3Sub( p2, p1 );
 
 	// Find axis of minimum penetration
+	b3Vec3 maxNormal = b3Vec3_zero;
 	float maxSeparation = -FLT_MAX;
-	int maxIndex1 = UINT8_MAX;
-	int maxIndex2 = UINT8_MAX;
+	int maxIndex1 = B3_NULL_INDEX;
+	int maxIndex2 = B3_NULL_INDEX;
 	float squaredTolerance = 0.005f * 0.005f;
 
 	int edgeIndex = 2;
@@ -231,6 +232,7 @@ static b3EdgeQuery b3QueryTriangleAndCapsuleEdges( const b3Vec3* vertices, b3Pla
 		{
 			// Note: We don't exit early if we find a separating axis here since we want to
 			// find the best one for caching and account for the convex radius later.
+			maxNormal = axis;
 			maxSeparation = separation;
 			maxIndex1 = edgeIndex;
 			maxIndex2 = 0;
@@ -242,9 +244,10 @@ static b3EdgeQuery b3QueryTriangleAndCapsuleEdges( const b3Vec3* vertices, b3Pla
 
 	// Save result
 	return (b3EdgeQuery){
+		.normal = maxNormal,
 		.separation = maxSeparation,
-		.indexA = (uint8_t)maxIndex1,
-		.indexB = (uint8_t)maxIndex2,
+		.indexA = maxIndex1,
+		.indexB = maxIndex2,
 	};
 }
 
@@ -296,8 +299,8 @@ static void b3BuildTriangleAndCapsuleFaceContact( b3LocalManifold* manifold, con
 	pt->pair = segment[1].pair;
 }
 
-static void b3BuildTriangleAndCapsuleEdgeContact( b3LocalManifold* manifold, const b3Vec3* triangle, b3Plane plane, const b3Capsule* capsule,
-												  b3EdgeQuery query )
+static void b3BuildTriangleAndCapsuleEdgeContact( b3LocalManifold* manifold, const b3Vec3* triangle, b3Plane plane,
+												  const b3Capsule* capsule, b3EdgeQuery query )
 {
 	B3_ASSERT( 0 <= query.indexA && query.indexA < 3 );
 
@@ -328,20 +331,6 @@ static void b3BuildTriangleAndCapsuleEdgeContact( b3LocalManifold* manifold, con
 
 	// Similar to hull vs hull (b3QueryEdgeDirections)
 	b3Vec3 normal = query.normal;
-	if ( a * b <= 0.0f )
-	{
-		float t = b / ( b - a );
-		normal = b3Lerp( sideNormal, plane.normal, t );
-	}
-	else
-	{
-		float t = b / ( a + b );
-		normal = b3Lerp( sideNormal, b3Neg( plane.normal ), t );
-	}
-
-	B3_VALIDATE( b3LengthSquared( normal ) > 1000.0f * FLT_MIN );
-	normal = b3Normalize( normal );
-
 	b3SegmentDistanceResult result = b3LineDistance( v1, triangleEdge, p1, capsuleEdge );
 
 	if ( result.fraction1 < 0.0f || 1.0f < result.fraction1 || result.fraction2 < 0.0f || 1.0f < result.fraction2 )
@@ -351,7 +340,6 @@ static void b3BuildTriangleAndCapsuleEdgeContact( b3LocalManifold* manifold, con
 	}
 
 	b3Vec3 point = b3Lerp( b3MulSub( result.point1, capsule->radius, normal ), result.point2, 0.5f );
-
 	float separation = b3Dot( normal, b3Sub( p1, v1 ) );
 	B3_VALIDATE( b3AbsFloat( separation - query.separation ) < B3_LINEAR_SLOP );
 
@@ -575,6 +563,7 @@ static b3FaceQuery b3QueryHullFace( const b3TriangleData* triangle, const b3Hull
 static b3EdgeQuery b3QueryTriangleAndHullEdges( const b3TriangleData* triangle, const b3HullData* hull )
 {
 	b3EdgeQuery result = {
+		.normal = b3Vec3_zero,
 		.separation = -FLT_MAX,
 		.indexA = B3_NULL_INDEX,
 		.indexB = B3_NULL_INDEX,
@@ -643,7 +632,8 @@ static b3EdgeQuery b3QueryTriangleAndHullEdges( const b3TriangleData* triangle, 
 			{
 				// Note: We don't exit early if we find a separating axis here since we want to
 				// find the best one for caching.
-				result.normal = axis;
+				// Flip normal to point from triangle to hull.
+				result.normal = b3Neg(axis);
 				result.separation = separation;
 				result.indexA = j;
 				result.indexB = i;
@@ -896,7 +886,6 @@ static void b3CollideHullAndTriangleEdges( b3LocalManifold* manifold, int capaci
 	b3Vec3 pB = pointsB[edgeB->origin];
 	b3Vec3 qB = pointsB[twinB->origin];
 	b3Vec3 eB = b3Sub( qB, pB );
-	b3Vec3 normal = query.normal;
 
 	// Get the closest points between the infinite edge lines
 	b3SegmentDistanceResult result = b3LineDistance( pA, eA, pB, eB );
@@ -912,7 +901,7 @@ static void b3CollideHullAndTriangleEdges( b3LocalManifold* manifold, int capaci
 	}
 
 	// This can slide off the end from caching
-	float separation = b3Dot( normal, b3Sub( pB, pA ) );
+	float separation = b3Dot( query.normal, b3Sub( pB, pA ) );
 	B3_VALIDATE( b3AbsFloat( separation - query.separation ) < B3_LINEAR_SLOP );
 
 	b3Vec3 point = b3MulSV( 0.5f, b3Add( result.point1, result.point2 ) );
@@ -928,7 +917,7 @@ static void b3CollideHullAndTriangleEdges( b3LocalManifold* manifold, int capaci
 	cache->indexA = (uint8_t)query.indexA;
 	cache->indexB = (uint8_t)query.indexB;
 
-	manifold->normal = normal;
+	manifold->normal = query.normal;
 	manifold->pointCount = 1;
 
 	b3TriangleFeature edgesFeatures[] = { b3_featureEdge1, b3_featureEdge2, b3_featureEdge3 };
@@ -973,7 +962,6 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 		return;
 	}
 
-	b3Vec3 triangleCenter = b3MulSV( 1.0f / 3.0f, b3Add( v1, b3Add( v2, v3 ) ) );
 	b3Vec3 trianglePoints[] = { v1, v2, v3 };
 	b3Vec3 triangleEdges[] = { b3Sub( v2, v1 ), b3Sub( v3, v2 ), b3Sub( v1, v3 ) };
 
@@ -1145,16 +1133,16 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 					if ( b3AbsFloat( cache->separation - separation ) < linearSlop )
 					{
 						// Try to rebuild contact from last features
+						// Flip normal to point from triangle to hull
 						b3EdgeQuery edgeQuery;
-						edgeQuery.normal = axis;
+						edgeQuery.normal = b3Neg(axis);
 						edgeQuery.indexA = indexA;
 						edgeQuery.indexB = indexB;
 						edgeQuery.separation = separation;
 
 						// Read cache but don't modify it
 						b3SATCache localCache = *cache;
-						b3CollideHullAndTriangleEdges( manifold, capacity, triPoint, triEdge, triangleCenter, hullA, edgeQuery,
-													   &localCache );
+						b3CollideHullAndTriangleEdges( manifold, capacity, triPoint, triEdge, hullA, edgeQuery, &localCache );
 
 						if ( manifold->pointCount > 0 )
 						{
@@ -1194,8 +1182,7 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 			{
 				b3Vec3 trianglePoint = trianglePoints[edgeQuery.indexA];
 				b3Vec3 triangleEdge = triangleEdges[edgeQuery.indexA];
-				b3CollideHullAndTriangleEdges( manifold, capacity, trianglePoint, triangleEdge, triangleCenter, hullA, edgeQuery,
-											   cache );
+				b3CollideHullAndTriangleEdges( manifold, capacity, trianglePoint, triangleEdge, hullA, edgeQuery, cache );
 			}
 			return;
 		}
@@ -1273,8 +1260,7 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 			b3Vec3 trianglePoint = trianglePoints[edgeQuery.indexA];
 			b3Vec3 triangleEdge = triangleEdges[edgeQuery.indexA];
 			manifold->pointCount = 0;
-			b3CollideHullAndTriangleEdges( manifold, capacity, trianglePoint, triangleEdge, triangleCenter, hullA, edgeQuery,
-										   cache );
+			b3CollideHullAndTriangleEdges( manifold, capacity, trianglePoint, triangleEdge, hullA, edgeQuery, cache );
 		}
 	}
 

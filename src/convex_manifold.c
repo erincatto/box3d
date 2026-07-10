@@ -153,9 +153,10 @@ static b3EdgeQuery b3QueryEdgeDirectionHullAndCapsule( const b3HullData* hull, c
 													   b3Transform capsuleTransform )
 {
 	// Find axis of minimum penetration
+	b3Vec3 maxNormal = b3Vec3_zero;
 	float maxSeparation = -FLT_MAX;
-	int maxIndex1 = -1;
-	int maxIndex2 = -1;
+	int maxIndexA = B3_NULL_INDEX;
+	int maxIndexB = B3_NULL_INDEX;
 
 	// We perform all computations in local space of the hull
 	b3Vec3 pA = b3TransformPoint( capsuleTransform, capsule->center1 );
@@ -216,18 +217,20 @@ static b3EdgeQuery b3QueryEdgeDirectionHullAndCapsule( const b3HullData* hull, c
 			{
 				// Note: We don't exit early if we find a separating axis here since we want to
 				// find the best one for caching and account for the convex radius later.
+				maxNormal = axis;
 				maxSeparation = separation;
-				maxIndex1 = 0;
-				maxIndex2 = index;
+				maxIndexA = 0;
+				maxIndexB = index;
 			}
 		}
 	}
 
 	// Save result
 	return (b3EdgeQuery){
+		.normal = maxNormal,
 		.separation = maxSeparation,
-		.indexA = (uint8_t)maxIndex1,
-		.indexB = (uint8_t)maxIndex2,
+		.indexA = maxIndexA,
+		.indexB = maxIndexB,
 	};
 }
 
@@ -925,19 +928,11 @@ static bool b3BuildHullAndCapsuleEdgeContact( b3LocalManifold* manifold, int cap
 
 	const b3HullHalfEdge* edge2 = edges + query.indexB;
 	const b3HullHalfEdge* twin2 = edges + edge2->twin;
-	b3Vec3 ch = hullA->center;
 	b3Vec3 ph = points[edge2->origin];
 	b3Vec3 qh = points[twin2->origin];
 	b3Vec3 eh = b3Sub( qh, ph );
 
-	b3Vec3 normal = b3Cross( ec, eh );
-	normal = b3Normalize( normal );
-
-	// Normal should point outward from hull
-	if ( b3Dot( normal, b3Sub( ph, ch ) ) < 0.0f )
-	{
-		normal = b3Neg( normal );
-	}
+	b3Vec3 normal = query.normal;
 
 	b3SegmentDistanceResult result = b3LineDistance( ph, eh, pc, ec );
 
@@ -948,7 +943,6 @@ static bool b3BuildHullAndCapsuleEdgeContact( b3LocalManifold* manifold, int cap
 	}
 
 	b3Vec3 point = b3MulSV( 0.5f, b3Add( b3MulSub( result.point1, capsuleB->radius, normal ), result.point2 ) );
-
 	float separation = b3Dot( normal, b3Sub( result.point2, result.point1 ) );
 	B3_VALIDATE( b3AbsFloat( separation - query.separation ) < B3_LINEAR_SLOP );
 
@@ -1279,7 +1273,6 @@ static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hul
 
 	const b3HullHalfEdge* edgeA = edgesA + query.indexA;
 	const b3HullHalfEdge* twinA = edgesA + edgeA->twin;
-	b3Vec3 centerA = hullA->center;
 	b3Vec3 pA = pointsA[edgeA->origin];
 	b3Vec3 qA = pointsA[twinA->origin];
 	b3Vec3 eA = b3Sub( qA, pA );
@@ -1290,14 +1283,7 @@ static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hul
 	b3Vec3 qB = b3TransformPoint( transformBtoA, pointsB[twinB->origin] );
 	b3Vec3 eB = b3Sub( qB, pB );
 
-	b3Vec3 normal = b3Cross( eA, eB );
-	normal = b3Normalize( normal );
-
-	if ( b3Dot( normal, b3Sub( pA, centerA ) ) < 0.0f )
-	{
-		normal = b3Neg( normal );
-	}
-
+	b3Vec3 normal = query.normal;
 	b3SegmentDistanceResult result = b3LineDistance( pA, eA, pB, eB );
 
 	if ( b3IsWithinSegments( &result ) == false )
@@ -1308,10 +1294,6 @@ static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hul
 
 	// This can slide off the end from caching
 	float separation = b3Dot( normal, b3Sub( result.point2, result.point1 ) );
-
-	// todo I suspect this could trip if the cache becomes invalid
-	// B3_VALIDATE( b3AbsFloat( separation - query.separation ) < B3_LINEAR_SLOP );
-
 	b3Vec3 point = b3MulSV( 0.5f, b3Add( result.point1, result.point2 ) );
 
 	// Result in frame A
@@ -1488,10 +1470,11 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 					}
 
 					// Try to rebuild contact from last features
-					b3EdgeQuery edgeQuery;
+					b3EdgeQuery edgeQuery = {0};
+					edgeQuery.normal = axis;
+					edgeQuery.separation = 0.0f;
 					edgeQuery.indexA = cache->indexA;
 					edgeQuery.indexB = cache->indexB;
-					edgeQuery.separation = 0.0f;
 
 					b3SATCache localCache = { 0 };
 					bool touching = b3BuildEdgeContact( manifold, hullA, hullB, transformBtoA, edgeQuery, &localCache );
