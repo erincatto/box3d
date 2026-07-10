@@ -324,7 +324,8 @@ static b3EdgeQuery b3QueryEdgeDirections( const b3HullData* hullA, const b3HullD
 				if ( separation > maxSeparation )
 				{
 					// Continues to find the maximum separating axis
-					maxNormal = axis;
+					// Flip normal so it points from A to B
+					maxNormal = b3Neg( axis );
 					maxSeparation = separation;
 					maxIndexA = indexA;
 					maxIndexB = indexB;
@@ -1470,8 +1471,8 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 					}
 
 					// Try to rebuild contact from last features
-					b3EdgeQuery edgeQuery = {0};
-					edgeQuery.normal = axis;
+					b3EdgeQuery edgeQuery = { 0 };
+					edgeQuery.normal = b3Neg( axis );
 					edgeQuery.separation = 0.0f;
 					edgeQuery.indexA = cache->indexA;
 					edgeQuery.indexB = cache->indexB;
