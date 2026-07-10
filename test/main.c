@@ -39,6 +39,7 @@ extern int HullTest( void );
 extern int IdTest( void );
 extern int JointTest( void );
 extern int LargeWorldTest( void );
+extern int ManifoldTest( void );
 extern int MathTest( void );
 extern int MoverTest( void );
 extern int NameCacheTest( void );
@@ -110,6 +111,7 @@ int main( int argc, char** argv )
 	MAYBE_RUN_TEST( IdTest );
 	MAYBE_RUN_TEST( JointTest );
 	MAYBE_RUN_TEST( LargeWorldTest );
+	MAYBE_RUN_TEST( ManifoldTest );
 	MAYBE_RUN_TEST( MathTest );
 	MAYBE_RUN_TEST( MoverTest );
 	MAYBE_RUN_TEST( NameCacheTest );
