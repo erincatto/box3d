@@ -17,6 +17,7 @@ typedef struct b3FaceQuery
 
 typedef struct b3EdgeQuery
 {
+	b3Vec3 normal;
 	float separation;
 	int indexA;
 	int indexB;
@@ -35,7 +36,6 @@ typedef enum b3FeatureOwner
 	b3_featureShapeB = 1
 } b3FeatureOwner;
 
-float b3EdgeEdgeSeparation( b3Vec3 p1, b3Vec3 e1, b3Vec3 c1, b3Vec3 p2, b3Vec3 e2, b3Vec3 c2 );
 int b3FindIncidentFace( const b3HullData* hull, b3Vec3 refNormal, int vertexIndex );
 b3FeaturePair b3MakeFeaturePair( b3FeatureOwner owner1, int index1, b3FeatureOwner owner2, int index2 );
 

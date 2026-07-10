@@ -244,7 +244,7 @@ public:
 					DrawPoint( point, 10.0f, MakeColor( b3_colorYellow ) );
 				}
 
-				DrawString3D( point, MakeColor( b3_colorWhite ), "   %.2f", 100.0f * manifoldPoint.separation );
+				DrawString3D( point, MakeColor( b3_colorWhite ), "  %.2f", 100.0f * manifoldPoint.separation );
 
 				b3FeaturePair pair = manifoldPoint.pair;
 				DrawString3D( point + 0.025f * normal, MakeColor( b3_colorPapayaWhip ), "  %X:%X %X:%X", pair.owner1, pair.index1,
@@ -572,7 +572,7 @@ public:
 			m_camera->SetView( 0.0f, 30.0f, 5.0f, b3Pos_zero );
 		}
 
-		m_capsule = { { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, 0.5f };
+		m_capsule = { { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, 0.15f };
 		m_hull = b3MakeBoxHull( 1.0f, 0.5f, 0.5f );
 
 		m_transformA = { { 0.0f, 0.0f, 0.0f }, b3Quat_identity };
@@ -637,16 +637,17 @@ public:
 		}
 
 		m_capsule = { { 0.0f, -0.2f, 0.0f }, { 0.0f, 0.2f, 0.0f }, 0.05f };
+		m_capsule = { { -0.5f, 0.0f, 0.0f }, { 0.5f, 0.0f, 0.0f }, 0.05f };
 		m_triangle[0] = { -4.0f, 0.0f, -4.0f };
 		m_triangle[1] = { -4.0f, 0.0f, 0.0f };
 		m_triangle[2] = { 0.0f, 0.0f, 0.0f };
 
 		m_transformA = b3WorldTransform_identity;
-		m_transformB = { { 0.0f, 0.5f, 0.0f }, b3Quat_identity };
-		m_transformB.q = b3MakeQuatFromAxisAngle( { 0.0f, 0.0f, 1.0f }, 0.5f * B3_PI );
+		m_transformB = { { -1.0f, 0.0f, -1.0f }, b3Quat_identity };
+		//m_transformB.q = b3MakeQuatFromAxisAngle( { 0.0f, 0.0f, 1.0f }, 0.5f * B3_PI );
 
-		m_transformB = { { -0.500000000, 0.123778239, -0.500000000 },
-						 { { -0.157559350, 0.294042289, 0.821513653 }, -0.462417006 } };
+		//m_transformB = { { -0.500000000, 0.123778239, -0.500000000 },
+		//				 { { -0.157559350, 0.294042289, 0.821513653 }, -0.462417006 } };
 	}
 
 	void Render() override

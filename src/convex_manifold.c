@@ -12,17 +12,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-static inline bool b3IsMinkowskiFaceIsolated( b3Vec3 a, b3Vec3 b, b3Vec3 n )
-{
-	// An isolated edge (e.g. like in a capsule) defines a circle through the
-	// origin on the Gauss map. So testing for overlap between this circle and
-	// the arc AB simplifies to a simple plane test.
-	float an = b3Dot( a, n );
-	float bn = b3Dot( b, n );
-
-	return an * bn <= 0.0f;
-}
-
 static int b3ClipSegment( b3ClipVertex segment[2], b3Plane plane )
 {
 	int vertexCount = 0;
@@ -169,13 +158,14 @@ static b3EdgeQuery b3QueryEdgeDirectionHullAndCapsule( const b3HullData* hull, c
 	int maxIndex2 = -1;
 
 	// We perform all computations in local space of the hull
-	b3Vec3 p1 = b3TransformPoint( capsuleTransform, capsule->center1 );
-	b3Vec3 q1 = b3TransformPoint( capsuleTransform, capsule->center2 );
-	b3Vec3 e1 = b3Sub( q1, p1 );
+	b3Vec3 pA = b3TransformPoint( capsuleTransform, capsule->center1 );
+	b3Vec3 qA = b3TransformPoint( capsuleTransform, capsule->center2 );
+	b3Vec3 eA = b3Sub( qA, pA );
 
 	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
 	const b3Vec3* points = b3GetHullPoints( hull );
 	const b3Plane* planes = b3GetHullPlanes( hull );
+	float squaredTolerance = 0.005f * 0.005f;
 
 	for ( int index = 0; index < hull->edgeCount; index += 2 )
 	{
@@ -183,20 +173,45 @@ static b3EdgeQuery b3QueryEdgeDirectionHullAndCapsule( const b3HullData* hull, c
 		const b3HullHalfEdge* twin = edges + index + 1;
 		B3_ASSERT( edge->twin == index + 1 && twin->twin == index );
 
-		b3Vec3 p2 = points[edge->origin];
-		b3Vec3 q2 = points[twin->origin];
-		b3Vec3 e2 = b3Sub( q2, p2 );
+		b3Vec3 qB = points[twin->origin];
+		b3Vec3 uB = planes[edge->face].normal;
+		b3Vec3 vB = planes[twin->face].normal;
 
-		b3Vec3 u2 = planes[edge->face].normal;
-		b3Vec3 v2 = planes[twin->face].normal;
+		// An isolated edge (e.g. like in a capsule) defines a circle through the
+		// origin on the Gauss map. So testing for overlap between this circle and
+		// the arc AB simplifies to a plane test.
+		float cba = b3Dot( uB, eA );
+		float dba = b3Dot( vB, eA );
 
-		if ( b3IsMinkowskiFaceIsolated( u2, v2, e1 ) )
+		if ( cba * dba < 0.0f )
 		{
-			// We can pass any point on the edge and choose
-			// the edge centers for better numerical precision.
-			b3Vec3 c1 = b3MulSV( 0.5f, b3Add( q1, p1 ) );
-			b3Vec3 c2 = hull->center;
-			float separation = b3EdgeEdgeSeparation( q1, e1, c1, q2, e2, c2 );
+			// Avoid nearly parallel edges that may lead to invalid separation values at the noise floor.
+			if ( b3MaxFloat( cba * cba, dba * dba ) < squaredTolerance * b3LengthSquared( eA ) )
+			{
+				continue;
+			}
+
+			// The intersection of the arcs on the Gauss map is the edge pair axis. Cast the
+			// arc of hull B (from uB to vB) against the plane containing the arc of hull A:
+			// dot(uB + t * (vB - uB), eA) == 0
+			// then
+			// t = cba / (cba - dba)
+			//
+			// The signs of cba and dba differ (Minkowski test), so the division is safe.
+			//
+			// The axis generated points from B to A by construction since it lands between
+			// two face normals on B. This removes the need to orient the separation axis
+			// using the hull centers.
+			//
+			// The axis is perpendicular to both edges so I can use qA and qB as arbitrary
+			// points on edgeA and edgeB to measure the separation.
+
+			float t = cba / ( cba - dba );
+			b3Vec3 axis = b3Lerp( uB, vB, t );
+			B3_VALIDATE( b3LengthSquared( axis ) > 1000.0f * FLT_MIN );
+			axis = b3Normalize( axis );
+			float separation = b3Dot( axis, b3Sub( qA, qB ) );
+
 			if ( separation > maxSeparation )
 			{
 				// Note: We don't exit early if we find a separating axis here since we want to
@@ -219,6 +234,7 @@ static b3EdgeQuery b3QueryEdgeDirectionHullAndCapsule( const b3HullData* hull, c
 static b3EdgeQuery b3QueryEdgeDirections( const b3HullData* hullA, const b3HullData* hullB, b3Transform transformBtoA )
 {
 	// Find axis of minimum penetration
+	b3Vec3 maxNormal = b3Vec3_zero;
 	float maxSeparation = -FLT_MAX;
 	int maxIndexA = B3_NULL_INDEX;
 	int maxIndexB = B3_NULL_INDEX;
@@ -305,6 +321,7 @@ static b3EdgeQuery b3QueryEdgeDirections( const b3HullData* hullA, const b3HullD
 				if ( separation > maxSeparation )
 				{
 					// Continues to find the maximum separating axis
+					maxNormal = axis;
 					maxSeparation = separation;
 					maxIndexA = indexA;
 					maxIndexB = indexB;
@@ -314,6 +331,7 @@ static b3EdgeQuery b3QueryEdgeDirections( const b3HullData* hullA, const b3HullD
 	}
 
 	return (b3EdgeQuery){
+		.normal = maxNormal,
 		.separation = maxSeparation,
 		.indexA = maxIndexA,
 		.indexB = maxIndexB,
