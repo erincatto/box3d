@@ -922,10 +922,10 @@ public:
 			m_walkSpeedX = speedUX * SRC;
 		}
 
-		float speedUZ = m_walkSpeedX / SRC;
+		float speedUZ = m_walkSpeedZ / SRC;
 		if ( ImGui::SliderFloat( "Walk Speed Z (inch/s)", &speedUZ, 10.0f, 100.0f, "%.0f" ) )
 		{
-			m_walkSpeedX = speedUZ * SRC;
+			m_walkSpeedZ = speedUZ * SRC;
 		}
 
 		if ( ImGui::Button( "Reset Counters" ) )

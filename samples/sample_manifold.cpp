@@ -636,7 +636,6 @@ public:
 			m_camera->SetView( 0.0f, 30.0f, 10.0f, b3Pos_zero );
 		}
 
-		m_capsule = { { 0.0f, -0.2f, 0.0f }, { 0.0f, 0.2f, 0.0f }, 0.05f };
 		m_capsule = { { -0.5f, 0.0f, 0.0f }, { 0.5f, 0.0f, 0.0f }, 0.05f };
 		m_triangle[0] = { -4.0f, 0.0f, -4.0f };
 		m_triangle[1] = { -4.0f, 0.0f, 0.0f };
@@ -644,10 +643,6 @@ public:
 
 		m_transformA = b3WorldTransform_identity;
 		m_transformB = { { -1.0f, 0.0f, -1.0f }, b3Quat_identity };
-		//m_transformB.q = b3MakeQuatFromAxisAngle( { 0.0f, 0.0f, 1.0f }, 0.5f * B3_PI );
-
-		//m_transformB = { { -0.500000000, 0.123778239, -0.500000000 },
-		//				 { { -0.157559350, 0.294042289, 0.821513653 }, -0.462417006 } };
 	}
 
 	void Render() override
