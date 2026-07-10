@@ -552,6 +552,7 @@ static b3EdgeQuery b3TestEdgePairs( const b3TriangleData* triangle, const b3Hull
 	const b3Vec3* hullPoints = b3GetHullPoints( hull );
 	const b3Plane* hullPlanes = b3GetHullPlanes( hull );
 	int edgeCount = hull->edgeCount;
+	float squaredTolerance = 0.005f * 0.005f;
 
 	for ( int i = 0; i < edgeCount; i += 2 )
 	{
@@ -577,8 +578,20 @@ static b3EdgeQuery b3TestEdgePairs( const b3TriangleData* triangle, const b3Hull
 				continue;
 			}
 
-			b3Vec3 triPoint = trianglePoints[j];
-			float separation = b3EdgeEdgeSeparation( triPoint, triEdge, triangle->center, hullPoint, hullEdge, hull->center );
+			// Avoid nearly parallel edges that may lead to invalid separation values at the noise floor.
+			if ( b3MaxFloat( cab * cab, dab * dab ) < squaredTolerance * b3LengthSquared( triEdge ) )
+			{
+				continue;
+			}
+
+			// Similar to hull vs hull (b3QueryEdgeDirections)
+			// dot(hullNormal1 + t * (hullNormal2 - hullNormal1), triEdge) = 0
+			// Normal points out of hull by construction.
+			float t = cab / ( cab - dab );
+			b3Vec3 axis = b3Lerp( hullNormal1, hullNormal2, t );
+			B3_VALIDATE( b3LengthSquared( axis ) > 1000.0f * FLT_MIN );
+			axis = b3Normalize( axis );
+			float separation = b3Dot( axis, b3Sub( trianglePoints[j], hullPoint ) );
 
 			// if ( separation > result.separation && ( edgeFlags[j] & triangleFlags ) == 0 )
 			if ( separation > result.separation )
@@ -1091,31 +1104,43 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 
 			if ( cab * dab < 0.0f && cab * bcd > 0.0f )
 			{
-				// Transform reference center of the first hull into local space of the second hull
-				float separation = b3EdgeEdgeSeparation( triPoint, triEdge, triangleCenter, hullPoint, hullEdge, hullA->center );
-				if ( separation > speculativeDistance )
+				float squaredTolerance = 0.005f * 0.005f;
+
+				// Avoid nearly parallel edges that may lead to invalid separation values at the noise floor.
+				if ( b3MaxFloat( cab * cab, dab * dab ) >= squaredTolerance * b3LengthSquared( triEdge ) )
 				{
-					// Cache hit, shapes are separated
-					return;
-				}
-
-				if ( b3AbsFloat( cache->separation - separation ) < linearSlop )
-				{
-					// Try to rebuild contact from last features
-					b3EdgeQuery edgeQuery;
-					edgeQuery.indexA = indexA;
-					edgeQuery.indexB = indexB;
-					edgeQuery.separation = separation;
-
-					// Read cache but don't modify it
-					b3SATCache localCache = *cache;
-					b3CollideHullAndTriangleEdges( manifold, capacity, triPoint, triEdge, triangleCenter, hullA, edgeQuery,
-												   &localCache );
-
-					if ( manifold->pointCount > 0 )
+					// Similar to hull vs hull (b3QueryEdgeDirections)
+					// dot(hullNormal1 + t * (hullNormal2 - hullNormal1), triEdge) = 0
+					// Normal points out of hull by construction.
+					float t = cab / ( cab - dab );
+					b3Vec3 axis = b3Lerp( hullNormal1, hullNormal2, t );
+					B3_VALIDATE( b3LengthSquared( axis ) > 1000.0f * FLT_MIN );
+					axis = b3Normalize( axis );
+					float separation = b3Dot( axis, b3Sub( triPoint, hullPoint ) );
+					if ( separation > speculativeDistance )
 					{
-						// Cache hit, contact point generated
+						// Cache hit, shapes are separated
 						return;
+					}
+
+					if ( b3AbsFloat( cache->separation - separation ) < linearSlop )
+					{
+						// Try to rebuild contact from last features
+						b3EdgeQuery edgeQuery;
+						edgeQuery.indexA = indexA;
+						edgeQuery.indexB = indexB;
+						edgeQuery.separation = separation;
+
+						// Read cache but don't modify it
+						b3SATCache localCache = *cache;
+						b3CollideHullAndTriangleEdges( manifold, capacity, triPoint, triEdge, triangleCenter, hullA, edgeQuery,
+													   &localCache );
+
+						if ( manifold->pointCount > 0 )
+						{
+							// Cache hit, contact point generated
+							return;
+						}
 					}
 				}
 			}
