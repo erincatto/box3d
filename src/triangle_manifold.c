@@ -633,7 +633,7 @@ static b3EdgeQuery b3QueryTriangleAndHullEdges( const b3TriangleData* triangle, 
 				// Note: We don't exit early if we find a separating axis here since we want to
 				// find the best one for caching.
 				// Flip normal to point from triangle to hull.
-				result.normal = b3Neg(axis);
+				result.normal = b3Neg( axis );
 				result.separation = separation;
 				result.indexA = j;
 				result.indexB = i;
@@ -1135,7 +1135,7 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 						// Try to rebuild contact from last features
 						// Flip normal to point from triangle to hull
 						b3EdgeQuery edgeQuery;
-						edgeQuery.normal = b3Neg(axis);
+						edgeQuery.normal = b3Neg( axis );
 						edgeQuery.indexA = indexA;
 						edgeQuery.indexB = indexB;
 						edgeQuery.separation = separation;
