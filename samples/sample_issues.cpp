@@ -590,7 +590,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = { -m_walkRange, m_bodyHalfHeight + 0.1f, 0.0f };
+			bodyDef.position = { -m_walkRangeX, m_bodyHalfHeight + 0.1f, 0.0f };
 			bodyDef.motionLocks.angularX = true;
 			bodyDef.motionLocks.angularY = true;
 			bodyDef.motionLocks.angularZ = true;
@@ -613,8 +613,10 @@ public:
 			b3CreateHullShape( m_characterId, &shapeDef, &box.base );
 		}
 
-		m_walkDirection = 1.0f;
-		m_walkSpeed = 350.0f * SRC; // s&box run speed
+		m_walkDirectionX = 1.0f;
+		m_walkDirectionZ = 1.0f;
+		m_walkSpeedX = 350.0f * SRC; // s&box run speed
+		m_walkSpeedZ = 20.0f * SRC;
 		m_launchCount = 0;
 		m_maxLaunchSpeed = 0.0f;
 		m_launchMarkerCount = 0;
@@ -850,18 +852,27 @@ public:
 		// Drive the character with pure velocity control: keep the solver's vertical velocity,
 		// set the horizontal velocity. This is how the s&box player controller moves.
 		b3Pos position = b3Body_GetPosition( m_characterId );
-		if ( position.x > m_walkRange )
+		if ( position.x > m_walkRangeX )
 		{
-			m_walkDirection = -1.0f;
+			m_walkDirectionX = -1.0f;
 		}
-		else if ( position.x < -m_walkRange )
+		else if ( position.x < -m_walkRangeX )
 		{
-			m_walkDirection = 1.0f;
+			m_walkDirectionX = 1.0f;
+		}
+
+		if ( position.z > m_walkRangeZ )
+		{
+			m_walkDirectionZ = -1.0f;
+		}
+		else if ( position.z < -m_walkRangeZ )
+		{
+			m_walkDirectionZ= 1.0f;
 		}
 
 		b3Vec3 velocity = b3Body_GetLinearVelocity( m_characterId );
-		velocity.x = m_walkDirection * m_walkSpeed;
-		velocity.z = 0.0f;
+		velocity.x = m_walkDirectionX * m_walkSpeedX;
+		velocity.z = m_walkDirectionZ * m_walkSpeedZ;
 		b3Body_SetLinearVelocity( m_characterId, velocity );
 
 		Sample::Step();
@@ -905,10 +916,16 @@ public:
 
 	bool DrawControls() override
 	{
-		float speedU = m_walkSpeed / SRC;
-		if ( ImGui::SliderFloat( "Walk Speed (inch/s)", &speedU, 100.0f, 400.0f, "%.0f" ) )
+		float speedUX = m_walkSpeedX / SRC;
+		if ( ImGui::SliderFloat( "Walk Speed X (inch/s)", &speedUX, 100.0f, 400.0f, "%.0f" ) )
 		{
-			m_walkSpeed = speedU * SRC;
+			m_walkSpeedX = speedUX * SRC;
+		}
+
+		float speedUZ = m_walkSpeedX / SRC;
+		if ( ImGui::SliderFloat( "Walk Speed Z (inch/s)", &speedUZ, 10.0f, 100.0f, "%.0f" ) )
+		{
+			m_walkSpeedX = speedUZ * SRC;
 		}
 
 		if ( ImGui::Button( "Reset Counters" ) )
@@ -927,14 +944,17 @@ public:
 		return new SBoxGhostCollisions( context );
 	}
 
-	static constexpr float m_walkRange = 3.5f;		 // turn around beyond +/- this x (meters)
+	static constexpr float m_walkRangeX = 3.5f;		 // turn around beyond +/- this x (meters)
+	static constexpr float m_walkRangeZ = 0.5f;		 // turn around beyond +/- this x (meters)
 	static constexpr float m_launchThreshold = 0.5f; // upward m/s counted as a ghost launch (~20 inch/s)
 	static constexpr int m_markerCapacity = 64;
 
 	b3MeshData* m_chunkMesh[2] = {};
 	b3BodyId m_characterId;
-	float m_walkDirection;
-	float m_walkSpeed;
+	float m_walkDirectionX;
+	float m_walkDirectionZ;
+	float m_walkSpeedX;
+	float m_walkSpeedZ;
 	int m_launchCount;
 	float m_maxLaunchSpeed;
 	bool m_wasLaunched;
