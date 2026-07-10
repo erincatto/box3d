@@ -572,6 +572,512 @@ static int RidgeCrossingTest( void )
 	return 0;
 }
 
+// The edge pair axis produced by the arc intersection must match the classic edge cross product.
+// Rebuild the axis, the separation and the contact point from the two contributing edges and the
+// convex radius, then compare against the manifold. orientRef fixes the sign of the axis to match
+// the manifold normal convention for the shape pair. e1 belongs to the shape whose contact point is
+// pulled in by the radius (the hull or triangle when it meets a capsule), e2 to the other edge.
+static int CheckEdgeContact( const b3LocalManifold* manifold, b3Vec3 p1, b3Vec3 e1, b3Vec3 p2, b3Vec3 e2, b3Vec3 orientRef,
+							 float radius, float normalTol, float sepTol, float pointTol )
+{
+	b3Vec3 axis = b3Normalize( b3Cross( e1, e2 ) );
+	if ( b3Dot( axis, orientRef ) < 0.0f )
+	{
+		axis = b3Neg( axis );
+	}
+
+	// Normal matches the cross product and is perpendicular to both edges
+	ENSURE_SMALL( manifold->normal.x - axis.x, normalTol );
+	ENSURE_SMALL( manifold->normal.y - axis.y, normalTol );
+	ENSURE_SMALL( manifold->normal.z - axis.z, normalTol );
+	ENSURE_SMALL( b3Dot( manifold->normal, b3Normalize( e1 ) ), normalTol );
+	ENSURE_SMALL( b3Dot( manifold->normal, b3Normalize( e2 ) ), normalTol );
+
+	b3SegmentDistanceResult closest = b3LineDistance( p1, e1, p2, e2 );
+
+	// Signed gap between the edge lines along the axis, less the capsule radius
+	float expectedSeparation = b3Dot( axis, b3Sub( closest.point2, closest.point1 ) ) - radius;
+	ENSURE_SMALL( manifold->points[0].separation - expectedSeparation, sepTol );
+
+	// Midpoint of the closest approach, pulling the first point in by the radius
+	b3Vec3 expectedPoint = b3MulSV( 0.5f, b3Add( b3MulSub( closest.point1, radius, axis ), closest.point2 ) );
+	ENSURE_SMALL( manifold->points[0].point.x - expectedPoint.x, pointTol );
+	ENSURE_SMALL( manifold->points[0].point.y - expectedPoint.y, pointTol );
+	ENSURE_SMALL( manifold->points[0].point.z - expectedPoint.z, pointTol );
+
+	return 0;
+}
+
+static void HullEdgeSegment( const b3HullData* hull, int edgeIndex, b3Transform transform, b3Vec3* point, b3Vec3* edge )
+{
+	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
+	const b3Vec3* points = b3GetHullPoints( hull );
+	const b3HullHalfEdge* e = edges + edgeIndex;
+	b3Vec3 tail = b3TransformPoint( transform, points[e->origin] );
+	b3Vec3 head = b3TransformPoint( transform, points[edges[e->twin].origin] );
+	*point = tail;
+	*edge = b3Sub( head, tail );
+}
+
+// Two boxes crossing edge to edge. A holds a vertical edge, B is rolled to present a crossing edge
+// and yawed so the arc intersection walks off the midpoint. For every configuration that resolves
+// to an edge pair the recovered axis, separation and point must match the cross product oracle to
+// tight tolerance. The oracle reads the edges the solver actually latched onto, so the check is
+// exact regardless of which pair wins.
+static int EdgeAxisOracleTest( void )
+{
+	b3BoxHull hullA = b3MakeTransformedBoxHull( 0.5f, 0.5f, 0.5f, ExactRotation( kAxisY, 0.25f * B3_PI ) );
+
+	float rolls[] = { 0.18f * B3_PI, 0.25f * B3_PI, 0.32f * B3_PI };
+	float yaws[] = { -0.35f, -0.15f, 0.0f, 0.15f, 0.35f };
+	float distances[] = { 1.38f, 1.40f, kRoot2, 1.44f };
+
+	int edgeContacts = 0;
+
+	for ( int i = 0; i < ARRAY_COUNT( rolls ); ++i )
+	{
+		b3BoxHull hullB = b3MakeTransformedBoxHull( 0.5f, 0.5f, 0.5f, ExactRotation( kAxisZ, rolls[i] ) );
+
+		for ( int j = 0; j < ARRAY_COUNT( yaws ); ++j )
+		{
+			for ( int k = 0; k < ARRAY_COUNT( distances ); ++k )
+			{
+				b3Transform transform = { { distances[k], 0.0f, 0.0f }, ExactQuat( kAxisY, yaws[j] ) };
+
+				b3LocalManifoldPoint points[8];
+				b3LocalManifold manifold = { 0 };
+				manifold.points = points;
+				b3SATCache cache = { 0 };
+				b3CollideHulls( &manifold, 8, &hullA.base, &hullB.base, transform, &cache );
+
+				if ( cache.type != b3_edgePairAxis || manifold.pointCount != 1 )
+				{
+					continue;
+				}
+
+				b3Vec3 p1, e1, p2, e2;
+				HullEdgeSegment( &hullA.base, cache.indexA, b3Transform_identity, &p1, &e1 );
+				HullEdgeSegment( &hullB.base, cache.indexB, transform, &p2, &e2 );
+
+				b3Vec3 centerA = hullA.base.center;
+				b3Vec3 centerB = b3TransformPoint( transform, hullB.base.center );
+				b3Vec3 orientRef = b3Sub( centerB, centerA );
+
+				if ( CheckEdgeContact( &manifold, p1, e1, p2, e2, orientRef, 0.0f, 2e-4f, 2e-4f, 2e-3f ) != 0 )
+				{
+					return 1;
+				}
+
+				++edgeContacts;
+			}
+		}
+	}
+
+	// The sweep is only meaningful if it actually drove the edge path
+	ENSURE( edgeContacts >= 15 );
+
+	return 0;
+}
+
+// The same oracle over randomly oriented box pairs. Whenever the solver reports an edge pair the
+// recovered axis must be perpendicular to both edges and match the cross product. This casts a wide
+// net over the arc that the structured sweep cannot reach.
+static int EdgeAxisRandomOracleTest( void )
+{
+	g_seed = 246813579u;
+
+	int edgeContacts = 0;
+
+	for ( int i = 0; i < 2000; ++i )
+	{
+		float angleA = NextFloat( 0.2f, 0.5f ) * B3_PI;
+		float angleB = NextFloat( 0.2f, 0.5f ) * B3_PI;
+		b3BoxHull hullA = b3MakeTransformedBoxHull( 0.5f, 0.5f, 0.5f, ExactRotation( NextDirection(), angleA ) );
+		b3BoxHull hullB = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+		float d = NextFloat( 1.2f, 1.55f );
+		b3Transform transform = { b3MulSV( d, NextDirection() ), ExactQuat( NextDirection(), angleB ) };
+
+		b3LocalManifoldPoint points[8];
+		b3LocalManifold manifold = { 0 };
+		manifold.points = points;
+		b3SATCache cache = { 0 };
+		b3CollideHulls( &manifold, 8, &hullA.base, &hullB.base, transform, &cache );
+
+		if ( cache.type != b3_edgePairAxis || manifold.pointCount != 1 )
+		{
+			continue;
+		}
+
+		b3Vec3 p1, e1, p2, e2;
+		HullEdgeSegment( &hullA.base, cache.indexA, b3Transform_identity, &p1, &e1 );
+		HullEdgeSegment( &hullB.base, cache.indexB, transform, &p2, &e2 );
+
+		// Skip crossings near parallel where the closest point solve is ill conditioned. The
+		// parallel rejection itself is covered by ParallelEdgeTest.
+		float sine = b3Length( b3Cross( b3Normalize( e1 ), b3Normalize( e2 ) ) );
+		if ( sine < 0.1f )
+		{
+			continue;
+		}
+
+		b3Vec3 orientRef = b3Sub( b3TransformPoint( transform, hullB.base.center ), hullA.base.center );
+
+		if ( CheckEdgeContact( &manifold, p1, e1, p2, e2, orientRef, 0.0f, 1e-3f, 1e-3f, 5e-3f ) != 0 )
+		{
+			return 1;
+		}
+
+		++edgeContacts;
+	}
+
+	ENSURE( edgeContacts >= 100 );
+
+	return 0;
+}
+
+// A thin capsule stabbed through the +x +y edge of a box so the edge pair is the axis of minimum
+// penetration. This drives the isolated edge axis (arc versus circle on the Gauss map) that a
+// capsule presents. The edge is nearly parallel to a box face normal, exactly where the old center
+// based orientation flickered, so the axis, the penetration and the point are all checked.
+static int HullCapsuleEdgeDeepTest( void )
+{
+	b3BoxHull hull = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+	// The +x +y edge runs along z between the +x and +y faces
+	b3Vec3 edgePoint = { 0.5f, 0.5f, 0.0f };
+	b3Vec3 edgeDir = { 0.0f, 0.0f, 1.0f };
+	b3Vec3 outward = b3Normalize( ( b3Vec3 ){ 1.0f, 1.0f, 0.0f } );
+
+	// Penetrate far enough that the core segment clearly overlaps the box so the deep path runs,
+	// but keep the radius small enough that the edge stays the axis of minimum penetration.
+	float depths[] = { 0.12f, 0.18f, 0.25f };
+	float radii[] = { 0.05f, 0.1f, 0.2f };
+	float tilts[] = { 0.0f, 0.25f, -0.25f };
+
+	int count = 0;
+
+	for ( int i = 0; i < ARRAY_COUNT( depths ); ++i )
+	{
+		for ( int j = 0; j < ARRAY_COUNT( radii ); ++j )
+		{
+			for ( int k = 0; k < ARRAY_COUNT( tilts ); ++k )
+			{
+				b3Vec3 capsuleDir = b3Normalize( ( b3Vec3 ){ 1.0f, -1.0f, tilts[k] } );
+				b3Vec3 mid = b3MulAdd( edgePoint, -depths[i], outward );
+				b3Vec3 c1 = b3MulAdd( mid, -0.5f, capsuleDir );
+				b3Vec3 c2 = b3MulAdd( mid, 0.5f, capsuleDir );
+				b3Capsule capsule = { c1, c2, radii[j] };
+
+				b3LocalManifoldPoint points[8];
+				b3LocalManifold manifold = { 0 };
+				manifold.points = points;
+				b3SimplexCache cache = { 0 };
+				b3CollideHullAndCapsule( &manifold, 8, &hull.base, &capsule, b3Transform_identity, &cache );
+
+				ENSURE( manifold.pointCount == 1 );
+				ENSURE( manifold.points[0].separation < 0.0f );
+
+				// Hull edge is e1, capsule axis is e2, normal points out of the hull
+				if ( CheckEdgeContact( &manifold, edgePoint, edgeDir, c1, b3Sub( c2, c1 ), outward, radii[j], 1e-4f, 1e-4f,
+									   1e-4f ) != 0 )
+				{
+					return 1;
+				}
+
+				++count;
+			}
+		}
+	}
+
+	ENSURE( count == ARRAY_COUNT( depths ) * ARRAY_COUNT( radii ) * ARRAY_COUNT( tilts ) );
+
+	return 0;
+}
+
+// Force the triangle versus hull edge query over a broad sweep of crossing geometries. A cube tipped
+// 45 degrees rests an edge along x at y = -h*root2. A triangle edge is laid across it at a range of
+// yaws, plane tips and gaps so the arc intersection lands all over the arc. The manual axis hands
+// the winning pair to the builder, and the recovered axis must match the cross product of the chosen
+// triangle and hull edges and point from the triangle into the hull.
+static int TriangleHullEdgeSweepTest( void )
+{
+	b3BoxHull hull = b3MakeTransformedBoxHull( 0.5f, 0.5f, 0.5f, ExactRotation( kAxisX, 0.25f * B3_PI ) );
+	b3Vec3 hullEdgePoint = { 0.0f, -kHalfRoot2, 0.0f };
+
+	// Degrees: triangle plane tip about z, and triangle edge yaw
+	float betas[] = { 8.0f, 20.0f, 32.0f };
+	float gammas[] = { 20.0f, 35.0f, 50.0f, 70.0f };
+	float gaps[] = { 0.02f, 0.0f, -0.03f, -0.08f };
+
+	int edgeContacts = 0;
+
+	for ( int a = 0; a < ARRAY_COUNT( betas ); ++a )
+	{
+		for ( int b = 0; b < ARRAY_COUNT( gammas ); ++b )
+		{
+			for ( int c = 0; c < ARRAY_COUNT( gaps ); ++c )
+			{
+				float beta = betas[a] * B3_PI / 180.0f;
+				float gamma = gammas[b] * B3_PI / 180.0f;
+
+				// Tip the plane off the hull edge so the Minkowski test holds, then yaw the edge
+				b3Vec3 triNormal = { sinf( beta ), cosf( beta ), 0.0f };
+				b3Vec3 triEdge = { sinf( gamma ) * cosf( beta ), -sinf( gamma ) * sinf( beta ), cosf( gamma ) };
+
+				// Perpendicular to both edges and pointing out of the hull
+				b3Vec3 axis = b3Normalize( b3Cross( kAxisX, triEdge ) );
+				b3Vec3 trianglePoint = b3MulAdd( hullEdgePoint, gaps[c], axis );
+
+				b3Vec3 v1 = b3MulAdd( trianglePoint, -1.0f, triEdge );
+				b3Vec3 v2 = b3MulAdd( trianglePoint, 1.0f, triEdge );
+				b3Vec3 v3 = b3MulAdd( v1, 1.5f, b3Cross( triNormal, triEdge ) );
+
+				b3Vec3 triangleVerts[] = { v1, v2, v3 };
+				b3Vec3 triangleEdges[] = { b3Sub( v2, v1 ), b3Sub( v3, v2 ), b3Sub( v1, v3 ) };
+				b3Vec3 triangleCenter = b3MulSV( 1.0f / 3.0f, b3Add( v1, b3Add( v2, v3 ) ) );
+
+				b3LocalManifoldPoint points[8];
+				b3LocalManifold manifold = { 0 };
+				manifold.points = points;
+				b3SATCache cache = { .type = b3_manualEdgePairAxis };
+				b3CollideHullAndTriangle( &manifold, 8, &hull.base, v1, v2, v3, 0, &cache, true );
+
+				if ( cache.type != b3_edgePairAxis || manifold.pointCount != 1 )
+				{
+					continue;
+				}
+
+				b3Vec3 p1 = triangleVerts[cache.indexA];
+				b3Vec3 e1 = triangleEdges[cache.indexA];
+
+				b3Vec3 p2, e2;
+				HullEdgeSegment( &hull.base, cache.indexB, b3Transform_identity, &p2, &e2 );
+
+				// Normal points from the triangle into the hull
+				b3Vec3 orientRef = b3Sub( hull.base.center, triangleCenter );
+
+				if ( CheckEdgeContact( &manifold, p1, e1, p2, e2, orientRef, 0.0f, 1e-4f, 1e-4f, 1e-3f ) != 0 )
+				{
+					return 1;
+				}
+
+				++edgeContacts;
+			}
+		}
+	}
+
+	ENSURE( edgeContacts >= 30 );
+
+	return 0;
+}
+
+// A capsule laid nearly in a triangle plane and pushed across one edge so the edge pair drives the
+// deep contact. This exercises the two sided triangle edge, where the side normal trick chooses
+// which half of the arc holds the axis. Validate every edge contact the sweep produces.
+static int CapsuleTriangleEdgeDeepTest( void )
+{
+	// Triangle in the y = 0 plane. The v1 v2 edge runs along x at z = 0, the interior lies at z < 0.
+	b3Vec3 v1 = { -2.0f, 0.0f, 0.0f };
+	b3Vec3 v2 = { 2.0f, 0.0f, 0.0f };
+	b3Vec3 v3 = { 0.0f, 0.0f, -2.0f };
+	b3Vec3 triangle[] = { v1, v2, v3 };
+	b3Vec3 triangleEdges[] = { b3Sub( v2, v1 ), b3Sub( v3, v2 ), b3Sub( v1, v3 ) };
+	b3Vec3 triangleCenter = b3MulSV( 1.0f / 3.0f, b3Add( v1, b3Add( v2, v3 ) ) );
+
+	// A nearly in plane core crossing the edge at (0,0,z0) with a small out of plane tilt. The core
+	// pierces the triangle just inside the edge so the deep path runs and the tilted edge pair wins.
+	float z0s[] = { -0.05f, -0.03f, -0.01f };
+	float tilts[] = { 0.2f, 0.3f, 0.4f };
+	float yaws[] = { 0.4f, 0.6f, 0.8f };
+	float radii[] = { 0.05f, 0.1f };
+
+	int edgeContacts = 0;
+
+	for ( int i = 0; i < ARRAY_COUNT( z0s ); ++i )
+	{
+		for ( int j = 0; j < ARRAY_COUNT( tilts ); ++j )
+		{
+			for ( int y = 0; y < ARRAY_COUNT( yaws ); ++y )
+			{
+				for ( int r = 0; r < ARRAY_COUNT( radii ); ++r )
+				{
+					b3Vec3 capsuleDir = b3Normalize( ( b3Vec3 ){ sinf( yaws[y] ), tilts[j], cosf( yaws[y] ) } );
+					b3Vec3 mid = { 0.0f, 0.0f, z0s[i] };
+					b3Vec3 c1 = b3MulAdd( mid, -0.6f, capsuleDir );
+					b3Vec3 c2 = b3MulAdd( mid, 0.6f, capsuleDir );
+					b3Capsule capsule = { c1, c2, radii[r] };
+
+					b3LocalManifoldPoint points[8];
+					b3LocalManifold manifold = { 0 };
+					manifold.points = points;
+					b3SimplexCache cache = { 0 };
+					b3CollideCapsuleAndTriangle( &manifold, 8, &capsule, triangle, &cache );
+
+					// Only the edge contacts exercise the new axis. Face contacts are handled elsewhere.
+					if ( manifold.pointCount != 1 || manifold.feature < b3_featureEdge1 || manifold.feature > b3_featureEdge3 )
+					{
+						continue;
+					}
+
+					int edgeIndex = manifold.feature - b3_featureEdge1;
+					b3Vec3 p1 = triangle[edgeIndex];
+					b3Vec3 e1 = triangleEdges[edgeIndex];
+
+					// Normal points from the triangle toward the capsule
+					b3Vec3 capsuleEdge = b3Sub( c2, c1 );
+					b3Vec3 capsuleCenter = b3Lerp( c1, c2, 0.5f );
+					b3Vec3 orientRef = b3Sub( capsuleCenter, triangleCenter );
+
+					if ( CheckEdgeContact( &manifold, p1, e1, c1, capsuleEdge, orientRef, radii[r], 1e-4f, 1e-4f, 2e-4f ) != 0 )
+					{
+						return 1;
+					}
+
+					++edgeContacts;
+				}
+			}
+		}
+	}
+
+	// The sweep must actually reach the edge path
+	ENSURE( edgeContacts >= 15 );
+
+	return 0;
+}
+
+// A sphere driven straight through a box face, from separated, across the surface where the collider
+// switches from GJK closest points to the SAT face pick, and on into deep overlap. The separation
+// must stay the analytic gap the whole way and the normal must not flip. A jump at the seam would
+// read as a pop in the solver. The sweep is fine enough to land samples on both sides of the seam.
+static int SphereHullSeamTest( void )
+{
+	b3BoxHull hull = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	float radius = 0.15f;
+
+	float yStart = 0.5f + radius + 0.4f * B3_SPECULATIVE_DISTANCE;
+	float yEnd = 0.1f;
+	int steps = 400;
+	float dy = ( yStart - yEnd ) / steps;
+
+	float previous = 0.0f;
+	int shallowSamples = 0;
+	int deepSamples = 0;
+
+	for ( int i = 0; i <= steps; ++i )
+	{
+		float y = yStart - i * dy;
+		b3Sphere sphere = { { 0.0f, y, 0.0f }, radius };
+
+		b3LocalManifoldPoint points[8];
+		b3LocalManifold manifold = { 0 };
+		manifold.points = points;
+		b3SimplexCache cache = { 0 };
+		b3CollideHullAndSphere( &manifold, 8, &hull.base, &sphere, b3Transform_identity, &cache );
+
+		ENSURE( manifold.pointCount == 1 );
+
+		float separation = manifold.points[0].separation;
+		float expected = ( y - 0.5f ) - radius;
+
+		// Separation is the analytic gap on both sides of the seam
+		ENSURE_SMALL( separation - expected, 1e-5f );
+
+		// Normal holds the face direction with no flip
+		ENSURE_SMALL( manifold.normal.x, 1e-5f );
+		ENSURE_SMALL( manifold.normal.y - 1.0f, 1e-5f );
+		ENSURE_SMALL( manifold.normal.z, 1e-5f );
+
+		// No jump across the seam: consecutive separations track the step
+		if ( i > 0 )
+		{
+			ENSURE_SMALL( ( previous - separation ) - dy, 1e-5f );
+		}
+		previous = separation;
+
+		if ( y > 0.5f )
+		{
+			shallowSamples += 1;
+		}
+		else
+		{
+			deepSamples += 1;
+		}
+	}
+
+	// The sweep must straddle the surface so both the GJK and the SAT branch run
+	ENSURE( shallowSamples > 0 && deepSamples > 0 );
+
+	return 0;
+}
+
+// The same seam for a capsule laid parallel to the face. Above the surface the shallow path clips two
+// points, in overlap the face path builds two, and every point must sit at the analytic gap through
+// the transition with the normal fixed on the face.
+static int CapsuleHullSeamTest( void )
+{
+	b3BoxHull hull = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	float radius = 0.15f;
+	float halfLength = 0.3f;
+
+	float yStart = 0.5f + radius + 0.4f * B3_SPECULATIVE_DISTANCE;
+	float yEnd = 0.1f;
+	int steps = 400;
+	float dy = ( yStart - yEnd ) / steps;
+
+	float previous = 0.0f;
+	int shallowSamples = 0;
+	int deepSamples = 0;
+
+	for ( int i = 0; i <= steps; ++i )
+	{
+		float y = yStart - i * dy;
+		b3Capsule capsule = { { -halfLength, y, 0.0f }, { halfLength, y, 0.0f }, radius };
+
+		b3LocalManifoldPoint points[8];
+		b3LocalManifold manifold = { 0 };
+		manifold.points = points;
+		b3SimplexCache cache = { 0 };
+		b3CollideHullAndCapsule( &manifold, 8, &hull.base, &capsule, b3Transform_identity, &cache );
+
+		ENSURE( manifold.pointCount >= 1 );
+
+		float expected = ( y - 0.5f ) - radius;
+
+		// Every point sits at the analytic gap
+		for ( int k = 0; k < manifold.pointCount; ++k )
+		{
+			ENSURE_SMALL( manifold.points[k].separation - expected, 1e-5f );
+		}
+
+		// Normal holds the face direction with no flip
+		ENSURE_SMALL( manifold.normal.x, 1e-5f );
+		ENSURE_SMALL( manifold.normal.y - 1.0f, 1e-5f );
+		ENSURE_SMALL( manifold.normal.z, 1e-5f );
+
+		// No jump across the seam
+		float minSeparation = MinSeparation( &manifold );
+		if ( i > 0 )
+		{
+			ENSURE_SMALL( ( previous - minSeparation ) - dy, 1e-5f );
+		}
+		previous = minSeparation;
+
+		if ( y > 0.5f )
+		{
+			shallowSamples += 1;
+		}
+		else
+		{
+			deepSamples += 1;
+		}
+	}
+
+	ENSURE( shallowSamples > 0 && deepSamples > 0 );
+
+	return 0;
+}
+
 int ManifoldTest( void )
 {
 	RUN_SUBTEST( CrossedEdgeTest );
@@ -584,6 +1090,13 @@ int ManifoldTest( void )
 	RUN_SUBTEST( RidgeCrossingTest );
 	RUN_SUBTEST( TriangleEdgeTest );
 	RUN_SUBTEST( TriangleParallelEdgeTest );
+	RUN_SUBTEST( EdgeAxisOracleTest );
+	RUN_SUBTEST( EdgeAxisRandomOracleTest );
+	RUN_SUBTEST( HullCapsuleEdgeDeepTest );
+	RUN_SUBTEST( TriangleHullEdgeSweepTest );
+	RUN_SUBTEST( CapsuleTriangleEdgeDeepTest );
+	RUN_SUBTEST( SphereHullSeamTest );
+	RUN_SUBTEST( CapsuleHullSeamTest );
 
 	return 0;
 }
