@@ -5,6 +5,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
+#if defined( __linux__ ) && !defined( _GNU_SOURCE )
+#define _GNU_SOURCE
+#endif
+
 #include "benchmarks.h"
 #include "utils.h"
 
@@ -16,6 +20,79 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
+
+#if defined( _WIN32 )
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+// Pin to alternating logical cores (avoids SMT sibling contention) and raise the priority
+// class so background load can't preempt the workers. Reduces run-to-run noise.
+static void SetupBenchmarkScheduling( void )
+{
+	DWORD_PTR processMask = 0;
+	DWORD_PTR systemMask = 0;
+	if ( GetProcessAffinityMask( GetCurrentProcess(), &processMask, &systemMask ) )
+	{
+		DWORD_PTR evenMask = 0;
+		int evenCount = 0;
+		for ( int i = 0; i < 64; i += 2 )
+		{
+			DWORD_PTR bit = (DWORD_PTR)1 << i;
+			if ( processMask & bit )
+			{
+				evenMask |= bit;
+				evenCount += 1;
+			}
+		}
+
+		if ( evenCount >= 4 )
+		{
+			SetProcessAffinityMask( GetCurrentProcess(), evenMask );
+		}
+	}
+
+	SetPriorityClass( GetCurrentProcess(), HIGH_PRIORITY_CLASS );
+}
+#elif defined( __linux__ )
+#include <sched.h>
+#include <sys/resource.h>
+#include <unistd.h>
+
+// Pin to even-index CPUs (one per core on interleaved SMT topologies) and raise the
+// priority best effort. Reduces run-to-run noise.
+static void SetupBenchmarkScheduling( void )
+{
+	long cpuCount = sysconf( _SC_NPROCESSORS_ONLN );
+	cpu_set_t evenSet;
+	CPU_ZERO( &evenSet );
+	int evenCount = 0;
+	for ( long i = 0; i < cpuCount && i < CPU_SETSIZE; i += 2 )
+	{
+		CPU_SET( (int)i, &evenSet );
+		evenCount += 1;
+	}
+
+	if ( evenCount >= 4 )
+	{
+		sched_setaffinity( 0, sizeof( evenSet ), &evenSet );
+	}
+
+	// Fails without privileges, which is fine
+	setpriority( PRIO_PROCESS, 0, -10 );
+}
+#elif defined( __APPLE__ )
+#include <sys/resource.h>
+
+// macOS has no process affinity control, raise the priority best effort
+static void SetupBenchmarkScheduling( void )
+{
+	setpriority( PRIO_PROCESS, 0, -10 );
+}
+#else
+static void SetupBenchmarkScheduling( void )
+{
+}
+#endif
 #include <stdlib.h>
 #include <string.h>
 
@@ -145,6 +222,8 @@ static void PrintBenchmarks( const Benchmark* benchmarks, int count )
 
 int main( int argc, char** argv )
 {
+	SetupBenchmarkScheduling();
+
 #ifdef TRACY_ENABLE
 	___tracy_startup_profiler();
 #endif
