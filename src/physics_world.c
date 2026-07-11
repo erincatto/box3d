@@ -463,9 +463,17 @@ void b3DestroyWorld( b3WorldId worldId )
 		b3Contact* contact = contacts + i;
 		if ( contact->contactId != B3_NULL_INDEX )
 		{
-			if ( contact->flags & b3_simMeshContact )
+			for ( int s = 0; s < contact->subCount; ++s )
 			{
-				b3Array_Destroy( contact->meshContact.triangleCache );
+				b3SubContact* sub = b3GetSubContact( contact, s );
+				if ( sub->isMesh )
+				{
+					b3Array_Destroy( sub->meshContact.triangleCache );
+				}
+			}
+			if ( contact->extraSubs != NULL )
+			{
+				b3Free( contact->extraSubs, contact->extraCapacity * (int)sizeof( b3SubContact ) );
 			}
 		}
 	}
@@ -540,7 +548,7 @@ int b3GetMaxWorldCount( void )
 	return b3_maxWorldCount;
 }
 
-// Issues T0 prefetches across the cache lines of a b3Contact (216 B / 4 lines).
+// Issues T0 prefetches across the cache lines of a b3Contact (232 B / 4 lines).
 // Used to hide the random-access latency of contact lookups while we work on an
 // earlier index.
 static inline void b3PrefetchContact( const b3Contact* contact )
@@ -592,11 +600,25 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 		b3Contact* contact = contacts + contactIndex;
 		B3_VALIDATE( contact->contactId == contactIndex );
 
-		b3Shape* shapeA = shapes + contact->shapeIdA;
-		b3Shape* shapeB = shapes + contact->shapeIdB;
+		b3Shape* shapeA = shapes + contact->sub0.shapeIdA;
+		b3Shape* shapeB = shapes + contact->sub0.shapeIdB;
 
-		// Do proxies still overlap?
+		// Do proxies still overlap? A multi-sub contact is only disjoint when every shape pair is disjoint.
 		bool overlap = b3AABB_Overlaps( shapeA->fatAABB, shapeB->fatAABB );
+		if ( overlap == false && contact->subCount > 1 )
+		{
+			for ( int s = 1; s < contact->subCount; ++s )
+			{
+				b3SubContact* sub = b3GetSubContact( contact, s );
+				b3Shape* subShapeA = shapes + sub->shapeIdA;
+				b3Shape* subShapeB = shapes + sub->shapeIdB;
+				if ( b3AABB_Overlaps( subShapeA->fatAABB, subShapeB->fatAABB ) )
+				{
+					overlap = true;
+					break;
+				}
+			}
+		}
 		if ( overlap == false )
 		{
 			// This contact will be destroyed
@@ -746,14 +768,27 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 			taskContext->manifoldCounts[bucketIndex - 1] += 1;
 		}
 
-		// Update the mesh contact spec
-		if ( touching == true && wasTouching == true && ( contact->flags & b3_simMeshContact ) )
+		// Update the scalar contact spec
+		if ( touching == true && wasTouching == true && ( contact->flags & b3_contactScalarPlacement ) != 0 &&
+			 contact->colorIndex != B3_NULL_INDEX )
 		{
-			B3_ASSERT( contact->colorIndex != B3_NULL_INDEX );
 			B3_ASSERT( 0 <= contact->colorIndex && contact->colorIndex < B3_GRAPH_COLOR_COUNT );
 			b3GraphColor* color = graph->colors + contact->colorIndex;
 			b3ContactSpec* spec = b3Array_Get( color->contacts, contact->localIndex );
 			spec->manifoldCount = (uint16_t)contact->manifoldCount;
+		}
+
+		// A wide-placed contact that no longer has exactly one manifold must move to the scalar list
+		if ( touching == true && wasTouching == true && contact->colorIndex != B3_NULL_INDEX &&
+			 ( contact->flags & b3_contactScalarPlacement ) == 0 && contact->manifoldCount != 1 )
+		{
+			contact->flags |= b3_simGraphMove;
+			b3SetBit( &taskContext->contactStateBitSet, contactIndex );
+		}
+
+		if ( contact->subCount == 1 )
+		{
+			contact->sub0.touching = touching;
 		}
 
 		// State changes that affect island connectivity. Also affects contact events.
@@ -766,6 +801,26 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 		{
 			contact->flags |= b3_simStoppedTouching;
 			b3SetBit( &taskContext->contactStateBitSet, contactIndex );
+		}
+		else if ( contact->flags & b3_contactEnableContactEvents )
+		{
+			for ( int subIndex = 0; subIndex < contact->subCount; ++subIndex )
+			{
+				b3SubContact* sub = b3GetSubContact( contact, subIndex );
+				if ( sub->touching != sub->reportedTouching )
+				{
+					b3SetBit( &taskContext->contactStateBitSet, contactIndex );
+					break;
+				}
+			}
+		}
+		else
+		{
+			for ( int subIndex = 0; subIndex < contact->subCount; ++subIndex )
+			{
+				b3SubContact* sub = b3GetSubContact( contact, subIndex );
+				sub->reportedTouching = sub->touching;
+			}
 		}
 
 		for ( int manifoldIndex = 0; manifoldIndex < contact->manifoldCount; ++manifoldIndex )
@@ -808,6 +863,7 @@ static void b3RemoveNonTouchingContact( b3World* world, int setIndex, int localI
 		movedContact->localIndex = localIndex;
 	}
 }
+
 
 // Narrow-phase collision
 static void b3Collide( b3StepContext* context )
@@ -885,6 +941,7 @@ static void b3Collide( b3StepContext* context )
 	int minRange = 20;
 	b3ParallelFor( world, b3CollideTask, contactCount, minRange, context, "collide" );
 
+
 	b3StackFree( &world->stack, contactIndices );
 	context->awakeContactIndices = NULL;
 	contactIndices = NULL;
@@ -921,10 +978,6 @@ static void b3Collide( b3StepContext* context )
 		b3ArenaSync( &world->taskContexts.data[i].arena );
 	}
 
-	int endEventArrayIndex = world->endEventArrayIndex;
-
-	const b3Shape* shapes = world->shapes.data;
-	uint16_t worldId = world->worldId;
 
 	// Process contact state changes. Iterate over set bits
 	for ( uint32_t k = 0; k < bitSet->blockCount; ++k )
@@ -938,16 +991,6 @@ static void b3Collide( b3StepContext* context )
 			b3Contact* contact = b3Array_Get( world->contacts, contactId );
 			B3_ASSERT( contact->setIndex == b3_awakeSet );
 
-			const b3Shape* shapeA = shapes + contact->shapeIdA;
-			const b3Shape* shapeB = shapes + contact->shapeIdB;
-			b3ShapeId shapeIdA = { shapeA->id + 1, worldId, shapeA->generation };
-			b3ShapeId shapeIdB = { shapeB->id + 1, worldId, shapeB->generation };
-			b3ContactId contactFullId = {
-				.index1 = contactId + 1,
-				.world0 = worldId,
-				.padding = 0,
-				.generation = contact->generation,
-			};
 			uint32_t flags = contact->flags;
 
 			if ( flags & b3_simDisjoint )
@@ -960,11 +1003,7 @@ static void b3Collide( b3StepContext* context )
 			{
 				B3_ASSERT( contact->islandId == B3_NULL_INDEX );
 
-				if ( flags & b3_contactEnableContactEvents )
-				{
-					b3ContactBeginTouchEvent event = { shapeIdA, shapeIdB, contactFullId };
-					b3Array_Push( world->contactBeginEvents, event );
-				}
+				b3SyncSubTouchEvents( world, contact );
 
 				B3_ASSERT( contact->manifoldCount > 0 );
 				B3_ASSERT( contact->setIndex == b3_awakeSet );
@@ -991,11 +1030,7 @@ static void b3Collide( b3StepContext* context )
 				contact->flags &= ~b3_simStoppedTouching;
 				contact->flags &= ~b3_contactTouchingFlag;
 
-				if ( contact->flags & b3_contactEnableContactEvents )
-				{
-					b3ContactEndTouchEvent event = { shapeIdA, shapeIdB, contactFullId };
-					b3Array_Push( world->contactEndEvents[endEventArrayIndex], event );
-				}
+				b3SyncSubTouchEvents( world, contact );
 
 				B3_ASSERT( contact->manifoldCount == 0 );
 
@@ -1009,9 +1044,25 @@ static void b3Collide( b3StepContext* context )
 
 				b3AddNonTouchingContact( world, contact );
 
-				bool isMeshContact = contact->flags & b3_simMeshContact;
-				b3RemoveContactFromGraph( world, bodyIdA, bodyIdB, colorIndex, localIndex, isMeshContact );
+				bool scalarPlacement = ( contact->flags & b3_contactScalarPlacement ) != 0;
+				b3RemoveContactFromGraph( world, bodyIdA, bodyIdB, colorIndex, localIndex, scalarPlacement );
 				contact = NULL;
+			}
+			else
+			{
+				if ( ( contact->flags & b3_simGraphMove ) != 0 )
+				{
+					contact->flags &= ~b3_simGraphMove;
+					if ( contact->colorIndex != B3_NULL_INDEX )
+					{
+						bool scalarPlacement = ( contact->flags & b3_contactScalarPlacement ) != 0;
+						b3RemoveContactFromGraph( world, contact->edges[0].bodyId, contact->edges[1].bodyId,
+												  contact->colorIndex, contact->localIndex, scalarPlacement );
+						b3AddContactToGraph( world, contact );
+					}
+				}
+
+				b3SyncSubTouchEvents( world, contact );
 			}
 
 			// Clear the smallest set bit
@@ -3578,6 +3629,7 @@ void b3ValidateSolverSets( b3World* world )
 	int totalBodyCount = 0;
 	int totalJointCount = 0;
 	int totalContactCount = 0;
+	int totalSubCount = 0;
 	int totalIslandCount = 0;
 
 	// Validate all solver sets
@@ -3736,6 +3788,7 @@ void b3ValidateSolverSets( b3World* world )
 				{
 					int contactIndex = set->contactIndices.data[i];
 					b3Contact* contact = b3Array_Get( world->contacts, contactIndex );
+					totalSubCount += contact->subCount;
 					if ( setIndex == b3_awakeSet )
 					{
 						// contact should be non-touching if awake
@@ -3806,6 +3859,7 @@ void b3ValidateSolverSets( b3World* world )
 		{
 			int contactId = color->convexContacts.data[i];
 			b3Contact* contact = b3Array_Get( world->contacts, contactId );
+			totalSubCount += contact->subCount;
 			// contact should be touching in the constraint graph or awaiting transfer to non-touching
 			B3_ASSERT( contact->manifoldCount > 0 || ( contact->flags & ( b3_simStoppedTouching | b3_simDisjoint ) ) != 0 );
 			B3_ASSERT( contact->setIndex == b3_awakeSet );
@@ -3832,6 +3886,7 @@ void b3ValidateSolverSets( b3World* world )
 		{
 			int contactId = color->contacts.data[i].contactId;
 			b3Contact* contact = b3Array_Get( world->contacts, contactId );
+			totalSubCount += contact->subCount;
 			// contact should be touching in the constraint graph or awaiting transfer to non-touching
 			B3_ASSERT( contact->manifoldCount > 0 || ( contact->flags & ( b3_simStoppedTouching | b3_simDisjoint ) ) != 0 );
 			B3_ASSERT( contact->setIndex == b3_awakeSet );
@@ -3884,7 +3939,8 @@ void b3ValidateSolverSets( b3World* world )
 
 	int contactIdCount = b3GetIdCount( &world->contactIdPool );
 	B3_ASSERT( totalContactCount == contactIdCount );
-	B3_ASSERT( totalContactCount == (int)world->broadPhase.pairSet.count );
+	// Each contact is a body pair holding subCount shape pairs; the pair set counts shape pairs.
+	B3_ASSERT( totalSubCount == (int)world->broadPhase.pairSet.count );
 
 	int jointIdCount = b3GetIdCount( &world->jointIdPool );
 	B3_ASSERT( totalJointCount == jointIdCount );
@@ -3965,8 +4021,8 @@ void b3ValidateContacts( b3World* world )
 			{
 				B3_ASSERT( 0 <= contact->colorIndex && contact->colorIndex < B3_GRAPH_COLOR_COUNT );
 				// Validate body sim indices
-				b3Shape* shapeA = b3Array_Get( world->shapes, contact->shapeIdA );
-				b3Shape* shapeB = b3Array_Get( world->shapes, contact->shapeIdB );
+				b3Shape* shapeA = b3Array_Get( world->shapes, contact->sub0.shapeIdA );
+				b3Shape* shapeB = b3Array_Get( world->shapes, contact->sub0.shapeIdB );
 
 				b3Body* bodyA = b3Array_Get( world->bodies, shapeA->bodyId );
 				b3Body* bodyB = b3Array_Get( world->bodies, shapeB->bodyId );
@@ -3989,7 +4045,7 @@ void b3ValidateContacts( b3World* world )
 					B3_ASSERT( contact->bodySimIndexB == bodyB->localIndex );
 				}
 
-				if ( ( contact->flags & b3_simMeshContact ) != 0 || contact->colorIndex == B3_OVERFLOW_INDEX )
+				if ( ( contact->flags & b3_contactScalarPlacement ) != 0 || contact->colorIndex == B3_OVERFLOW_INDEX )
 				{
 					b3GraphColor* color = graph->colors + contact->colorIndex;
 					int contactId = b3Array_Get( color->contacts, contact->localIndex )->contactId;
@@ -4033,41 +4089,44 @@ void b3ValidateContacts( b3World* world )
 
 		if ( contact->flags & b3_simMeshContact )
 		{
-			int cacheCount = contact->meshContact.triangleCache.count;
-			if ( cacheCount > 0 )
+			// The mesh cache lives on the mesh subs. Other subs share the union with a convex cache.
+			for ( int s = 0; s < contact->subCount; ++s )
 			{
-				B3_ASSERT( contact->meshContact.triangleCache.data != NULL );
-				B3_ASSERT( contact->meshContact.triangleCache.capacity >= cacheCount );
+				b3SubContact* sub = b3GetSubContact( contact, s );
+				b3Shape* shapeA = b3Array_Get( world->shapes, sub->shapeIdA );
 
-				b3Shape* shapeA = b3Array_Get( world->shapes, contact->shapeIdA );
+				int triangleCount = B3_NULL_INDEX;
 				if ( shapeA->type == b3_meshShape )
 				{
-					int triangleCount = shapeA->mesh.data->triangleCount;
-					for ( int i = 0; i < cacheCount; ++i )
-					{
-						int triangleIndex = contact->meshContact.triangleCache.data[i].triangleIndex;
-						B3_ASSERT( 0 <= triangleIndex && triangleIndex < triangleCount );
-					}
+					triangleCount = shapeA->mesh.data->triangleCount;
 				}
 				else if ( shapeA->type == b3_heightShape )
 				{
-					int triangleCount = b3GetHeightFieldTriangleCount( shapeA->heightField );
-					for ( int i = 0; i < cacheCount; ++i )
+					triangleCount = b3GetHeightFieldTriangleCount( shapeA->heightField );
+				}
+				else if ( shapeA->type == b3_compoundShape )
+				{
+					b3ChildShape child = b3GetCompoundChild( shapeA->compound, sub->childIndex );
+					if ( child.type == b3_meshShape )
 					{
-						int triangleIndex = contact->meshContact.triangleCache.data[i].triangleIndex;
-						B3_ASSERT( 0 <= triangleIndex && triangleIndex < triangleCount );
+						triangleCount = child.mesh.data->triangleCount;
 					}
 				}
-				else
-				{
-					B3_ASSERT( shapeA->type == b3_compoundShape );
-					b3ChildShape child = b3GetCompoundChild( shapeA->compound, contact->childIndex );
-					B3_ASSERT( child.type == b3_meshShape );
 
-					int triangleCount = child.mesh.data->triangleCount;
+				if ( triangleCount == B3_NULL_INDEX )
+				{
+					continue;
+				}
+
+				int cacheCount = sub->meshContact.triangleCache.count;
+				if ( cacheCount > 0 )
+				{
+					B3_ASSERT( sub->meshContact.triangleCache.data != NULL );
+					B3_ASSERT( sub->meshContact.triangleCache.capacity >= cacheCount );
+
 					for ( int i = 0; i < cacheCount; ++i )
 					{
-						int triangleIndex = contact->meshContact.triangleCache.data[i].triangleIndex;
+						int triangleIndex = sub->meshContact.triangleCache.data[i].triangleIndex;
 						B3_ASSERT( 0 <= triangleIndex && triangleIndex < triangleCount );
 					}
 				}

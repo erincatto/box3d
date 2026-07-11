@@ -478,9 +478,13 @@ static void b3DestroyShapeInternal( b3World* world, b3Shape* shape, b3Body* body
 		b3Contact* contact = b3Array_Get( world->contacts, contactId );
 		contactKey = contact->edges[edgeIndex].nextKey;
 
-		if ( contact->shapeIdA == shapeId || contact->shapeIdB == shapeId )
+		for ( int i = contact->subCount - 1; i >= 0; --i )
 		{
-			b3DestroyContact( world, contact, wakeBodies );
+			b3SubContact* sub = b3GetSubContact( contact, i );
+			if ( sub->shapeIdA == shapeId || sub->shapeIdB == shapeId )
+			{
+				b3RemoveSubContact( world, contact, i, wakeBodies );
+			}
 		}
 	}
 
@@ -1329,9 +1333,13 @@ static void b3ResetProxy( b3World* world, b3Shape* shape, bool wakeBodies, bool 
 		b3Contact* contact = b3Array_Get( world->contacts, contactId );
 		contactKey = contact->edges[edgeIndex].nextKey;
 
-		if ( contact->shapeIdA == shapeId || contact->shapeIdB == shapeId )
+		for ( int i = contact->subCount - 1; i >= 0; --i )
 		{
-			b3DestroyContact( world, contact, wakeBodies );
+			b3SubContact* sub = b3GetSubContact( contact, i );
+			if ( sub->shapeIdA == shapeId || sub->shapeIdB == shapeId )
+			{
+				b3RemoveSubContact( world, contact, i, wakeBodies );
+			}
 		}
 	}
 
@@ -1702,11 +1710,11 @@ int b3Shape_GetContactData( b3ShapeId shapeId, b3ContactData* contactData, int c
 		b3Contact* contact = b3Array_Get( world->contacts, contactId );
 
 		// Does contact involve this shape and is it touching?
-		if ( ( contact->shapeIdA == shapeId.index1 - 1 || contact->shapeIdB == shapeId.index1 - 1 ) &&
+		if ( ( contact->sub0.shapeIdA == shapeId.index1 - 1 || contact->sub0.shapeIdB == shapeId.index1 - 1 ) &&
 			 ( contact->flags & b3_contactTouchingFlag ) != 0 )
 		{
-			b3Shape* shapeA = world->shapes.data + contact->shapeIdA;
-			b3Shape* shapeB = world->shapes.data + contact->shapeIdB;
+			b3Shape* shapeA = world->shapes.data + contact->sub0.shapeIdA;
+			b3Shape* shapeB = world->shapes.data + contact->sub0.shapeIdB;
 
 			contactData[index].contactId = (b3ContactId){ contact->contactId + 1, shapeId.world0, 0, contact->generation };
 			contactData[index].shapeIdA = (b3ShapeId){ shapeA->id + 1, shapeId.world0, shapeA->generation };

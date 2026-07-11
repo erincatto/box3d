@@ -32,8 +32,9 @@
 #include <string.h>
 
 // Snapshot image magic 'BNS3' and version
+// Version 3 changed the contact image to body-pair contacts with sub contacts
 #define B3_SNAP_MAGIC 0x33534E42u
-#define B3_SNAP_VERSION 2u
+#define B3_SNAP_VERSION 3u
 
 #define B3_SNAP_FLAG_VALIDATION 0x1u
 #define B3_SNAP_FLAG_DOUBLE_PRECISION 0x2u
@@ -797,11 +798,13 @@ static void b3SerContacts( b3RecBuffer* buf, b3World* world )
 		copy.manifolds = NULL;
 		copy.bodySimIndexA = B3_NULL_INDEX;
 		copy.bodySimIndexB = B3_NULL_INDEX;
-		if ( copy.flags & b3_simMeshContact )
+		copy.extraSubs = NULL;
+		copy.extraCapacity = 0;
+		if ( copy.sub0.isMesh )
 		{
-			copy.meshContact.triangleCache.data = NULL;
-			copy.meshContact.triangleCache.count = 0;
-			copy.meshContact.triangleCache.capacity = 0;
+			copy.sub0.meshContact.triangleCache.data = NULL;
+			copy.sub0.meshContact.triangleCache.count = 0;
+			copy.sub0.meshContact.triangleCache.capacity = 0;
 		}
 		b3SnapW_Bytes( buf, &copy, sizeof( b3Contact ) );
 
@@ -809,7 +812,6 @@ static void b3SerContacts( b3RecBuffer* buf, b3World* world )
 		{
 			// Free slot: no heap data
 			b3SnapW_I32( buf, 0 ); // manifoldCount
-			// No triangleCache
 			continue;
 		}
 
@@ -820,14 +822,31 @@ static void b3SerContacts( b3RecBuffer* buf, b3World* world )
 			b3SnapW_Bytes( buf, c->manifolds, c->manifoldCount * (int)sizeof( b3Manifold ) );
 		}
 
-		// Mesh triangleCache
-		if ( c->flags & b3_simMeshContact )
+		// Extra subs with per-sub cache pointers zeroed
+		for ( int subIndex = 1; subIndex < c->subCount; ++subIndex )
 		{
-			b3SnapW_I32( buf, c->meshContact.triangleCache.count );
-			if ( c->meshContact.triangleCache.count > 0 )
+			b3SubContact subCopy = c->extraSubs[subIndex - 1];
+			if ( subCopy.isMesh )
 			{
-				b3SnapW_Bytes( buf, c->meshContact.triangleCache.data,
-							   c->meshContact.triangleCache.count * (int)sizeof( b3TriangleCache ) );
+				subCopy.meshContact.triangleCache.data = NULL;
+				subCopy.meshContact.triangleCache.count = 0;
+				subCopy.meshContact.triangleCache.capacity = 0;
+			}
+			b3SnapW_Bytes( buf, &subCopy, sizeof( b3SubContact ) );
+		}
+
+		// Per-sub mesh triangleCache
+		for ( int subIndex = 0; subIndex < c->subCount; ++subIndex )
+		{
+			const b3SubContact* sub = subIndex == 0 ? &c->sub0 : c->extraSubs + ( subIndex - 1 );
+			if ( sub->isMesh )
+			{
+				b3SnapW_I32( buf, sub->meshContact.triangleCache.count );
+				if ( sub->meshContact.triangleCache.count > 0 )
+				{
+					b3SnapW_Bytes( buf, sub->meshContact.triangleCache.data,
+								   sub->meshContact.triangleCache.count * (int)sizeof( b3TriangleCache ) );
+				}
 			}
 		}
 	}
@@ -855,14 +874,20 @@ static void b3DesContacts( b3SnapReader* r, b3World* world )
 		dst->manifolds = NULL;
 		dst->bodySimIndexA = B3_NULL_INDEX;
 		dst->bodySimIndexB = B3_NULL_INDEX;
-		if ( dst->flags & b3_simMeshContact )
+		dst->extraSubs = NULL;
+		dst->extraCapacity = 0;
+		if ( dst->sub0.isMesh )
 		{
-			dst->meshContact.triangleCache.data = NULL;
-			dst->meshContact.triangleCache.count = 0;
-			dst->meshContact.triangleCache.capacity = 0;
+			dst->sub0.meshContact.triangleCache.data = NULL;
+			dst->sub0.meshContact.triangleCache.count = 0;
+			dst->sub0.meshContact.triangleCache.capacity = 0;
 		}
 
 		bool isLive = ( dst->contactId == i );
+		if ( isLive == false )
+		{
+			dst->subCount = 0;
+		}
 
 		int manifoldCount = b3SnapR_I32( r );
 
@@ -888,9 +913,32 @@ static void b3DesContacts( b3SnapReader* r, b3World* world )
 			dst->manifoldCount = 0;
 		}
 
-		// Mesh triangleCache
-		if ( isLive && ( dst->flags & b3_simMeshContact ) )
+		if ( isLive && dst->subCount > 1 )
 		{
+			int extraCount = dst->subCount - 1;
+			if ( b3SnapCheckCount( r, extraCount, (int)sizeof( b3SubContact ), (int)sizeof( b3SubContact ) ) == false )
+			{
+				r->ok = false;
+				break;
+			}
+			dst->extraSubs = b3Alloc( extraCount * sizeof( b3SubContact ) );
+			dst->extraCapacity = (uint16_t)extraCount;
+			b3SnapR_Bytes( r, dst->extraSubs, extraCount * (int)sizeof( b3SubContact ) );
+		}
+
+		// Per-sub mesh triangleCache
+		for ( int subIndex = 0; isLive && subIndex < dst->subCount && r->ok; ++subIndex )
+		{
+			b3SubContact* sub = subIndex == 0 ? &dst->sub0 : dst->extraSubs + ( subIndex - 1 );
+			if ( sub->isMesh == false )
+			{
+				continue;
+			}
+
+			sub->meshContact.triangleCache.data = NULL;
+			sub->meshContact.triangleCache.count = 0;
+			sub->meshContact.triangleCache.capacity = 0;
+
 			int cacheCount = b3SnapR_I32( r );
 			if ( !r->ok )
 			{
@@ -903,8 +951,8 @@ static void b3DesContacts( b3SnapReader* r, b3World* world )
 					r->ok = false;
 					break;
 				}
-				b3Array_Resize( dst->meshContact.triangleCache, cacheCount );
-				b3SnapR_Bytes( r, dst->meshContact.triangleCache.data, cacheCount * (int)sizeof( b3TriangleCache ) );
+				b3Array_Resize( sub->meshContact.triangleCache, cacheCount );
+				b3SnapR_Bytes( r, sub->meshContact.triangleCache.data, cacheCount * (int)sizeof( b3TriangleCache ) );
 			}
 		}
 	}
@@ -951,9 +999,19 @@ static void b3FreeLiveSimElements( b3World* world )
 				c->manifolds = NULL;
 				c->manifoldCount = 0;
 			}
-			if ( c->flags & b3_simMeshContact )
+			for ( int subIndex = 0; subIndex < c->subCount; ++subIndex )
 			{
-				b3Array_Destroy( c->meshContact.triangleCache );
+				b3SubContact* sub = subIndex == 0 ? &c->sub0 : c->extraSubs + ( subIndex - 1 );
+				if ( sub->isMesh )
+				{
+					b3Array_Destroy( sub->meshContact.triangleCache );
+				}
+			}
+			if ( c->extraSubs != NULL )
+			{
+				b3Free( c->extraSubs, c->extraCapacity * (int)sizeof( b3SubContact ) );
+				c->extraSubs = NULL;
+				c->extraCapacity = 0;
 			}
 		}
 	}

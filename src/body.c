@@ -467,8 +467,8 @@ int b3Body_GetContactData( b3BodyId bodyId, b3ContactData* contactData, int capa
 		// Is contact touching?
 		if ( contact->flags & b3_contactTouchingFlag )
 		{
-			b3Shape* shapeA = b3Array_Get( world->shapes, contact->shapeIdA );
-			b3Shape* shapeB = b3Array_Get( world->shapes, contact->shapeIdB );
+			b3Shape* shapeA = b3Array_Get( world->shapes, contact->sub0.shapeIdA );
+			b3Shape* shapeB = b3Array_Get( world->shapes, contact->sub0.shapeIdB );
 
 			contactData[index].contactId = (b3ContactId){ contact->contactId + 1, bodyId.world0, 0, contact->generation };
 			contactData[index].shapeIdA = (b3ShapeId){ shapeA->id + 1, bodyId.world0, shapeA->generation };

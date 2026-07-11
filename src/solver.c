@@ -1441,6 +1441,15 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 	int awakeBodyCount = awakeSet->bodySims.count;
 	if ( awakeBodyCount == 0 )
 	{
+		// The rebuild task queued in b3UpdateBroadPhasePairs clears enlarged nodes. It must finish before
+		// validating, matching the non-early-return path that finishes it before refit.
+		if ( world->userTreeTask != NULL )
+		{
+			world->finishTaskFcn( world->userTreeTask, world->userTaskContext );
+			world->userTreeTask = NULL;
+			world->activeTaskCount -= 1;
+		}
+
 		b3ValidateNoEnlarged( &world->broadPhase );
 		return;
 	}
@@ -2002,8 +2011,8 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 					b3Contact* contact = contactArray + contactId;
 					B3_ASSERT( contact->setIndex == b3_awakeSet && contact->colorIndex != B3_NULL_INDEX );
 
-					b3Shape* shapeA = b3Array_Get( world->shapes, contact->shapeIdA );
-					b3Shape* shapeB = b3Array_Get( world->shapes, contact->shapeIdB );
+					b3Shape* shapeA = b3Array_Get( world->shapes, contact->sub0.shapeIdA );
+					b3Shape* shapeB = b3Array_Get( world->shapes, contact->sub0.shapeIdB );
 					b3Body* bodyA = b3Array_Get( world->bodies, shapeA->bodyId );
 					b3Body* bodyB = b3Array_Get( world->bodies, shapeB->bodyId );
 					b3BodySim* simA = b3GetBodySim( world, bodyA );
@@ -2051,7 +2060,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 
 						// shapeB is never a compound today (asserted in b3CreateContact), so the
 						// childIndex argument is irrelevant for it. shapeA carries the compound.
-						event.userMaterialIdA = b3GetShapeUserMaterialId( shapeA, contact->childIndex, triangleIndex );
+						event.userMaterialIdA = b3GetShapeUserMaterialId( shapeA, contact->sub0.childIndex, triangleIndex );
 						event.userMaterialIdB = b3GetShapeUserMaterialId( shapeB, 0, triangleIndex );
 
 						b3Array_Push( world->contactHitEvents, event );

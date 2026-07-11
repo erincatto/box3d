@@ -70,6 +70,12 @@ enum b3ContactFlags
 
 	// Enable speculative contact points
 	b3_enableSpeculativePoints = 0x01000000,
+
+	// Contact lives on the graph color's scalar list (multi manifold path)
+	b3_contactScalarPlacement = 0x02000000,
+
+	// Manifold count no longer fits the wide path, move to the scalar list
+	b3_simGraphMove = 0x04000000,
 };
 
 // A contact edge is used to connect bodies and contacts together
@@ -95,6 +101,25 @@ typedef struct b3ConvexContact
 	b3ContactCache cache;
 } b3ConvexContact;
 
+// One narrowphase shape pair within a body-pair contact
+typedef struct b3SubContact
+{
+	int shapeIdA;
+	int shapeIdB;
+	int childIndex;
+
+	bool touching;
+	bool reportedTouching;
+	bool isMesh;
+
+	// Usage determined by b3_simMeshContact style dispatch on the shapes
+	union
+	{
+		b3ConvexContact convexContact;
+		b3MeshContact meshContact;
+	};
+} b3SubContact;
+
 // Represents the persistent interaction between two shapes
 typedef struct b3Contact
 {
@@ -112,9 +137,6 @@ typedef struct b3Contact
 	int localIndex;
 
 	b3ContactEdge edges[2];
-	int shapeIdA;
-	int shapeIdB;
-	int childIndex;
 
 	// A contact only belongs to an island if touching, otherwise B3_NULL_INDEX.
 	int islandId;
@@ -144,13 +166,6 @@ typedef struct b3Contact
 	// Mixed friction and restitution
 	float friction;
 
-	// Usage determined by b3_simMeshContact in simFlags
-	union
-	{
-		b3ConvexContact convexContact;
-		b3MeshContact meshContact;
-	};
-
 	float restitution;
 	float rollingResistance;
 	b3Vec3 tangentVelocity;
@@ -158,6 +173,11 @@ typedef struct b3Contact
 	// This is monotonically advanced when a contact is allocated in this slot
 	// Used to check for invalid b3ContactId
 	uint32_t generation;
+
+	uint16_t subCount;
+	uint16_t extraCapacity;
+	b3SubContact* extraSubs;
+	b3SubContact sub0;
 } b3Contact;
 
 typedef struct b3ContactSpec
@@ -171,13 +191,23 @@ typedef struct b3ContactSpec
 
 b3DeclareArray( b3ContactSpec );
 
+static inline b3SubContact* b3GetSubContact( b3Contact* contact, int index )
+{
+	return index == 0 ? &contact->sub0 : contact->extraSubs + ( index - 1 );
+}
+
 void b3InitializeContactRegisters( void );
 
 void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int childIndex );
 void b3DestroyContact( b3World* world, b3Contact* contact, bool wakeBodies );
+void b3RemoveSubContact( b3World* world, b3Contact* contact, int subIndex, bool wakeBodies );
+void b3SyncSubTouchEvents( b3World* world, b3Contact* contact );
 
 bool b3UpdateContact( b3World* world, int workerIndex, b3Contact* contact, b3Shape* shapeA, b3Vec3 localCenterA, b3WorldTransform xfA,
 					  b3Shape* shapeB, b3Vec3 localCenterB, b3WorldTransform xfB, bool isFast, b3Arena arena );
 
 bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact, const b3Shape* shapeA, const int* materialMap,
 							 b3WorldTransform xfA, const b3Shape* shapeB, b3WorldTransform xfB, bool isFast, b3Arena arena );
+
+bool b3ComputeMultiSubManifolds( b3World* world, int workerIndex, b3Contact* contact, b3WorldTransform xfA, b3WorldTransform xfB,
+								 bool isFast, b3Arena arena );
