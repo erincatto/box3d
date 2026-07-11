@@ -15,6 +15,7 @@ before opening a pull request — **PRs that skip these steps will be closed.**
    check enforces this.
 4. **Follow the style.** C17, no compiler warnings, formatted with
    `clang-format`.
+5. **Follow the LLM guidelines.** See the LLM guidelines in README.md
 
 ---
 
