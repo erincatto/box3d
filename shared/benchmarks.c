@@ -4,6 +4,7 @@
 #include "benchmarks.h"
 
 #include "human.h"
+#include "metal_wheel1_hulls.h"
 #include "utils.h"
 
 #include "box3d/box3d.h"
@@ -670,6 +671,54 @@ void CreateWasher( b3WorldId worldId )
 		}
 
 		x += 4.0f * a;
+	}
+}
+
+// A stack of 30 metal_wheel1 props (37-piece convex decompositions): the contact-reduction stress case.
+void CreateWheelStack( b3WorldId worldId )
+{
+	b3World_EnableSleeping( worldId, false );
+
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = (b3Pos){ 0.0f, -1.0f, 0.0f };
+		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+
+		b3BoxHull box = b3MakeBoxHull( 10.0f, 1.0f, 10.0f );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
+	}
+
+	b3HullData* hulls[s_metalWheel1HullCount];
+	for ( int h = 0; h < s_metalWheel1HullCount; ++h )
+	{
+		const WheelHullSpan span = s_metalWheel1Hulls[h];
+		hulls[h] = b3CreateHull( &s_metalWheel1Verts[span.offset], span.count, span.count );
+	}
+
+	const float height = 0.171f; // y extent of the wheel
+	const float spacing = height + 0.006f;
+	const float startY = 0.5f * height + 0.004f;
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.baseMaterial.friction = 0.6f;
+
+	for ( int i = 0; i < 30; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ 0.0f, startY + i * spacing, 0.0f };
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+		for ( int h = 0; h < s_metalWheel1HullCount; ++h )
+		{
+			b3CreateHullShape( bodyId, &shapeDef, hulls[h] );
+		}
+	}
+
+	for ( int h = 0; h < s_metalWheel1HullCount; ++h )
+	{
+		b3DestroyHull( hulls[h] );
 	}
 }
 

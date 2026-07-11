@@ -179,6 +179,7 @@ set(SAMPLE_FILES
     sample_shapes.cpp
     sample_stacking.cpp
     sample_tree.cpp
+    sample_wheel_stack.cpp
     sample_world.cpp
 )
 
