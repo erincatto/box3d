@@ -176,7 +176,8 @@ B3_INLINE float b3MaxFloat( float a, float b )
 /// @return a float clamped between a lower and upper bound.
 B3_INLINE float b3ClampFloat( float a, float lower, float upper )
 {
-	return a < lower ? lower : ( upper < a ? upper : a );
+	float b = upper < a ? upper : a;
+	return a < lower ? lower : b;
 }
 
 /// Interpolate a scalar.

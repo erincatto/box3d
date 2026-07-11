@@ -16,8 +16,6 @@
 #include "shape.h"
 #endif
 
-#define FIXED_ANCHORS 1
-
 // contact separation for sub-stepping
 // s = s0 + dot(cB + rB - cA - rA, normal)
 // normal is held constant
@@ -37,6 +35,7 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	b3BodyState* bodyStates = context->states;
 
 	float warmStartScale = world->enableWarmStarting ? 1.0f : 0.0f;
+	float invTau = 1.0f / B3_SPECULATIVE_DISTANCE;
 
 	// Need to use spans in order to find the associated b2Contact, which is per color
 	b3ContactPrepareSpan* spans = context->contactPrepareSpans;
@@ -77,7 +76,7 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 			int localIndex = index - colorStart;
 			B3_ASSERT( 0 <= localIndex && localIndex < spans[colorIndex].count );
 			int contactId = specs[localIndex].contactId;
-			b3Contact* contact = b3Array_Get( world->contacts, contactId  );
+			b3Contact* contact = b3Array_Get( world->contacts, contactId );
 			B3_ASSERT( contact->contactId == contactId );
 
 			int indexA = contact->bodySimIndexA;
@@ -86,13 +85,13 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 #if B3_ENABLE_VALIDATION
 			if ( indexA != B3_NULL_INDEX )
 			{
-				b3Body* bodyA = b3Array_Get( world->bodies, contact->edges[0].bodyId  );
+				b3Body* bodyA = b3Array_Get( world->bodies, contact->edges[0].bodyId );
 				B3_ASSERT( indexA == bodyA->localIndex );
 			}
 
 			if ( indexB != B3_NULL_INDEX )
 			{
-				b3Body* bodyB = b3Array_Get( world->bodies, contact->edges[1].bodyId  );
+				b3Body* bodyB = b3Array_Get( world->bodies, contact->edges[1].bodyId );
 				B3_ASSERT( indexB == bodyB->localIndex );
 			}
 #endif
@@ -184,6 +183,7 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 
 				b3Vec3 centerA = b3Vec3_zero;
 				b3Vec3 centerB = b3Vec3_zero;
+				float totalFrictionWeight = 0.0f;
 
 				for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 				{
@@ -193,7 +193,9 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 					b3ManifoldPoint* mp = manifold->points + pointIndex;
 					cp->rA = mp->anchorA;
 					cp->rB = mp->anchorB;
-					cp->baseSeparation = mp->separation - b3Dot( b3Sub( cp->rB, cp->rA ), normal );
+
+					float s = mp->separation;
+					cp->baseSeparation = s - b3Dot( b3Sub( cp->rB, cp->rA ), normal );
 					cp->normalImpulse = warmStartScale * mp->normalImpulse;
 					cp->totalNormalImpulse = 0.0f;
 
@@ -210,15 +212,28 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 					b3Vec3 vrB = b3Add( vB, b3Cross( wB, rB ) );
 					cp->relativeVelocity = b3Dot( normal, b3Sub( vrB, vrA ) );
 
-					centerA = b3Add( centerA, rA );
-					centerB = b3Add( centerB, rB );
+					// C0 friction center decay. Needed to prevent spinning top drift (GyroscopicPrecession sample).
+					float weight = b3ClampFloat( 2.0f - s * invTau, 0.0f, 1.0f );
+					centerA = b3MulAdd( centerA, weight, rA );
+					centerB = b3MulAdd( centerB, weight, rB );
+					totalFrictionWeight += weight;
 				}
 
-				float invCount = 1.0f / pointCount;
-				centerA = b3MulSV( invCount, centerA );
-				centerB = b3MulSV( invCount, centerB );
-				constraint->originA = centerA;
-				constraint->originB = centerB;
+				if ( totalFrictionWeight > 0.0f )
+				{
+					float invWeight = 1.0f / totalFrictionWeight;
+					centerA = b3MulSV( invWeight, centerA );
+					centerB = b3MulSV( invWeight, centerB );
+				}
+				else
+				{
+					// With contact recycling separation can drift out of the speculative range.
+					centerA = manifold->points[0].anchorA;
+					centerB = manifold->points[0].anchorB;
+				}
+
+				constraint->centerA = centerA;
+				constraint->centerB = centerB;
 
 				for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 				{
@@ -265,7 +280,7 @@ void b3WarmStartContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 {
 	b3World* world = context->world;
 	b3GraphColor* color = world->constraintGraph.colors + block.colorIndex;
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet  );
+	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
 	b3BodyState* states = awakeSet->bodyStates.data;
 	b3ContactConstraint* constraints = color->contactConstraints;
 
@@ -319,8 +334,8 @@ void b3WarmStartContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 
 			// Central friction
 			{
-				b3Vec3 rA = constraint->originA;
-				b3Vec3 rB = constraint->originB;
+				b3Vec3 rA = constraint->centerA;
+				b3Vec3 rB = constraint->centerB;
 				b3Vec3 impulse = b3MulSV( constraint->frictionImpulse.x, constraint->tangent1 );
 				impulse = b3Add( impulse, b3MulSV( constraint->frictionImpulse.y, constraint->tangent2 ) );
 
@@ -515,8 +530,8 @@ void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context, bool use
 				b3Vec3 tangent2 = constraint->tangent2;
 
 				// Fixed anchor points for applying impulses
-				b3Vec3 rA = constraint->originA;
-				b3Vec3 rB = constraint->originB;
+				b3Vec3 rA = constraint->centerA;
+				b3Vec3 rB = constraint->centerB;
 
 				// Relative tangent velocity at contact
 				b3Vec3 vrA = b3Add( vA, b3Cross( wA, rA ) );
@@ -756,8 +771,8 @@ void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int work
 					mp->totalNormalImpulse = cp->totalNormalImpulse;
 					mp->normalVelocity = cp->relativeVelocity;
 
-					if ( checkHitEvents && flagged == false &&
-						 mp->normalVelocity < negHitThreshold && mp->totalNormalImpulse > 0.0f )
+					if ( checkHitEvents && flagged == false && mp->normalVelocity < negHitThreshold &&
+						 mp->totalNormalImpulse > 0.0f )
 					{
 						b3SetBit( hitEventBitSet, contact->contactId );
 						hasHitEvents = true;
@@ -1350,7 +1365,8 @@ typedef struct b3ContactConstraintWide
 	b3Vec3W tangent1;
 	b3Vec3W tangent2;
 
-	b3Vec3W originA, originB;
+	// Friction centers
+	b3Vec3W centerA, centerB;
 	b3FloatW twistMass;
 	b3FloatW twistImpulse;
 	b3SymMatrix2W tangentMass;
@@ -1629,6 +1645,7 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 	b3Softness staticSoftness = context->staticSoftness;
 
 	float warmStartScale = world->enableWarmStarting ? 1.0f : 0.0f;
+	float invTau = 1.0f / B3_SPECULATIVE_DISTANCE;
 
 	int wideIndex = block.startIndex;
 	int endWideIndex = block.startIndex + block.count;
@@ -1664,7 +1681,7 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 				}
 
 				int contactId = contactIds[contactIndex];
-				b3Contact* contact = b3Array_Get( world->contacts, contactId  );
+				b3Contact* contact = b3Array_Get( world->contacts, contactId );
 				B3_ASSERT( contact->manifoldCount == 1 );
 				b3Manifold* manifold = contact->manifolds + 0;
 
@@ -1779,8 +1796,9 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 				( (float*)&constraint->impulseScale )[lane] = soft.impulseScale;
 
 				int pointCount = manifold->pointCount;
-				b3Vec3 originA = b3Vec3_zero;
-				b3Vec3 originB = b3Vec3_zero;
+				b3Vec3 centerA = b3Vec3_zero;
+				b3Vec3 centerB = b3Vec3_zero;
+				float totalFrictionWeight = 0.0f;
 
 				for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 				{
@@ -1789,8 +1807,13 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 
 					b3Vec3 rA = mp->anchorA;
 					b3Vec3 rB = mp->anchorB;
-					originA = b3Add( originA, rA );
-					originB = b3Add( originB, rB );
+					float s = mp->separation;
+
+					// C0 friction center decay. Needed to prevent spinning top drift (GyroscopicPrecession sample).
+					float weight = b3ClampFloat( 2.0f - s * invTau, 0.0f, 1.0f );
+					centerA = b3MulAdd( centerA, weight, rA );
+					centerB = b3MulAdd( centerB, weight, rB );
+					totalFrictionWeight += weight;
 
 					( (float*)&cp->anchorAs.X )[lane] = rA.x;
 					( (float*)&cp->anchorAs.Y )[lane] = rA.y;
@@ -1800,7 +1823,7 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 					( (float*)&cp->anchorBs.Y )[lane] = rB.y;
 					( (float*)&cp->anchorBs.Z )[lane] = rB.z;
 
-					float baseSeparation = mp->separation - b3Dot( b3Sub( rB, rA ), normal );
+					float baseSeparation = s - b3Dot( b3Sub( rB, rA ), normal );
 					( (float*)&cp->baseSeparations )[lane] = baseSeparation;
 
 					( (float*)&cp->normalImpulses )[lane] = warmStartScale * mp->normalImpulse;
@@ -1817,29 +1840,38 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 					( (float*)&cp->relativeVelocities )[lane] = b3Dot( normal, b3Sub( vrB, vrA ) );
 				}
 
-				float invCount = 1.0f / pointCount;
-				originA = b3MulSV( invCount, originA );
-				originB = b3MulSV( invCount, originB );
+				if ( totalFrictionWeight > 0.0f )
+				{
+					float invWeight = 1.0f / totalFrictionWeight;
+					centerA = b3MulSV( invWeight, centerA );
+					centerB = b3MulSV( invWeight, centerB );
+				}
+				else
+				{
+					// With contact recycling separation can drift out of the speculative range.
+					centerA = manifold->points[0].anchorA;
+					centerB = manifold->points[0].anchorB;
+				}
 
-				( (float*)&constraint->originA.X )[lane] = originA.x;
-				( (float*)&constraint->originA.Y )[lane] = originA.y;
-				( (float*)&constraint->originA.Z )[lane] = originA.z;
-				( (float*)&constraint->originB.X )[lane] = originB.x;
-				( (float*)&constraint->originB.Y )[lane] = originB.y;
-				( (float*)&constraint->originB.Z )[lane] = originB.z;
+				( (float*)&constraint->centerA.X )[lane] = centerA.x;
+				( (float*)&constraint->centerA.Y )[lane] = centerA.y;
+				( (float*)&constraint->centerA.Z )[lane] = centerA.z;
+				( (float*)&constraint->centerB.X )[lane] = centerB.x;
+				( (float*)&constraint->centerB.Y )[lane] = centerB.y;
+				( (float*)&constraint->centerB.Z )[lane] = centerB.z;
 
 				for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 				{
 					const b3ManifoldPoint* mp = manifold->points + pointIndex;
 					b3ContactConstraintPointWide* cp = constraint->points + pointIndex;
-					( (float*)&cp->leverArms )[lane] = b3Distance( mp->anchorA, originA );
+					( (float*)&cp->leverArms )[lane] = b3Distance( mp->anchorA, centerA );
 				}
 
-				b3Vec3 rtA1 = b3Cross( originA, tangent1 );
-				b3Vec3 rtA2 = b3Cross( originA, tangent2 );
+				b3Vec3 rtA1 = b3Cross( centerA, tangent1 );
+				b3Vec3 rtA2 = b3Cross( centerA, tangent2 );
 
-				b3Vec3 rtB1 = b3Cross( originB, tangent1 );
-				b3Vec3 rtB2 = b3Cross( originB, tangent2 );
+				b3Vec3 rtB1 = b3Cross( centerB, tangent1 );
+				b3Vec3 rtB2 = b3Cross( centerB, tangent2 );
 
 				{
 					b3Matrix2 k;
@@ -1940,8 +1972,8 @@ void b3WarmStartContacts_Convex( b3SolverBlock block, b3StepContext* context )
 
 		// Central friction
 		{
-			b3Vec3W rA = c->originA;
-			b3Vec3W rB = c->originB;
+			b3Vec3W rA = c->centerA;
+			b3Vec3W rB = c->centerB;
 			b3Vec3W impulse = b3MulSVW( c->frictionImpulse.x, c->tangent1 );
 			impulse = b3MulAddSVW( impulse, c->frictionImpulse.y, c->tangent2 );
 
@@ -2120,8 +2152,8 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 				b3Vec3W tangent2 = c->tangent2;
 
 				// Fixed anchor points for applying impulses
-				b3Vec3W rA = c->originA;
-				b3Vec3W rB = c->originB;
+				b3Vec3W rA = c->centerA;
+				b3Vec3W rB = c->centerB;
 
 				// Relative tangent velocity at contact
 				b3Vec3W vrA = b3AddVW( bA.v, b3CrossW( bA.w, rA ) );
@@ -2372,7 +2404,7 @@ void b3PrepareContacts_Overflow( b3StepContext* context )
 	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
 
 	uint16_t count = (uint16_t)color->contacts.count;
-	if (count == 0)
+	if ( count == 0 )
 	{
 		return;
 	}

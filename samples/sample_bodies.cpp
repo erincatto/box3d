@@ -372,8 +372,6 @@ static int sampleGyroscopicTorque = RegisterSample( "Bodies", "Gyroscopic Torque
 // Spinning tops. Ported from PEEL.
 // Each top is tilted and spun about the world up axis. Offsetting the spin axis from the
 // symmetry axis is what makes them precess under gravity instead of spinning true.
-// todo disabling this until issue #65 is fixed
-#if 0
 class GyroscopicPrecession : public Sample
 {
 public:
@@ -428,6 +426,8 @@ public:
 		}
 
 		b3DestroyHull( hull );
+
+		m_stepWhilePaused = true;
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -437,7 +437,6 @@ public:
 };
 
 static int sampleGyroscopicPrecession = RegisterSample( "Bodies", "Gyroscopic Precession", GyroscopicPrecession::Create );
-#endif
 
 class Weeble : public Sample
 {
