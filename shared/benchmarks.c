@@ -883,3 +883,95 @@ void StepJunkyard( b3WorldId worldId, int stepCount )
 	b3WorldTransform target = { .p = targetPos, .q = b3Quat_identity };
 	b3Body_SetTargetTransform( g_junkyardData.pusherId, target, timeStep, false );
 }
+
+// Huge pile of large convexes, ported from PEEL. Each convex is the hull of 32 random points on a
+// sphere. A fixed LCG seed makes the hull identical across runs so results compare directly.
+
+// PEEL's BasicRandom, kept verbatim so the point set matches the original
+typedef struct ConvexPileRandom
+{
+	unsigned int state;
+} ConvexPileRandom;
+
+static unsigned int NextConvexPileRandom( ConvexPileRandom* rng )
+{
+	rng->state = rng->state * 2147001325u + 715136305u;
+	return rng->state;
+}
+
+// Float in [-0.5, 0.5]
+static float ConvexPileRandomFloat( ConvexPileRandom* rng )
+{
+	return (float)( NextConvexPileRandom( rng ) & 0xffff ) / 65535.0f - 0.5f;
+}
+
+// Uniform random direction, rejection sampled inside the unit sphere then pushed to the surface
+static b3Vec3 UnitRandomPoint( ConvexPileRandom* rng )
+{
+	b3Vec3 point;
+	float lengthSq;
+	do
+	{
+		point.x = ConvexPileRandomFloat( rng );
+		point.y = ConvexPileRandomFloat( rng );
+		point.z = ConvexPileRandomFloat( rng );
+		lengthSq = b3Dot( point, point );
+	} while ( lengthSq > 0.25f );
+
+	return b3Normalize( point );
+}
+
+void CreateConvexPile( b3WorldId worldId )
+{
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = (b3Pos){ 0.0f, -1.0f, 0.0f };
+		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+
+		b3BoxHull box = b3MakeBoxHull( 250.0f, 1.0f, 250.0f );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
+	}
+
+	int countX = 8;
+	int countZ = 8;
+	int layers = BENCHMARK_DEBUG ? 10 : 80;
+	float amplitude = 2.0f;
+	int pointCount = 32;
+	float scatter = 2.0f * amplitude;
+
+	// Hull around random points on a sphere of radius amplitude
+	assert( pointCount <= 64 );
+	b3Vec3 points[64];
+	ConvexPileRandom rng = { 42 };
+	for ( int i = 0; i < pointCount; ++i )
+	{
+		points[i] = b3MulSV( amplitude, UnitRandomPoint( &rng ) );
+	}
+
+	b3HullData* convex = b3CreateHull( points, pointCount, pointCount );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+	// Grid tall enough to collapse into a pile
+	for ( int layer = 0; layer < layers; ++layer )
+	{
+		for ( int z = 0; z < countZ; ++z )
+		{
+			for ( int x = 0; x < countX; ++x )
+			{
+				float posX = ( (float)x - 0.5f * (float)countX ) * scatter;
+				float posZ = ( (float)z - 0.5f * (float)countZ ) * scatter;
+				float posY = amplitude + 2.0f * amplitude * (float)layer;
+
+				bodyDef.position = (b3Pos){ posX, posY, posZ };
+				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+				b3CreateHullShape( bodyId, &shapeDef, convex );
+			}
+		}
+	}
+
+	b3DestroyHull( convex );
+}

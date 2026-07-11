@@ -1449,3 +1449,27 @@ public:
 };
 
 static int sampleJunkyard = RegisterSample( "Benchmark", "Junkyard", BenchmarkJunkyard::Create );
+
+class BenchmarkConvexPile : public Sample
+{
+public:
+	explicit BenchmarkConvexPile( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 45.0f, 20.0f, 150.0f, { 0.0f, 15.0f, 0.0f } );
+		}
+
+		CreateConvexPile( m_worldId );
+
+		SetGroundShape( GetGroundShapeId() );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new BenchmarkConvexPile( context );
+	}
+};
+
+static int sampleConvexPile = RegisterSample( "Benchmark", "Convex Pile", BenchmarkConvexPile::Create );

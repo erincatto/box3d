@@ -39,6 +39,7 @@ void CreateLargeWorld( b3WorldId worldId );
 void StepLargeWorld( b3WorldId worldId, int stepCount );
 void GetWasherCapacity( b3Capacity* capacity );
 void CreateWasher( b3WorldId worldId );
+void CreateConvexPile( b3WorldId worldId );
 
 // void CreateSpinner( b3WorldId worldId );
 // float StepSpinner( b3WorldId worldId, int stepCount );
