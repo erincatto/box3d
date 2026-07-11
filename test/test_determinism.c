@@ -3,6 +3,7 @@
 
 #include "box3d/box3d.h"
 #include "determinism.h"
+#include "metal_wheel1_hulls.h"
 #include "test_macros.h"
 
 #include <stdio.h>
@@ -19,9 +20,11 @@
 #if defined( BOX3D_DOUBLE_PRECISION )
 #define EXPECTED_SLEEP_STEP 301
 #define EXPECTED_HASH 0xE4844A97
+#define EXPECTED_WHEEL_HASH 0xEC7CDF3B
 #else
 #define EXPECTED_SLEEP_STEP 269
 #define EXPECTED_HASH 0x50313037
+#define EXPECTED_WHEEL_HASH 0x1A105A82
 #endif
 
 static int SingleMultithreadingTest( int workerCount )
@@ -111,10 +114,100 @@ static int CrossPlatformTest( void )
 	return 0;
 }
 
+// Step the wheel stack and hash the body transforms.
+static uint32_t RunWheelStackHash( int workerCount, int stepCount )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.workerCount = workerCount;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = ( b3Pos ){ 0.0f, -1.0f, 0.0f };
+		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+		b3BoxHull box = b3MakeBoxHull( 10.0f, 1.0f, 10.0f );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		b3CreateHullShape( groundId, &shapeDef, &box.base );
+	}
+
+	b3HullData* hulls[s_metalWheel1HullCount];
+	for ( int h = 0; h < s_metalWheel1HullCount; ++h )
+	{
+		const WheelHullSpan span = s_metalWheel1Hulls[h];
+		hulls[h] = b3CreateHull( &s_metalWheel1Verts[span.offset], span.count, span.count );
+	}
+
+	const float height = 0.171f;
+	const float spacing = height + 0.006f;
+	const float startY = 0.5f * height + 0.004f;
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.baseMaterial.friction = 0.6f;
+
+	const int wheelCount = 10;
+	b3BodyId wheelBodies[10];
+	for ( int i = 0; i < wheelCount; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = ( b3Pos ){ 0.0f, startY + i * spacing, 0.0f };
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+		for ( int h = 0; h < s_metalWheel1HullCount; ++h )
+		{
+			b3CreateHullShape( bodyId, &shapeDef, hulls[h] );
+		}
+		wheelBodies[i] = bodyId;
+	}
+	for ( int h = 0; h < s_metalWheel1HullCount; ++h )
+	{
+		b3DestroyHull( hulls[h] );
+	}
+
+	float timeStep = 1.0f / 60.0f;
+	for ( int i = 0; i < stepCount; ++i )
+	{
+		b3World_Step( worldId, timeStep, 8 );
+	}
+
+	uint32_t hash = B3_HASH_INIT;
+	for ( int i = 0; i < wheelCount; ++i )
+	{
+		b3WorldTransform xf = b3Body_GetTransform( wheelBodies[i] );
+		hash = b3Hash( hash, (uint8_t*)( &xf ), sizeof( b3WorldTransform ) );
+	}
+
+	b3DestroyWorld( worldId );
+	return hash;
+}
+
+// Compound contacts must be deterministic: identical hash at every worker count and against the reference.
+static int WheelStackDeterminismTest( void )
+{
+	uint32_t base = RunWheelStackHash( 1, 200 );
+
+	for ( int workerCount = 2; workerCount <= 4; ++workerCount )
+	{
+		uint32_t hash = RunWheelStackHash( workerCount, 200 );
+		if ( hash != base )
+		{
+			printf( "  wheel stack: workers=%d hash=0x%08X base=0x%08X\n", workerCount, hash, base );
+		}
+		ENSURE( hash == base );
+	}
+
+	if ( base != EXPECTED_WHEEL_HASH )
+	{
+		printf( "  wheel stack cross-platform: hash=0x%08X expected=0x%08X\n", base, EXPECTED_WHEEL_HASH );
+	}
+	ENSURE( base == EXPECTED_WHEEL_HASH );
+
+	return 0;
+}
+
 int DeterminismTest( void )
 {
 	RUN_SUBTEST( MultithreadingTest );
 	RUN_SUBTEST( CrossPlatformTest );
+	RUN_SUBTEST( WheelStackDeterminismTest );
 
 	return 0;
 }

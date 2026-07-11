@@ -9,6 +9,7 @@ set(BOX3D_TEST_FILES
 	test_collision.c
 	test_compound.c
 	test_container.c
+    test_compound_contact.c
     test_determinism.c
     test_distance.c
     test_height_field.c
