@@ -91,7 +91,6 @@ Category flags on the struct control what gets drawn:
 | `drawContacts` | Contact points and anchors |
 | `drawContactNormals` | Contact normal directions |
 | `drawContactForces` | Normal impulse magnitudes |
-| `drawFrictionForces` | Friction impulse magnitudes |
 | `drawGraphColors` | Constraint-graph color assignment |
 | `drawContactFeatures` | Raw contact feature indices |
 | `drawIslands` | Island bounding boxes |

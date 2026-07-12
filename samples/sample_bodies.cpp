@@ -426,8 +426,6 @@ public:
 		}
 
 		b3DestroyHull( hull );
-
-		m_stepWhilePaused = true;
 	}
 
 	static Sample* Create( SampleContext* context )

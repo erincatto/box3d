@@ -99,7 +99,6 @@ conventions and use clang format.
 ## 6. LLM Policy
 
 - Follow the LLM policy in README.md
-- This means no LLM code or comments in the core library.
 
 ---
 

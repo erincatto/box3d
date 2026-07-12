@@ -56,8 +56,9 @@ B3_API float b3GetStallThreshold( void );
 /// to avoid numerical problems.
 #define B3_MIN_CAPSULE_LENGTH ( B3_LINEAR_SLOP )
 
-/// Minimum contact point friction weight, lower bound for speculative points.
-#define B3_MIN_FRICTION_WEIGHT ( 0.001f * FLT_EPSILON )
+/// Minimum contact point friction weight, lower bound for speculative points. Made small
+/// enough to be washed away by weights that hit 1.
+#define B3_MIN_FRICTION_WEIGHT ( 1e-10f )
 
 /// The distance between shapes where they are considered overlapped. This is needed
 /// because GJK may return small positive values for overlapped shapes in degenerate

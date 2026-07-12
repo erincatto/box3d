@@ -1538,7 +1538,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 								b3Vec3 anchor = draw->drawAnchorA == 1 ? mp->anchorA : mp->anchorB;
 								b3Pos p = b3OffsetPos( contactCenter, anchor );
 
-								// See a similar for the friction anchor weighting in 
+								// See similar friction anchor weights in b3PrepareContacts_Mesh.
 								float weight = b3ClampFloat( 2.0f - mp->separation * invTau, B3_MIN_FRICTION_WEIGHT, 1.0f );
 								frictionAnchor = b3MulAdd( frictionAnchor, weight, anchor );
 								totalWeight += weight;
