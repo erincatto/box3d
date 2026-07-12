@@ -15,7 +15,8 @@ before opening a pull request — **PRs that skip these steps will be closed.**
    check enforces this.
 4. **Follow the style.** C17, no compiler warnings, formatted with
    `clang-format`.
-5. **Follow the LLM guidelines.** See the LLM guidelines in README.md
+5. **Comments** Comment your code with human words. Create Doxygen comments for public APIs.
+6. **Follow the LLM guidelines.** See the LLM guidelines in README.md
 
 ---
 
@@ -92,6 +93,13 @@ conventions and use clang format.
 
 - Comment your code.
 - Public API must have Doxygen comments.
+
+---
+
+## 6. LLM Policy
+
+- Follow the LLM policy in README.md
+- This means no LLM code or comments in the core library.
 
 ---
 

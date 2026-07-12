@@ -188,7 +188,7 @@ static int CompoundMaterialDistinct( void )
 
 static int CompoundMaterialCrossShape( void )
 {
-	// One material shared across capsule, hull, and sphere → 1 material slot.
+	// One material shared across capsule, hull, and sphere -> 1 material slot.
 	b3SurfaceMaterial mat = MakeMaterial( 0.5f, 99 );
 
 	b3CompoundCapsuleDef cap = { .capsule = { { 0, 0, 0 }, { 1, 0, 0 }, 0.25f }, .material = mat };
@@ -422,14 +422,14 @@ static int CompoundChildDispatch( void )
 	};
 	b3CompoundData* c = b3CreateCompound( &def );
 
-	// Index ordering is capsules → hulls → meshes → spheres.
+	// Index ordering is capsules -> hulls -> meshes -> spheres.
 	ENSURE( b3GetCompoundChild( c, 0 ).type == b3_capsuleShape );
 	ENSURE( b3GetCompoundChild( c, 1 ).type == b3_capsuleShape );
 	ENSURE( b3GetCompoundChild( c, 2 ).type == b3_hullShape );
 	ENSURE( b3GetCompoundChild( c, 3 ).type == b3_meshShape );
 	ENSURE( b3GetCompoundChild( c, 4 ).type == b3_sphereShape );
 
-	// Capsule and sphere children always report identity transform — the position
+	// Capsule and sphere children always report identity transform. The position
 	// is encoded in the shape itself (capsule->center{1,2}, sphere->center).
 	b3ChildShape cap0 = b3GetCompoundChild( c, 0 );
 	ENSURE_SMALL( cap0.transform.p.x, FLT_EPSILON );
@@ -514,7 +514,7 @@ static int CompoundRayCastClosest( void )
 	b3CastOutput out = b3RayCastCompound( c, &input );
 	ENSURE( out.hit == true );
 
-	// Front face of the nearer sphere is at x=4 → fraction 4/20 = 0.2.
+	// Front face of the nearer sphere is at x=4 -> fraction 4/20 = 0.2.
 	ENSURE_SMALL( out.fraction - 0.2f, 1e-4f );
 	ENSURE_SMALL( out.normal.x + 1.0f, 1e-4f );
 	ENSURE( out.childIndex == 0 );
@@ -528,7 +528,7 @@ static int CompoundRayCastClosest( void )
 
 static int CompoundRayCastHullNormalRotation( void )
 {
-	// A unit box rotated 90° about Z, placed at compound +X. The ray hits the
+	// A unit box rotated 90 degrees about Z, placed at compound +X. The ray hits the
 	// face that, in compound space, points back toward -X. Verifies that the
 	// normal returned by the cast has been rotated from hull-local space back
 	// into compound space.
@@ -575,7 +575,7 @@ static int CompoundShapeCastClosest( void )
 	};
 	b3CastOutput out = b3ShapeCastCompound( c, &input );
 	ENSURE( out.hit == true );
-	// Closest contact: caster radius 0.25 + sphere radius 1.0 → first contact at x ≈ 3.75.
+	// Closest contact: caster radius 0.25 + sphere radius 1.0 -> first contact at x ~= 3.75.
 	ENSURE_SMALL( out.fraction - 3.75f / 20.0f, 1e-3f );
 	ENSURE( out.childIndex == 0 );
 
@@ -640,7 +640,7 @@ static int CompoundQuery( void )
 	b3CompoundDef def = { .spheres = spheres, .sphereCount = 3 };
 	b3CompoundData* c = b3CreateCompound( &def );
 
-	// Tight box around the middle sphere — only it should be reported.
+	// Tight box around the middle sphere. Only it should be reported.
 	b3AABB middle = { { -1, -1, -1 }, { 1, 1, 1 } };
 	struct QueryAccumulator acc = { .stopAfter = -1 };
 	b3QueryCompound( c, middle, QueryCallback, &acc );

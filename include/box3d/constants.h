@@ -52,7 +52,12 @@ B3_API float b3GetStallThreshold( void );
 // @warning modifying this can have a significant impact on stability
 #define B3_LINEAR_SLOP ( 0.005f * b3GetLengthUnitsPerMeter() )
 
+/// The minimum length of a capsules. Very short capsules should be created as spheres
+/// to avoid numerical problems.
 #define B3_MIN_CAPSULE_LENGTH ( B3_LINEAR_SLOP )
+
+/// Minimum contact point friction weight, lower bound for speculative points.
+#define B3_MIN_FRICTION_WEIGHT ( 0.001f * FLT_EPSILON )
 
 /// The distance between shapes where they are considered overlapped. This is needed
 /// because GJK may return small positive values for overlapped shapes in degenerate

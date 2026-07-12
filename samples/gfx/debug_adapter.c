@@ -227,7 +227,6 @@ void ApplyGuiFlags( b3DebugDraw* out )
 	out->drawContactFeatures = s_adapter.guiDraw.drawContactFeatures;
 	out->drawContactNormals = s_adapter.guiDraw.drawContactNormals;
 	out->drawContactForces = s_adapter.guiDraw.drawContactForces;
-	out->drawFrictionForces = s_adapter.guiDraw.drawFrictionForces;
 	out->drawIslands = s_adapter.guiDraw.drawIslands;
 }
 

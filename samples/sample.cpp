@@ -958,7 +958,7 @@ void Sample::DrawMetrics()
 				int count = s.colorCounts[i];
 				bool isOverflow = ( i == overflowIndex );
 
-				// Skip empty slots, but always show overflow — a non-zero overflow row is the signal we care about.
+				// Skip empty slots, but always show overflow.
 				if ( count == 0 && !isOverflow )
 				{
 					continue;
@@ -1630,7 +1630,6 @@ static void DrawMenuBar( SampleContext* context )
 			ImGui::MenuItem( "Contact Normals", nullptr, &gd->drawContactNormals );
 			ImGui::MenuItem( "Contact Features", nullptr, &gd->drawContactFeatures );
 			ImGui::MenuItem( "Contact Forces", nullptr, &gd->drawContactForces );
-			ImGui::MenuItem( "Friction Forces", nullptr, &gd->drawFrictionForces );
 			if ( ImGui::BeginMenu( "Anchor" ) )
 			{
 				if ( ImGui::MenuItem( "Anchor A", nullptr, gd->drawAnchorA != 0 ) )

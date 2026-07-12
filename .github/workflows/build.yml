@@ -1,5 +1,5 @@
 # https://docs.github.com/en/actions
-name: CI Build
+name: build_test
 
 on:
   push:

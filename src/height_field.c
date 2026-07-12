@@ -749,7 +749,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 	// nextFractionX / nextFractionZ advance in units of the clamped sweep
 	// [minFraction, maxFraction], but bestFraction is a fraction of the full input
 	// translation. Precompute the affine map from clamped space to input space so
-	// the loop termination test compares like with like — otherwise it can exit
+	// the loop termination test compares like with like. Otherwise it can exit
 	// early and miss a closer hit in a later cell.
 	float gridFractionScale = input->maxFraction * ( maxFraction - minFraction );
 	float gridFractionOffset = input->maxFraction * minFraction;

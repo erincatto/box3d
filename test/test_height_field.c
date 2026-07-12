@@ -143,7 +143,7 @@ static int RayCastFlatField( void )
 
 	b3HeightFieldData* hf = b3CreateHeightField( &def );
 
-	// Origin sits clearly inside triangle 0 of cell (1, 1) — off the cell
+	// Origin sits clearly inside triangle 0 of cell (1, 1). Off the cell
 	// diagonal x+z = 3. The translation overshoots the surface so the hit
 	// fraction is strictly less than maxFraction.
 	b3RayCastInput input = { 0 };
@@ -168,13 +168,13 @@ static int OverlapAtSurface( void )
 	b3Vec3 scale = { 1.0f, 1.0f, 1.0f };
 	b3HeightFieldData* hf = b3CreateGrid( 4, 4, scale, false );
 
-	// Sphere center 1.0 above the surface, radius 0.5 — clear gap.
+	// Sphere center 1.0 above the surface, radius 0.5. Clear gap.
 	b3Vec3 above = { 1.5f, 1.0f, 1.5f };
 	b3ShapeProxy proxyAbove = { &above, 1, 0.5f };
 	bool hitAbove = b3OverlapHeightField( hf, b3Transform_identity, &proxyAbove );
 	ENSURE( hitAbove == false );
 
-	// Sphere centered on the surface — radius pokes through.
+	// Sphere centered on the surface. Radius pokes through.
 	b3Vec3 through = { 1.5f, 0.0f, 1.5f };
 	b3ShapeProxy proxyThrough = { &through, 1, 0.5f };
 	bool hitThrough = b3OverlapHeightField( hf, b3Transform_identity, &proxyThrough );
@@ -431,7 +431,7 @@ static int ShapeCastBruteForce( void )
 // Brute-force ray cast: cast the ray against every (non-hole) triangle and keep
 // the closest hit. b3GetHeightFieldTriangle returns vertices in the same winding
 // order that b3ShapeCastHeightField feeds to b3IntersectRayTriangle, so this is a
-// pure traversal/culling check — the per-triangle math is identical.
+// pure traversal/culling check. The per-triangle math is identical.
 static b3CastOutput BruteForceRayCast( const b3HeightFieldData* hf, const b3RayCastInput* input )
 {
 	b3CastOutput best = { 0 };

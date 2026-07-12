@@ -1524,7 +1524,9 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 
 							// Average the anchors not the world points so the friction center stays exact far from the origin
 							b3Pos contactCenter = draw->drawAnchorA == 1 ? bodySimA->center : bodySimB->center;
-							b3Vec3 anchorSum = b3Vec3_zero;
+							b3Vec3 frictionAnchor = b3Vec3_zero;
+							float totalWeight = 0.0f;
+							float invTau = 1.0f / B3_SPECULATIVE_DISTANCE;
 
 							const b3ManifoldPoint* points = manifold->points;
 							for ( int pointIndex = 0; pointIndex < manifold->pointCount; ++pointIndex )
@@ -1536,7 +1538,10 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 								b3Vec3 anchor = draw->drawAnchorA == 1 ? mp->anchorA : mp->anchorB;
 								b3Pos p = b3OffsetPos( contactCenter, anchor );
 
-								anchorSum = b3Add( anchorSum, anchor );
+								// See a similar for the friction anchor weighting in 
+								float weight = b3ClampFloat( 2.0f - mp->separation * invTau, B3_MIN_FRICTION_WEIGHT, 1.0f );
+								frictionAnchor = b3MulAdd( frictionAnchor, weight, anchor );
+								totalWeight += weight;
 
 								if ( draw->drawContactNormals )
 								{
@@ -1599,9 +1604,8 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 							{
 								// Hack inv_dt for single step debugging
 								float inv_dt = world->inv_dt > 0.0f ? world->inv_dt : 60.0f;
-
-								b3Vec3 avgAnchor = b3MulSV( 1.0f / manifold->pointCount, anchorSum );
-								b3Pos p1 = b3OffsetPos( contactCenter, avgAnchor );
+								frictionAnchor = b3MulSV( 1.0f / totalWeight, frictionAnchor );
+								b3Pos p1 = b3OffsetPos( contactCenter, frictionAnchor );
 								b3Vec3 frictionForce = b3MulSV( 0.5f * inv_dt, manifold->frictionImpulse );
 								b3Pos p2 = b3OffsetPos( p1, b3MulSV( draw->forceScale, frictionForce ) );
 								draw->DrawSegmentFcn( p1, p2, frictionColor, draw->context );

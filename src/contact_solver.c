@@ -35,6 +35,8 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	b3BodyState* bodyStates = context->states;
 
 	float warmStartScale = world->enableWarmStarting ? 1.0f : 0.0f;
+
+	// Used for friction center weighting.
 	float invTau = 1.0f / B3_SPECULATIVE_DISTANCE;
 
 	// Need to use spans in order to find the associated b2Contact, which is per color
@@ -213,25 +215,19 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 					cp->relativeVelocity = b3Dot( normal, b3Sub( vrB, vrA ) );
 
 					// C0 friction center decay. Needed to prevent spinning top drift (GyroscopicPrecession sample).
-					float weight = b3ClampFloat( 2.0f - s * invTau, 0.0f, 1.0f );
+					// Contacts with separation greater than twice the speculative distance only matter for CCD and
+					// should not contribute to the friction center. They are not important for jitter reduction. Closer
+					// points may begin to touch on and off, so the friction center needs to move smoothly.
+					// Epsilon to avoid a branch below (or divide by zero). Small enough to get washed out normally.
+					float weight = b3ClampFloat( 2.0f - s * invTau, B3_MIN_FRICTION_WEIGHT, 1.0f );
 					centerA = b3MulAdd( centerA, weight, rA );
 					centerB = b3MulAdd( centerB, weight, rB );
 					totalFrictionWeight += weight;
 				}
 
-				if ( totalFrictionWeight > 0.0f )
-				{
-					float invWeight = 1.0f / totalFrictionWeight;
-					centerA = b3MulSV( invWeight, centerA );
-					centerB = b3MulSV( invWeight, centerB );
-				}
-				else
-				{
-					// With contact recycling separation can drift out of the speculative range.
-					centerA = manifold->points[0].anchorA;
-					centerB = manifold->points[0].anchorB;
-				}
-
+				float invWeight = 1.0f / totalFrictionWeight;
+				centerA = b3MulSV( invWeight, centerA );
+				centerB = b3MulSV( invWeight, centerB );
 				constraint->centerA = centerA;
 				constraint->centerB = centerB;
 
@@ -1810,7 +1806,8 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 					float s = mp->separation;
 
 					// C0 friction center decay. Needed to prevent spinning top drift (GyroscopicPrecession sample).
-					float weight = b3ClampFloat( 2.0f - s * invTau, 0.0f, 1.0f );
+					// See details in b3PrepareContacts_Mesh. This code should stay in sync.
+					float weight = b3ClampFloat( 2.0f - s * invTau, B3_MIN_FRICTION_WEIGHT, 1.0f );
 					centerA = b3MulAdd( centerA, weight, rA );
 					centerB = b3MulAdd( centerB, weight, rB );
 					totalFrictionWeight += weight;
@@ -1840,18 +1837,9 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 					( (float*)&cp->relativeVelocities )[lane] = b3Dot( normal, b3Sub( vrB, vrA ) );
 				}
 
-				if ( totalFrictionWeight > 0.0f )
-				{
-					float invWeight = 1.0f / totalFrictionWeight;
-					centerA = b3MulSV( invWeight, centerA );
-					centerB = b3MulSV( invWeight, centerB );
-				}
-				else
-				{
-					// With contact recycling separation can drift out of the speculative range.
-					centerA = manifold->points[0].anchorA;
-					centerB = manifold->points[0].anchorB;
-				}
+				float invWeight = 1.0f / totalFrictionWeight;
+				centerA = b3MulSV( invWeight, centerA );
+				centerB = b3MulSV( invWeight, centerB );
 
 				( (float*)&constraint->centerA.X )[lane] = centerA.x;
 				( (float*)&constraint->centerA.Y )[lane] = centerA.y;

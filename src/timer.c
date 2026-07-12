@@ -517,7 +517,7 @@ typedef struct b3Thread
 	char name[NAME_LENGTH];
 } b3Thread;
 
-// macOS pthread_setname_np takes only the name — it always names the calling thread.
+// macOS pthread_setname_np takes only the name, it always names the calling thread.
 static void b3SetCurrentThreadName( const char* name )
 {
 	if ( name == NULL || name[0] == 0 )

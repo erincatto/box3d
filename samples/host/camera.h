@@ -217,9 +217,8 @@ public:
 	b3Vec3 m_up;
 	b3Vec3 m_forward;
 
-	// All four matrices are produced together — view / viewInv from the basis,
-	// proj / projInv from fov/aspect/near/far — so the renderer never inverts
-	// at runtime.
+	// All four matrices are produced together: view / viewInv from the basis,
+	// proj / projInv from fov/aspect/near/far.
 	Mat4 m_view;
 	Mat4 m_viewInv;
 	Mat4 m_proj;

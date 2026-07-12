@@ -1082,6 +1082,12 @@ void b3CollideHullAndCapsule( b3LocalManifold* manifold, int capacity, const b3H
 	}
 	B3_VALIDATE( faceSeparation <= 0.0f );
 
+	// Is there a valid edge-edge axis?
+	if ( edgeQuery.indexA == B3_NULL_INDEX )
+	{
+		return;
+	}
+
 	// Face contact can be empty if it does not realize the axis of minimum penetration.
 	// Create edge contact if face contact fails or edge contact is significantly better!
 	const float kRelEdgeTolerance = 0.90f;
