@@ -570,7 +570,7 @@ static int TestCompoundHitEvents( void )
 		bodyDef.type = b3_staticBody;
 		b3BodyId compoundBodyId = b3CreateBody( worldId, &bodyDef );
 		b3ShapeDef compoundShapeDef = b3DefaultShapeDef();
-		b3CreateCompoundShape( compoundBodyId, &compoundShapeDef, compound );
+		b3CreateBakedCompoundShape( compoundBodyId, &compoundShapeDef, compound );
 
 		// Sphere driven straight down onto the chosen child
 		bodyDef = b3DefaultBodyDef();

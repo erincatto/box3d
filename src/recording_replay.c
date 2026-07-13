@@ -1071,7 +1071,7 @@ static void b3RecDispatch_CreateCompoundShape( const b3RecArgs_CreateCompoundSha
 	b3BodyId bodyId = b3RecMakeBodyId( rdr, a->body );
 	// b3CreateCompoundShape takes a non-const def pointer; cast away const for the scratch def
 	b3ShapeDef shapeDef = a->def;
-	b3ShapeId gotId = b3CreateCompoundShape( bodyId, &shapeDef, compound );
+	b3ShapeId gotId = b3CreateBakedCompoundShape( bodyId, &shapeDef, compound );
 	b3RecCheckShapeId( rdr, gotId, recId );
 }
 

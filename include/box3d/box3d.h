@@ -777,6 +777,7 @@ B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, 
  * @defgroup shape Shape
  * Functions to create, destroy, and access.
  * Shapes bind raw geometry to bodies and hold material properties including friction and restitution.
+ * You may add multiple shapes to a single body. There are no hard limits on shape count per body.
  * @{
  */
 
@@ -816,8 +817,10 @@ B3_API b3ShapeId b3CreateMeshShape( b3BodyId bodyId, const b3ShapeDef* def, cons
 /// @return the shape id for accessing the shape
 B3_API b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HeightFieldData* heightField );
 
-/// Compound shapes are only allowed on static bodies.
-B3_API b3ShapeId b3CreateCompoundShape( b3BodyId bodyId, b3ShapeDef* def, const b3CompoundData* compound );
+/// Baked compound shapes are only allowed on static bodies.
+/// Note: runtime compounds are achieved by adding multiple shapes to a body.
+/// Runtime compounds can be dynamic and/or kinematic.
+B3_API b3ShapeId b3CreateBakedCompoundShape( b3BodyId bodyId, b3ShapeDef* def, const b3CompoundData* compound );
 
 /// Destroy a shape. You may defer the body mass update which can improve performance if several shapes on a
 ///	body are destroyed at once.

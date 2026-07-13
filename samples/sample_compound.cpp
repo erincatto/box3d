@@ -51,7 +51,7 @@ public:
 			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			(void)b3CreateCompoundShape( groundId, &shapeDef, m_compound );
+			(void)b3CreateBakedCompoundShape( groundId, &shapeDef, m_compound );
 		}
 
 		b3World_SetContactRecycleDistance( m_worldId, 0.0f );
@@ -138,7 +138,7 @@ public:
 		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		(void)b3CreateCompoundShape( groundId, &shapeDef, m_compound );
+		(void)b3CreateBakedCompoundShape( groundId, &shapeDef, m_compound );
 	}
 
 	~CompoundSpheres() override
@@ -212,7 +212,7 @@ public:
 		b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		(void)b3CreateCompoundShape( groundId, &shapeDef, m_compound );
+		(void)b3CreateBakedCompoundShape( groundId, &shapeDef, m_compound );
 	}
 
 	~CompoundHulls() override
@@ -297,7 +297,7 @@ public:
 			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			(void)b3CreateCompoundShape( groundId, &shapeDef, m_compound );
+			(void)b3CreateBakedCompoundShape( groundId, &shapeDef, m_compound );
 
 			delete[] hulls;
 			hulls = nullptr;
@@ -420,7 +420,7 @@ public:
 			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			(void)b3CreateCompoundShape( groundId, &shapeDef, m_compound );
+			(void)b3CreateBakedCompoundShape( groundId, &shapeDef, m_compound );
 		}
 
 #if 0
@@ -650,7 +650,7 @@ public:
 			b3BodyId groundId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			(void)b3CreateCompoundShape( groundId, &shapeDef, m_compound );
+			(void)b3CreateBakedCompoundShape( groundId, &shapeDef, m_compound );
 
 			delete[] capsules;
 			capsules = nullptr;
