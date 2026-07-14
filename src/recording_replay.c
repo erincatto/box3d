@@ -957,6 +957,11 @@ static void b3RecDispatch_BodySetBullet( const b3RecArgs_BodySetBullet* a, b3Rec
 	b3Body_SetBullet( b3RecMakeBodyId( rdr, a->body ), a->flag );
 }
 
+static void b3RecDispatch_BodyAllowFastRotation( const b3RecArgs_BodyAllowFastRotation* a, b3RecReader* rdr )
+{
+	b3Body_AllowFastRotation( b3RecMakeBodyId( rdr, a->body ), a->flag );
+}
+
 static void b3RecDispatch_BodyEnableContactRecycling( const b3RecArgs_BodyEnableContactRecycling* a, b3RecReader* rdr )
 {
 	b3Body_EnableContactRecycling( b3RecMakeBodyId( rdr, a->body ), a->flag );

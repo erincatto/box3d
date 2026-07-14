@@ -710,6 +710,14 @@ B3_API void b3Body_SetBullet( b3BodyId bodyId, bool flag );
 /// Is this body a bullet?
 B3_API bool b3Body_IsBullet( b3BodyId bodyId );
 
+/// Allow this body to rotate fast. Useful for axially symmetric bodies, such as vehicle wheels.
+/// Normally rotation speed is clamped to improve CCD. However, this clamping is unnecessary for
+/// bodies that only rotate fast around an axis of symmetry.
+B3_API void b3Body_AllowFastRotation( b3BodyId bodyId, bool flag );
+
+/// Is this body allowed to rotate fast?
+B3_API bool b3Body_IsFastRotationAllowed( b3BodyId bodyId );
+
 /// Enable or disable contact recycling for this body. Contact recycling is a performance optimization
 /// that reuses contact manifolds when bodies move slightly. Disabling it can avoid ghost collisions
 /// on characters at the cost of higher per-step work. Existing contacts retain their prior setting;

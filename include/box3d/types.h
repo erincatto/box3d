@@ -1930,8 +1930,7 @@ typedef struct b3Capsule
  * @{
  */
 
-/// A hull vertex. Identified by a half-edge with this
-/// vertex as its tail.
+/// A hull vertex. Identified by a half-edge with this vertex as its tail.
 typedef struct b3HullVertex
 {
 	/// A half-edge that has this vertex as the origin
@@ -1965,7 +1964,7 @@ typedef struct b3HullFace
 } b3HullFace;
 
 /// 64-bit hull version. Useful for validating serialized data.
-#define B3_HULL_VERSION 0x9D4716CE3793900Eull
+#define B3_HULL_VERSION 0xDA5150191B994C01ull
 
 /// A convex hull.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -2016,11 +2015,17 @@ typedef struct b3HullData
 	/// The face count. Hulls faces are convex polygons.
 	int faceCount;
 
+	/// Offset of the face plane array in bytes from the struct address.
+	int planeOffset;
+
 	/// Offset of the face array in bytes from the struct address.
 	int faceOffset;
 
-	/// Offset of the face plane array in bytes from the struct address.
-	int planeOffset;
+	/// Offset of structure of array (SOA) vertices
+	int soaVertexOffset;
+
+	/// Offset of structure of array (SOA) unit normal vectors
+	int soaNormalOffset;
 
 	/// Explicit padding. Hull identity is a content hash and memcmp over raw bytes,
 	/// so there must be no unnamed padding for struct copies to scramble.
@@ -2035,9 +2040,15 @@ typedef struct b3BoxHull
 	b3HullVertex boxVertices[8]; ///< Box vertices.
 	b3Vec3 boxPoints[8];		 ///< Box points.
 	b3HullHalfEdge boxEdges[24]; ///< Box half-edges.
-	b3HullFace boxFaces[6];		 ///< Box faces.
-	uint8_t padding[2];			 ///< Explicit padding, see b3HullData::padding.
 	b3Plane boxPlanes[6];		 ///< Box face planes.
+	b3HullFace boxFaces[6];		 ///< Box faces.
+	uint8_t padding[10];		 ///< Explicit padding, see b3HullData::padding.
+	float vx[8];				 ///< vertex x
+	float vy[8];				 ///< vertex y
+	float vz[8];				 ///< vertex z
+	float nx[8];				 ///< normal x, padded to multiple of 4
+	float ny[8];				 ///< normal y, padded to multiple of 4
+	float nz[8];				 ///< normal z, padded to multiple of 4
 } b3BoxHull;
 
 /**@}*/ // hull
@@ -2530,10 +2541,10 @@ typedef struct b3ChildShape
 	/// Tagged union.
 	union
 	{
-		b3Capsule capsule;	///< Capsule.
+		b3Capsule capsule;		///< Capsule.
 		const b3HullData* hull; ///< Hull.
-		b3Mesh mesh;		///< Mesh.
-		b3Sphere sphere;	///< Sphere.
+		b3Mesh mesh;			///< Mesh.
+		b3Sphere sphere;		///< Sphere.
 	};
 
 	/// Transform of the shape into compound local space.
@@ -2943,12 +2954,12 @@ typedef struct b3DebugShape
 	/// Tagged union.
 	union
 	{
-		const b3Capsule* capsule;		  ///< Capsule shape.
+		const b3Capsule* capsule;			  ///< Capsule shape.
 		const b3CompoundData* compound;		  ///< Compound shape.
 		const b3HeightFieldData* heightField; ///< Height-field shape.
-		const b3HullData* hull;			  ///< Convex hull shape.
-		const b3Mesh* mesh;				  ///< Mesh shape with scale.
-		const b3Sphere* sphere;			  ///< Sphere shape.
+		const b3HullData* hull;				  ///< Convex hull shape.
+		const b3Mesh* mesh;					  ///< Mesh shape with scale.
+		const b3Sphere* sphere;				  ///< Sphere shape.
 	};
 } b3DebugShape;
 

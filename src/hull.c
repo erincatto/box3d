@@ -1607,6 +1607,24 @@ static b3HullHalfEdge* b3GetHullEdgesWrite( b3HullData* hull )
 	return (b3HullHalfEdge*)( (intptr_t)hull + hull->edgeOffset );
 }
 
+static float* b3GetHullSoaVerticesWrite( b3HullData* hull )
+{
+	if ( hull->soaVertexOffset == 0 )
+	{
+		return NULL;
+	}
+	return (float*)( (intptr_t)hull + hull->soaVertexOffset );
+}
+
+static float* b3GetHullSoaNormalsWrite( b3HullData* hull )
+{
+	if ( hull->soaNormalOffset == 0 )
+	{
+		return NULL;
+	}
+	return (float*)( (intptr_t)hull + hull->soaNormalOffset );
+}
+
 int b3FindHullSupportVertex( const b3HullData* hull, b3Vec3 direction )
 {
 	int bestIndex = B3_NULL_INDEX;
@@ -2112,6 +2130,9 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 		while ( edge != face->edge );
 	}
 
+	int soaVertexCount = ( vertexCount + 3 ) & ~3;
+	int soaNormalCount = ( faceCount + 3 ) & ~3;
+
 	// Allocate the hull. Arrays hang off the end.
 	size_t byteCount = b3AlignUp8( sizeof( b3HullData ) );
 	int vertexOffset = (int)byteCount;
@@ -2120,10 +2141,14 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	byteCount += b3AlignUp8( vertexCount * (int)sizeof( b3Vec3 ) );
 	int edgeOffset = (int)byteCount;
 	byteCount += b3AlignUp8( edgeCount * (int)sizeof( b3HullHalfEdge ) );
-	int faceOffset = (int)byteCount;
-	byteCount += b3AlignUp8( faceCount * (int)sizeof( b3HullFace ) );
 	int planeOffset = (int)byteCount;
 	byteCount += b3AlignUp8( faceCount * (int)sizeof( b3Plane ) );
+	int faceOffset = (int)byteCount;
+	byteCount += b3AlignUp8( faceCount * (int)sizeof( b3HullFace ) );
+	int soaVertexOffset = (int)byteCount;
+	byteCount += b3AlignUp8( 3 * soaVertexCount * (int)sizeof( float ) );
+	int soaNormalOffset = (int)byteCount;
+	byteCount += b3AlignUp8( 3 * soaNormalCount * (int)sizeof( float ) );
 
 	b3HullData* hull = b3Alloc( byteCount );
 	memset( hull, 0, byteCount );
@@ -2132,8 +2157,10 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	hull->vertexOffset = vertexOffset;
 	hull->pointOffset = pointOffset;
 	hull->edgeOffset = edgeOffset;
-	hull->faceOffset = faceOffset;
 	hull->planeOffset = planeOffset;
+	hull->faceOffset = faceOffset;
+	hull->soaVertexOffset = soaVertexOffset;
+	hull->soaNormalOffset = soaNormalOffset;
 
 	hull->vertexCount = vertexCount;
 	hull->edgeCount = edgeCount;
@@ -2146,11 +2173,29 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	b3HullFace* faces = (b3HullFace*)( (intptr_t)hull + hull->faceOffset );
 	b3Vec3* finalPoints = b3GetHullPointsWrite( hull );
 	b3Plane* planes = b3GetHullPlanesWrite( hull );
+	float* soaVertices = b3GetHullSoaVerticesWrite( hull );
+	float* soaNormals = b3GetHullSoaNormalsWrite( hull );
+
+	float* vx = soaVertices;
+	float* vy = vx + soaVertexCount;
+	float* vz = vy + soaVertexCount;
 
 	for ( int index = 0; index < vertexCount; ++index )
 	{
 		vertices[index].edge = 0;
-		finalPoints[index] = tempVertices[index]->position;
+		b3Vec3 p = tempVertices[index]->position;
+		finalPoints[index] = p;
+
+		vx[index] = p.x;
+		vy[index] = p.y;
+		vz[index] = p.z;
+	}
+
+	for ( int index = vertexCount; index < soaVertexCount; ++index )
+	{
+		vx[index] = vx[0];
+		vy[index] = vy[0];
+		vz[index] = vz[0];
 	}
 
 	for ( int index = 0; index < edgeCount; ++index )
@@ -2169,6 +2214,10 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 		vertices[edge->origin->finalIndex].edge = (uint8_t)index;
 	}
 
+	float* nx = soaNormals;
+	float* ny = nx + soaNormalCount;
+	float* nz = ny + soaNormalCount;
+
 	for ( int index = 0; index < faceCount; ++index )
 	{
 		const b3QHFace* face = tempFaces[index];
@@ -2176,6 +2225,18 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 
 		faces[index].edge = (uint8_t)face->edge->finalIndex;
 		planes[index] = face->plane;
+
+		b3Vec3 n = face->plane.normal;
+		nx[index] = n.x;
+		ny[index] = n.y;
+		nz[index] = n.z;
+	}
+
+	for ( int index = faceCount; index < soaNormalCount; ++index )
+	{
+		nx[index] = 0.0f;
+		ny[index] = 0.0f;
+		nz[index] = 0.0f;
 	}
 
 	// All builder pointers are dead from here on.
@@ -2238,8 +2299,8 @@ bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 )
 
 // Hull identity covers every byte, so the structs carry explicit padding. These lock
 // the layout, re-audit padding if a size changes.
-_Static_assert( sizeof( b3HullData ) == 136, "unexpected hull data size" );
-_Static_assert( sizeof( b3BoxHull ) == 440, "unexpected box hull size" );
+_Static_assert( sizeof( b3HullData ) == 144, "unexpected hull data size" );
+_Static_assert( sizeof( b3BoxHull ) == 648, "unexpected box hull size" );
 
 #define NAME b3HullMap
 #define KEY_TY const b3HullData*
@@ -2269,7 +2330,7 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 		return NULL;
 	}
 
-	b3HullData* hull = (b3HullData*)b3Alloc( original->byteCount );
+	b3HullData* hull = b3Alloc( original->byteCount );
 	memcpy( hull, original, original->byteCount );
 
 	b3Vec3 safeScale = b3SafeScale( scale );
@@ -2339,12 +2400,32 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 	b3Matrix3 matrix = b3MakeMatrixFromQuat( transform.q );
 	b3Vec3* points = b3GetHullPointsWrite( hull );
 
+	int soaVertexCount = ( vertexCount + 3 ) + ~3;
+	float* vx = b3GetHullSoaVerticesWrite( hull );
+	float* vy = vx + soaVertexCount;
+	float* vz = vy + soaVertexCount;
+
 	for ( int i = 0; i < vertexCount; ++i )
 	{
-		points[i] = b3Add( b3MulMV( matrix, b3Mul( safeScale, points[i] ) ), transform.p );
+		b3Vec3 p = b3Add( b3MulMV( matrix, b3Mul( safeScale, points[i] ) ), transform.p );
+		points[i] = p;
+		vx[i] = p.x;
+		vy[i] = p.y;
+		vz[i] = p.z;
+	}
+
+	for ( int i = vertexCount; i < soaVertexCount; ++i )
+	{
+		vx[i] = vx[0];
+		vy[i] = vy[0];
+		vz[i] = vz[0];
 	}
 
 	b3Plane* planes = b3GetHullPlanesWrite( hull );
+	int soaNormalCount = ( faceCount + 3 ) + ~3;
+	float* nx = b3GetHullSoaNormalsWrite( hull );
+	float* ny = nx + soaNormalCount;
+	float* nz = ny + soaNormalCount;
 
 	for ( int i = 0; i < faceCount; ++i )
 	{
@@ -2390,6 +2471,17 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 		normal = b3MulSV( 1.0f / area, normal );
 
 		planes[i] = b3MakePlaneFromNormalAndPoint( normal, centroid );
+
+		nx[i] = normal.x;
+		ny[i] = normal.y;
+		nz[i] = normal.z;
+	}
+
+	for ( int i = faceCount; i < soaNormalCount; ++i )
+	{
+		nx[i] = 0.0f;
+		ny[i] = 0.0f;
+		nz[i] = 0.0f;
 	}
 
 	b3UpdateHullBounds( hull );
@@ -2641,8 +2733,10 @@ static const b3BoxHull s_boxHull = {
 			.vertexOffset = offsetof( b3BoxHull, boxVertices ),
 			.pointOffset = offsetof( b3BoxHull, boxPoints ),
 			.edgeOffset = offsetof( b3BoxHull, boxEdges ),
-			.faceOffset = offsetof( b3BoxHull, boxFaces ),
 			.planeOffset = offsetof( b3BoxHull, boxPlanes ),
+			.faceOffset = offsetof( b3BoxHull, boxFaces ),
+			.soaVertexOffset = offsetof( b3BoxHull, vx ),
+			.soaNormalOffset = offsetof( b3BoxHull, nx ),
 		},
 	.boxVertices =
 		{
@@ -2709,6 +2803,61 @@ b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform tr
 	boxHull.boxPoints[5] = b3TransformPoint( transform, (b3Vec3){ -h.x, h.y, -h.z } );
 	boxHull.boxPoints[6] = b3TransformPoint( transform, (b3Vec3){ -h.x, -h.y, -h.z } );
 	boxHull.boxPoints[7] = b3TransformPoint( transform, (b3Vec3){ h.x, -h.y, -h.z } );
+
+	// SOA
+	boxHull.vx[0] = boxHull.boxPoints[0].x;
+	boxHull.vx[1] = boxHull.boxPoints[1].x;
+	boxHull.vx[2] = boxHull.boxPoints[2].x;
+	boxHull.vx[3] = boxHull.boxPoints[3].x;
+	boxHull.vx[4] = boxHull.boxPoints[4].x;
+	boxHull.vx[5] = boxHull.boxPoints[5].x;
+	boxHull.vx[6] = boxHull.boxPoints[6].x;
+	boxHull.vx[7] = boxHull.boxPoints[7].x;
+
+	boxHull.vy[0] = boxHull.boxPoints[0].y;
+	boxHull.vy[1] = boxHull.boxPoints[1].y;
+	boxHull.vy[2] = boxHull.boxPoints[2].y;
+	boxHull.vy[3] = boxHull.boxPoints[3].y;
+	boxHull.vy[4] = boxHull.boxPoints[4].y;
+	boxHull.vy[5] = boxHull.boxPoints[5].y;
+	boxHull.vy[6] = boxHull.boxPoints[6].y;
+	boxHull.vy[7] = boxHull.boxPoints[7].y;
+
+	boxHull.vz[0] = boxHull.boxPoints[0].z;
+	boxHull.vz[1] = boxHull.boxPoints[1].z;
+	boxHull.vz[2] = boxHull.boxPoints[2].z;
+	boxHull.vz[3] = boxHull.boxPoints[3].z;
+	boxHull.vz[4] = boxHull.boxPoints[4].z;
+	boxHull.vz[5] = boxHull.boxPoints[5].z;
+	boxHull.vz[6] = boxHull.boxPoints[6].z;
+	boxHull.vz[7] = boxHull.boxPoints[7].z;
+
+	boxHull.nx[0] = boxHull.boxPlanes[0].normal.x;
+	boxHull.nx[1] = boxHull.boxPlanes[1].normal.x;
+	boxHull.nx[2] = boxHull.boxPlanes[2].normal.x;
+	boxHull.nx[3] = boxHull.boxPlanes[3].normal.x;
+	boxHull.nx[4] = boxHull.boxPlanes[4].normal.x;
+	boxHull.nx[5] = boxHull.boxPlanes[5].normal.x;
+	boxHull.nx[6] = 0.0f;
+	boxHull.nx[7] = 0.0f;
+
+	boxHull.ny[0] = boxHull.boxPlanes[0].normal.y;
+	boxHull.ny[1] = boxHull.boxPlanes[1].normal.y;
+	boxHull.ny[2] = boxHull.boxPlanes[2].normal.y;
+	boxHull.ny[3] = boxHull.boxPlanes[3].normal.y;
+	boxHull.ny[4] = boxHull.boxPlanes[4].normal.y;
+	boxHull.ny[5] = boxHull.boxPlanes[5].normal.y;
+	boxHull.ny[6] = 0.0f;
+	boxHull.ny[7] = 0.0f;
+
+	boxHull.nz[0] = boxHull.boxPlanes[0].normal.z;
+	boxHull.nz[1] = boxHull.boxPlanes[1].normal.z;
+	boxHull.nz[2] = boxHull.boxPlanes[2].normal.z;
+	boxHull.nz[3] = boxHull.boxPlanes[3].normal.z;
+	boxHull.nz[4] = boxHull.boxPlanes[4].normal.z;
+	boxHull.nz[5] = boxHull.boxPlanes[5].normal.z;
+	boxHull.nz[6] = 0.0f;
+	boxHull.nz[7] = 0.0f;
 
 	boxHull.base.hash = 0;
 	boxHull.base.hash = b3NonZeroHash( b3Hash( B3_HASH_INIT, (uint8_t*)&boxHull, sizeof( b3BoxHull ) ) );

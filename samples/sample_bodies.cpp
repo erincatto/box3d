@@ -370,8 +370,9 @@ public:
 static int sampleGyroscopicTorque = RegisterSample( "Bodies", "Gyroscopic Torque", GyroscopicTorque::Create );
 
 // Spinning tops. Ported from PEEL.
-// Each top is tilted and spun about the world up axis. Offsetting the spin axis from the
-// symmetry axis is what makes them precess under gravity instead of spinning true.
+// Each top is tilted and spun about its symmetry axis. Gravity torque about the tip is what makes
+// them precess instead of toppling. The first top carries a diagnostic that compares the measured
+// precession rate against the classical heavy top solution.
 class GyroscopicPrecession : public Sample
 {
 public:
@@ -400,7 +401,7 @@ public:
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
-		// Tilt the symmetry axis, then spin about the world up axis so the offset drives precession.
+		// Tilt the top, then spin it about its own symmetry axis. Gravity does the rest.
 		b3Quat rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 15.0f * B3_PI / 180.0f );
 		b3Vec3 angularVelocity = b3RotateVector( rotation, { 0.0f, 75.0f, 0.0f } );
 
@@ -422,16 +423,156 @@ public:
 				b3CreateHullShape( bodyId, &shapeDef, hull );
 
 				b3Body_SetAngularVelocity( bodyId, angularVelocity );
+
+				if ( x == 0 && z == 0 )
+				{
+					m_topId = bodyId;
+				}
 			}
 		}
 
 		b3DestroyHull( hull );
+
+		// Mass properties of the measured top. The tip sits at the body origin, so the pivot distance is
+		// just the height of the center of mass, and the symmetry axis is the local up axis.
+		b3MassData massData = b3Body_GetMassData( m_topId );
+		m_mass = massData.mass;
+		m_pivotDistance = massData.center.y;
+		m_spinInertia = massData.inertia.cy.y;
+
+		// Transverse inertia belongs about the pivot, not the center of mass
+		float transverse = 0.5f * ( massData.inertia.cx.x + massData.inertia.cz.z );
+		m_transverseInertia = transverse + m_mass * m_pivotDistance * m_pivotDistance;
+
+		m_gravity = b3Length( b3World_GetGravity( m_worldId ) );
+
+		m_azimuth = 0.0f;
+		m_actualAngle = 0.0f;
+		m_expectedAngle = 0.0f;
+		m_elapsed = 0.0f;
+		m_groundTime = 0.0f;
+		m_rate = 0.0f;
+		m_measuring = false;
+	}
+
+	// Steady precession rate of a heavy symmetric top about the vertical. The slow root of
+	// I1 * W^2 * cos(tilt) - I3 * spin * W + M * g * d = 0. Goldstein 5.7.
+	// Collapses to torque over spin momentum for a fast top.
+	float ExpectedRate( float spin, float cosTilt ) const
+	{
+		float momentum = m_spinInertia * spin;
+		float torque = m_mass * m_gravity * m_pivotDistance;
+		if ( momentum <= FLT_EPSILON )
+		{
+			return 0.0f;
+		}
+
+		float a = m_transverseInertia * cosTilt;
+		float discriminant = momentum * momentum - 4.0f * a * torque;
+		if ( a <= FLT_EPSILON || discriminant < 0.0f )
+		{
+			// Axis at or past horizontal, or spinning too slowly to precess steadily
+			return torque / momentum;
+		}
+
+		return ( momentum - sqrtf( discriminant ) ) / ( 2.0f * a );
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		bool isAwake = b3Body_IsAwake( m_topId );
+		if ( isAwake == false )
+		{
+			DrawTextLine( "top is sleeping" );
+			return;
+		}
+
+		b3Pos tip = b3Body_GetPosition( m_topId );
+		b3Quat quat = b3Body_GetRotation( m_topId );
+		b3Vec3 axis = b3RotateVector( quat, b3Vec3_axisY );
+		b3Vec3 omega = b3Body_GetAngularVelocity( m_topId );
+		float spin = b3Dot( omega , axis );
+		float cosTilt = b3ClampFloat( axis.y, -1.0f, 1.0f );
+		float expected = ExpectedRate( spin, cosTilt );
+
+		if ( m_didStep )
+		{
+			float timeStep = 1.0f / m_context->hertz;
+
+			// Gravity exerts no torque about the center of mass while the top is airborne, so the pivot
+			// solution only applies once the tip lands. Give the landing impulse time to wash out too,
+			// otherwise it biases the average for the rest of the run.
+			if ( tip.y < 0.05f )
+			{
+				m_groundTime += timeStep;
+			}
+
+			if ( m_measuring == false )
+			{
+				if ( m_groundTime > 0.5f )
+				{
+					m_measuring = true;
+					m_azimuth = b3Atan2( -axis.z, axis.x );
+				}
+			}
+			else
+			{
+				// Right handed angle of the symmetry axis about the world up axis
+				float azimuth = b3Atan2( -axis.z, axis.x );
+				float delta = b3UnwindAngle( azimuth - m_azimuth );
+				m_azimuth = azimuth;
+
+				m_actualAngle += delta;
+				m_expectedAngle += expected * timeStep;
+				m_elapsed += timeStep;
+
+				// Nutation swings the instantaneous rate between zero and twice the mean, so filter it
+				// with a one second time constant.
+				float alpha = timeStep / ( timeStep + 1.0f );
+				m_rate += alpha * ( delta / timeStep - m_rate );
+			}
+		}
+
+		DrawLine( tip, b3OffsetPos( tip, 5.0f * axis ), MakeColor( b3_colorYellow ) );
+
+		DrawTextLine( "spin %.1f rad/s, tilt %.1f deg", spin, ( 180.0f / B3_PI ) * acosf( cosTilt ) );
+		DrawTextLine( "precession: expected %.4f rad/s, actual %.4f rad/s", expected, m_rate );
+
+		if ( m_elapsed > 0.0f )
+		{
+			// Average both sides over the same window. The spin decays, so the expected rate drifts with it.
+			float expectedAverage = m_expectedAngle / m_elapsed;
+			float actualAverage = m_actualAngle / m_elapsed;
+			float error = expectedAverage != 0.0f ? 100.0f * ( actualAverage - expectedAverage ) / expectedAverage : 0.0f;
+			DrawTextLine( "%.1f s average: expected %.4f, actual %.4f, error %+.1f%%", m_elapsed, expectedAverage, actualAverage,
+						  error );
+		}
+		else
+		{
+			DrawTextLine( "waiting for the tip to land" );
+		}
 	}
 
 	static Sample* Create( SampleContext* context )
 	{
 		return new GyroscopicPrecession( context );
 	}
+
+	b3BodyId m_topId;
+	float m_mass;
+	float m_gravity;
+	float m_pivotDistance;
+	float m_spinInertia;
+	float m_transverseInertia;
+	float m_azimuth;
+	float m_actualAngle;
+	float m_expectedAngle;
+	float m_elapsed;
+	float m_groundTime;
+	float m_rate;
+	bool m_measuring;
 };
 
 static int sampleGyroscopicPrecession = RegisterSample( "Bodies", "Gyroscopic Precession", GyroscopicPrecession::Create );

@@ -38,7 +38,7 @@
 #ifdef __cplusplus
 	#define B3_API extern "C" BOX3D_EXPORT
 	#define B3_INLINE inline
-
+	#define B3_ALIGN_AS(N) alignas(N)
 #if defined( _MSC_VER )
 	#define B3_FORCE_INLINE __forceinline
 #elif defined( __GNUC__ ) || defined( __clang__ )
@@ -52,6 +52,7 @@
 #else
 	#define B3_API BOX3D_EXPORT
 	#define B3_INLINE static inline
+	#define B3_ALIGN_AS(N) _Alignas(N)
 
 #if defined( _MSC_VER )
 	#define B3_FORCE_INLINE static __forceinline

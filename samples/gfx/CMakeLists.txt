@@ -44,6 +44,12 @@ set(GFX_FILES
 
 add_library(gfx STATIC ${GFX_FILES})
 
+set_target_properties(gfx PROPERTIES
+	C_STANDARD 17
+    C_STANDARD_REQUIRED YES
+    C_EXTENSIONS YES
+)
+
 if(APPLE)
     set_source_files_properties(
         sokol_impl.c

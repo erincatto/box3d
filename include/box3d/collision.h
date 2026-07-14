@@ -163,6 +163,17 @@ B3_INLINE const b3HullHalfEdge* b3GetHullEdges( const b3HullData* hull )
 	return (const b3HullHalfEdge*)( (intptr_t)hull + hull->edgeOffset );
 }
 
+/// Get read only hull planes.
+B3_INLINE const b3Plane* b3GetHullPlanes( const b3HullData* hull )
+{
+	if ( hull->planeOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (const b3Plane*)( (intptr_t)hull + hull->planeOffset );
+}
+
 /// Get read only hull faces.
 B3_INLINE const b3HullFace* b3GetHullFaces( const b3HullData* hull )
 {
@@ -174,15 +185,30 @@ B3_INLINE const b3HullFace* b3GetHullFaces( const b3HullData* hull )
 	return (const b3HullFace*)( (intptr_t)hull + hull->faceOffset );
 }
 
-/// Get read only hull planes.
-B3_INLINE const b3Plane* b3GetHullPlanes( const b3HullData* hull )
+/// Get read only SOA vertices. This is an array of vertices with all x values,
+/// y values, and z values as separate arrays. The array lengths are padded to
+/// a multiple of 4. The padded values are repeats of the first value.
+B3_INLINE const float* b3GetHullSoaVertices( const b3HullData* hull )
 {
-	if ( hull->planeOffset == 0 )
+	if ( hull->soaVertexOffset == 0 )
 	{
 		return NULL;
 	}
 
-	return (const b3Plane*)( (intptr_t)hull + hull->planeOffset );
+	return (const float*)( (intptr_t)hull + hull->soaVertexOffset );
+}
+
+/// Get read only SOA unit normal vectors. This is an array of vertices with all x values,
+/// y values, and z values as separate array. The array lengths are padded to
+/// a multiple of 4. The padded values are repeats of the first value.
+B3_INLINE const float* b3GetHullSoaNormals( const b3HullData* hull )
+{
+	if ( hull->soaNormalOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (const float*)( (intptr_t)hull + hull->soaNormalOffset );
 }
 
 /// Create a tessellated cylinder as a hull.
