@@ -1321,6 +1321,467 @@ static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hul
 	return true;
 }
 
+// SoA and SSE separating axis test between two convex hulls. Face phases go through a SIMD
+// getSupport. For the edge phase, B's verts and face normals are transformed into A's space once
+// up front from the hull's stored SoA arrays so the inner loop does no transforms. Data is packed
+// one array per component and the loop tests one B edge against four A edges at a time. Edge
+// counts are bounded so every buffer is a fixed size stack array.
+#include "simd.h"
+
+#include <immintrin.h>
+
+// a*b + c, fused when FMA is available.
+static inline __m128 mad( __m128 a, __m128 b, __m128 c )
+{
+	return _mm_add_ps( _mm_mul_ps( a, b ), c );
+}
+
+// Horizontal min over a 4-lane vector (result broadcast to all lanes).
+static inline __m128 hmin_ps( __m128 v )
+{
+	v = _mm_min_ps( v, _mm_shuffle_ps( v, v, _MM_SHUFFLE( 2, 3, 0, 1 ) ) );
+	return _mm_min_ps( v, _mm_shuffle_ps( v, v, _MM_SHUFFLE( 1, 0, 3, 2 ) ) );
+}
+
+// Transform a SoA point/normal stream (already split into X/Y/Z) by out = -(R*v (+t)).
+// The inputs come straight from the hull's stored SoA arrays, so there's no transpose here.
+// IsPoint is a template arg so the translation add is only emitted for points.
+static inline void b3NegativeTransformFromSoA( b3Matrix3* R, b3Vec3 p, const float* inX, const float* inY, const float* inZ,
+											   size_t n, float* outX, float* outY, float* outZ, bool isPoint )
+{
+	// row-column
+	const __m128 r00 = _mm_set1_ps( R->cx.x );
+	const __m128 r01 = _mm_set1_ps( R->cy.x );
+	const __m128 r02 = _mm_set1_ps( R->cz.x );
+	const __m128 r10 = _mm_set1_ps( R->cx.y );
+	const __m128 r11 = _mm_set1_ps( R->cy.y );
+	const __m128 r12 = _mm_set1_ps( R->cz.y );
+	const __m128 r20 = _mm_set1_ps( R->cx.z );
+	const __m128 r21 = _mm_set1_ps( R->cy.z );
+	const __m128 r22 = _mm_set1_ps( R->cz.z );
+
+	// sign-bit flip
+	const __m128 negate = _mm_set1_ps( -0.0f );
+
+	__m128 tx = _mm_setzero_ps();
+	__m128 ty = _mm_setzero_ps();
+	__m128 tz = _mm_setzero_ps();
+	if ( isPoint )
+	{
+		tx = _mm_set1_ps( p.x );
+		ty = _mm_set1_ps( p.y );
+		tz = _mm_set1_ps( p.z );
+	}
+
+	for ( size_t i = 0; i < n; i += 4 )
+	{
+		__m128 x = _mm_load_ps( inX + i );
+		__m128 y = _mm_load_ps( inY + i );
+		__m128 z = _mm_load_ps( inZ + i );
+
+		// Rotate four vectors at a time
+		__m128 ox = mad( r02, z, mad( r01, y, _mm_mul_ps( r00, x ) ) );
+		__m128 oy = mad( r12, z, mad( r11, y, _mm_mul_ps( r10, x ) ) );
+		__m128 oz = mad( r22, z, mad( r21, y, _mm_mul_ps( r20, x ) ) );
+
+		if ( isPoint )
+		{
+			ox = _mm_add_ps( ox, tx );
+			oy = _mm_add_ps( oy, ty );
+			oz = _mm_add_ps( oz, tz );
+		}
+
+		_mm_store_ps( outX + i, _mm_xor_ps( ox, negate ) );
+		_mm_store_ps( outY + i, _mm_xor_ps( oy, negate ) );
+		_mm_store_ps( outZ + i, _mm_xor_ps( oz, negate ) );
+	}
+}
+
+_Static_assert( B3_MAX_HULL_VERTICES == 64, "must be 64" );
+
+#define B3_HULL_BIT_COUNT 6
+
+// getSupport argmax of normal.dot(vert), 4 wide, using the index in low bits reduction.
+//
+// The vertex index rides in the low IDX_BITS mantissa bits of the value, so one horizontal min
+// recovers the winning lane's index with no parallel index vector and no scalar tie break. We
+// minimize (bias - dot), which bias >= max|dot| keeps positive, so the min lines up with the max
+// dot and a lower index wins ties. normal is unit at every call so the dot stays within bias.
+// The support is then recomputed exactly as normal.dot(vertex).
+static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float* vy, const float* vz, int n, float bias,
+									 float* separation, int* vertexIndex )
+{
+	const int IDX_MASK = ( 1 << B3_HULL_BIT_COUNT ) - 1;
+	const __m128 nx = _mm_set1_ps( normal.x );
+	const __m128 ny = _mm_set1_ps( normal.y );
+	const __m128 nz = _mm_set1_ps( normal.z );
+	const __m128 biasV = _mm_set1_ps( bias );
+	const __m128 clearLow = _mm_castsi128_ps( _mm_set1_epi32( ~IDX_MASK ) );
+	const __m128i lane0123 = _mm_setr_epi32( 0, 1, 2, 3 );
+
+	__m128 running = _mm_set1_ps( 1e18f ); // bigger than any (bias - dot) so it never wins
+	// Tail lanes hold vertex 0 (filled in buildHullShape) with index bits >= n, so they always
+	// lose the tie and need no bounds check.
+	for ( int i = 0; i < n; i += 4 )
+	{
+		__m128 x = _mm_load_ps( vx + i );
+		__m128 y = _mm_load_ps( vy + i );
+		__m128 z = _mm_load_ps( vz + i );
+		__m128 d = mad( nz, z, mad( ny, y, _mm_mul_ps( nx, x ) ) );
+
+		// strictly positive
+		__m128 val = _mm_sub_ps( biasV, d );
+		__m128i idx = _mm_add_epi32( _mm_set1_epi32( i ), lane0123 );
+		val = _mm_or_ps( _mm_and_ps( val, clearLow ), _mm_castsi128_ps( idx ) ); // clear low bits, OR index
+		running = _mm_min_ps( running, val );
+	}
+
+	// One horizontal min, the winning lane's value and index bits ride through _mm_min_ps.
+	int bits = _mm_cvtsi128_si32( _mm_castps_si128( hmin_ps( running ) ) );
+	int vi = bits & IDX_MASK;
+
+	// Exact support for the chosen vertex.
+	*vertexIndex = vi;
+
+	// todo this is probably backwards
+	*separation = normal.x * vx[vi] + normal.y * vy[vi] + normal.z * vz[vi];
+}
+
+void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB, b3AxisQuery* res )
+{
+	b3Matrix3 R = b3MakeMatrixFromQuat( xfB.q );
+	b3Matrix3 invR = b3Transpose( R );
+
+	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
+
+	res->indexA = B3_NULL_INDEX;
+	res->indexB = B3_NULL_INDEX;
+	res->separation = INFINITY;
+
+	// The per-hull SoA vertex streams feed getSupport directly. The bias (>= vertex radius) is
+	// precomputed once per hull.
+	// todo temp
+	const float biasA = b3Distance( hullA->aabb.lowerBound, hullA->aabb.upperBound );
+	const float biasB = b3Distance( hullB->aabb.lowerBound, hullB->aabb.upperBound );
+
+	int faceCountA = hullA->faceCount;
+	const b3Plane* planesA = b3GetHullPlanes( hullA );
+
+	int soaVertexCountB = ( hullB->vertexCount + 3 ) & ~3;
+	const float* vxB = b3GetHullSoaVertices( hullB );
+	const float* vyB = vxB + soaVertexCountB;
+	const float* vzB = vyB + soaVertexCountB;
+
+	// Test A's face planes against B's vertices.
+	for ( int i = 0; i < faceCountA; ++i )
+	{
+		b3Plane plane = planesA[i];
+		b3Vec3 direction = b3Neg( b3MulMV( invR, plane.normal ) );
+		// todo verify
+		float planeDist = plane.offset - b3Dot( plane.normal, xfB.p );
+		float separation;
+		int vertexIndex;
+		b3GetSupportWide( direction, vxB, vyB, vzB, soaVertexCountB, biasB, &separation, &vertexIndex );
+		separation += planeDist;
+		if ( separation > res->separation )
+		{
+			res->feature = b3_faceAxisA;
+			res->separation = separation;
+			res->indexA = i;
+			res->indexB = vertexIndex;
+			res->normal = plane.normal;
+			if ( separation > speculativeDistance )
+			{
+				return;
+			}
+		}
+	}
+
+	int faceCountB = hullB->faceCount;
+	const b3Plane* planesB = b3GetHullPlanes( hullB );
+
+	int soaVertexCountA = ( hullA->vertexCount + 3 ) & ~3;
+	const float* vxA = b3GetHullSoaVertices( hullA );
+	const float* vyA = vxA + soaVertexCountA;
+	const float* vzA = vyA + soaVertexCountA;
+
+	// Test B's face planes against A's vertices.
+	for ( int i = 0; i < faceCountB; ++i )
+	{
+		b3Plane plane = planesB[i];
+		b3Vec3 direction = b3Neg( b3MulMV( R, plane.normal ) );
+		// todo verify
+		float planeDist = plane.offset - b3Dot( direction, xfB.p );
+		float separation;
+		int vertexIndex;
+		b3GetSupportWide( direction, vxA, vyA, vzA, soaVertexCountA, biasA, &separation, &vertexIndex );
+		separation += planeDist;
+		if ( separation > res->separation )
+		{
+			res->feature = b3_faceAxisB;
+			res->separation = separation;
+			res->indexA = vertexIndex;
+			res->indexB = i;
+			// This points from A to B and is in frame A
+			res->normal = direction;
+			if ( separation > speculativeDistance )
+			{
+				return;
+			}
+		}
+	}
+
+	// Transform B into A's space once, into SoA arrays. Extra space so
+	// tail can be set to zero in all cases.
+	const int NE = B3_MAX_HULL_EDGES + 4;
+	const int NF = B3_MAX_HULL_FACES + 4;
+	const int NV = B3_MAX_HULL_VERTICES + 4;
+
+	_Static_assert( ( B3_MAX_HULL_EDGES & 3 ) == 0, "must be multiple of 4" );
+	_Static_assert( ( B3_MAX_HULL_FACES & 3 ) == 0, "must be multiple of 4" );
+	_Static_assert( ( B3_MAX_HULL_VERTICES & 3 ) == 0, "must be multiple of 4" );
+
+	// B face normals in A space, negated.
+	_Alignas( 16 ) float bFNx[NF];
+	_Alignas( 16 ) float bFNy[NF];
+	_Alignas( 16 ) float bFNz[NF];
+
+	// B vertices in A space, negated.
+	_Alignas( 16 ) float bWx[NV];
+	_Alignas( 16 ) float bWy[NV];
+	_Alignas( 16 ) float bWz[NV];
+
+	int soaFaceCountB = ( faceCountB + 3 ) & ~3;
+	const float* nxB = b3GetHullSoaNormals( hullB );
+	const float* nyB = nxB + soaFaceCountB;
+	const float* nzB = nyB + soaFaceCountB;
+
+	b3NegativeTransformFromSoA( &R, xfB.p, nxB, nyB, nzB, soaFaceCountB, bFNx, bFNy, bFNz, false );
+	b3NegativeTransformFromSoA( &R, xfB.p, vxB, vyB, vzB, soaVertexCountB, bWx, bWy, bWz, true );
+
+	// Per B edge data. C and D are the two face normals, bv0 a vertex, DxC the edge vector.
+	_Alignas( 16 ) float bCx[NE];
+	_Alignas( 16 ) float bCy[NE];
+	_Alignas( 16 ) float bCz[NE];
+	_Alignas( 16 ) float bDx[NE];
+	_Alignas( 16 ) float bDy[NE];
+	_Alignas( 16 ) float bDz[NE];
+	_Alignas( 16 ) float bV0x[NE];
+	_Alignas( 16 ) float bV0y[NE];
+	_Alignas( 16 ) float bV0z[NE];
+	_Alignas( 16 ) float bDCx[NE];
+	_Alignas( 16 ) float bDCy[NE];
+	_Alignas( 16 ) float bDCz[NE];
+
+	// todo need soa count?
+	int halfEdgeCountB = hullB->edgeCount;
+	const b3HullHalfEdge* halfEdgesB = b3GetHullEdges( hullB );
+	for ( int i = 0; i < halfEdgeCountB; i += 2 )
+	{
+		const b3HullHalfEdge* edge = halfEdgesB + i;
+		const b3HullHalfEdge* twin = edge + 1;
+		int f0 = edge->face;
+		int f1 = twin->face;
+		int v0 = edge->origin;
+		int v1 = twin->origin;
+
+		bCx[i] = bFNx[f0];
+		bCy[i] = bFNy[f0];
+		bCz[i] = bFNz[f0];
+		bDx[i] = bFNx[f1];
+		bDy[i] = bFNy[f1];
+		bDz[i] = bFNz[f1];
+		bV0x[i] = bWx[v0];
+		bV0y[i] = bWy[v0];
+		bV0z[i] = bWz[v0];
+		bDCx[i] = bWx[v1] - bWx[v0];
+		bDCy[i] = bWy[v1] - bWy[v0];
+		bDCz[i] = bWz[v1] - bWz[v0];
+	}
+
+	// Per A edge data, already in A's space so just gathered. n0 and n1 are the two face
+	// normals, dir the edge vector av1-av0, av0 the first vertex.
+	_Alignas( 16 ) float aN0x[NE];
+	_Alignas( 16 ) float aN0y[NE];
+	_Alignas( 16 ) float aN0z[NE];
+	_Alignas( 16 ) float aN1x[NE];
+	_Alignas( 16 ) float aN1y[NE];
+	_Alignas( 16 ) float aN1z[NE];
+	// dir = av1 - av0
+	_Alignas( 16 ) float aDx[NE];
+	_Alignas( 16 ) float aDy[NE];
+	_Alignas( 16 ) float aDz[NE];
+	_Alignas( 16 ) float aV0x[NE];
+	_Alignas( 16 ) float aV0y[NE];
+	_Alignas( 16 ) float aV0z[NE];
+
+	// todo need soa count?
+	int halfEdgeCountA = hullA->edgeCount;
+	const b3HullHalfEdge* halfEdgesA = b3GetHullEdges( hullA );
+	for ( int i = 0; i < halfEdgeCountA; i += 2 )
+	{
+		const b3HullHalfEdge* edge = halfEdgesA + i;
+		const b3HullHalfEdge* twin = edge + 1;
+
+		b3Vec3 A = planesA[edge->face].normal;
+		b3Vec3 B = planesA[twin->face].normal;
+		aN0x[i] = A.x;
+		aN0y[i] = A.y;
+		aN0z[i] = A.z;
+		aN1x[i] = B.x;
+		aN1y[i] = B.y;
+		aN1z[i] = B.z;
+
+		int v0 = edge->origin;
+		int v1 = twin->origin;
+
+		aDx[i] = vxA[v1] - vxA[v0];
+		aDy[i] = vyA[v1] - vyA[v0];
+		aDz[i] = vzA[v1] - vzA[v0];
+		aV0x[i] = vxA[v0];
+		aV0y[i] = vyA[v0];
+		aV0z[i] = vzA[v0];
+	}
+
+	// Zero the up to 3 tail lanes with one store per array.
+	int na = halfEdgeCountA;
+	__m128 zero = _mm_setzero_ps();
+	_mm_storeu_ps( aN0x + na, zero );
+	_mm_storeu_ps( aN0y + na, zero );
+	_mm_storeu_ps( aN0z + na, zero );
+	_mm_storeu_ps( aN1x + na, zero );
+	_mm_storeu_ps( aN1y + na, zero );
+	_mm_storeu_ps( aN1z + na, zero );
+	_mm_storeu_ps( aDx + na, zero );
+	_mm_storeu_ps( aDy + na, zero );
+	_mm_storeu_ps( aDz + na, zero );
+	_mm_storeu_ps( aV0x + na, zero );
+	_mm_storeu_ps( aV0y + na, zero );
+	_mm_storeu_ps( aV0z + na, zero );
+
+	// Edge phase, one B edge against four A edges at a time, no transforms in the loop.
+	const __m128 EPS = _mm_set1_ps( -0.0001f );
+	const __m128 INF = _mm_set1_ps( INFINITY );
+	const __m128 ZERO = _mm_setzero_ps();
+
+	for ( size_t j = 0; j < b->numEdges; j++ )
+	{
+		const __m128 Cx = _mm_set1_ps( bCx[j] );
+		const __m128 Cy = _mm_set1_ps( bCy[j] );
+		const __m128 Cz = _mm_set1_ps( bCz[j] );
+		const __m128 Dx = _mm_set1_ps( bDx[j] );
+		const __m128 Dy = _mm_set1_ps( bDy[j] );
+		const __m128 Dz = _mm_set1_ps( bDz[j] );
+		const __m128 DCx = _mm_set1_ps( bDCx[j] );
+		const __m128 DCy = _mm_set1_ps( bDCy[j] );
+		const __m128 DCz = _mm_set1_ps( bDCz[j] );
+		const __m128 bv0x = _mm_set1_ps( bV0x[j] );
+		const __m128 bv0y = _mm_set1_ps( bV0y[j] );
+		const __m128 bv0z = _mm_set1_ps( bV0z[j] );
+
+		for ( size_t i = 0; i < na; i += 4 )
+		{
+			__m128 n0x = _mm_load_ps( aN0x + i );
+			__m128 n0y = _mm_load_ps( aN0y + i );
+			__m128 n0z = _mm_load_ps( aN0z + i );
+			__m128 n1x = _mm_load_ps( aN1x + i );
+			__m128 n1y = _mm_load_ps( aN1y + i );
+			__m128 n1z = _mm_load_ps( aN1z + i );
+			__m128 dx = _mm_load_ps( aDx + i );
+			__m128 dy = _mm_load_ps( aDy + i );
+			__m128 dz = _mm_load_ps( aDz + i );
+			__m128 v0x = _mm_load_ps( aV0x + i );
+			__m128 v0y = _mm_load_ps( aV0y + i );
+			__m128 v0z = _mm_load_ps( aV0z + i );
+
+			// CBA = C.dir, DBA = D.dir, where dir = B_x_A
+			__m128 CBA = mad( Cz, dz, mad( Cy, dy, _mm_mul_ps( Cx, dx ) ) );
+			__m128 DBA = mad( Dz, dz, mad( Dy, dy, _mm_mul_ps( Dx, dx ) ) );
+			// ADC = n0.DC, BDC = n1.DC, where DC = D_x_C
+			__m128 ADC = mad( n0z, DCz, mad( n0y, DCy, _mm_mul_ps( n0x, DCx ) ) );
+			__m128 BDC = mad( n1z, DCz, mad( n1y, DCy, _mm_mul_ps( n1x, DCx ) ) );
+
+			// Gauss map arc crossing test, CBA*DBA<eps and ADC*BDC<eps and CBA*BDC<eps
+			__m128 m1 = _mm_cmplt_ps( _mm_mul_ps( CBA, DBA ), EPS );
+			__m128 m2 = _mm_cmplt_ps( _mm_mul_ps( ADC, BDC ), EPS );
+			__m128 m3 = _mm_cmplt_ps( _mm_mul_ps( CBA, BDC ), EPS );
+			__m128 mask = _mm_and_ps( _mm_and_ps( m1, m2 ), m3 );
+
+			// Most A-edges fail the Gauss test, so skip the divide, sqrt and support work when no
+			// lane passed.
+			if ( _mm_movemask_ps( mask ) == 0 )
+			{
+				continue;
+			}
+
+			// t = -CBA / (DBA - CBA)
+			__m128 t = _mm_div_ps( _mm_sub_ps( ZERO, CBA ), _mm_sub_ps( DBA, CBA ) );
+
+			// normal = lerp(t, C, D) = C + (D-C)*t
+			__m128 nx = mad( _mm_sub_ps( Dx, Cx ), t, Cx );
+			__m128 ny = mad( _mm_sub_ps( Dy, Cy ), t, Cy );
+			__m128 nz = mad( _mm_sub_ps( Dz, Cz ), t, Cz );
+			// normalize
+			__m128 len2 = mad( nz, nz, mad( ny, ny, _mm_mul_ps( nx, nx ) ) );
+			__m128 inv = _mm_div_ps( _mm_set1_ps( 1.0f ), _mm_sqrt_ps( len2 ) );
+			nx = _mm_mul_ps( nx, inv );
+			ny = _mm_mul_ps( ny, inv );
+			nz = _mm_mul_ps( nz, inv );
+
+			// support = normal . (av0 + bv0)
+			__m128 sx = _mm_add_ps( v0x, bv0x );
+			__m128 sy = _mm_add_ps( v0y, bv0y );
+			__m128 sz = _mm_add_ps( v0z, bv0z );
+			__m128 supp = mad( nz, sz, mad( ny, sy, _mm_mul_ps( nx, sx ) ) );
+
+			// Lanes that fail the Gauss test can never win.
+			supp = _mm_blendv_ps( INF, supp, mask );
+
+			// Test all 4 supports against the running best at once. If none beats it, skip the
+			// store and scalar reduction. res->support only turns negative just before returning,
+			// so this never skips a lane that would trigger the early out.
+			__m128 improves = _mm_cmplt_ps( supp, _mm_set1_ps( res->support ) );
+			if ( _mm_movemask_ps( improves ) == 0 )
+			{
+				continue;
+			}
+
+			alignas( 16 ) float sA[4];
+			alignas( 16 ) float nxA[4];
+			alignas( 16 ) float nyA[4];
+			alignas( 16 ) float nzA[4];
+			_mm_store_ps( sA, supp );
+			_mm_store_ps( nxA, nx );
+			_mm_store_ps( nyA, ny );
+			_mm_store_ps( nzA, nz );
+
+			// Reduce in lane order so ties keep the first edge and the early out takes the first
+			// improving support below zero. Padded tail lanes carry +INF support, so they never
+			// update or index a->edges out of range.
+			for ( int lane = 0; lane < 4; lane++ )
+			{
+				size_t ei = i + lane;
+				float s = sA[lane];
+				if ( s < res->support )
+				{
+					res->mtv = { nxA[lane], nyA[lane], nzA[lane] };
+					res->support = s;
+					res->type = SatResult::EDGE_EDGE;
+					res->edge1 = a->edges[ei];
+					res->edge2 = b->edges[j];
+					if ( s < 0 )
+					{
+						res->mtv = xfA.rotate( res->mtv );
+						return;
+					}
+				}
+			}
+		}
+	}
+
+	res->mtv = xfA.rotate( res->mtv );
+}
+
 void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
 					 b3Transform transformBtoA, b3SATCache* cache )
 {

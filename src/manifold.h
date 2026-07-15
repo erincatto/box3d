@@ -23,6 +23,15 @@ typedef struct b3EdgeQuery
 	int indexB;
 } b3EdgeQuery;
 
+typedef struct b3AxisQuery
+{
+	b3Vec3 normal;
+	float separation;
+	int indexA;
+	int indexB;
+	b3SeparatingFeature feature;
+} b3AxisQuery;
+
 typedef struct b3ClipVertex
 {
 	b3Vec3 position;

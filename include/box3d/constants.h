@@ -109,6 +109,20 @@ B3_API float b3GetStallThreshold( void );
 /// The maximum number points to use for shape cast proxies (swept point cloud).
 #define B3_MAX_SHAPE_CAST_POINTS 64
 
+/// The number of iterations for gyroscopic torques.
+#ifndef B3_GYROSCOPIC_ITERATIONS
+#define B3_GYROSCOPIC_ITERATIONS 1
+#endif
+
+/// The maximum number of convex hull vertices. This is fixed for performance reasons.
+#define B3_MAX_HULL_VERTICES 64
+
+/// The maximum number of convex hull faces.
+#define B3_MAX_HULL_FACES 64
+
+/// The maximum number of convex hull edges. Full edges, not half-edges.
+#define B3_MAX_HULL_EDGES 128
+
 /// These generous limits allow for easy hashing. See b3ShapePairKey.
 #define B3_SHAPE_POWER 22
 #define B3_CHILD_POWER ( 64 - 2 * B3_SHAPE_POWER )

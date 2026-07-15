@@ -894,11 +894,6 @@ static inline b3FloatW b3MulAddW( b3FloatW a, b3FloatW b, b3FloatW c )
 	return vaddq_f32( a, vmulq_f32( b, c ) );
 }
 
-// static inline b3FloatW b3MulSubW( b3FloatW a, b3FloatW b, b3FloatW c )
-//{
-//	return vsubq_f32( a, vmulq_f32( b, c ) );
-// }
-
 static inline b3FloatW b3MinW( b3FloatW a, b3FloatW b )
 {
 	return vminq_f32( a, b );
@@ -1013,11 +1008,6 @@ static inline b3FloatW b3MulAddW( b3FloatW a, b3FloatW b, b3FloatW c )
 {
 	return _mm_add_ps( a, _mm_mul_ps( b, c ) );
 }
-
-// static inline b3FloatW b3MulSubW( b3FloatW a, b3FloatW b, b3FloatW c )
-//{
-//	return _mm_sub_ps( a, _mm_mul_ps( b, c ) );
-// }
 
 static inline b3FloatW b3MinW( b3FloatW a, b3FloatW b )
 {
