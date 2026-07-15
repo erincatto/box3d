@@ -307,12 +307,17 @@ static void OnEvent( const sapp_event* e )
 	}
 }
 
-// Pace the loop to 60 Hz so the fixed 1/60 physics step plays at real time on any
-// display. Sleep the bulk of the idle time, then spin the last bit since sleep wakes
-// are only accurate to about a millisecond.
+// This limits the render rate to the simulation rate. Physics debugging
+// ergonomics require render frames and simulation frames are one to one.
+// I don't recommend this setup for games, where a decoupled render rate
+// and simulation rate are desirable.
 static void LimitFrameRate( uint64_t frameStart )
 {
-	const float targetMs = 1000.0f / 60.0f;
+	// By limiting to the simulation hertz, this allows me to run the simulation
+	// at 240Hz and render at that rate when using a 240Hz monitor. It also allows
+	// me to run a 10Hz simulation in at the wall clock rate.
+	float hertz = b3ClampFloat(s_context.hertz, 5.0f, 1000.0f);
+	const float targetMs = 1000.0f / hertz;
 	const float spinMs = 2.0f;
 
 	int sleepMs = (int)( targetMs - spinMs - b3GetMilliseconds( frameStart ) );

@@ -1447,16 +1447,21 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 	*separation = normal.x * vx[vi] + normal.y * vy[vi] + normal.z * vz[vi];
 }
 
-void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB, b3AxisQuery* res )
+#define NE ( B3_MAX_HULL_EDGES + 4 )
+#define NF ( B3_MAX_HULL_FACES + 4 )
+#define NV ( B3_MAX_HULL_VERTICES + 4 )
+
+b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB )
 {
 	b3Matrix3 R = b3MakeMatrixFromQuat( xfB.q );
 	b3Matrix3 invR = b3Transpose( R );
 
 	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
 
-	res->indexA = B3_NULL_INDEX;
-	res->indexB = B3_NULL_INDEX;
-	res->separation = INFINITY;
+	b3AxisQuery res = { 0 };
+	res.indexA = B3_NULL_INDEX;
+	res.indexB = B3_NULL_INDEX;
+	res.separation = INFINITY;
 
 	// The per-hull SoA vertex streams feed getSupport directly. The bias (>= vertex radius) is
 	// precomputed once per hull.
@@ -1483,16 +1488,16 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 		int vertexIndex;
 		b3GetSupportWide( direction, vxB, vyB, vzB, soaVertexCountB, biasB, &separation, &vertexIndex );
 		separation += planeDist;
-		if ( separation > res->separation )
+		if ( separation > res.separation )
 		{
-			res->feature = b3_faceAxisA;
-			res->separation = separation;
-			res->indexA = i;
-			res->indexB = vertexIndex;
-			res->normal = plane.normal;
+			res.feature = b3_faceAxisA;
+			res.separation = separation;
+			res.indexA = i;
+			res.indexB = vertexIndex;
+			res.normal = plane.normal;
 			if ( separation > speculativeDistance )
 			{
-				return;
+				return res;
 			}
 		}
 	}
@@ -1516,27 +1521,23 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 		int vertexIndex;
 		b3GetSupportWide( direction, vxA, vyA, vzA, soaVertexCountA, biasA, &separation, &vertexIndex );
 		separation += planeDist;
-		if ( separation > res->separation )
+		if ( separation > res.separation )
 		{
-			res->feature = b3_faceAxisB;
-			res->separation = separation;
-			res->indexA = vertexIndex;
-			res->indexB = i;
+			res.feature = b3_faceAxisB;
+			res.separation = separation;
+			res.indexA = vertexIndex;
+			res.indexB = i;
 			// This points from A to B and is in frame A
-			res->normal = direction;
+			res.normal = direction;
 			if ( separation > speculativeDistance )
 			{
-				return;
+				return res;
 			}
 		}
 	}
 
 	// Transform B into A's space once, into SoA arrays. Extra space so
 	// tail can be set to zero in all cases.
-	const int NE = B3_MAX_HULL_EDGES + 4;
-	const int NF = B3_MAX_HULL_FACES + 4;
-	const int NV = B3_MAX_HULL_VERTICES + 4;
-
 	_Static_assert( ( B3_MAX_HULL_EDGES & 3 ) == 0, "must be multiple of 4" );
 	_Static_assert( ( B3_MAX_HULL_FACES & 3 ) == 0, "must be multiple of 4" );
 	_Static_assert( ( B3_MAX_HULL_VERTICES & 3 ) == 0, "must be multiple of 4" );
@@ -1576,6 +1577,7 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 	// todo need soa count?
 	int halfEdgeCountB = hullB->edgeCount;
 	const b3HullHalfEdge* halfEdgesB = b3GetHullEdges( hullB );
+	int nb = 0;
 	for ( int i = 0; i < halfEdgeCountB; i += 2 )
 	{
 		const b3HullHalfEdge* edge = halfEdgesB + i;
@@ -1585,18 +1587,19 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 		int v0 = edge->origin;
 		int v1 = twin->origin;
 
-		bCx[i] = bFNx[f0];
-		bCy[i] = bFNy[f0];
-		bCz[i] = bFNz[f0];
-		bDx[i] = bFNx[f1];
-		bDy[i] = bFNy[f1];
-		bDz[i] = bFNz[f1];
-		bV0x[i] = bWx[v0];
-		bV0y[i] = bWy[v0];
-		bV0z[i] = bWz[v0];
-		bDCx[i] = bWx[v1] - bWx[v0];
-		bDCy[i] = bWy[v1] - bWy[v0];
-		bDCz[i] = bWz[v1] - bWz[v0];
+		bCx[nb] = bFNx[f0];
+		bCy[nb] = bFNy[f0];
+		bCz[nb] = bFNz[f0];
+		bDx[nb] = bFNx[f1];
+		bDy[nb] = bFNy[f1];
+		bDz[nb] = bFNz[f1];
+		bV0x[nb] = bWx[v0];
+		bV0y[nb] = bWy[v0];
+		bV0z[nb] = bWz[v0];
+		bDCx[nb] = bWx[v1] - bWx[v0];
+		bDCy[nb] = bWy[v1] - bWy[v0];
+		bDCz[nb] = bWz[v1] - bWz[v0];
+		nb += 1;
 	}
 
 	// Per A edge data, already in A's space so just gathered. n0 and n1 are the two face
@@ -1618,6 +1621,7 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 	// todo need soa count?
 	int halfEdgeCountA = hullA->edgeCount;
 	const b3HullHalfEdge* halfEdgesA = b3GetHullEdges( hullA );
+	int na = 0;
 	for ( int i = 0; i < halfEdgeCountA; i += 2 )
 	{
 		const b3HullHalfEdge* edge = halfEdgesA + i;
@@ -1625,26 +1629,26 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 
 		b3Vec3 A = planesA[edge->face].normal;
 		b3Vec3 B = planesA[twin->face].normal;
-		aN0x[i] = A.x;
-		aN0y[i] = A.y;
-		aN0z[i] = A.z;
-		aN1x[i] = B.x;
-		aN1y[i] = B.y;
-		aN1z[i] = B.z;
+		aN0x[na] = A.x;
+		aN0y[na] = A.y;
+		aN0z[na] = A.z;
+		aN1x[na] = B.x;
+		aN1y[na] = B.y;
+		aN1z[na] = B.z;
 
 		int v0 = edge->origin;
 		int v1 = twin->origin;
 
-		aDx[i] = vxA[v1] - vxA[v0];
-		aDy[i] = vyA[v1] - vyA[v0];
-		aDz[i] = vzA[v1] - vzA[v0];
-		aV0x[i] = vxA[v0];
-		aV0y[i] = vyA[v0];
-		aV0z[i] = vzA[v0];
+		aDx[na] = vxA[v1] - vxA[v0];
+		aDy[na] = vyA[v1] - vyA[v0];
+		aDz[na] = vzA[v1] - vzA[v0];
+		aV0x[na] = vxA[v0];
+		aV0y[na] = vyA[v0];
+		aV0z[na] = vzA[v0];
+		na += 1;
 	}
 
 	// Zero the up to 3 tail lanes with one store per array.
-	int na = halfEdgeCountA;
 	__m128 zero = _mm_setzero_ps();
 	_mm_storeu_ps( aN0x + na, zero );
 	_mm_storeu_ps( aN0y + na, zero );
@@ -1664,7 +1668,9 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 	const __m128 INF = _mm_set1_ps( INFINITY );
 	const __m128 ZERO = _mm_setzero_ps();
 
-	for ( size_t j = 0; j < b->numEdges; j++ )
+	int edgeCountB = halfEdgeCountB / 2;
+
+	for ( int j = 0; j < edgeCountB; ++j )
 	{
 		const __m128 Cx = _mm_set1_ps( bCx[j] );
 		const __m128 Cy = _mm_set1_ps( bCy[j] );
@@ -1679,7 +1685,7 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 		const __m128 bv0y = _mm_set1_ps( bV0y[j] );
 		const __m128 bv0z = _mm_set1_ps( bV0z[j] );
 
-		for ( size_t i = 0; i < na; i += 4 )
+		for ( int i = 0; i < na; i += 4 )
 		{
 			__m128 n0x = _mm_load_ps( aN0x + i );
 			__m128 n0y = _mm_load_ps( aN0y + i );
@@ -1740,16 +1746,16 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 			// Test all 4 supports against the running best at once. If none beats it, skip the
 			// store and scalar reduction. res->support only turns negative just before returning,
 			// so this never skips a lane that would trigger the early out.
-			__m128 improves = _mm_cmplt_ps( supp, _mm_set1_ps( res->support ) );
+			__m128 improves = _mm_cmplt_ps( supp, _mm_set1_ps( res.separation ) );
 			if ( _mm_movemask_ps( improves ) == 0 )
 			{
 				continue;
 			}
 
-			alignas( 16 ) float sA[4];
-			alignas( 16 ) float nxA[4];
-			alignas( 16 ) float nyA[4];
-			alignas( 16 ) float nzA[4];
+			_Alignas( 16 ) float sA[4];
+			_Alignas( 16 ) float nxA[4];
+			_Alignas( 16 ) float nyA[4];
+			_Alignas( 16 ) float nzA[4];
 			_mm_store_ps( sA, supp );
 			_mm_store_ps( nxA, nx );
 			_mm_store_ps( nyA, ny );
@@ -1760,27 +1766,31 @@ void b3ComputeSeparationWide( const b3HullData* hullA, const b3HullData* hullB, 
 			// update or index a->edges out of range.
 			for ( int lane = 0; lane < 4; lane++ )
 			{
-				size_t ei = i + lane;
+				int ei = i + lane;
 				float s = sA[lane];
-				if ( s < res->support )
+				if ( s > res.separation )
 				{
-					res->mtv = { nxA[lane], nyA[lane], nzA[lane] };
-					res->support = s;
-					res->type = SatResult::EDGE_EDGE;
-					res->edge1 = a->edges[ei];
-					res->edge2 = b->edges[j];
+					res.normal = (b3Vec3){ nxA[lane], nyA[lane], nzA[lane] };
+					res.separation = s;
+					res.feature = b3_edgePairAxis;
+					// Half edge index
+					res.indexA = 2 * ei;
+					res.indexB = 2 * j;
 					if ( s < 0 )
 					{
-						res->mtv = xfA.rotate( res->mtv );
-						return;
+						return res;
 					}
 				}
 			}
 		}
 	}
 
-	res->mtv = xfA.rotate( res->mtv );
+	return res;
 }
+
+#undef NE
+#undef NF
+#undef NV
 
 void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
 					 b3Transform transformBtoA, b3SATCache* cache )
@@ -1791,6 +1801,9 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 	{
 		return;
 	}
+
+	b3AxisQuery testResult = b3ComputeSeparatingAxis( hullA, hullB, transformBtoA );
+	(void)testResult;
 
 	// Work in shapeA coordinates
 	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
