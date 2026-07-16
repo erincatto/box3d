@@ -195,6 +195,43 @@ static int FaceFarSeparatedTest( void )
 	return 0;
 }
 
+// The support bias is derived from each hull's AABB, not from an origin assumed to sit inside it. A
+// box built far from its own local origin is the case the old diagonal bias got wrong. A is yawed
+// and pushed out to x = 5, so the face B query has to run getSupport over vertices clustered near
+// x = 5 and still pick the right one.
+static int OffsetFaceAxisBTest( void )
+{
+	float cx = 5.0f;
+	b3Transform placeA = { { cx, 0.0f, 0.0f }, ExactQuat( kAxisZ, 0.25f * B3_PI ) };
+	b3BoxHull hullA = b3MakeTransformedBoxHull( 0.5f, 0.5f, 0.5f, placeA );
+	b3BoxHull hullB = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+	float aExtent = cx + 0.5f * kRoot2;
+	float gap = 0.2f;
+	float d = aExtent + 0.5f + gap;
+	b3Transform xfB = { { d, 0.0f, 0.0f }, b3Quat_identity };
+
+	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
+
+	ENSURE( q.feature == b3_faceAxisB );
+	ENSURE_SMALL( q.separation - gap, 1e-4f );
+	ENSURE_SMALL( q.normal.x - 1.0f, 1e-5f );
+	ENSURE_SMALL( q.normal.y, 1e-5f );
+	ENSURE_SMALL( q.normal.z, 1e-5f );
+
+	const b3Plane* planesB = b3GetHullPlanes( &hullB.base );
+	ENSURE_SMALL( planesB[q.indexB].normal.x + 1.0f, 1e-5f );
+
+	const b3Vec3* pointsA = b3GetHullPoints( &hullA.base );
+	ENSURE_SMALL( pointsA[q.indexA].x - aExtent, 1e-4f );
+
+	b3Vec3 oracleNormal;
+	float oracleSep = OracleSeparation( &hullA.base, &hullB.base, xfB, &oracleNormal );
+	ENSURE_SMALL( q.separation - oracleSep, 1e-4f );
+	ENSURE_SMALL( SepAlong( &hullA.base, &hullB.base, xfB, q.normal ) - q.separation, 1e-4f );
+	return 0;
+}
+
 // Cube A yawed 45 about y presents an edge along y at x = h*root2. Cube B rolled 45 about z presents
 // an edge along z at x = -h*root2. Sliding B along x makes those edges the closest features, so the
 // axis is x and the separation is d - root2. The sweep straddles contact into overlap while staying
@@ -333,13 +370,102 @@ static int SeparatingAxisOracleTest( void )
 	return 0;
 }
 
+// The oracle over hulls whose vertices sit far from their own local origin, which the AABB based
+// bias must handle. Half the pairs offset A in its own frame, half offset B, and B is placed so the
+// two centers land near each other across the separated to overlapping range. Any bias that assumed
+// the origin was inside the hull would pick the wrong support and blow the separation.
+static int OffsetHullOracleTest( void )
+{
+	g_seed = 24681012u;
+
+	int separated = 0;
+	int penetrating = 0;
+	int edgeWins = 0;
+	float worstShortfall = 0.0f;
+	float worstExcess = 0.0f;
+	float worstConsistency = 0.0f;
+
+	for ( int i = 0; i < 3000; ++i )
+	{
+		b3Vec3 halfA = { NextFloat( 0.3f, 0.8f ), NextFloat( 0.3f, 0.8f ), NextFloat( 0.3f, 0.8f ) };
+		b3Vec3 halfB = { NextFloat( 0.3f, 0.8f ), NextFloat( 0.3f, 0.8f ), NextFloat( 0.3f, 0.8f ) };
+
+		b3Vec3 offset = b3MulSV( NextFloat( 2.0f, 6.0f ), NextDirection() );
+		float reach = NextFloat( 0.0f, 1.7f );
+		b3Vec3 dir = NextDirection();
+
+		b3BoxHull hullA;
+		b3BoxHull hullB;
+		b3Transform xfB;
+
+		if ( i & 1 )
+		{
+			// A carries the offset in its own frame. B is centered and dropped near A's center.
+			b3Transform placeA = { offset, ExactQuat( NextDirection(), NextFloat( 0.0f, B3_PI ) ) };
+			hullA = b3MakeTransformedBoxHull( halfA.x, halfA.y, halfA.z, placeA );
+			hullB = b3MakeBoxHull( halfB.x, halfB.y, halfB.z );
+			xfB = (b3Transform){ b3MulAdd( offset, reach, dir ), ExactQuat( NextDirection(), NextFloat( 0.0f, B3_PI ) ) };
+		}
+		else
+		{
+			// B carries the offset in its own frame. Place it so its world center lands near the origin.
+			b3Quat qB = ExactQuat( NextDirection(), NextFloat( 0.0f, B3_PI ) );
+			hullA = b3MakeBoxHull( halfA.x, halfA.y, halfA.z );
+			hullB = b3MakeOffsetBoxHull( halfB.x, halfB.y, halfB.z, offset );
+			xfB = (b3Transform){ b3Sub( b3MulSV( reach, dir ), b3RotateVector( qB, offset ) ), qB };
+		}
+
+		b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
+
+		b3Vec3 oracleNormal;
+		float oracleSep = OracleSeparation( &hullA.base, &hullB.base, xfB, &oracleNormal );
+
+		float consistency = b3AbsFloat( SepAlong( &hullA.base, &hullB.base, xfB, q.normal ) - q.separation );
+		worstConsistency = b3MaxFloat( worstConsistency, consistency );
+		worstShortfall = b3MaxFloat( worstShortfall, oracleSep - q.separation );
+		worstExcess = b3MaxFloat( worstExcess, q.separation - oracleSep );
+
+		// Consistency is the sharp bias check: a wrong support pick on an offset hull would throw the
+		// returned normal off its own separation by a vertex spacing, not a noise floor. The oracle
+		// bounds are looser since differencing coordinates out at radius six costs a few more digits.
+		ENSURE_SMALL( b3Length( q.normal ) - 1.0f, 1e-3f );
+		ENSURE( consistency < 1e-3f );
+		ENSURE( q.separation <= oracleSep + 3e-3f );
+		ENSURE( q.separation >= oracleSep - 8e-3f );
+
+		if ( oracleSep > 0.0f )
+		{
+			separated += 1;
+		}
+		else
+		{
+			penetrating += 1;
+		}
+
+		if ( q.feature == b3_edgePairAxis )
+		{
+			edgeWins += 1;
+		}
+	}
+
+	printf( "    offset: separated=%d penetrating=%d edgeWins=%d worstShortfall=%.2e worstExcess=%.2e worstConsistency=%.2e\n",
+			separated, penetrating, edgeWins, worstShortfall, worstExcess, worstConsistency );
+
+	ENSURE( separated > 100 );
+	ENSURE( penetrating > 100 );
+	ENSURE( edgeWins > 20 );
+	return 0;
+}
+
 int SeparatingAxisTest( void )
 {
 	RUN_SUBTEST( FaceAxisASeparatedTest );
 	RUN_SUBTEST( FaceAxisBSeparatedTest );
 	RUN_SUBTEST( FaceFarSeparatedTest );
+	RUN_SUBTEST( OffsetFaceAxisBTest );
 	RUN_SUBTEST( EdgePairSweepTest );
 	RUN_SUBTEST( SeparatingAxisOracleTest );
+	RUN_SUBTEST( OffsetHullOracleTest );
 
 	return 0;
 }

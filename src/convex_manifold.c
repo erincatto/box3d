@@ -1725,7 +1725,13 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			__m128 m1 = _mm_cmplt_ps( _mm_mul_ps( CBA, DBA ), EPS );
 			__m128 m2 = _mm_cmplt_ps( _mm_mul_ps( ADC, BDC ), EPS );
 			__m128 m3 = _mm_cmplt_ps( _mm_mul_ps( CBA, BDC ), EPS );
-			__m128 mask = _mm_and_ps( _mm_and_ps( m1, m2 ), m3 );
+
+			// Reject near parallel edges. The arc lerp is ill conditioned when both of B's normals are nearly
+			// perpendicular to edge A, a scale invariant sine threshold relative to the edge length.
+			__m128 dLen2 = mad( dz, dz, mad( dy, dy, _mm_mul_ps( dx, dx ) ) );
+			__m128 maxCD = _mm_max_ps( _mm_mul_ps( CBA, CBA ), _mm_mul_ps( DBA, DBA ) );
+			__m128 notParallel = _mm_cmpge_ps( maxCD, _mm_mul_ps( _mm_set1_ps( 0.005f * 0.005f ), dLen2 ) );
+			__m128 mask = _mm_and_ps( _mm_and_ps( _mm_and_ps( m1, m2 ), m3 ), notParallel );
 
 			// Most A-edges fail the Gauss test, so skip the divide, sqrt and support work when no
 			// lane passed.
