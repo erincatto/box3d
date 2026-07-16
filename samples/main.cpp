@@ -308,9 +308,9 @@ static void OnEvent( const sapp_event* e )
 }
 
 // This limits the render rate to the simulation rate. Physics debugging
-// ergonomics require render frames and simulation frames are one to one.
-// I don't recommend this setup for games, where a decoupled render rate
-// and simulation rate are desirable.
+// ergonomics require render frames and simulation frames to be one to one.
+// I don't recommend this setup for games, where a decoupled render
+// and simulation rate is desirable.
 static void LimitFrameRate( uint64_t frameStart )
 {
 	// By limiting to the simulation hertz, this allows me to run the simulation

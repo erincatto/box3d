@@ -10,45 +10,6 @@
 
 #include <vector>
 
-class DumpLoader : public Sample
-{
-public:
-	explicit DumpLoader( SampleContext* context )
-		: Sample( context )
-	{
-		if ( context->restart == false )
-		{
-			m_camera->SetView( 45.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
-			// m_camera->SetView( 45.0f, 30.0f, 300.0f, { 3910.62109f, 9862.50293f, 875.395081f } );
-		}
-
-		b3SetLengthUnitsPerMeter( 1.0f );
-
-		const char* dumpPrefix = "data/dumps/single_box/";
-
-#include "dumps/single_box/box3d_dump.inl"
-	}
-
-	~DumpLoader() override
-	{
-		for ( b3MeshData* md : m_meshes )
-		{
-			b3DestroyMesh( md );
-		}
-
-		b3SetLengthUnitsPerMeter( 1.0f );
-	}
-
-	static Sample* Create( SampleContext* context )
-	{
-		return new DumpLoader( context );
-	}
-
-	std::vector<b3MeshData*> m_meshes;
-};
-
-static int sampleDumpLoader = RegisterSample( "Issues", "Dump Loader", DumpLoader::Create );
-
 class Crash : public Sample
 {
 public:

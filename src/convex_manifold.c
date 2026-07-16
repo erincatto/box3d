@@ -131,8 +131,19 @@ static b3FaceQuery b3QueryFaceDirections( const b3HullData* hullA, const b3HullD
 	{
 		b3Plane plane = b3TransformPlane( transform, planesA[faceIndex] );
 
+		// b3Vec3 normal = b3RotateVector( transform.q, planesA[faceIndex].normal );
+		// b3Plane plane2 = {
+		//	.normal = normal,
+		//	.offset = planesA[faceIndex].offset + b3Dot( normal, transform.p ),
+		//};
+
 		int vertexIndex = b3FindHullSupportVertex( hullB, b3Neg( plane.normal ) );
 		b3Vec3 support = pointsB[vertexIndex];
+		// float separation2 = b3Dot( plane2.normal, support ) - plane2.offset;
+
+		// float separation3 = b3Dot( normal, b3Sub(support, transform.p) ) - planesA[faceIndex].offset;
+		// float separation4 =
+
 		float separation = b3PlaneSeparation( plane, support );
 		if ( separation > maxFaceSeparation )
 		{
@@ -1409,7 +1420,7 @@ _Static_assert( B3_MAX_HULL_VERTICES == 64, "must be 64" );
 // dot and a lower index wins ties. normal is unit at every call so the dot stays within bias.
 // The support is then recomputed exactly as normal.dot(vertex).
 static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float* vy, const float* vz, int n, float bias,
-									 float* separation, int* vertexIndex )
+									 float* support, int* vertexIndex )
 {
 	const int IDX_MASK = ( 1 << B3_HULL_BIT_COUNT ) - 1;
 	const __m128 nx = _mm_set1_ps( normal.x );
@@ -1419,14 +1430,14 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 	const __m128 clearLow = _mm_castsi128_ps( _mm_set1_epi32( ~IDX_MASK ) );
 	const __m128i lane0123 = _mm_setr_epi32( 0, 1, 2, 3 );
 
-	__m128 running = _mm_set1_ps( 1e18f ); // bigger than any (bias - dot) so it never wins
+	__m128 running = _mm_set1_ps( B3_HUGE ); // bigger than any (bias - dot) so it never wins
 	// Tail lanes hold vertex 0 (filled in buildHullShape) with index bits >= n, so they always
 	// lose the tie and need no bounds check.
 	for ( int i = 0; i < n; i += 4 )
 	{
-		__m128 x = _mm_load_ps( vx + i );
-		__m128 y = _mm_load_ps( vy + i );
-		__m128 z = _mm_load_ps( vz + i );
+		__m128 x = _mm_loadu_ps( vx + i );
+		__m128 y = _mm_loadu_ps( vy + i );
+		__m128 z = _mm_loadu_ps( vz + i );
 		__m128 d = mad( nz, z, mad( ny, y, _mm_mul_ps( nx, x ) ) );
 
 		// strictly positive
@@ -1442,9 +1453,7 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 
 	// Exact support for the chosen vertex.
 	*vertexIndex = vi;
-
-	// todo this is probably backwards
-	*separation = normal.x * vx[vi] + normal.y * vy[vi] + normal.z * vz[vi];
+	*support = normal.x * vx[vi] + normal.y * vy[vi] + normal.z * vz[vi];
 }
 
 #define NE ( B3_MAX_HULL_EDGES + 4 )
@@ -1457,17 +1466,14 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	b3Matrix3 invR = b3Transpose( R );
 
 	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
+	bool earlyReturn = false;
 
 	b3AxisQuery res = { 0 };
 	res.indexA = B3_NULL_INDEX;
 	res.indexB = B3_NULL_INDEX;
-	res.separation = INFINITY;
+	res.separation = -INFINITY;
 
-	// The per-hull SoA vertex streams feed getSupport directly. The bias (>= vertex radius) is
-	// precomputed once per hull.
-	// todo temp
-	const float biasA = b3Distance( hullA->aabb.lowerBound, hullA->aabb.upperBound );
-	const float biasB = b3Distance( hullB->aabb.lowerBound, hullB->aabb.upperBound );
+	// The per-hull SoA vertex streams feed getSupport directly.
 
 	int faceCountA = hullA->faceCount;
 	const b3Plane* planesA = b3GetHullPlanes( hullA );
@@ -1477,17 +1483,21 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	const float* vyB = vxB + soaVertexCountB;
 	const float* vzB = vyB + soaVertexCountB;
 
+	b3Vec3 cB = b3AABB_Center( hullB->aabb );
+	b3Vec3 hB = b3AABB_Extents( hullB->aabb );
+
 	// Test A's face planes against B's vertices.
 	for ( int i = 0; i < faceCountA; ++i )
 	{
 		b3Plane plane = planesA[i];
 		b3Vec3 direction = b3Neg( b3MulMV( invR, plane.normal ) );
 		// todo verify
-		float planeDist = plane.offset - b3Dot( plane.normal, xfB.p );
-		float separation;
+		float planeSeparation = b3Dot( plane.normal, xfB.p ) - plane.offset;
+		float biasB = b3Dot( direction, cB ) + 1.0625f * b3Dot( b3Abs( direction ), hB );
+		float support;
 		int vertexIndex;
-		b3GetSupportWide( direction, vxB, vyB, vzB, soaVertexCountB, biasB, &separation, &vertexIndex );
-		separation += planeDist;
+		b3GetSupportWide( direction, vxB, vyB, vzB, soaVertexCountB, biasB, &support, &vertexIndex );
+		float separation = planeSeparation - support;
 		if ( separation > res.separation )
 		{
 			res.feature = b3_faceAxisA;
@@ -1495,7 +1505,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			res.indexA = i;
 			res.indexB = vertexIndex;
 			res.normal = plane.normal;
-			if ( separation > speculativeDistance )
+			if ( earlyReturn && separation > speculativeDistance )
 			{
 				return res;
 			}
@@ -1510,17 +1520,21 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	const float* vyA = vxA + soaVertexCountA;
 	const float* vzA = vyA + soaVertexCountA;
 
+	b3Vec3 cA = b3AABB_Center( hullA->aabb );
+	b3Vec3 hA = b3AABB_Extents( hullA->aabb );
+
 	// Test B's face planes against A's vertices.
 	for ( int i = 0; i < faceCountB; ++i )
 	{
 		b3Plane plane = planesB[i];
 		b3Vec3 direction = b3Neg( b3MulMV( R, plane.normal ) );
 		// todo verify
-		float planeDist = plane.offset - b3Dot( direction, xfB.p );
-		float separation;
+		float planeSeparation = b3Dot( direction, xfB.p ) - plane.offset;
+		float biasA = b3Dot( direction, cA ) + 1.0625f * b3Dot( b3Abs( direction ), hA );
+		float support;
 		int vertexIndex;
-		b3GetSupportWide( direction, vxA, vyA, vzA, soaVertexCountA, biasA, &separation, &vertexIndex );
-		separation += planeDist;
+		b3GetSupportWide( direction, vxA, vyA, vzA, soaVertexCountA, biasA, &support, &vertexIndex );
+		float separation = planeSeparation - support;
 		if ( separation > res.separation )
 		{
 			res.feature = b3_faceAxisB;
@@ -1529,7 +1543,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			res.indexB = i;
 			// This points from A to B and is in frame A
 			res.normal = direction;
-			if ( separation > speculativeDistance )
+			if ( earlyReturn && separation > speculativeDistance )
 			{
 				return res;
 			}
@@ -1738,15 +1752,17 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			__m128 sx = _mm_add_ps( v0x, bv0x );
 			__m128 sy = _mm_add_ps( v0y, bv0y );
 			__m128 sz = _mm_add_ps( v0z, bv0z );
-			__m128 supp = mad( nz, sz, mad( ny, sy, _mm_mul_ps( nx, sx ) ) );
+			__m128 support = mad( nz, sz, mad( ny, sy, _mm_mul_ps( nx, sx ) ) );
 
 			// Lanes that fail the Gauss test can never win.
-			supp = _mm_blendv_ps( INF, supp, mask );
+			support = _mm_blendv_ps( INF, support, mask );
+
+			__m128 separation = _mm_sub_ps( ZERO, support );
 
 			// Test all 4 supports against the running best at once. If none beats it, skip the
 			// store and scalar reduction. res->support only turns negative just before returning,
 			// so this never skips a lane that would trigger the early out.
-			__m128 improves = _mm_cmplt_ps( supp, _mm_set1_ps( res.separation ) );
+			__m128 improves = _mm_cmpgt_ps( separation, _mm_set1_ps( res.separation ) );
 			if ( _mm_movemask_ps( improves ) == 0 )
 			{
 				continue;
@@ -1756,7 +1772,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			_Alignas( 16 ) float nxA[4];
 			_Alignas( 16 ) float nyA[4];
 			_Alignas( 16 ) float nzA[4];
-			_mm_store_ps( sA, supp );
+			_mm_store_ps( sA, separation );
 			_mm_store_ps( nxA, nx );
 			_mm_store_ps( nyA, ny );
 			_mm_store_ps( nzA, nz );
@@ -1776,7 +1792,8 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 					// Half edge index
 					res.indexA = 2 * ei;
 					res.indexB = 2 * j;
-					if ( s < 0 )
+
+					if ( earlyReturn && s > speculativeDistance )
 					{
 						return res;
 					}

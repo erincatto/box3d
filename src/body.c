@@ -253,8 +253,6 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 		bodyState->angularVelocity = def->angularVelocity;
 		bodyState->deltaRotation = b3Quat_identity;
 		bodyState->flags = bodySim->flags;
-
-		bodySim->maxAngularVelocity = b3Length( def->angularVelocity ) + 5.0f;
 	}
 
 	if ( bodyId == world->bodies.count )

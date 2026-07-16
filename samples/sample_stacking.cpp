@@ -287,7 +287,7 @@ public:
 			bodyDef.name = "cube";
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.position = { 0.0f, 0.5f, 0.0f };
-			bodyDef.angularVelocity = { 0.0f, 10.0f, 0.0f };
+			//bodyDef.angularVelocity = { 0.0f, 10.0f, 0.0f };
 			m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();

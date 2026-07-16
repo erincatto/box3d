@@ -22,6 +22,7 @@ set(BOX3D_TEST_FILES
 	test_mover.c
     test_name_cache.c
     test_recording.c
+    test_sat.c
     test_shape.c
     test_table.c
     test_world.c

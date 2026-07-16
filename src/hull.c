@@ -2400,7 +2400,7 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 	b3Matrix3 matrix = b3MakeMatrixFromQuat( transform.q );
 	b3Vec3* points = b3GetHullPointsWrite( hull );
 
-	int soaVertexCount = ( vertexCount + 3 ) + ~3;
+	int soaVertexCount = ( vertexCount + 3 ) & ~3;
 	float* vx = b3GetHullSoaVerticesWrite( hull );
 	float* vy = vx + soaVertexCount;
 	float* vz = vy + soaVertexCount;
@@ -2422,7 +2422,7 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 	}
 
 	b3Plane* planes = b3GetHullPlanesWrite( hull );
-	int soaNormalCount = ( faceCount + 3 ) + ~3;
+	int soaNormalCount = ( faceCount + 3 ) & ~3;
 	float* nx = b3GetHullSoaNormalsWrite( hull );
 	float* ny = nx + soaNormalCount;
 	float* nz = ny + soaNormalCount;
