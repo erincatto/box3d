@@ -29,7 +29,7 @@ typedef struct b3AxisQuery
 	float separation;
 	int indexA;
 	int indexB;
-	b3SeparatingFeature feature;
+	b3SeparatingFeature type;
 } b3AxisQuery;
 
 typedef struct b3ClipVertex

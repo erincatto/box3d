@@ -9,6 +9,7 @@
 #include "box3d/collision.h"
 #include "box3d/constants.h"
 
+#include <d3d10.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -1339,16 +1340,14 @@ static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hul
 // counts are bounded so every buffer is a fixed size stack array.
 #include "simd.h"
 
-#include <immintrin.h>
-
 // a*b + c, fused when FMA is available.
-static inline __m128 mad( __m128 a, __m128 b, __m128 c )
+static inline b3FloatW mad( b3FloatW a, b3FloatW b, b3FloatW c )
 {
 	return _mm_add_ps( _mm_mul_ps( a, b ), c );
 }
 
 // Horizontal min over a 4-lane vector (result broadcast to all lanes).
-static inline __m128 hmin_ps( __m128 v )
+static inline b3FloatW b3HorizontalMinW( b3FloatW v )
 {
 	v = _mm_min_ps( v, _mm_shuffle_ps( v, v, _MM_SHUFFLE( 2, 3, 0, 1 ) ) );
 	return _mm_min_ps( v, _mm_shuffle_ps( v, v, _MM_SHUFFLE( 1, 0, 3, 2 ) ) );
@@ -1361,22 +1360,22 @@ static inline void b3NegativeTransformFromSoA( b3Matrix3* R, b3Vec3 p, const flo
 											   size_t n, float* outX, float* outY, float* outZ, bool isPoint )
 {
 	// row-column
-	const __m128 r00 = _mm_set1_ps( R->cx.x );
-	const __m128 r01 = _mm_set1_ps( R->cy.x );
-	const __m128 r02 = _mm_set1_ps( R->cz.x );
-	const __m128 r10 = _mm_set1_ps( R->cx.y );
-	const __m128 r11 = _mm_set1_ps( R->cy.y );
-	const __m128 r12 = _mm_set1_ps( R->cz.y );
-	const __m128 r20 = _mm_set1_ps( R->cx.z );
-	const __m128 r21 = _mm_set1_ps( R->cy.z );
-	const __m128 r22 = _mm_set1_ps( R->cz.z );
+	b3FloatW r00 = _mm_set1_ps( R->cx.x );
+	b3FloatW r01 = _mm_set1_ps( R->cy.x );
+	b3FloatW r02 = _mm_set1_ps( R->cz.x );
+	b3FloatW r10 = _mm_set1_ps( R->cx.y );
+	b3FloatW r11 = _mm_set1_ps( R->cy.y );
+	b3FloatW r12 = _mm_set1_ps( R->cz.y );
+	b3FloatW r20 = _mm_set1_ps( R->cx.z );
+	b3FloatW r21 = _mm_set1_ps( R->cy.z );
+	b3FloatW r22 = _mm_set1_ps( R->cz.z );
 
 	// sign-bit flip
-	const __m128 negate = _mm_set1_ps( -0.0f );
+	b3FloatW negate = _mm_set1_ps( -0.0f );
 
-	__m128 tx = _mm_setzero_ps();
-	__m128 ty = _mm_setzero_ps();
-	__m128 tz = _mm_setzero_ps();
+	b3FloatW tx = _mm_setzero_ps();
+	b3FloatW ty = _mm_setzero_ps();
+	b3FloatW tz = _mm_setzero_ps();
 	if ( isPoint )
 	{
 		tx = _mm_set1_ps( p.x );
@@ -1386,14 +1385,14 @@ static inline void b3NegativeTransformFromSoA( b3Matrix3* R, b3Vec3 p, const flo
 
 	for ( size_t i = 0; i < n; i += 4 )
 	{
-		__m128 x = _mm_load_ps( inX + i );
-		__m128 y = _mm_load_ps( inY + i );
-		__m128 z = _mm_load_ps( inZ + i );
+		b3FloatW x = _mm_load_ps( inX + i );
+		b3FloatW y = _mm_load_ps( inY + i );
+		b3FloatW z = _mm_load_ps( inZ + i );
 
 		// Rotate four vectors at a time
-		__m128 ox = mad( r02, z, mad( r01, y, _mm_mul_ps( r00, x ) ) );
-		__m128 oy = mad( r12, z, mad( r11, y, _mm_mul_ps( r10, x ) ) );
-		__m128 oz = mad( r22, z, mad( r21, y, _mm_mul_ps( r20, x ) ) );
+		b3FloatW ox = mad( r02, z, mad( r01, y, _mm_mul_ps( r00, x ) ) );
+		b3FloatW oy = mad( r12, z, mad( r11, y, _mm_mul_ps( r10, x ) ) );
+		b3FloatW oz = mad( r22, z, mad( r21, y, _mm_mul_ps( r20, x ) ) );
 
 		if ( isPoint )
 		{
@@ -1412,43 +1411,46 @@ _Static_assert( B3_MAX_HULL_VERTICES == 64, "must be 64" );
 
 #define B3_HULL_BIT_COUNT 6
 
-// getSupport argmax of normal.dot(vert), 4 wide, using the index in low bits reduction.
-//
-// The vertex index rides in the low IDX_BITS mantissa bits of the value, so one horizontal min
-// recovers the winning lane's index with no parallel index vector and no scalar tie break. We
-// minimize (bias - dot), which bias >= max|dot| keeps positive, so the min lines up with the max
-// dot and a lower index wins ties. normal is unit at every call so the dot stays within bias.
-// The support is then recomputed exactly as normal.dot(vertex).
+// SIMD support point calculation.
+// The vertex index lives in the low B3_HULL_BIT_COUNT mantissa bits of the value. So the index
+// is also carried by the minimum value. This minimizes (bias - dot), where the caller is expect to provide a bias
+// that makes this always positive. It can be direction dependent. The bias should be just big enough to make this
+// true because an excessive bias causes a precision loss in the support calculation. The bias serves to pin
+// the accuracy of the support calculation, making the vertex embedding a uniform precision loss.
+// The support is then recomputed exactly as dot(normal, vertex), without the embedded index.
+// todo consider using this for GJK
 static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float* vy, const float* vz, int n, float bias,
 									 float* support, int* vertexIndex )
 {
 	const int IDX_MASK = ( 1 << B3_HULL_BIT_COUNT ) - 1;
-	const __m128 nx = _mm_set1_ps( normal.x );
-	const __m128 ny = _mm_set1_ps( normal.y );
-	const __m128 nz = _mm_set1_ps( normal.z );
-	const __m128 biasV = _mm_set1_ps( bias );
-	const __m128 clearLow = _mm_castsi128_ps( _mm_set1_epi32( ~IDX_MASK ) );
+	const b3FloatW nx = b3SplatW( normal.x );
+	const b3FloatW ny = b3SplatW( normal.y );
+	const b3FloatW nz = b3SplatW( normal.z );
+	const b3FloatW biasV = b3SplatW( bias );
+	const b3FloatW clearLow = _mm_castsi128_ps( _mm_set1_epi32( ~IDX_MASK ) );
 	const __m128i lane0123 = _mm_setr_epi32( 0, 1, 2, 3 );
 
-	__m128 running = _mm_set1_ps( B3_HUGE ); // bigger than any (bias - dot) so it never wins
+	// Start the minimum at a large value.
+	b3FloatW minValue = b3SplatW( B3_HUGE );
+
 	// Tail lanes hold vertex 0 (filled in buildHullShape) with index bits >= n, so they always
 	// lose the tie and need no bounds check.
 	for ( int i = 0; i < n; i += 4 )
 	{
-		__m128 x = _mm_loadu_ps( vx + i );
-		__m128 y = _mm_loadu_ps( vy + i );
-		__m128 z = _mm_loadu_ps( vz + i );
-		__m128 d = mad( nz, z, mad( ny, y, _mm_mul_ps( nx, x ) ) );
+		b3FloatW x = _mm_loadu_ps( vx + i );
+		b3FloatW y = _mm_loadu_ps( vy + i );
+		b3FloatW z = _mm_loadu_ps( vz + i );
+		b3FloatW d = b3AddW( b3MulW( nz, z ), b3AddW( b3MulW( ny, y ), b3MulW( nx, x ) ) );
 
 		// strictly positive
-		__m128 val = _mm_sub_ps( biasV, d );
+		b3FloatW val = b3SubW( biasV, d );
 		__m128i idx = _mm_add_epi32( _mm_set1_epi32( i ), lane0123 );
-		val = _mm_or_ps( _mm_and_ps( val, clearLow ), _mm_castsi128_ps( idx ) ); // clear low bits, OR index
-		running = _mm_min_ps( running, val );
+		val = b3OrW( _mm_and_ps( val, clearLow ), _mm_castsi128_ps( idx ) ); // clear low bits, OR index
+		minValue = _mm_min_ps( minValue, val );
 	}
 
 	// One horizontal min, the winning lane's value and index bits ride through _mm_min_ps.
-	int bits = _mm_cvtsi128_si32( _mm_castps_si128( hmin_ps( running ) ) );
+	int bits = _mm_cvtsi128_si32( _mm_castps_si128( b3HorizontalMinW( minValue ) ) );
 	int vi = bits & IDX_MASK;
 
 	// Exact support for the chosen vertex.
@@ -1468,10 +1470,13 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
 	bool earlyReturn = false;
 
-	b3AxisQuery res = { 0 };
-	res.indexA = B3_NULL_INDEX;
-	res.indexB = B3_NULL_INDEX;
-	res.separation = -INFINITY;
+	b3AxisQuery res = {
+		.normal = b3Vec3_zero,
+		.separation = -INFINITY,
+		.indexA = B3_NULL_INDEX,
+		.indexB = B3_NULL_INDEX,
+		.type = b3_invalidAxis,
+	};
 
 	// The per-hull SoA vertex streams feed getSupport directly.
 
@@ -1500,7 +1505,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		float separation = planeSeparation - support;
 		if ( separation > res.separation )
 		{
-			res.feature = b3_faceAxisA;
+			res.type = b3_faceAxisA;
 			res.separation = separation;
 			res.indexA = i;
 			res.indexB = vertexIndex;
@@ -1537,7 +1542,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		float separation = planeSeparation - support;
 		if ( separation > res.separation )
 		{
-			res.feature = b3_faceAxisB;
+			res.type = b3_faceAxisB;
 			res.separation = separation;
 			res.indexA = vertexIndex;
 			res.indexB = i;
@@ -1588,7 +1593,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	_Alignas( 16 ) float bDCy[NE];
 	_Alignas( 16 ) float bDCz[NE];
 
-	// todo need soa count?
 	int halfEdgeCountB = hullB->edgeCount;
 	const b3HullHalfEdge* halfEdgesB = b3GetHullEdges( hullB );
 	int nb = 0;
@@ -1632,7 +1636,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	_Alignas( 16 ) float aV0y[NE];
 	_Alignas( 16 ) float aV0z[NE];
 
-	// todo need soa count?
 	int halfEdgeCountA = hullA->edgeCount;
 	const b3HullHalfEdge* halfEdgesA = b3GetHullEdges( hullA );
 	int na = 0;
@@ -1662,8 +1665,8 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		na += 1;
 	}
 
-	// Zero the up to 3 tail lanes with one store per array.
-	__m128 zero = _mm_setzero_ps();
+	// Zero the tail lanes.
+	b3FloatW zero = _mm_setzero_ps();
 	_mm_storeu_ps( aN0x + na, zero );
 	_mm_storeu_ps( aN0y + na, zero );
 	_mm_storeu_ps( aN0z + na, zero );
@@ -1678,60 +1681,63 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	_mm_storeu_ps( aV0z + na, zero );
 
 	// Edge phase, one B edge against four A edges at a time, no transforms in the loop.
-	const __m128 EPS = _mm_set1_ps( -0.0001f );
-	const __m128 INF = _mm_set1_ps( INFINITY );
-	const __m128 ZERO = _mm_setzero_ps();
+	const b3FloatW EPS = _mm_set1_ps( -0.0001f );
+	const b3FloatW INF = _mm_set1_ps( INFINITY );
+	const b3FloatW ZERO = _mm_setzero_ps();
+
+	// Prefer face contact for more contact points.
+	float absFaceBias = 0.1f * B3_LINEAR_SLOP;
 
 	int edgeCountB = halfEdgeCountB / 2;
 
 	for ( int j = 0; j < edgeCountB; ++j )
 	{
-		const __m128 Cx = _mm_set1_ps( bCx[j] );
-		const __m128 Cy = _mm_set1_ps( bCy[j] );
-		const __m128 Cz = _mm_set1_ps( bCz[j] );
-		const __m128 Dx = _mm_set1_ps( bDx[j] );
-		const __m128 Dy = _mm_set1_ps( bDy[j] );
-		const __m128 Dz = _mm_set1_ps( bDz[j] );
-		const __m128 DCx = _mm_set1_ps( bDCx[j] );
-		const __m128 DCy = _mm_set1_ps( bDCy[j] );
-		const __m128 DCz = _mm_set1_ps( bDCz[j] );
-		const __m128 bv0x = _mm_set1_ps( bV0x[j] );
-		const __m128 bv0y = _mm_set1_ps( bV0y[j] );
-		const __m128 bv0z = _mm_set1_ps( bV0z[j] );
+		const b3FloatW Cx = _mm_set1_ps( bCx[j] );
+		const b3FloatW Cy = _mm_set1_ps( bCy[j] );
+		const b3FloatW Cz = _mm_set1_ps( bCz[j] );
+		const b3FloatW Dx = _mm_set1_ps( bDx[j] );
+		const b3FloatW Dy = _mm_set1_ps( bDy[j] );
+		const b3FloatW Dz = _mm_set1_ps( bDz[j] );
+		const b3FloatW DCx = _mm_set1_ps( bDCx[j] );
+		const b3FloatW DCy = _mm_set1_ps( bDCy[j] );
+		const b3FloatW DCz = _mm_set1_ps( bDCz[j] );
+		const b3FloatW bv0x = _mm_set1_ps( bV0x[j] );
+		const b3FloatW bv0y = _mm_set1_ps( bV0y[j] );
+		const b3FloatW bv0z = _mm_set1_ps( bV0z[j] );
 
 		for ( int i = 0; i < na; i += 4 )
 		{
-			__m128 n0x = _mm_load_ps( aN0x + i );
-			__m128 n0y = _mm_load_ps( aN0y + i );
-			__m128 n0z = _mm_load_ps( aN0z + i );
-			__m128 n1x = _mm_load_ps( aN1x + i );
-			__m128 n1y = _mm_load_ps( aN1y + i );
-			__m128 n1z = _mm_load_ps( aN1z + i );
-			__m128 dx = _mm_load_ps( aDx + i );
-			__m128 dy = _mm_load_ps( aDy + i );
-			__m128 dz = _mm_load_ps( aDz + i );
-			__m128 v0x = _mm_load_ps( aV0x + i );
-			__m128 v0y = _mm_load_ps( aV0y + i );
-			__m128 v0z = _mm_load_ps( aV0z + i );
+			b3FloatW n0x = _mm_load_ps( aN0x + i );
+			b3FloatW n0y = _mm_load_ps( aN0y + i );
+			b3FloatW n0z = _mm_load_ps( aN0z + i );
+			b3FloatW n1x = _mm_load_ps( aN1x + i );
+			b3FloatW n1y = _mm_load_ps( aN1y + i );
+			b3FloatW n1z = _mm_load_ps( aN1z + i );
+			b3FloatW dx = _mm_load_ps( aDx + i );
+			b3FloatW dy = _mm_load_ps( aDy + i );
+			b3FloatW dz = _mm_load_ps( aDz + i );
+			b3FloatW v0x = _mm_load_ps( aV0x + i );
+			b3FloatW v0y = _mm_load_ps( aV0y + i );
+			b3FloatW v0z = _mm_load_ps( aV0z + i );
 
 			// CBA = C.dir, DBA = D.dir, where dir = B_x_A
-			__m128 CBA = mad( Cz, dz, mad( Cy, dy, _mm_mul_ps( Cx, dx ) ) );
-			__m128 DBA = mad( Dz, dz, mad( Dy, dy, _mm_mul_ps( Dx, dx ) ) );
+			b3FloatW CBA = mad( Cz, dz, mad( Cy, dy, _mm_mul_ps( Cx, dx ) ) );
+			b3FloatW DBA = mad( Dz, dz, mad( Dy, dy, _mm_mul_ps( Dx, dx ) ) );
 			// ADC = n0.DC, BDC = n1.DC, where DC = D_x_C
-			__m128 ADC = mad( n0z, DCz, mad( n0y, DCy, _mm_mul_ps( n0x, DCx ) ) );
-			__m128 BDC = mad( n1z, DCz, mad( n1y, DCy, _mm_mul_ps( n1x, DCx ) ) );
+			b3FloatW ADC = mad( n0z, DCz, mad( n0y, DCy, _mm_mul_ps( n0x, DCx ) ) );
+			b3FloatW BDC = mad( n1z, DCz, mad( n1y, DCy, _mm_mul_ps( n1x, DCx ) ) );
 
 			// Gauss map arc crossing test, CBA*DBA<eps and ADC*BDC<eps and CBA*BDC<eps
-			__m128 m1 = _mm_cmplt_ps( _mm_mul_ps( CBA, DBA ), EPS );
-			__m128 m2 = _mm_cmplt_ps( _mm_mul_ps( ADC, BDC ), EPS );
-			__m128 m3 = _mm_cmplt_ps( _mm_mul_ps( CBA, BDC ), EPS );
+			b3FloatW m1 = _mm_cmplt_ps( _mm_mul_ps( CBA, DBA ), EPS );
+			b3FloatW m2 = _mm_cmplt_ps( _mm_mul_ps( ADC, BDC ), EPS );
+			b3FloatW m3 = _mm_cmplt_ps( _mm_mul_ps( CBA, BDC ), EPS );
 
 			// Reject near parallel edges. The arc lerp is ill conditioned when both of B's normals are nearly
 			// perpendicular to edge A, a scale invariant sine threshold relative to the edge length.
-			__m128 dLen2 = mad( dz, dz, mad( dy, dy, _mm_mul_ps( dx, dx ) ) );
-			__m128 maxCD = _mm_max_ps( _mm_mul_ps( CBA, CBA ), _mm_mul_ps( DBA, DBA ) );
-			__m128 notParallel = _mm_cmpge_ps( maxCD, _mm_mul_ps( _mm_set1_ps( 0.005f * 0.005f ), dLen2 ) );
-			__m128 mask = _mm_and_ps( _mm_and_ps( _mm_and_ps( m1, m2 ), m3 ), notParallel );
+			b3FloatW dLen2 = mad( dz, dz, mad( dy, dy, _mm_mul_ps( dx, dx ) ) );
+			b3FloatW maxCD = _mm_max_ps( _mm_mul_ps( CBA, CBA ), _mm_mul_ps( DBA, DBA ) );
+			b3FloatW notParallel = _mm_cmpge_ps( maxCD, _mm_mul_ps( _mm_set1_ps( 0.005f * 0.005f ), dLen2 ) );
+			b3FloatW mask = _mm_and_ps( _mm_and_ps( _mm_and_ps( m1, m2 ), m3 ), notParallel );
 
 			// Most A-edges fail the Gauss test, so skip the divide, sqrt and support work when no
 			// lane passed.
@@ -1741,34 +1747,35 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			}
 
 			// t = -CBA / (DBA - CBA)
-			__m128 t = _mm_div_ps( _mm_sub_ps( ZERO, CBA ), _mm_sub_ps( DBA, CBA ) );
+			b3FloatW t = _mm_div_ps( _mm_sub_ps( ZERO, CBA ), _mm_sub_ps( DBA, CBA ) );
 
 			// normal = lerp(t, C, D) = C + (D-C)*t
-			__m128 nx = mad( _mm_sub_ps( Dx, Cx ), t, Cx );
-			__m128 ny = mad( _mm_sub_ps( Dy, Cy ), t, Cy );
-			__m128 nz = mad( _mm_sub_ps( Dz, Cz ), t, Cz );
+			b3FloatW nx = mad( _mm_sub_ps( Dx, Cx ), t, Cx );
+			b3FloatW ny = mad( _mm_sub_ps( Dy, Cy ), t, Cy );
+			b3FloatW nz = mad( _mm_sub_ps( Dz, Cz ), t, Cz );
 			// normalize
-			__m128 len2 = mad( nz, nz, mad( ny, ny, _mm_mul_ps( nx, nx ) ) );
-			__m128 inv = _mm_div_ps( _mm_set1_ps( 1.0f ), _mm_sqrt_ps( len2 ) );
+			b3FloatW len2 = mad( nz, nz, mad( ny, ny, _mm_mul_ps( nx, nx ) ) );
+			b3FloatW inv = _mm_div_ps( _mm_set1_ps( 1.0f ), _mm_sqrt_ps( len2 ) );
 			nx = _mm_mul_ps( nx, inv );
 			ny = _mm_mul_ps( ny, inv );
 			nz = _mm_mul_ps( nz, inv );
 
 			// support = normal . (av0 + bv0)
-			__m128 sx = _mm_add_ps( v0x, bv0x );
-			__m128 sy = _mm_add_ps( v0y, bv0y );
-			__m128 sz = _mm_add_ps( v0z, bv0z );
-			__m128 support = mad( nz, sz, mad( ny, sy, _mm_mul_ps( nx, sx ) ) );
+			b3FloatW sx = _mm_add_ps( v0x, bv0x );
+			b3FloatW sy = _mm_add_ps( v0y, bv0y );
+			b3FloatW sz = _mm_add_ps( v0z, bv0z );
+			b3FloatW support = mad( nz, sz, mad( ny, sy, _mm_mul_ps( nx, sx ) ) );
 
 			// Lanes that fail the Gauss test can never win.
-			support = _mm_blendv_ps( INF, support, mask );
+			// Implement blend for SSE2: support = _mm_blendv_ps( INF, support, mask );
+			support = _mm_or_ps( _mm_and_ps( mask, support ), _mm_andnot_ps( mask, INF ) );
 
-			__m128 separation = _mm_sub_ps( ZERO, support );
+			b3FloatW separation = _mm_sub_ps( ZERO, support );
 
 			// Test all 4 supports against the running best at once. If none beats it, skip the
 			// store and scalar reduction. res->support only turns negative just before returning,
 			// so this never skips a lane that would trigger the early out.
-			__m128 improves = _mm_cmpgt_ps( separation, _mm_set1_ps( res.separation ) );
+			b3FloatW improves = _mm_cmpgt_ps( separation, _mm_set1_ps( res.separation ) );
 			if ( _mm_movemask_ps( improves ) == 0 )
 			{
 				continue;
@@ -1790,14 +1797,17 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			{
 				int ei = i + lane;
 				float s = sA[lane];
-				if ( s > res.separation )
+				if ( s > res.separation + absFaceBias )
 				{
 					res.normal = (b3Vec3){ nxA[lane], nyA[lane], nzA[lane] };
 					res.separation = s;
-					res.feature = b3_edgePairAxis;
+					res.type = b3_edgePairAxis;
 					// Half edge index
 					res.indexA = 2 * ei;
 					res.indexB = 2 * j;
+
+					// Edge beats face, remove bias
+					absFaceBias = 0.0f;
 
 					if ( earlyReturn && s > speculativeDistance )
 					{
@@ -1814,6 +1824,296 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 #undef NE
 #undef NF
 #undef NV
+
+#if 1
+void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
+					 b3Transform transformBtoA, b3SATCache* cache )
+{
+	manifold->pointCount = 0;
+
+	if ( capacity < 4 )
+	{
+		return;
+	}
+
+	// Work in shapeA coordinates
+	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
+
+	float linearSlop = B3_LINEAR_SLOP;
+	const b3HullHalfEdge* edgesA = b3GetHullEdges( hullA );
+	const b3Plane* planesA = b3GetHullPlanes( hullA );
+	const b3Vec3* pointsA = b3GetHullPoints( hullA );
+
+	const b3HullHalfEdge* edgesB = b3GetHullEdges( hullB );
+	const b3Plane* planesB = b3GetHullPlanes( hullB );
+	const b3Vec3* pointsB = b3GetHullPoints( hullB );
+
+	// Attempt to use the cache to speed up collision
+	switch ( cache->type )
+	{
+		case b3_invalidAxis:
+			*cache = (b3SATCache){ 0 };
+			break;
+
+		case b3_faceAxisA:
+		{
+			B3_ASSERT( cache->indexA < hullA->faceCount );
+
+			// Check for separation using cached face
+			b3Plane plane = planesA[cache->indexA];
+			b3Vec3 searchDirectionInB = b3Neg( b3InvRotateVector( transformBtoA.q, plane.normal ) );
+			int vertexIndex = b3FindHullSupportVertex( hullB, searchDirectionInB );
+			b3Vec3 support = b3TransformPoint( transformBtoA, pointsB[vertexIndex] );
+			float separation = b3PlaneSeparation( plane, support );
+
+			if ( separation >= speculativeDistance )
+			{
+				// Cache hit, shapes are separated
+				return;
+			}
+
+			// if ( cache->separation < speculativeDistance )
+			{
+				// Attempt face contact using cached feature
+				b3FaceQuery faceQuery;
+				faceQuery.separation = 0.0f;
+				faceQuery.faceIndex = cache->indexA;
+				faceQuery.vertexIndex = vertexIndex;
+
+				b3SATCache localCache = { 0 };
+				bool touching = b3BuildFaceAContact( manifold, capacity, hullA, hullB, transformBtoA, faceQuery, &localCache );
+				if ( touching == true && b3AbsFloat( cache->separation - localCache.separation ) < linearSlop )
+				{
+					// Cache hit, contact points generated
+					return;
+				}
+			}
+		}
+		break;
+
+		case b3_faceAxisB:
+		{
+			B3_ASSERT( cache->indexB < hullB->faceCount );
+
+			// Check for separation using cached face
+			b3Plane plane = planesB[cache->indexB];
+			b3Vec3 searchDirectionInA = b3Neg( b3RotateVector( transformBtoA.q, plane.normal ) );
+			int vertexIndex = b3FindHullSupportVertex( hullA, searchDirectionInA );
+			b3Vec3 support = b3InvTransformPoint( transformBtoA, pointsA[vertexIndex] );
+			float separation = b3PlaneSeparation( plane, support );
+
+			if ( separation >= speculativeDistance )
+			{
+				// Cache hit, shapes are separated
+				return;
+			}
+
+			// if ( cache->separation < speculativeDistance )
+			{
+				// Attempt face contact using cached feature
+				b3FaceQuery faceQuery;
+				faceQuery.separation = 0.0f;
+				faceQuery.faceIndex = cache->indexB;
+				faceQuery.vertexIndex = vertexIndex;
+
+				b3SATCache localCache = { 0 };
+				bool touching = b3BuildFaceBContact( manifold, capacity, hullA, hullB, transformBtoA, faceQuery, &localCache );
+				if ( touching == true && b3AbsFloat( cache->separation - localCache.separation ) < linearSlop )
+				{
+					// Cache hit, contact points generated
+					return;
+				}
+			}
+		}
+		break;
+
+		case b3_edgePairAxis:
+		{
+			int indexA = cache->indexA;
+			const b3HullHalfEdge* edge1 = edgesA + indexA;
+			const b3HullHalfEdge* twin1 = edgesA + indexA + 1;
+			B3_ASSERT( edge1->twin == indexA + 1 && twin1->twin == indexA );
+
+			b3Vec3 pA = pointsA[edge1->origin];
+			b3Vec3 qA = pointsA[twin1->origin];
+			b3Vec3 eA = b3Sub( qA, pA );
+
+			b3Vec3 uA = planesA[edge1->face].normal;
+			b3Vec3 vA = planesA[twin1->face].normal;
+
+			int indexB = cache->indexB;
+			const b3HullHalfEdge* edge2 = edgesB + indexB;
+			const b3HullHalfEdge* twin2 = edgesB + indexB + 1;
+			B3_ASSERT( edge2->twin == indexB + 1 && twin2->twin == indexB );
+
+			b3Vec3 pB = b3TransformPoint( transformBtoA, pointsB[edge2->origin] );
+			b3Vec3 qB = b3TransformPoint( transformBtoA, pointsB[twin2->origin] );
+			b3Vec3 eB = b3Sub( qB, pB );
+
+			b3Vec3 uB = b3RotateVector( transformBtoA.q, planesB[edge2->face].normal );
+			b3Vec3 vB = b3RotateVector( transformBtoA.q, planesB[twin2->face].normal );
+
+			// flipping the signs of u2 and v2
+			// cross(v2, u2) == cross(-v2, -u2)
+			// so we still use -e2
+			// but we can also use e1 = cross(u1, v1) and e2 = cross(u2, v2)
+			float cba = b3Dot( uB, eA );
+			float dba = b3Dot( vB, eA );
+			float adc = -b3Dot( uA, eB );
+			float bdc = -b3Dot( vA, eB );
+
+			if ( cba * dba < 0.0f && adc * bdc < 0.0f && cba * bdc > 0.0f )
+			{
+				// Avoid nearly parallel edges that may lead to invalid separation values at the noise floor.
+				float squaredTolerance = 0.005f * 0.005f;
+				if ( b3MaxFloat( cba * cba, dba * dba ) >= squaredTolerance * b3LengthSquared( eA ) )
+				{
+					// Transform reference center of the first hull into local space of the second hull
+					float t = cba / ( cba - dba );
+					b3Vec3 axis = b3Lerp( uB, vB, t );
+					B3_VALIDATE( b3LengthSquared( axis ) > 1000.0f * FLT_MIN );
+					axis = b3Normalize( axis );
+					float separation = b3Dot( axis, b3Sub( qA, qB ) );
+
+					if ( separation > speculativeDistance )
+					{
+						// Cache hit, shapes are separated
+						return;
+					}
+
+					// Try to rebuild contact from last features
+					b3EdgeQuery edgeQuery = { 0 };
+					edgeQuery.normal = b3Neg( axis );
+					edgeQuery.separation = 0.0f;
+					edgeQuery.indexA = cache->indexA;
+					edgeQuery.indexB = cache->indexB;
+
+					b3SATCache localCache = { 0 };
+					bool touching = b3BuildEdgeContact( manifold, hullA, hullB, transformBtoA, edgeQuery, &localCache );
+					if ( touching && b3AbsFloat( cache->separation - localCache.separation ) < linearSlop )
+					{
+						// Cache hit, contact point generated
+						return;
+					}
+				}
+			}
+		}
+		break;
+
+			// This case is for testing
+		case b3_manualFaceAxisA:
+		{
+			b3FaceQuery faceQueryA = b3QueryFaceDirections( hullA, hullB, transformBtoA );
+			b3BuildFaceAContact( manifold, capacity, hullA, hullB, transformBtoA, faceQueryA, cache );
+			return;
+		}
+
+			// This case is for testing
+		case b3_manualFaceAxisB:
+		{
+			b3FaceQuery faceQueryB = b3QueryFaceDirections( hullB, hullA, b3InvertTransform( transformBtoA ) );
+			b3BuildFaceBContact( manifold, capacity, hullA, hullB, transformBtoA, faceQueryB, cache );
+			return;
+		}
+
+			// This case is for testing
+		case b3_manualEdgePairAxis:
+		{
+			b3EdgeQuery edgeQuery = b3QueryEdgeDirections( hullA, hullB, transformBtoA );
+			if ( edgeQuery.indexA != B3_NULL_INDEX )
+			{
+				b3BuildEdgeContact( manifold, hullA, hullB, transformBtoA, edgeQuery, cache );
+			}
+			return;
+		}
+
+		default:
+			B3_ASSERT( false );
+			break;
+	}
+
+	manifold->pointCount = 0;
+	*cache = (b3SATCache){ 0 };
+
+	b3AxisQuery axisQuery = b3ComputeSeparatingAxis( hullA, hullB, transformBtoA );
+	B3_VALIDATE( 0 <= axisQuery.indexA && axisQuery.indexA <= UINT8_MAX );
+	B3_VALIDATE( 0 <= axisQuery.indexB && axisQuery.indexB <= UINT8_MAX );
+	B3_ASSERT( axisQuery.type != b3_invalidAxis );
+
+	cache->separation = axisQuery.separation;
+	cache->type = (uint8_t)axisQuery.type;
+	cache->indexA = (uint8_t)axisQuery.indexA;
+	cache->indexB = (uint8_t)axisQuery.indexB;
+
+	if ( axisQuery.separation > speculativeDistance )
+	{
+		// We found a separating axis
+		return;
+	}
+
+	if ( axisQuery.type == b3_faceAxisA )
+	{
+		B3_ASSERT( axisQuery.indexA < hullA->faceCount );
+		B3_ASSERT( axisQuery.indexB < hullB->vertexCount );
+
+		b3FaceQuery faceQuery = {
+			.separation = axisQuery.separation,
+			.faceIndex = axisQuery.indexA,
+			.vertexIndex = axisQuery.indexB,
+		};
+
+		// Face contact A
+		b3BuildFaceAContact( manifold, capacity, hullA, hullB, transformBtoA, faceQuery, cache );
+
+		return;
+	}
+
+	if ( axisQuery.type == b3_faceAxisB )
+	{
+		B3_ASSERT( axisQuery.indexA < hullA->vertexCount );
+		B3_ASSERT( axisQuery.indexB < hullB->faceCount );
+
+		b3FaceQuery faceQuery = {
+			.separation = axisQuery.separation,
+			.faceIndex = axisQuery.indexB,
+			.vertexIndex = axisQuery.indexA,
+		};
+
+		// Face contact B
+		b3BuildFaceBContact( manifold, capacity, hullA, hullB, transformBtoA, faceQuery, cache );
+
+		return;
+	}
+
+	B3_ASSERT( axisQuery.type == b3_edgePairAxis );
+
+	{
+		// Edge contact
+		b3LocalManifold edgeManifold = { 0 };
+		b3LocalManifoldPoint edgePoint = { 0 };
+		edgeManifold.points = &edgePoint;
+
+		b3EdgeQuery edgeQuery = {
+			.normal = axisQuery.normal,
+			.indexA = axisQuery.indexA,
+			.indexB = axisQuery.indexB,
+			.separation = axisQuery.separation,
+		};
+
+		b3BuildEdgeContact( &edgeManifold, hullA, hullB, transformBtoA, edgeQuery, cache );
+
+		if ( edgeManifold.pointCount == 1 )
+		{
+			// Copy edge manifold out, being careful to preserve manifold point buffer.
+			b3LocalManifoldPoint* points = manifold->points;
+			*manifold = edgeManifold;
+			manifold->points = points;
+			manifold->points[0] = edgePoint;
+		}
+	}
+}
+
+#else
 
 void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
 					 b3Transform transformBtoA, b3SATCache* cache )
@@ -2123,3 +2423,5 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 		}
 	}
 }
+
+#endif

@@ -128,7 +128,7 @@ static int FaceAxisASeparatedTest( void )
 	b3Transform xfB = { { 1.2f, 0.0f, 0.0f }, b3Quat_identity };
 	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
 
-	ENSURE( q.feature == b3_faceAxisA );
+	ENSURE( q.type == b3_faceAxisA );
 	ENSURE_SMALL( q.separation - 0.2f, 1e-5f );
 	ENSURE_SMALL( q.normal.x - 1.0f, 1e-6f );
 	ENSURE_SMALL( q.normal.y, 1e-6f );
@@ -159,7 +159,7 @@ static int FaceAxisBSeparatedTest( void )
 
 	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
 
-	ENSURE( q.feature == b3_faceAxisB );
+	ENSURE( q.type == b3_faceAxisB );
 	ENSURE_SMALL( q.separation - gap, 1e-5f );
 	ENSURE_SMALL( q.normal.x - 1.0f, 1e-5f );
 	ENSURE_SMALL( q.normal.y, 1e-5f );
@@ -185,7 +185,7 @@ static int FaceFarSeparatedTest( void )
 	b3Transform xfB = { { 3.0f, 0.0f, 0.0f }, b3Quat_identity };
 	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
 
-	ENSURE( q.feature == b3_faceAxisA );
+	ENSURE( q.type == b3_faceAxisA );
 	ENSURE_SMALL( q.separation - 2.0f, 1e-5f );
 	ENSURE_SMALL( q.normal.x - 1.0f, 1e-6f );
 
@@ -213,7 +213,7 @@ static int OffsetFaceAxisBTest( void )
 
 	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
 
-	ENSURE( q.feature == b3_faceAxisB );
+	ENSURE( q.type == b3_faceAxisB );
 	ENSURE_SMALL( q.separation - gap, 1e-4f );
 	ENSURE_SMALL( q.normal.x - 1.0f, 1e-5f );
 	ENSURE_SMALL( q.normal.y, 1e-5f );
@@ -252,7 +252,7 @@ static int EdgePairSweepTest( void )
 		b3Transform xfB = { { d, 0.0f, 0.0f }, b3Quat_identity };
 		b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
 
-		ENSURE( q.feature == b3_edgePairAxis );
+		ENSURE( q.type == b3_edgePairAxis );
 		ENSURE_SMALL( q.separation - expected, 1e-4f );
 		ENSURE_SMALL( q.normal.x - 1.0f, 1e-4f );
 		ENSURE_SMALL( q.normal.y, 1e-4f );
@@ -354,7 +354,7 @@ static int SeparatingAxisOracleTest( void )
 			penetrating += 1;
 		}
 
-		if ( q.feature == b3_edgePairAxis )
+		if ( q.type == b3_edgePairAxis )
 		{
 			edgeWins += 1;
 		}
@@ -442,7 +442,7 @@ static int OffsetHullOracleTest( void )
 			penetrating += 1;
 		}
 
-		if ( q.feature == b3_edgePairAxis )
+		if ( q.type == b3_edgePairAxis )
 		{
 			edgeWins += 1;
 		}
