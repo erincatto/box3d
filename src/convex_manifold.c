@@ -1468,7 +1468,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	b3Matrix3 invR = b3Transpose( R );
 
 	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
-	bool earlyReturn = false;
+	bool earlyReturn = true;
 
 	b3AxisQuery res = {
 		.normal = b3Vec3_zero,
