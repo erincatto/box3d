@@ -150,7 +150,7 @@ int main( int argc, char** argv )
 #endif
 
 	Benchmark benchmarks[] = {
-		{ "convex_pile", NULL, CreateConvexPile, NULL, NULL, 500 },
+		{ "convex_pile", GetConvexPileCapacity, CreateConvexPile, NULL, NULL, 500 },
 		{ "joint_grid", NULL, CreateJointGrid, NULL, NULL, 100 },
 		{ "junkyard", GetJunkyardCapacity, CreateJunkyard, NULL, StepJunkyard, 500 },
 		{ "large_pyramid", NULL, CreateLargePyramid, NULL, NULL, 200 },

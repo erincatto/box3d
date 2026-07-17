@@ -1879,8 +1879,6 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 				return;
 			}
 
-			// if ( cache->separation < speculativeDistance )
-			{
 				// Attempt face contact using cached feature
 				b3FaceQuery faceQuery;
 				faceQuery.separation = 0.0f;
@@ -1895,7 +1893,6 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 					cache->hit = 1;
 					return;
 				}
-			}
 		}
 		break;
 
@@ -1917,8 +1914,6 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 				return;
 			}
 
-			// if ( cache->separation < speculativeDistance )
-			{
 				// Attempt face contact using cached feature
 				b3FaceQuery faceQuery;
 				faceQuery.separation = 0.0f;
@@ -1933,7 +1928,6 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 					cache->hit = 1;
 					return;
 				}
-			}
 		}
 		break;
 
@@ -2001,6 +1995,8 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 
 					b3SATCache localCache = { 0 };
 					bool touching = b3BuildEdgeContact( manifold, hullA, hullB, transformBtoA, edgeQuery, &localCache );
+
+					// This separation tolerance may have a big impact on performance in some benchmarks.
 					if ( touching && b3AbsFloat( cache->separation - localCache.separation ) < linearSlop )
 					{
 						// Cache hit, contact point generated

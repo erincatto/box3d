@@ -876,6 +876,7 @@ void GetJunkyardCapacity(b3Capacity* capacity)
 	capacity->dynamicShapeCount = 20 * 20 * 24 + 1;
 	capacity->staticBodyCount = 16;
 	capacity->dynamicBodyCount = 20 * 20 * 24 + 1;
+	capacity->contactCount = 250 * 1024;
 #else
 	capacity->staticShapeCount = 16;
 	capacity->dynamicShapeCount = 20 * 20 * 2 + 1;
@@ -901,6 +902,15 @@ void StepJunkyard( b3WorldId worldId, int stepCount )
 
 // Huge pile of large convexes, ported from PEEL. Each convex is the hull of 32 random points on a
 // sphere. A fixed LCG seed makes the hull identical across runs so results compare directly.
+
+void GetConvexPileCapacity( b3Capacity* capacity )
+{
+#ifdef NDEBUG
+	capacity->dynamicShapeCount = 5120;
+	capacity->dynamicBodyCount = 5120;
+	capacity->contactCount = 50 * 1024;
+#endif
+}
 
 // PEEL's BasicRandom, kept verbatim so the point set matches the original
 typedef struct ConvexPileRandom
