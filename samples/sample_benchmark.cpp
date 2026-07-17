@@ -1427,6 +1427,10 @@ public:
 			GetGuiDraw()->drawJoints = false;
 		}
 
+		b3Capacity capacity = {};
+		GetJunkyardCapacity( &capacity );
+		CreateWorld( &capacity );
+
 		CreateJunkyard( m_worldId );
 
 		SetGroundShape( GetGroundShapeId() );

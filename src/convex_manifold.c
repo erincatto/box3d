@@ -178,7 +178,7 @@ static b3EdgeQuery b3QueryEdgeDirectionHullAndCapsule( const b3HullData* hull, c
 	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
 	const b3Vec3* points = b3GetHullPoints( hull );
 	const b3Plane* planes = b3GetHullPlanes( hull );
-	float squaredTolerance = 0.005f * 0.005f;
+	float squaredTolerance = B3_PARALLEL_EDGE_TOL * B3_PARALLEL_EDGE_TOL;
 
 	for ( int index = 0; index < hull->edgeCount; index += 2 )
 	{
@@ -264,7 +264,7 @@ static b3EdgeQuery b3QueryEdgeDirections( const b3HullData* hullA, const b3HullD
 	// Work in frame A
 	b3Matrix3 matrix = b3MakeMatrixFromQuat( transformBtoA.q );
 
-	float squaredTolerance = 0.005f * 0.005f;
+	float squaredTolerance = B3_PARALLEL_EDGE_TOL * B3_PARALLEL_EDGE_TOL;
 
 	// Arranged to minimize transform operations
 	for ( int indexB = 0; indexB < hullB->edgeCount; indexB += 2 )
@@ -1468,7 +1468,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	b3Matrix3 invR = b3Transpose( R );
 
 	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
-	bool earlyReturn = true;
 
 	b3AxisQuery res = {
 		.normal = b3Vec3_zero,
@@ -1510,7 +1509,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			res.indexA = i;
 			res.indexB = vertexIndex;
 			res.normal = plane.normal;
-			if ( earlyReturn && separation > speculativeDistance )
+			if ( separation > speculativeDistance )
 			{
 				return res;
 			}
@@ -1548,7 +1547,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			res.indexB = i;
 			// This points from A to B and is in frame A
 			res.normal = direction;
-			if ( earlyReturn && separation > speculativeDistance )
+			if ( separation > speculativeDistance )
 			{
 				return res;
 			}
@@ -1635,10 +1634,13 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	_Alignas( 16 ) float aV0x[NE];
 	_Alignas( 16 ) float aV0y[NE];
 	_Alignas( 16 ) float aV0z[NE];
+	_Alignas( 16 ) float aTol[NE];
 
 	int halfEdgeCountA = hullA->edgeCount;
 	const b3HullHalfEdge* halfEdgesA = b3GetHullEdges( hullA );
 	int na = 0;
+
+	float squaredTol = B3_PARALLEL_EDGE_TOL * B3_PARALLEL_EDGE_TOL;
 	for ( int i = 0; i < halfEdgeCountA; i += 2 )
 	{
 		const b3HullHalfEdge* edge = halfEdgesA + i;
@@ -1662,6 +1664,8 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		aV0x[na] = vxA[v0];
 		aV0y[na] = vyA[v0];
 		aV0z[na] = vzA[v0];
+
+		aTol[na] = squaredTol * ( aDx[na] * aDx[na] + aDy[na] * aDy[na] + aDz[na] * aDz[na] );
 		na += 1;
 	}
 
@@ -1679,6 +1683,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	_mm_storeu_ps( aV0x + na, zero );
 	_mm_storeu_ps( aV0y + na, zero );
 	_mm_storeu_ps( aV0z + na, zero );
+	_mm_storeu_ps( aTol + na, zero );
 
 	// Edge phase, one B edge against four A edges at a time, no transforms in the loop.
 	const b3FloatW EPS = _mm_set1_ps( -0.0001f );
@@ -1719,6 +1724,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			b3FloatW v0x = _mm_load_ps( aV0x + i );
 			b3FloatW v0y = _mm_load_ps( aV0y + i );
 			b3FloatW v0z = _mm_load_ps( aV0z + i );
+			b3FloatW tol = _mm_load_ps( aTol + i );
 
 			// CBA = C.dir, DBA = D.dir, where dir = B_x_A
 			b3FloatW CBA = mad( Cz, dz, mad( Cy, dy, _mm_mul_ps( Cx, dx ) ) );
@@ -1734,10 +1740,9 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 
 			// Reject near parallel edges. The arc lerp is ill conditioned when both of B's normals are nearly
 			// perpendicular to edge A, a scale invariant sine threshold relative to the edge length.
-			b3FloatW dLen2 = mad( dz, dz, mad( dy, dy, _mm_mul_ps( dx, dx ) ) );
 			b3FloatW maxCD = _mm_max_ps( _mm_mul_ps( CBA, CBA ), _mm_mul_ps( DBA, DBA ) );
-			b3FloatW notParallel = _mm_cmpge_ps( maxCD, _mm_mul_ps( _mm_set1_ps( 0.005f * 0.005f ), dLen2 ) );
-			b3FloatW mask = _mm_and_ps( _mm_and_ps( _mm_and_ps( m1, m2 ), m3 ), notParallel );
+			b3FloatW notParallel = _mm_cmpge_ps( maxCD, tol );
+			b3FloatW mask = _mm_and_ps( _mm_and_ps( m1, m2 ), _mm_and_ps( m3, notParallel ) );
 
 			// Most A-edges fail the Gauss test, so skip the divide, sqrt and support work when no
 			// lane passed.
@@ -1809,7 +1814,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 					// Edge beats face, remove bias
 					absFaceBias = 0.0f;
 
-					if ( earlyReturn && s > speculativeDistance )
+					if ( s > speculativeDistance )
 					{
 						return res;
 					}
@@ -1848,11 +1853,12 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 	const b3Plane* planesB = b3GetHullPlanes( hullB );
 	const b3Vec3* pointsB = b3GetHullPoints( hullB );
 
+	cache->hit = 0;
+
 	// Attempt to use the cache to speed up collision
 	switch ( cache->type )
 	{
 		case b3_invalidAxis:
-			*cache = (b3SATCache){ 0 };
 			break;
 
 		case b3_faceAxisA:
@@ -1869,6 +1875,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 			if ( separation >= speculativeDistance )
 			{
 				// Cache hit, shapes are separated
+				cache->hit = 1;
 				return;
 			}
 
@@ -1885,6 +1892,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 				if ( touching == true && b3AbsFloat( cache->separation - localCache.separation ) < linearSlop )
 				{
 					// Cache hit, contact points generated
+					cache->hit = 1;
 					return;
 				}
 			}
@@ -1905,6 +1913,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 			if ( separation >= speculativeDistance )
 			{
 				// Cache hit, shapes are separated
+				cache->hit = 1;
 				return;
 			}
 
@@ -1921,6 +1930,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 				if ( touching == true && b3AbsFloat( cache->separation - localCache.separation ) < linearSlop )
 				{
 					// Cache hit, contact points generated
+					cache->hit = 1;
 					return;
 				}
 			}
@@ -1965,7 +1975,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 			if ( cba * dba < 0.0f && adc * bdc < 0.0f && cba * bdc > 0.0f )
 			{
 				// Avoid nearly parallel edges that may lead to invalid separation values at the noise floor.
-				float squaredTolerance = 0.005f * 0.005f;
+				float squaredTolerance = B3_PARALLEL_EDGE_TOL * B3_PARALLEL_EDGE_TOL;
 				if ( b3MaxFloat( cba * cba, dba * dba ) >= squaredTolerance * b3LengthSquared( eA ) )
 				{
 					// Transform reference center of the first hull into local space of the second hull
@@ -1978,6 +1988,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 					if ( separation > speculativeDistance )
 					{
 						// Cache hit, shapes are separated
+						cache->hit = 1;
 						return;
 					}
 
@@ -1993,6 +2004,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 					if ( touching && b3AbsFloat( cache->separation - localCache.separation ) < linearSlop )
 					{
 						// Cache hit, contact point generated
+						cache->hit = 1;
 						return;
 					}
 				}
@@ -2036,6 +2048,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 	*cache = (b3SATCache){ 0 };
 
 	b3AxisQuery axisQuery = b3ComputeSeparatingAxis( hullA, hullB, transformBtoA );
+
 	B3_VALIDATE( 0 <= axisQuery.indexA && axisQuery.indexA <= UINT8_MAX );
 	B3_VALIDATE( 0 <= axisQuery.indexB && axisQuery.indexB <= UINT8_MAX );
 	B3_ASSERT( axisQuery.type != b3_invalidAxis );
@@ -2115,6 +2128,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 
 #else
 
+// todo old version for performance comparisons and reference. I'll delete later.
 void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
 					 b3Transform transformBtoA, b3SATCache* cache )
 {
@@ -2257,7 +2271,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 			if ( cba * dba < 0.0f && adc * bdc < 0.0f && cba * bdc > 0.0f )
 			{
 				// Avoid nearly parallel edges that may lead to invalid separation values at the noise floor.
-				float squaredTolerance = 0.005f * 0.005f;
+				float squaredTolerance = B3_PARALLEL_EDGE_TOL * B3_PARALLEL_EDGE_TOL;
 				if ( b3MaxFloat( cba * cba, dba * dba ) >= squaredTolerance * b3LengthSquared( eA ) )
 				{
 					// Transform reference center of the first hull into local space of the second hull

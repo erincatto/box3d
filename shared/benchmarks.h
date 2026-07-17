@@ -26,6 +26,7 @@ void CreateTrees100( b3WorldId worldId );
 void DestroyTrees( void );
 void CreateJointGrid( b3WorldId worldId );
 void CreateJunkyard( b3WorldId worldId );
+void GetJunkyardCapacity( b3Capacity* capacity );
 void StepJunkyard( b3WorldId worldId, int stepCount );
 void CreateLargePyramid( b3WorldId worldId );
 void CreateWidePyramid( b3WorldId worldId );

@@ -869,6 +869,21 @@ void CreateJunkyard( b3WorldId worldId )
 	b3DestroyHull( hull );
 }
 
+void GetJunkyardCapacity(b3Capacity* capacity)
+{
+#ifdef NDEBUG
+	capacity->staticShapeCount = 16;
+	capacity->dynamicShapeCount = 20 * 20 * 24 + 1;
+	capacity->staticBodyCount = 16;
+	capacity->dynamicBodyCount = 20 * 20 * 24 + 1;
+#else
+	capacity->staticShapeCount = 16;
+	capacity->dynamicShapeCount = 20 * 20 * 2 + 1;
+	capacity->staticBodyCount = 16;
+	capacity->dynamicBodyCount = 20 * 20 * 2 + 1;
+#endif
+}
+
 void StepJunkyard( b3WorldId worldId, int stepCount )
 {
 	(void)worldId;

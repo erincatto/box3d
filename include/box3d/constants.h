@@ -123,6 +123,9 @@ B3_API float b3GetStallThreshold( void );
 /// The maximum number of convex hull edges. Full edges, not half-edges.
 #define B3_MAX_HULL_EDGES 128
 
+/// Relative tolerance used to determine if two edges are parallel.
+#define B3_PARALLEL_EDGE_TOL 0.005f
+
 /// These generous limits allow for easy hashing. See b3ShapePairKey.
 #define B3_SHAPE_POWER 22
 #define B3_CHILD_POWER ( 64 - 2 * B3_SHAPE_POWER )
