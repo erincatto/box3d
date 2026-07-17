@@ -563,6 +563,13 @@ static inline b3FloatW b3MaxW( b3FloatW a, b3FloatW b )
 	return _mm_max_ps( a, b );
 }
 
+// Horizontal min over a 4-lane vector (result broadcast to all lanes).
+static inline b3FloatW b3HorizontalMinW( b3FloatW v )
+{
+	v = _mm_min_ps( v, _mm_shuffle_ps( v, v, _MM_SHUFFLE( 2, 3, 0, 1 ) ) );
+	return _mm_min_ps( v, _mm_shuffle_ps( v, v, _MM_SHUFFLE( 1, 0, 3, 2 ) ) );
+}
+
 // clamp a to [-b, b]
 static inline b3FloatW b3SymClampW( b3FloatW a, b3FloatW b )
 {
