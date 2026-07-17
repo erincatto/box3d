@@ -299,7 +299,7 @@ static int SeparatingAxisOracleTest( void )
 	int separated = 0;
 	int penetrating = 0;
 	int edgeWins = 0;
-	float worstShortfall = 0.0f;
+	float worstBandShortfall = 0.0f;
 	float worstExcess = 0.0f;
 
 	for ( int i = 0; i < 4000; ++i )
@@ -337,13 +337,23 @@ static int SeparatingAxisOracleTest( void )
 		ENSURE_SMALL( b3Length( q.normal ) - 1.0f, 1e-3f );
 		ENSURE_SMALL( SepAlong( &hullA.base, &hullB.base, xfB, q.normal ) - q.separation, 2e-3f );
 
-		worstShortfall = b3MaxFloat( worstShortfall, oracleSep - q.separation );
 		worstExcess = b3MaxFloat( worstExcess, q.separation - oracleSep );
 
-		// A suboptimal axis pick lands a discrete step below the true maximum. The bound sits well
-		// under that step yet clear of the edge normalization noise floor near 6e-4.
+		// Never overstate the true maximum. This holds on every path since the reported axis is real.
 		ENSURE( q.separation <= oracleSep + 2e-3f );
-		ENSURE( q.separation >= oracleSep - 4e-3f );
+
+		// The scan stops at the first axis that clears the speculative band, so a widely separated pair
+		// reports some separating axis rather than the deepest one. That is all the collide path needs,
+		// since past the band it drops the pair either way. Inside the band nothing stops the scan, so
+		// the result there is the exhaustive maximum, and that is what a manifold gets built from.
+		if ( q.separation <= B3_SPECULATIVE_DISTANCE )
+		{
+			worstBandShortfall = b3MaxFloat( worstBandShortfall, oracleSep - q.separation );
+
+			// A suboptimal axis pick lands a discrete step below the true maximum. The bound sits well
+			// under that step yet clear of the edge normalization noise floor near 6e-4.
+			ENSURE( q.separation >= oracleSep - 4e-3f );
+		}
 
 		if ( oracleSep > 0.0f )
 		{
@@ -360,8 +370,8 @@ static int SeparatingAxisOracleTest( void )
 		}
 	}
 
-	printf( "    oracle: separated=%d penetrating=%d edgeWins=%d worstShortfall=%.2e worstExcess=%.2e\n", separated, penetrating,
-			edgeWins, worstShortfall, worstExcess );
+	printf( "    oracle: separated=%d penetrating=%d edgeWins=%d worstBandShortfall=%.2e worstExcess=%.2e\n", separated,
+			penetrating, edgeWins, worstBandShortfall, worstExcess );
 
 	// The sweep has to cover both regimes and actually drive the edge path.
 	ENSURE( separated > 100 );
@@ -381,7 +391,7 @@ static int OffsetHullOracleTest( void )
 	int separated = 0;
 	int penetrating = 0;
 	int edgeWins = 0;
-	float worstShortfall = 0.0f;
+	float worstBandShortfall = 0.0f;
 	float worstExcess = 0.0f;
 	float worstConsistency = 0.0f;
 
@@ -422,16 +432,22 @@ static int OffsetHullOracleTest( void )
 
 		float consistency = b3AbsFloat( SepAlong( &hullA.base, &hullB.base, xfB, q.normal ) - q.separation );
 		worstConsistency = b3MaxFloat( worstConsistency, consistency );
-		worstShortfall = b3MaxFloat( worstShortfall, oracleSep - q.separation );
 		worstExcess = b3MaxFloat( worstExcess, q.separation - oracleSep );
 
 		// Consistency is the sharp bias check: a wrong support pick on an offset hull would throw the
-		// returned normal off its own separation by a vertex spacing, not a noise floor. The oracle
-		// bounds are looser since differencing coordinates out at radius six costs a few more digits.
+		// returned normal off its own separation by a vertex spacing, not a noise floor. It holds on
+		// every path, early out or not, so it stays unconditional. The oracle bounds are looser since
+		// differencing coordinates out at radius six costs a few more digits.
 		ENSURE_SMALL( b3Length( q.normal ) - 1.0f, 1e-3f );
 		ENSURE( consistency < 1e-3f );
 		ENSURE( q.separation <= oracleSep + 3e-3f );
-		ENSURE( q.separation >= oracleSep - 8e-3f );
+
+		// Only the in band result feeds a manifold, and only there does the scan run to completion.
+		if ( q.separation <= B3_SPECULATIVE_DISTANCE )
+		{
+			worstBandShortfall = b3MaxFloat( worstBandShortfall, oracleSep - q.separation );
+			ENSURE( q.separation >= oracleSep - 8e-3f );
+		}
 
 		if ( oracleSep > 0.0f )
 		{
@@ -448,8 +464,9 @@ static int OffsetHullOracleTest( void )
 		}
 	}
 
-	printf( "    offset: separated=%d penetrating=%d edgeWins=%d worstShortfall=%.2e worstExcess=%.2e worstConsistency=%.2e\n",
-			separated, penetrating, edgeWins, worstShortfall, worstExcess, worstConsistency );
+	printf(
+		"    offset: separated=%d penetrating=%d edgeWins=%d worstBandShortfall=%.2e worstExcess=%.2e worstConsistency=%.2e\n",
+		separated, penetrating, edgeWins, worstBandShortfall, worstExcess, worstConsistency );
 
 	ENSURE( separated > 100 );
 	ENSURE( penetrating > 100 );

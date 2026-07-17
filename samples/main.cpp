@@ -1,6 +1,13 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#if defined( _MSC_VER )
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+#define _CRTDBG_MAP_ALLOC
+#endif
+
 #include "gfx/debug_adapter.h"
 #include "gfx/keycodes.h"
 #include "gfx/renderer.h"
@@ -17,6 +24,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <thread>
+
+#ifdef TRACY_ENABLE
+#include <tracy/Tracy.hpp>
+#else
+#define FrameMark
+#endif
 
 #if defined( _WIN32 )
 #define WIN32_LEAN_AND_MEAN
@@ -75,6 +88,10 @@ static void OnDrawUI( void )
 
 static void OnInit( void )
 {
+#ifdef TRACY_ENABLE
+	tracy::StartupProfiler();
+#endif
+
 #if defined( _WIN32 )
 	timeBeginPeriod( 1 );
 #endif
@@ -429,6 +446,9 @@ static void OnFrame( void )
 	sg_commit();
 	++s_frame;
 
+	// For the Tracy profiler
+	FrameMark;
+
 	if ( s_frameLimit < 0 )
 	{
 		LimitFrameRate( frameStart );
@@ -450,6 +470,10 @@ static void OnCleanup( void )
 
 #if defined( _WIN32 )
 	timeEndPeriod( 1 );
+#endif
+
+	#ifdef TRACY_ENABLE
+	tracy::ShutdownProfiler();
 #endif
 
 	exit( errors == 0 ? 0 : 1 );
