@@ -1421,7 +1421,8 @@ static bool b3HullBuilder_Construct( b3HullBuilder* b, const b3Vec3* points, int
 	}
 
 	b3HullBuilder_ComputeTolerance( b, pointCount, shiftedPoints );
-	if ( !b3HullBuilder_BuildInitialHull( b, pointCount, shiftedPoints ) )
+	bool haveInitialHull = b3HullBuilder_BuildInitialHull( b, pointCount, shiftedPoints );
+	if ( haveInitialHull == false )
 	{
 		return false;
 	}
@@ -2046,7 +2047,7 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	}
 
 	b3Vec3 origin = points[0];
-	int clampedMaxCount = b3ClampInt( maxVertexCount, 4, B3_HULL_LIMIT );
+	int clampedMaxCount = b3ClampInt( maxVertexCount, 4, B3_MAX_HULL_VERTICES );
 
 	// Single allocation for all working memory.
 	b3HullWorkSizes sizes = b3ComputeHullWorkSizes( pointCount, clampedMaxCount );
@@ -2058,29 +2059,30 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	b3Vec3* shiftedPoints = (b3Vec3*)( work + sizes.offsetShiftedPoints );
 
 	bool ok = b3HullBuilder_Construct( &builder, points, pointCount, clampedMaxCount, origin, shiftedPoints );
-	if ( !ok )
+	if ( ok == false )
 	{
 		b3Free( work, sizes.totalBytes );
 		return NULL;
 	}
 
-	if ( builder.finalVertexCount >= B3_HULL_LIMIT )
+	if ( builder.finalVertexCount >= B3_MAX_HULL_VERTICES )
 	{
-		b3Log( "hull final vertex count of %d exceeds limit of %d", builder.finalVertexCount, B3_HULL_LIMIT );
+		b3Log( "hull final vertex count of %d exceeds limit of %d", builder.finalVertexCount, B3_MAX_HULL_VERTICES );
 		b3Free( work, sizes.totalBytes );
 		return NULL;
 	}
 
-	if ( builder.finalFaceCount >= B3_HULL_LIMIT )
+	if ( builder.finalFaceCount >= B3_MAX_HULL_FACES )
 	{
-		b3Log( "hull final face count of %d exceeds limit of %d", builder.finalFaceCount, B3_HULL_LIMIT );
+		b3Log( "hull final face count of %d exceeds limit of %d", builder.finalFaceCount, B3_MAX_HULL_FACES );
 		b3Free( work, sizes.totalBytes );
 		return NULL;
 	}
 
-	if ( builder.finalHalfEdgeCount >= B3_HULL_LIMIT )
+	int maxHalfEdgeCount = 2 * B3_MAX_HULL_EDGES;
+	if ( builder.finalHalfEdgeCount >= maxHalfEdgeCount )
 	{
-		b3Log( "hull final half edge count of %d exceeds limit of %d", builder.finalHalfEdgeCount, B3_HULL_LIMIT );
+		b3Log( "hull final half edge count of %d exceeds limit of %d", builder.finalHalfEdgeCount, maxHalfEdgeCount );
 		b3Free( work, sizes.totalBytes );
 		return NULL;
 	}

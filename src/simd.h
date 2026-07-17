@@ -23,6 +23,8 @@ typedef __m128 b3FloatW;
 
 #else
 
+#include <string.h>
+
 // scalar math
 typedef struct b3FloatW
 {
@@ -390,15 +392,25 @@ static inline b3FloatW b3SplatW( float scalar )
 	return vdupq_n_f32( scalar );
 }
 
-static inline b3FloatW b3NegW( b3FloatW a )
-{
-	return vnegq_f32( a );
-}
-
 static inline b3FloatW b3SetW( float a, float b, float c, float d )
 {
 	float32_t array[4] = { a, b, c, d };
 	return vld1q_f32( array );
+}
+
+static inline b3FloatW b3LoadW( const float* data )
+{
+	return vld1q_f32( data );
+}
+
+static inline void b3StoreW( float* data, b3FloatW a )
+{
+	vst1q_f32( data, a );
+}
+
+static inline b3FloatW b3NegW( b3FloatW a )
+{
+	return vnegq_f32( a );
 }
 
 static inline b3FloatW b3AddW( b3FloatW a, b3FloatW b )
@@ -465,6 +477,11 @@ static inline b3FloatW b3GreaterThanW( b3FloatW a, b3FloatW b )
 	return vreinterpretq_f32_u32( vcgtq_f32( a, b ) );
 }
 
+static inline b3FloatW b3LessThanW( b3FloatW a, b3FloatW b )
+{
+	return vreinterpretq_f32_u32( vcltq_f32( a, b ) );
+}
+
 static inline b3FloatW b3EqualsW( b3FloatW a, b3FloatW b )
 {
 	return vreinterpretq_f32_u32( vceqq_f32( a, b ) );
@@ -489,11 +506,42 @@ static inline bool b3AllZeroW( b3FloatW a )
 #endif
 }
 
+// _mm_movemask_ps equivalent, compatible with ARM v7.
+static inline bool b3AnyTrueW( b3FloatW mask )
+{
+	uint32x4_t m = vreinterpretq_u32_f32( mask );
+	uint32x2_t p = vorr_u32( vget_low_u32( m ), vget_high_u32( m ) );
+	return ( vget_lane_u32( p, 0 ) | vget_lane_u32( p, 1 ) ) != 0;
+}
+
 // component-wise returns mask ? b : a
 static inline b3FloatW b3BlendW( b3FloatW a, b3FloatW b, b3FloatW mask )
 {
 	uint32x4_t mask32 = vreinterpretq_u32_f32( mask );
 	return vbslq_f32( mask32, b, a );
+}
+
+static inline b3FloatW b3Dot3W( b3FloatW ax, b3FloatW ay, b3FloatW az, b3FloatW bx, b3FloatW by, b3FloatW bz )
+{
+	return vaddq_f32( vmulq_f32( ax, bx ), vaddq_f32( vmulq_f32( ay, by ), vmulq_f32( az, bz ) ) );
+}
+
+static inline b3FloatW b3EmbedIndexW( b3FloatW value, int baseIndex, int bitCount )
+{
+	uint32_t mask = ( 1u << bitCount ) - 1;
+	const int32_t lanes[4] = { 0, 1, 2, 3 };
+	int32x4_t index = vaddq_s32( vdupq_n_s32( baseIndex ), vld1q_s32( lanes ) );
+	uint32x4_t clearLow = vdupq_n_u32( ~mask );
+	uint32x4_t bits = vorrq_u32( vandq_u32( vreinterpretq_u32_f32( value ), clearLow ), vreinterpretq_u32_s32( index ) );
+	return vreinterpretq_f32_u32( bits );
+}
+
+static inline int b3MinIndexW( b3FloatW a, int bitCount )
+{
+	float32x2_t m = vmin_f32( vget_low_f32( a ), vget_high_f32( a ) );
+	m = vpmin_f32( m, m );
+	uint32_t bits = vget_lane_u32( vreinterpret_u32_f32( m ), 0 );
+	return (int)( bits & ( ( 1u << bitCount ) - 1 ) );
 }
 
 #elif defined( B3_SIMD_SSE2 )
@@ -508,6 +556,21 @@ static inline b3FloatW b3SplatW( float scalar )
 	return _mm_set1_ps( scalar );
 }
 
+static inline b3FloatW b3SetW( float a, float b, float c, float d )
+{
+	return _mm_setr_ps( a, b, c, d );
+}
+
+static inline b3FloatW b3LoadW( const float* data )
+{
+	return _mm_loadu_ps( data );
+}
+
+static inline void b3StoreW( float* data, b3FloatW a )
+{
+	_mm_storeu_ps( data, a );
+}
+
 static inline b3FloatW b3NegW( b3FloatW a )
 {
 	// Create a mask with the sign bit set for each element
@@ -515,11 +578,6 @@ static inline b3FloatW b3NegW( b3FloatW a )
 
 	// XOR the input with the mask to negate each element
 	return _mm_xor_ps( a, mask );
-}
-
-static inline b3FloatW b3SetW( float a, float b, float c, float d )
-{
-	return _mm_setr_ps( a, b, c, d );
 }
 
 static inline b3FloatW b3AddW( b3FloatW a, b3FloatW b )
@@ -593,6 +651,11 @@ static inline b3FloatW b3GreaterThanW( b3FloatW a, b3FloatW b )
 	return _mm_cmpgt_ps( a, b );
 }
 
+static inline b3FloatW b3LessThanW( b3FloatW a, b3FloatW b )
+{
+	return _mm_cmplt_ps( a, b );
+}
+
 static inline b3FloatW b3EqualsW( b3FloatW a, b3FloatW b )
 {
 	return _mm_cmpeq_ps( a, b );
@@ -611,6 +674,11 @@ static inline bool b3AllZeroW( b3FloatW a )
 	return mask == 0xF;
 }
 
+static inline bool b3AnyTrueW( b3FloatW mask )
+{
+	return _mm_movemask_ps( mask ) != 0;
+}
+
 // component-wise returns mask ? b : a
 static inline b3FloatW b3BlendW( b3FloatW a, b3FloatW b, b3FloatW mask )
 {
@@ -620,6 +688,24 @@ static inline b3FloatW b3BlendW( b3FloatW a, b3FloatW b, b3FloatW mask )
 static inline b3FloatW b3Dot3W( b3FloatW ax, b3FloatW ay, b3FloatW az, b3FloatW bx, b3FloatW by, b3FloatW bz )
 {
 	return _mm_add_ps( _mm_mul_ps( ax, bx ), _mm_add_ps( _mm_mul_ps( ay, by ), _mm_mul_ps( az, bz ) ) );
+}
+
+// Replace the low bitCount mantissa bits of each lane with baseIndex + lane. The value must be
+// positive so the embedded index sorts with the value, and ties fall to the lower index.
+static inline b3FloatW b3EmbedIndexW( b3FloatW value, int baseIndex, int bitCount )
+{
+	int mask = ( 1 << bitCount ) - 1;
+	__m128i index = _mm_add_epi32( _mm_set1_epi32( baseIndex ), _mm_setr_epi32( 0, 1, 2, 3 ) );
+	__m128 clearLow = _mm_castsi128_ps( _mm_set1_epi32( ~mask ) );
+	return _mm_or_ps( _mm_and_ps( value, clearLow ), _mm_castsi128_ps( index ) );
+}
+
+// Recovers the index embedded by b3EmbedIndexW from the lane holding the minimum.
+static inline int b3MinIndexW( b3FloatW a, int bitCount )
+{
+	a = _mm_min_ps( a, _mm_shuffle_ps( a, a, _MM_SHUFFLE( 2, 3, 0, 1 ) ) );
+	a = _mm_min_ps( a, _mm_shuffle_ps( a, a, _MM_SHUFFLE( 1, 0, 3, 2 ) ) );
+	return _mm_cvtsi128_si32( _mm_castps_si128( a ) ) & ( ( 1 << bitCount ) - 1 );
 }
 
 #else
@@ -632,6 +718,19 @@ static inline b3FloatW b3ZeroW( void )
 static inline b3FloatW b3SplatW( float scalar )
 {
 	return (b3FloatW){ scalar, scalar, scalar, scalar };
+}
+
+static inline b3FloatW b3LoadW( const float* data )
+{
+	return (b3FloatW){ data[0], data[1], data[2], data[3] };
+}
+
+static inline void b3StoreW( float* data, b3FloatW a )
+{
+	data[0] = a.x;
+	data[1] = a.y;
+	data[2] = a.z;
+	data[3] = a.w;
 }
 
 static inline b3FloatW b3NegW( b3FloatW a )
@@ -669,6 +768,16 @@ static inline b3FloatW b3MulAddW( b3FloatW a, b3FloatW b, b3FloatW c )
 	return (b3FloatW){ a.x + b.x * c.x, a.y + b.y * c.y, a.z + b.z * c.z, a.w + b.w * c.w };
 }
 
+static inline b3FloatW b3MinW( b3FloatW a, b3FloatW b )
+{
+	b3FloatW r;
+	r.x = a.x <= b.x ? a.x : b.x;
+	r.y = a.y <= b.y ? a.y : b.y;
+	r.z = a.z <= b.z ? a.z : b.z;
+	r.w = a.w <= b.w ? a.w : b.w;
+	return r;
+}
+
 static inline b3FloatW b3MaxW( b3FloatW a, b3FloatW b )
 {
 	b3FloatW r;
@@ -693,6 +802,8 @@ static inline b3FloatW b3SymClampW( b3FloatW a, b3FloatW b )
 	r.w = r.w <= -b.w ? -b.w : r.w;
 	return r;
 }
+
+// Logical operations on the scalar path are 0/1 float values. Not bit-wise like SIMD.
 
 static inline b3FloatW b3AndW( b3FloatW a, b3FloatW b )
 {
@@ -724,6 +835,16 @@ static inline b3FloatW b3GreaterThanW( b3FloatW a, b3FloatW b )
 	return r;
 }
 
+static inline b3FloatW b3LessThanW( b3FloatW a, b3FloatW b )
+{
+	b3FloatW r;
+	r.x = a.x < b.x ? 1.0f : 0.0f;
+	r.y = a.y < b.y ? 1.0f : 0.0f;
+	r.z = a.z < b.z ? 1.0f : 0.0f;
+	r.w = a.w < b.w ? 1.0f : 0.0f;
+	return r;
+}
+
 static inline b3FloatW b3EqualsW( b3FloatW a, b3FloatW b )
 {
 	b3FloatW r;
@@ -739,6 +860,11 @@ static inline bool b3AllZeroW( b3FloatW a )
 	return a.x == 0.0f && a.y == 0.0f && a.z == 0.0f && a.w == 0.0f;
 }
 
+static inline bool b3AnyTrueW( b3FloatW mask )
+{
+	return mask.x != 0.0f || mask.y != 0.0f || mask.z != 0.0f || mask.w != 0.0f;
+}
+
 // component-wise returns mask ? b : a
 static inline b3FloatW b3BlendW( b3FloatW a, b3FloatW b, b3FloatW mask )
 {
@@ -748,6 +874,41 @@ static inline b3FloatW b3BlendW( b3FloatW a, b3FloatW b, b3FloatW mask )
 	r.z = mask.z != 0.0f ? b.z : a.z;
 	r.w = mask.w != 0.0f ? b.w : a.w;
 	return r;
+}
+
+static inline b3FloatW b3Dot3W( b3FloatW ax, b3FloatW ay, b3FloatW az, b3FloatW bx, b3FloatW by, b3FloatW bz )
+{
+	b3FloatW r;
+	r.x = ax.x * bx.x + ( ay.x * by.x + az.x * bz.x ), r.y = ax.y * bx.y + ( ay.y * by.y + az.y * bz.y ),
+	r.z = ax.z * bx.z + ( ay.z * by.z + az.z * bz.z ), r.w = ax.w * bx.w + ( ay.w * by.w + az.w * bz.w ),
+}
+
+static inline b3FloatW b3EmbedIndexW( b3FloatW value, int baseIndex, int bitCount )
+{
+	uint32_t mask = ( 1u << bitCount ) - 1;
+	float lanes[4] = { value.x, value.y, value.z, value.w };
+
+	for ( int i = 0; i < 4; ++i )
+	{
+		uint32_t bits;
+		memcpy( &bits, lanes + i, sizeof( bits ) );
+		bits = ( bits & ~mask ) | (uint32_t)( baseIndex + i );
+		memcpy( lanes + i, &bits, sizeof( bits ) );
+	}
+
+	return (b3FloatW){ lanes[0], lanes[1], lanes[2], lanes[3] };
+}
+
+static inline int b3MinIndexW( b3FloatW a, int bitCount )
+{
+	float m = a.x;
+	m = a.y < m ? a.y : m;
+	m = a.z < m ? a.z : m;
+	m = a.w < m ? a.w : m;
+
+	uint32_t bits;
+	memcpy( &bits, &m, sizeof( bits ) );
+	return (int)( bits & ( ( 1u << bitCount ) - 1 ) );
 }
 
 #endif

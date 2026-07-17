@@ -4,12 +4,12 @@
 #include "algorithm.h"
 #include "manifold.h"
 #include "shape.h"
+#include "simd.h"
 
 #include "box3d/base.h"
 #include "box3d/collision.h"
 #include "box3d/constants.h"
 
-#include <d3d10.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -1333,19 +1333,16 @@ static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hul
 	return true;
 }
 
-// SoA and SSE separating axis test between two convex hulls. Face phases go through a SIMD
-// getSupport. For the edge phase, B's verts and face normals are transformed into A's space once
-// up front from the hull's stored SoA arrays so the inner loop does no transforms. Data is packed
-// one array per component and the loop tests one B edge against four A edges at a time. Edge
-// counts are bounded so every buffer is a fixed size stack array.
-#include "simd.h"
-
 // Transform a SoA point/normal stream (already split into X/Y/Z) by out = -(R*v (+t)).
 // The inputs come straight from the hull's stored SoA arrays, so there's no transpose here.
 // IsPoint is a template arg so the translation add is only emitted for points.
 static inline void b3NegativeTransformFromSoA( b3Matrix3* R, b3Vec3 p, const float* inX, const float* inY, const float* inZ,
 											   int n, float* outX, float* outY, float* outZ, bool isPoint )
 {
+	B3_VALIDATE( ( (uintptr_t)outX & 0xF ) == 0 );
+	B3_VALIDATE( ( (uintptr_t)outY & 0xF ) == 0 );
+	B3_VALIDATE( ( (uintptr_t)outZ & 0xF ) == 0 );
+
 	// row-column
 	b3FloatW r00 = b3SplatW( R->cx.x );
 	b3FloatW r01 = b3SplatW( R->cy.x );
@@ -1356,9 +1353,6 @@ static inline void b3NegativeTransformFromSoA( b3Matrix3* R, b3Vec3 p, const flo
 	b3FloatW r20 = b3SplatW( R->cx.z );
 	b3FloatW r21 = b3SplatW( R->cy.z );
 	b3FloatW r22 = b3SplatW( R->cz.z );
-
-	// sign-bit flip
-	b3FloatW negate = b3SplatW( -0.0f );
 
 	b3FloatW tx = b3ZeroW();
 	b3FloatW ty = b3ZeroW();
@@ -1373,15 +1367,15 @@ static inline void b3NegativeTransformFromSoA( b3Matrix3* R, b3Vec3 p, const flo
 
 	for ( int i = 0; i < n; i += 4 )
 	{
-		b3FloatW x = _mm_load_ps( inX + i );
-		b3FloatW y = _mm_load_ps( inY + i );
-		b3FloatW z = _mm_load_ps( inZ + i );
+		b3FloatW x = b3LoadW( inX + i );
+		b3FloatW y = b3LoadW( inY + i );
+		b3FloatW z = b3LoadW( inZ + i );
 
 		// Rotate four vectors at a time
 		b3FloatW ox = b3Dot3W( r00, r01, r02, x, y, z );
 		b3FloatW oy = b3Dot3W( r10, r11, r12, x, y, z );
 		b3FloatW oz = b3Dot3W( r20, r21, r22, x, y, z );
-		
+
 		if ( isPoint )
 		{
 			ox = b3AddW( ox, tx );
@@ -1389,9 +1383,9 @@ static inline void b3NegativeTransformFromSoA( b3Matrix3* R, b3Vec3 p, const flo
 			oz = b3AddW( oz, tz );
 		}
 
-		_mm_store_ps( outX + i, _mm_xor_ps( ox, negate ) );
-		_mm_store_ps( outY + i, _mm_xor_ps( oy, negate ) );
-		_mm_store_ps( outZ + i, _mm_xor_ps( oz, negate ) );
+		b3StoreW( outX + i, b3NegW( ox ) );
+		b3StoreW( outY + i, b3NegW( oy ) );
+		b3StoreW( outZ + i, b3NegW( oz ) );
 	}
 }
 
@@ -1400,6 +1394,7 @@ _Static_assert( B3_MAX_HULL_VERTICES == 64, "must be 64" );
 #define B3_HULL_BIT_COUNT 6
 
 // SIMD support point calculation.
+//
 // The vertex index lives in the low B3_HULL_BIT_COUNT mantissa bits of the value. So the index
 // is also carried by the minimum value. This minimizes (bias - dot), where the caller is expect to provide a bias
 // that makes this always positive. It can be direction dependent. The bias should be just big enough to make this
@@ -1410,19 +1405,15 @@ _Static_assert( B3_MAX_HULL_VERTICES == 64, "must be 64" );
 static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float* vy, const float* vz, int n, float bias,
 									 float* support, int* vertexIndex )
 {
-	const int IDX_MASK = ( 1 << B3_HULL_BIT_COUNT ) - 1;
 	const b3FloatW nx = b3SplatW( normal.x );
 	const b3FloatW ny = b3SplatW( normal.y );
 	const b3FloatW nz = b3SplatW( normal.z );
 	const b3FloatW biasV = b3SplatW( bias );
-	const b3FloatW clearLow = _mm_castsi128_ps( _mm_set1_epi32( ~IDX_MASK ) );
-	const __m128i lane0123 = _mm_setr_epi32( 0, 1, 2, 3 );
 
 	// Start the minimum at a large value.
 	b3FloatW minValue = b3SplatW( B3_HUGE );
 
-	// Tail lanes hold vertex 0 (filled in buildHullShape) with index bits >= n, so they always
-	// lose the tie and need no bounds check.
+	// Tail lanes hold vertex 0 with index bits >= n, so they never become the min value.
 	for ( int i = 0; i < n; i += 4 )
 	{
 		b3FloatW x = _mm_loadu_ps( vx + i );
@@ -1430,19 +1421,19 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 		b3FloatW z = _mm_loadu_ps( vz + i );
 		b3FloatW d = b3AddW( b3MulW( nz, z ), b3AddW( b3MulW( ny, y ), b3MulW( nx, x ) ) );
 
-		// strictly positive
-		b3FloatW val = b3SubW( biasV, d );
-		__m128i idx = _mm_add_epi32( _mm_set1_epi32( i ), lane0123 );
-		val = b3OrW( b3AndW( val, clearLow ), _mm_castsi128_ps( idx ) ); // clear low bits, OR index
-		minValue = b3MinW( minValue, val );
+		// This is always positive.
+		b3FloatW value = b3SubW( biasV, d );
+		b3FloatW augmentedValue = b3EmbedIndexW( value, i, B3_HULL_BIT_COUNT );
+		minValue = b3MinW( minValue, augmentedValue );
 	}
 
-	// One horizontal min, the winning lane's value and index bits ride through _mm_min_ps.
-	int bits = _mm_cvtsi128_si32( _mm_castps_si128( b3HorizontalMinW( minValue ) ) );
-	int vi = bits & IDX_MASK;
+	// One horizontal min, the winning lane's value and index bits ride through.
+	int vi = b3MinIndexW(minValue, B3_HULL_BIT_COUNT);
 
 	// Exact support for the chosen vertex.
 	*vertexIndex = vi;
+
+	// Dot product
 	*support = normal.x * vx[vi] + normal.y * vy[vi] + normal.z * vz[vi];
 }
 
@@ -1450,7 +1441,7 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 #define NF ( B3_MAX_HULL_FACES + 4 )
 #define NV ( B3_MAX_HULL_VERTICES + 4 )
 
-// SIMD separating axis test base on implementation developed by Cairn Overturf
+// SIMD separating axis test based on an implementation developed by Cairn Overturf.
 // See his article: https://cairno.substack.com/p/improvements-to-the-separating-axis
 b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB )
 {
@@ -1520,7 +1511,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	{
 		b3Plane plane = planesB[i];
 		b3Vec3 direction = b3Neg( b3MulMV( R, plane.normal ) );
-		// todo verify
 		float planeSeparation = b3Dot( direction, xfB.p ) - plane.offset;
 		float biasA = b3Dot( direction, cA ) + 1.0625f * b3Dot( b3Abs( direction ), hA );
 		float support;
@@ -1547,6 +1537,8 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	_Static_assert( ( B3_MAX_HULL_EDGES & 3 ) == 0, "must be multiple of 4" );
 	_Static_assert( ( B3_MAX_HULL_FACES & 3 ) == 0, "must be multiple of 4" );
 	_Static_assert( ( B3_MAX_HULL_VERTICES & 3 ) == 0, "must be multiple of 4" );
+
+	// The alignments below are not necessary, but they don't hurt.
 
 	// B face normals in A space, negated.
 	_Alignas( 16 ) float bFNx[NF];
@@ -1660,19 +1652,19 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 
 	// Zero the tail lanes.
 	b3FloatW zero = b3ZeroW();
-	_mm_storeu_ps( aN0x + na, zero );
-	_mm_storeu_ps( aN0y + na, zero );
-	_mm_storeu_ps( aN0z + na, zero );
-	_mm_storeu_ps( aN1x + na, zero );
-	_mm_storeu_ps( aN1y + na, zero );
-	_mm_storeu_ps( aN1z + na, zero );
-	_mm_storeu_ps( aDx + na, zero );
-	_mm_storeu_ps( aDy + na, zero );
-	_mm_storeu_ps( aDz + na, zero );
-	_mm_storeu_ps( aV0x + na, zero );
-	_mm_storeu_ps( aV0y + na, zero );
-	_mm_storeu_ps( aV0z + na, zero );
-	_mm_storeu_ps( aTol + na, zero );
+	b3StoreW( aN0x + na, zero );
+	b3StoreW( aN0y + na, zero );
+	b3StoreW( aN0z + na, zero );
+	b3StoreW( aN1x + na, zero );
+	b3StoreW( aN1y + na, zero );
+	b3StoreW( aN1z + na, zero );
+	b3StoreW( aDx + na, zero );
+	b3StoreW( aDy + na, zero );
+	b3StoreW( aDz + na, zero );
+	b3StoreW( aV0x + na, zero );
+	b3StoreW( aV0y + na, zero );
+	b3StoreW( aV0z + na, zero );
+	b3StoreW( aTol + na, zero );
 
 	// Edge phase, one B edge against four A edges at a time, no transforms in the loop.
 	const b3FloatW EPS = b3SplatW( -0.0001f );
@@ -1777,10 +1769,10 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			_Alignas( 16 ) float nxA[4];
 			_Alignas( 16 ) float nyA[4];
 			_Alignas( 16 ) float nzA[4];
-			_mm_store_ps( sA, separation );
-			_mm_store_ps( nxA, nx );
-			_mm_store_ps( nyA, ny );
-			_mm_store_ps( nzA, nz );
+			b3StoreW( sA, separation );
+			b3StoreW( nxA, nx );
+			b3StoreW( nyA, ny );
+			b3StoreW( nzA, nz );
 
 			// Reduce in lane order so ties keep the first edge and the early out takes the first
 			// improving support below zero. Padded tail lanes carry +INF support, so they never
