@@ -1241,13 +1241,17 @@ _Static_assert( B3_MAX_HULL_VERTICES == 64, "must be 64" );
 
 #define B3_HULL_BIT_COUNT 6
 
-// SIMD support point calculation.
+// SIMD support point calculation using a SoA vertex array padded with repeats of the first vertex
+// to a multiple of 4.
 //
-// The vertex index lives in the low B3_HULL_BIT_COUNT mantissa bits of the value. So the index
-// is also carried by the minimum value. This minimizes (bias - dot), where the caller is expect to provide a bias
-// that makes this always positive. It can be direction dependent. The bias should be just big enough to make this
-// true because an excessive bias causes a precision loss in the support calculation. The bias serves to pin
-// the accuracy of the support calculation, making the vertex embedding a uniform precision loss.
+// This minimizes (bias - dot), where the caller is expected to provide a bias that makes this always positive.
+// It can be direction dependent. The bias should be just big enough to ensure the value if positive because
+// an excessive bias causes a precision loss in the support calculation.
+//
+// The vertex index is embedded in the low B3_HULL_BIT_COUNT mantissa bits of the value. By minimizing a value that
+// is always positive, the minimum carries the smallest index so that padded SoA values will never win. This is
+// purpose of using the bias instead of maximizing the dot directly.
+//
 // The support is then recomputed exactly as dot(normal, vertex), without the embedded index.
 // todo consider using this for GJK
 static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float* vy, const float* vz, int n, float bias,
@@ -1261,7 +1265,7 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 	// Start the minimum at a large value.
 	b3FloatW minValue = b3SplatW( B3_HUGE );
 
-	// Tail lanes hold vertex 0 with index bits >= n, so they never become the min value.
+	// Tail lanes hold vertex 0 with index bits >= vertexCount, so they never become the min value.
 	for ( int i = 0; i < n; i += 4 )
 	{
 		b3FloatW x = b3LoadW( vx + i );
@@ -1309,7 +1313,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		.type = b3_invalidAxis,
 	};
 
-
 	int faceCountA = hullA->faceCount;
 	const b3Plane* planesA = b3GetHullPlanes( hullA );
 
@@ -1349,7 +1352,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		}
 	}
 
-	if (axisOverride == b3_manualFaceAxisA)
+	if ( axisOverride == b3_manualFaceAxisA )
 	{
 		return res;
 	}
@@ -1366,7 +1369,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	b3Vec3 hA = b3AABB_Extents( hullA->aabb );
 
 	// Test B's face planes against A's vertices.
-	if (axisOverride != b3_manualEdgePairAxis)
+	if ( axisOverride != b3_manualEdgePairAxis )
 	{
 		for ( int i = 0; i < faceCountB; ++i )
 		{
