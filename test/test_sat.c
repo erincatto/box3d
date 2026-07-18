@@ -13,8 +13,6 @@
 #include <math.h>
 
 static const float kRoot2 = 1.41421356f;
-
-static const b3Vec3 kAxisX = { 1.0f, 0.0f, 0.0f };
 static const b3Vec3 kAxisY = { 0.0f, 1.0f, 0.0f };
 static const b3Vec3 kAxisZ = { 0.0f, 0.0f, 1.0f };
 

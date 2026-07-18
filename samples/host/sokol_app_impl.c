@@ -8,9 +8,10 @@
 // `sokol` INTERFACE target. On Apple this file is compiled as Objective-C
 // with ARC (see src/app/CMakeLists.txt) so sokol_app's Cocoa backend builds.
 //
-// SOKOL_WIN32_FORCE_MAIN: sokol_app defaults to WinMain (subsystem:windows)
-// on Windows. Our binaries are console-subsystem so the smoke test can
-// surface stderr to ctest, so force the int main variant.
+// SOKOL_NO_ENTRY: samples/main.cpp supplies its own main() so it can install
+// MSVC CRT leak reporting and dump after sapp_run returns, past sokol's own
+// teardown. Our main is console-subsystem, which also keeps stderr flowing to
+// ctest for the smoke test.
 //
 // _POSIX_C_SOURCE: glibc gates clock_gettime / CLOCK_MONOTONIC behind a
 // POSIX feature-test macro under -std=c17. Define before any system headers.
@@ -21,7 +22,7 @@
 #define SOKOL_APP_IMPL
 #define SOKOL_GLUE_IMPL
 #define SOKOL_LOG_IMPL
-#define SOKOL_WIN32_FORCE_MAIN
+#define SOKOL_NO_ENTRY
 
 #include "sokol_gfx.h"
 #include "sokol_app.h"

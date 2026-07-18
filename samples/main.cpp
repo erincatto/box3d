@@ -6,6 +6,9 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 #define _CRTDBG_MAP_ALLOC
+// stdlib before crtdbg so the malloc->_malloc_dbg remap lands after the real prototype
+#include <stdlib.h>
+#include <crtdbg.h>
 #endif
 
 #include "gfx/debug_adapter.h"
@@ -45,6 +48,7 @@ static SampleContext s_context;
 static int s_frame = 0;
 static int s_frameLimit = -1;
 static int s_sampleOverride = -1;
+static int s_exitCode = 0;
 
 static int CompareSamples( const void* a, const void* b )
 {
@@ -476,7 +480,9 @@ static void OnCleanup( void )
 	tracy::ShutdownProfiler();
 #endif
 
-	exit( errors == 0 ? 0 : 1 );
+	// Return instead of exit so sokol frees its own window and context. main
+	// dumps CRT leaks once sapp_run returns, past that teardown.
+	s_exitCode = errors == 0 ? 0 : 1;
 }
 
 static void OnAppLog( const char* tag, uint32_t logLevel, uint32_t logItemId, const char* message, uint32_t lineNumber,
@@ -498,7 +504,7 @@ static void OnAppLog( const char* tag, uint32_t logLevel, uint32_t logItemId, co
 	}
 }
 
-sapp_desc sokol_main( int argc, char** argv )
+static sapp_desc BuildAppDesc( int argc, char** argv )
 {
 	for ( int i = 1; i < argc; ++i )
 	{
@@ -556,4 +562,24 @@ sapp_desc sokol_main( int argc, char** argv )
 	desc.high_dpi = true;
 
 	return desc;
+}
+
+// We own main (SOKOL_NO_ENTRY) so the leak dump can run after sapp_run returns,
+// once sokol has torn down its window and context. On Windows sapp_run returns
+// after that teardown; on macOS it may not return, so the dump is Windows only.
+int main( int argc, char** argv )
+{
+#if defined( _MSC_VER )
+	_CrtSetReportMode( _CRT_WARN, _CRTDBG_MODE_DEBUG | _CRTDBG_MODE_FILE );
+	_CrtSetReportFile( _CRT_WARN, _CRTDBG_FILE_STDOUT );
+#endif
+
+	sapp_desc desc = BuildAppDesc( argc, argv );
+	sapp_run( &desc );
+
+#if defined( _MSC_VER )
+	_CrtDumpMemoryLeaks();
+#endif
+
+	return s_exitCode;
 }
