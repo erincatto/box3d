@@ -146,13 +146,13 @@ static int CreateHullMaxVertexTest( void )
 	// Below the floor: clamps up to 4.
 	b3HullData* h2 = b3CreateHull( points, count, 1 );
 	ENSURE( h2 != NULL );
-	ENSURE( h2->vertexCount >= 4 && h2->vertexCount <= 255 );
+	ENSURE( h2->vertexCount >= 4 && h2->vertexCount <= B3_MAX_HULL_VERTICES );
 	b3DestroyHull( h2 );
 
-	// Above the ceiling: clamps down to 255.
+	// Above the ceiling: clamps down to B3_MAX_HULL_VERTICES.
 	b3HullData* h3 = b3CreateHull( points, count, 1000 );
 	ENSURE( h3 != NULL );
-	ENSURE( h3->vertexCount >= 4 && h3->vertexCount <= 255 );
+	ENSURE( h3->vertexCount >= 4 && h3->vertexCount <= B3_MAX_HULL_VERTICES );
 	b3DestroyHull( h3 );
 
 	return 0;
@@ -341,9 +341,8 @@ static void FillCubeSample( b3Vec3* points, int count, uint32_t seed )
 // 24*M - 48 in src/hull.c::b3ComputeHullWorkSizes) close to their peak by sweeping M
 // on a dense random sphere. If the peak face/edge count exceeds the cap and the free
 // list fails to reclaim slots in time, the assertion at src/hull.c::NewFace/NewEdge
-// fires (exit code 3). M is held <= 80 because the finalization stage caps the final
-// hull's face/edge count at B3_HULL_LIMIT (255), and a fully-triangulated hull with
-// V > 87 vertices has 3V - 6 > 255 edges (src/hull.c:2010 returns NULL).
+// fires (exit code 3). A dense sphere hull is fully triangulated, so F = 2M - 4 and the
+// final face limit B3_MAX_HULL_FACES binds well before the vertex or edge limits.
 static int CreateHullSphereStressTest( void )
 {
 	enum { N = 512 };
@@ -352,8 +351,8 @@ static int CreateHullSphereStressTest( void )
 	// Multiple seeds exercise different horizon-size / merge-cascade sequences.
 	const uint32_t seeds[] = { 12345u, 1u, 0xdeadbeefu, 0xcafef00du };
 
-	// M kept <= 40: random sphere inputs at higher M exceed the half edge limit of UINT8_MAX
-	const int M_values[] = { 16, 24, 32, 40 };
+	// M kept <= 32 so the final face count 2M - 4 stays under B3_MAX_HULL_FACES
+	const int M_values[] = { 16, 24, 32 };
 
 	for ( int s = 0; s < ARRAY_COUNT( seeds ); ++s )
 	{
