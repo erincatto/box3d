@@ -1237,9 +1237,9 @@ static inline void b3NegativeTransformFromSoA( b3Matrix3* R, b3Vec3 p, const flo
 	}
 }
 
-_Static_assert( B3_MAX_HULL_VERTICES == 64, "must be 64" );
+_Static_assert( B3_MAX_HULL_VERTICES == 128, "must be 128" );
 
-#define B3_HULL_BIT_COUNT 6
+#define B3_HULL_BIT_COUNT 7
 
 // SIMD support point calculation using a SoA vertex array padded with repeats of the first vertex
 // to a multiple of 4.
