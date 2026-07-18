@@ -81,6 +81,7 @@ jobs:
       working-directory: ${{github.workspace}}/build
       env:
         MSAN_OPTIONS: ${{ matrix['msan-options'] || '' }}
+        UBSAN_OPTIONS: print_stacktrace=1
       run: ${{ matrix.test }}
 
   # mingw needs some extra setup so keeping it separate from the matrix.

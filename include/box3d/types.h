@@ -2419,7 +2419,7 @@ typedef struct b3CompoundDef
 } b3CompoundDef;
 
 /// The baked compound version depends on the tree, mesh, and hull versions.
-#define B3_COMPOUND_VERSION ( 0x830778DB07086EB4ull ^ B3_DYNAMIC_TREE_VERSION ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
+#define B3_COMPOUND_VERSION ( 0xB11DCE70FAD5622Bull ^ B3_DYNAMIC_TREE_VERSION ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
 
 /// Meshes used in compounds have limited space for materials. If you have
 /// a mesh with many materials, you can use it outside of the compound.

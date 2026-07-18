@@ -61,9 +61,18 @@ b3Matrix3 b3BoxInertia( float mass, b3Vec3 min, b3Vec3 max );
 int b3GetProxySupport( const b3ShapeProxy* proxy, b3Vec3 axis );
 int b3GetPointSupport( const b3Vec3* points, int count, b3Vec3 axis );
 
+// Align up to 8 byte alignment.
 static inline size_t b3AlignUp8( size_t x )
 {
 	return ( x + 7u ) & ~(size_t)7u;
+}
+
+// Align up to a power of 2.
+// 8 = 2^3, 64 = 2^6
+static inline size_t b3AlignUpPowerOfTwo( size_t x, size_t power )
+{
+	size_t mask = ( 1u << power ) - 1u;
+	return ( x + mask ) & ~mask;
 }
 
 // https://en.wikipedia.org/wiki/Floor_and_ceiling_functions
