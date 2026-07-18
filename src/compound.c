@@ -467,8 +467,8 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 
 	b3DynamicTree_Rebuild( &tree, true );
 
-	// Tree nodes - 16 byte alignment
-	size_t byteCount = b3AlignUpPowerOfTwo( sizeof( b3CompoundData ), 4 );
+	// Tree nodes
+	size_t byteCount = b3AlignUp8( sizeof( b3CompoundData ) );
 	int nodeOffset = (int)byteCount;
 	byteCount += b3AlignUp8( tree.nodeCapacity * sizeof( b3TreeNode ) );
 	int materialOffset = (int)byteCount;

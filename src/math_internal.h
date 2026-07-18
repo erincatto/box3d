@@ -67,14 +67,6 @@ static inline size_t b3AlignUp8( size_t x )
 	return ( x + 7u ) & ~(size_t)7u;
 }
 
-// Align up to a power of 2.
-// 8 = 2^3, 64 = 2^6
-static inline size_t b3AlignUpPowerOfTwo( size_t x, size_t power )
-{
-	size_t mask = ( 1u << power ) - 1u;
-	return ( x + mask ) & ~mask;
-}
-
 // https://en.wikipedia.org/wiki/Floor_and_ceiling_functions
 static inline int b3CeilingInt( int numerator, int denominator )
 {
