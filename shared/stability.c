@@ -10,8 +10,6 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#define MESH_DROP_GRID_COUNT 32
-
 MeshDropData CreateMeshDrop( b3WorldId worldId, b3Pos origin )
 {
 	MeshDropData data = { 0 };
@@ -61,6 +59,7 @@ MeshDropData CreateMeshDrop( b3WorldId worldId, b3Pos origin )
 				bodyDef.linearVelocity = linearVelocity;
 				bodyDef.angularVelocity = angularVelocity;
 				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+				data.bodies[i * gridCount + j] = bodyId;
 
 				b3CreateHullShape( bodyId, &shapeDef, &box.base );
 			}
@@ -68,6 +67,29 @@ MeshDropData CreateMeshDrop( b3WorldId worldId, b3Pos origin )
 	}
 
 	return data;
+}
+
+bool UpdateMeshDrop( b3WorldId worldId, MeshDropData* data )
+{
+	if ( data->hash == 0 )
+	{
+		if ( b3World_GetAwakeBodyCount( worldId ) == 0 )
+		{
+			data->hash = B3_HASH_INIT;
+			int bodyCount = MESH_DROP_GRID_COUNT * MESH_DROP_GRID_COUNT;
+			for ( int i = 0; i < bodyCount; ++i )
+			{
+				b3WorldTransform xf = b3Body_GetTransform( data->bodies[i] );
+				data->hash = b3Hash( data->hash, (uint8_t*)&xf, sizeof( b3WorldTransform ) );
+			}
+
+			data->sleepStep = data->stepCount;
+		}
+	}
+
+	data->stepCount += 1;
+
+	return data->hash != 0;
 }
 
 void DestroyMeshDrop( MeshDropData* data )

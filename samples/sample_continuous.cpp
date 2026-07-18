@@ -4,7 +4,6 @@
 #include "imgui.h"
 #include "sample.h"
 #include "gfx/draw.h"
-#include "stability.h"
 #include "utils.h"
 
 #include "gfx/debug_adapter.h"
@@ -740,60 +739,6 @@ public:
 };
 
 static int sampleMeshDrop = RegisterSample( "Continuous", "Mesh Drop", MeshDrop::Create );
-
-class MeshDropUnitTest : public Sample
-{
-public:
-	explicit MeshDropUnitTest( SampleContext* context )
-		: Sample( context )
-	{
-		if ( context->restart == false )
-		{
-			m_camera->SetView( 0.0f, 30.0f, 20.0f, b3Pos_zero );
-			GetGuiDraw()->forceScale = 0.1f;
-		}
-
-		m_data = CreateMeshDrop( m_worldId, b3Pos_zero );
-		m_failed = false;
-	}
-
-	~MeshDropUnitTest() override
-	{
-		DestroyMeshDrop( &m_data );
-	}
-
-	void Step() override
-	{
-		Sample::Step();
-
-		if ( m_failed == false )
-		{
-			if ( m_stepCount >= 300 )
-			{
-				b3BodyEvents bodyEvents = b3World_GetBodyEvents( m_worldId );
-				if ( bodyEvents.moveCount > 0 )
-				{
-					m_failed = true;
-				}
-			}
-		}
-
-		if ( m_failed == true )
-		{
-			DrawTextLine( "failed!" );
-		}
-	}
-
-	static Sample* Create( SampleContext* context )
-	{
-		return new MeshDropUnitTest( context );
-	}
-
-	MeshDropData m_data;
-	bool m_failed;
-};
-
-static int sampleMeshDropUnitTest = RegisterSample( "Continuous", "Mesh Drop Unit Test", MeshDropUnitTest::Create );
 
 // This sample shows that clustering based on the manifold normal can lead to clipping and/or tunneling.
 class HumpMesh : public Sample

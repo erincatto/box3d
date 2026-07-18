@@ -1545,6 +1545,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 
 	// The SIMD emulated version of this code is very slow. This is a purely scalar version
 	// for platforms that don't have SIMD capability. It is much faster than SIMD emulation.
+	// WARNING: this math needs to match the SIMD version for cross platform determinism.
 
 	const float EPS = -0.0001f;
 
