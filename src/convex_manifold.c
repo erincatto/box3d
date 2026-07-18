@@ -1328,7 +1328,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		{
 			b3Plane plane = planesA[i];
 			b3Vec3 direction = b3Neg( b3MulMV( invR, plane.normal ) );
-			// todo verify
 			float planeSeparation = b3Dot( plane.normal, xfB.p ) - plane.offset;
 			float biasB = b3Dot( direction, cB ) + 1.0625f * b3Dot( b3Abs( direction ), hB );
 			float support;

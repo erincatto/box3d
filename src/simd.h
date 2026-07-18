@@ -721,6 +721,11 @@ static inline b3FloatW b3SplatW( float scalar )
 	return (b3FloatW){ scalar, scalar, scalar, scalar };
 }
 
+static inline b3FloatW b3SetW( float a, float b, float c, float d )
+{
+	return (b3FloatW){ a, b, c, d };
+}
+
 static inline b3FloatW b3LoadW( const float* data )
 {
 	return (b3FloatW){ data[0], data[1], data[2], data[3] };
