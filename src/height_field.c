@@ -1382,7 +1382,7 @@ b3HeightFieldData* b3CreateGrid( int rowCount, int columnCount, b3Vec3 scale, bo
 }
 
 b3HeightFieldData* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, float rowFrequency, float columnFrequency,
-							 bool makeHoles )
+								 bool makeHoles )
 {
 	int heightCount = rowCount * columnCount;
 	float* heights = (float*)b3Alloc( heightCount * sizeof( float ) );
@@ -1390,14 +1390,18 @@ b3HeightFieldData* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, fl
 	float omegaZ = 2.0f * B3_PI * rowFrequency;
 	float omegaX = 2.0f * B3_PI * columnFrequency;
 
+	b3CosSin cs = { 0 };
+
 	for ( int i = 0; i < rowCount; ++i )
 	{
-		float rowHeight = sinf( omegaZ * i );
+		cs = b3ComputeCosSin( omegaZ * i );
+		float rowHeight = cs.sine;
 
 		for ( int j = 0; j < columnCount; ++j )
 		{
 			int k = i * columnCount + j;
-			float columnHeight = sinf( omegaX * j );
+			cs = b3ComputeCosSin( omegaX * j );
+			float columnHeight = cs.sine;
 			heights[k] = rowHeight * columnHeight;
 		}
 	}

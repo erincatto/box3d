@@ -102,10 +102,13 @@ B3_INLINE b3Vec3 RandomUnitVector()
 	float sqrt1MinusU1 = sqrtf( 1.0f - u1 );
 	float sqrtU1 = sqrtf( u1 );
 
+	b3CosSin cs2 = b3ComputeCosSin( u2 );
+	b3CosSin cs3 = b3ComputeCosSin( u3 );
+
 	b3Vec3 v;
-	v.x = sqrt1MinusU1 * sinf( u2 );
-	v.y = sqrt1MinusU1 * cosf( u2 );
-	v.z = sqrtU1 * sinf( u3 );
+	v.x = sqrt1MinusU1 * cs2.sine;
+	v.y = sqrt1MinusU1 * cs2.cosine;
+	v.z = sqrtU1 * cs3.sine;
 
 	return v;
 }
@@ -122,11 +125,14 @@ B3_INLINE b3Quat RandomQuat()
 	float sqrt1MinusU1 = sqrtf( 1.0f - u1 );
 	float sqrtU1 = sqrtf( u1 );
 
+	b3CosSin cs2 = b3ComputeCosSin( u2 );
+	b3CosSin cs3 = b3ComputeCosSin( u3 );
+
 	b3Quat q;
-	q.v.x = sqrt1MinusU1 * sinf( u2 );
-	q.v.y = sqrt1MinusU1 * cosf( u2 );
-	q.v.z = sqrtU1 * sinf( u3 );
-	q.s = sqrtU1 * cosf( u3 );
+	q.v.x = sqrt1MinusU1 * cs2.sine;
+	q.v.y = sqrt1MinusU1 * cs2.cosine;
+	q.v.z = sqrtU1 * cs3.sine;
+	q.s = sqrtU1 * cs3.cosine;
 
 	return q;
 }
