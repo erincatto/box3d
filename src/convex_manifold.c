@@ -1536,14 +1536,102 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	b3StoreW( aV0z + na, zero );
 	b3StoreW( aTol + na, zero );
 
-	// Edge phase, one B edge against four A edges at a time, no transforms in the loop.
-	const b3FloatW EPS = b3SplatW( -0.0001f );
-	const b3FloatW INF = b3SplatW( INFINITY );
-
 	// Prefer face contact for more contact points.
 	float absFaceBias = 0.1f * B3_LINEAR_SLOP;
 
 	int edgeCountB = halfEdgeCountB / 2;
+
+#if defined( B3_SIMD_NONE )
+
+	// The SIMD emulated version of this code is very slow. This is a purely scalar version
+	// for platforms that don't have SIMD capability. It is much faster than SIMD emulation.
+
+	const float EPS = -0.0001f;
+
+	for ( int j = 0; j < edgeCountB; ++j )
+	{
+		float Cx = bCx[j];
+		float Cy = bCy[j];
+		float Cz = bCz[j];
+		float Dx = bDx[j];
+		float Dy = bDy[j];
+		float Dz = bDz[j];
+		float DCx = bDCx[j];
+		float DCy = bDCy[j];
+		float DCz = bDCz[j];
+		float bv0x = bV0x[j];
+		float bv0y = bV0y[j];
+		float bv0z = bV0z[j];
+
+		for ( int i = 0; i < na; ++i )
+		{
+			// CBA = C.dir, DBA = D.dir, where dir = B_x_A
+			float CBA = Cx * aDx[i] + ( Cy * aDy[i] + Cz * aDz[i] );
+			float DBA = Dx * aDx[i] + ( Dy * aDy[i] + Dz * aDz[i] );
+			if ( CBA * DBA >= EPS )
+			{
+				continue;
+			}
+
+			// ADC = n0.DC, BDC = n1.DC, where DC = D_x_C
+			float ADC = aN0x[i] * DCx + ( aN0y[i] * DCy + aN0z[i] * DCz );
+			float BDC = aN1x[i] * DCx + ( aN1y[i] * DCy + aN1z[i] * DCz );
+			if ( ADC * BDC >= EPS || CBA * BDC >= EPS )
+			{
+				continue;
+			}
+
+			// Reject near parallel edges
+			float maxCD = b3MaxFloat( CBA * CBA, DBA * DBA );
+			if ( maxCD <= aTol[i] )
+			{
+				continue;
+			}
+
+			// t = -CBA / (DBA - CBA)
+			float t = -CBA / ( DBA - CBA );
+
+			// normal = lerp(t, C, D) = C + (D-C)*t
+			float nx = Cx + t * ( Dx - Cx );
+			float ny = Cy + t * ( Dy - Cy );
+			float nz = Cz + t * ( Dz - Cz );
+			float len2 = nx * nx + ( ny * ny + nz * nz );
+			float inv = 1.0f / sqrtf( len2 );
+			nx *= inv;
+			ny *= inv;
+			nz *= inv;
+
+			// separation = -dot(normal, av0 + bv0)
+			float sx = aV0x[i] + bv0x;
+			float sy = aV0y[i] + bv0y;
+			float sz = aV0z[i] + bv0z;
+
+			float separation = -( sx * nx + ( sy * ny + sz * nz ) );
+			if ( separation > res.separation + absFaceBias )
+			{
+				res.normal = (b3Vec3){ nx, ny, nz };
+				res.separation = separation;
+				res.type = b3_edgePairAxis;
+
+				// Half edge index
+				res.indexA = 2 * i;
+				res.indexB = 2 * j;
+				
+				// Edge beats face, remove bias
+				absFaceBias = 0.0f;
+				if ( separation > speculativeDistance )
+				{
+					return res;
+				}
+			}
+		}
+	}
+
+#else
+	
+	// Edge phase, one B edge against four A edges at a time, no transforms in the loop.
+	const b3FloatW EPS = b3SplatW( -0.0001f );
+	const b3FloatW INF = b3SplatW( INFINITY );
 
 	for ( int j = 0; j < edgeCountB; ++j )
 	{
@@ -1671,6 +1759,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			}
 		}
 	}
+#endif
 
 	return res;
 }
@@ -1679,7 +1768,9 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 #undef NF
 #undef NV
 
-#if 1
+#define B3_SIMD_COLLIDE_HULLS 1
+
+#if B3_SIMD_COLLIDE_HULLS == 1
 
 void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
 					 b3Transform transformBtoA, b3SATCache* cache )
@@ -1995,6 +2086,8 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 }
 
 #else
+
+// Old non-SIMD version. Keeping this for testing and comparisons
 
 static b3FaceQuery b3QueryFaceDirections( const b3HullData* hullA, const b3HullData* hullB, b3Transform relativeTransform )
 {
