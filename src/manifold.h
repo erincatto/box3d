@@ -52,7 +52,7 @@ b3FeaturePair b3FlipPair( b3FeaturePair pair );
 
 int b3ClipPolygon( b3ClipVertex* out, b3ClipVertex* polygon, int count, b3Plane clipPlane, int edge, b3Plane refPlane );
 
-b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB );
+b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB, int axisOverride );
 
 #if B3_ENABLE_VALIDATION
 bool b3ValidatePolygon( b3ClipVertex* polygon, int count );

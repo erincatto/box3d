@@ -124,7 +124,7 @@ static int FaceAxisASeparatedTest( void )
 	b3BoxHull hullB = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
 
 	b3Transform xfB = { { 1.2f, 0.0f, 0.0f }, b3Quat_identity };
-	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
+	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB, b3_invalidAxis );
 
 	ENSURE( q.type == b3_faceAxisA );
 	ENSURE_SMALL( q.separation - 0.2f, 1e-5f );
@@ -155,7 +155,7 @@ static int FaceAxisBSeparatedTest( void )
 	float d = aExtent + 0.5f + gap;
 	b3Transform xfB = { { d, 0.0f, 0.0f }, b3Quat_identity };
 
-	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
+	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB, b3_invalidAxis );
 
 	ENSURE( q.type == b3_faceAxisB );
 	ENSURE_SMALL( q.separation - gap, 1e-5f );
@@ -181,7 +181,7 @@ static int FaceFarSeparatedTest( void )
 	b3BoxHull hullB = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
 
 	b3Transform xfB = { { 3.0f, 0.0f, 0.0f }, b3Quat_identity };
-	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
+	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB, b3_invalidAxis );
 
 	ENSURE( q.type == b3_faceAxisA );
 	ENSURE_SMALL( q.separation - 2.0f, 1e-5f );
@@ -209,7 +209,7 @@ static int OffsetFaceAxisBTest( void )
 	float d = aExtent + 0.5f + gap;
 	b3Transform xfB = { { d, 0.0f, 0.0f }, b3Quat_identity };
 
-	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
+	b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB, b3_invalidAxis );
 
 	ENSURE( q.type == b3_faceAxisB );
 	ENSURE_SMALL( q.separation - gap, 1e-4f );
@@ -248,7 +248,7 @@ static int EdgePairSweepTest( void )
 		float expected = d - kRoot2;
 
 		b3Transform xfB = { { d, 0.0f, 0.0f }, b3Quat_identity };
-		b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
+		b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB, b3_invalidAxis );
 
 		ENSURE( q.type == b3_edgePairAxis );
 		ENSURE_SMALL( q.separation - expected, 1e-4f );
@@ -327,7 +327,7 @@ static int SeparatingAxisOracleTest( void )
 
 		b3Transform xfB = { b3MulSV( reach, NextDirection() ), ExactQuat( NextDirection(), NextFloat( 0.0f, B3_PI ) ) };
 
-		b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
+		b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB, b3_invalidAxis );
 
 		b3Vec3 oracleNormal;
 		float oracleSep = OracleSeparation( &hullA.base, &hullB.base, xfB, &oracleNormal );
@@ -423,7 +423,7 @@ static int OffsetHullOracleTest( void )
 			xfB = (b3Transform){ b3Sub( b3MulSV( reach, dir ), b3RotateVector( qB, offset ) ), qB };
 		}
 
-		b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB );
+		b3AxisQuery q = b3ComputeSeparatingAxis( &hullA.base, &hullB.base, xfB, b3_invalidAxis );
 
 		b3Vec3 oracleNormal;
 		float oracleSep = OracleSeparation( &hullA.base, &hullB.base, xfB, &oracleNormal );
