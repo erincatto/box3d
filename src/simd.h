@@ -23,6 +23,7 @@ typedef __m128 b3FloatW;
 
 #else
 
+#include <math.h>
 #include <string.h>
 
 // scalar math
@@ -879,8 +880,11 @@ static inline b3FloatW b3BlendW( b3FloatW a, b3FloatW b, b3FloatW mask )
 static inline b3FloatW b3Dot3W( b3FloatW ax, b3FloatW ay, b3FloatW az, b3FloatW bx, b3FloatW by, b3FloatW bz )
 {
 	b3FloatW r;
-	r.x = ax.x * bx.x + ( ay.x * by.x + az.x * bz.x ), r.y = ax.y * bx.y + ( ay.y * by.y + az.y * bz.y ),
-	r.z = ax.z * bx.z + ( ay.z * by.z + az.z * bz.z ), r.w = ax.w * bx.w + ( ay.w * by.w + az.w * bz.w ),
+	r.x = ax.x * bx.x + ( ay.x * by.x + az.x * bz.x );
+	r.y = ax.y * bx.y + ( ay.y * by.y + az.y * bz.y );
+	r.z = ax.z * bx.z + ( ay.z * by.z + az.z * bz.z );
+	r.w = ax.w * bx.w + ( ay.w * by.w + az.w * bz.w );
+	return r;
 }
 
 static inline b3FloatW b3EmbedIndexW( b3FloatW value, int baseIndex, int bitCount )

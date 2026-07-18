@@ -118,7 +118,7 @@ B3_API float b3GetStallThreshold( void );
 #define B3_MAX_HULL_VERTICES 64
 
 /// The maximum number of convex hull faces.
-#define B3_MAX_HULL_FACES 64
+#define B3_MAX_HULL_FACES 128
 
 /// The maximum number of convex hull edges. Full edges, not half-edges.
 #define B3_MAX_HULL_EDGES 128

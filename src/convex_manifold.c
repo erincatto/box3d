@@ -1416,9 +1416,9 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 	// Tail lanes hold vertex 0 with index bits >= n, so they never become the min value.
 	for ( int i = 0; i < n; i += 4 )
 	{
-		b3FloatW x = _mm_loadu_ps( vx + i );
-		b3FloatW y = _mm_loadu_ps( vy + i );
-		b3FloatW z = _mm_loadu_ps( vz + i );
+		b3FloatW x = b3LoadW( vx + i );
+		b3FloatW y = b3LoadW( vy + i );
+		b3FloatW z = b3LoadW( vz + i );
 		b3FloatW d = b3AddW( b3MulW( nz, z ), b3AddW( b3MulW( ny, y ), b3MulW( nx, x ) ) );
 
 		// This is always positive.
@@ -1428,7 +1428,7 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 	}
 
 	// One horizontal min, the winning lane's value and index bits ride through.
-	int vi = b3MinIndexW(minValue, B3_HULL_BIT_COUNT);
+	int vi = b3MinIndexW( minValue, B3_HULL_BIT_COUNT );
 
 	// Exact support for the chosen vertex.
 	*vertexIndex = vi;
@@ -1692,19 +1692,19 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 
 		for ( int i = 0; i < na; i += 4 )
 		{
-			b3FloatW n0x = _mm_load_ps( aN0x + i );
-			b3FloatW n0y = _mm_load_ps( aN0y + i );
-			b3FloatW n0z = _mm_load_ps( aN0z + i );
-			b3FloatW n1x = _mm_load_ps( aN1x + i );
-			b3FloatW n1y = _mm_load_ps( aN1y + i );
-			b3FloatW n1z = _mm_load_ps( aN1z + i );
-			b3FloatW dx = _mm_load_ps( aDx + i );
-			b3FloatW dy = _mm_load_ps( aDy + i );
-			b3FloatW dz = _mm_load_ps( aDz + i );
-			b3FloatW v0x = _mm_load_ps( aV0x + i );
-			b3FloatW v0y = _mm_load_ps( aV0y + i );
-			b3FloatW v0z = _mm_load_ps( aV0z + i );
-			b3FloatW tol = _mm_load_ps( aTol + i );
+			b3FloatW n0x = b3LoadW( aN0x + i );
+			b3FloatW n0y = b3LoadW( aN0y + i );
+			b3FloatW n0z = b3LoadW( aN0z + i );
+			b3FloatW n1x = b3LoadW( aN1x + i );
+			b3FloatW n1y = b3LoadW( aN1y + i );
+			b3FloatW n1z = b3LoadW( aN1z + i );
+			b3FloatW dx = b3LoadW( aDx + i );
+			b3FloatW dy = b3LoadW( aDy + i );
+			b3FloatW dz = b3LoadW( aDz + i );
+			b3FloatW v0x = b3LoadW( aV0x + i );
+			b3FloatW v0y = b3LoadW( aV0y + i );
+			b3FloatW v0z = b3LoadW( aV0z + i );
+			b3FloatW tol = b3LoadW( aTol + i );
 
 			// CBA = C.dir, DBA = D.dir, where dir = B_x_A
 			b3FloatW CBA = b3Dot3W( Cx, Cy, Cz, dx, dy, dz );
@@ -1714,9 +1714,9 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			b3FloatW BDC = b3Dot3W( n1x, n1y, n1z, DCx, DCy, DCz );
 
 			// Gauss map arc crossing test, CBA*DBA<eps and ADC*BDC<eps and CBA*BDC<eps
-			b3FloatW m1 = _mm_cmplt_ps( b3MulW( CBA, DBA ), EPS );
-			b3FloatW m2 = _mm_cmplt_ps( b3MulW( ADC, BDC ), EPS );
-			b3FloatW m3 = _mm_cmplt_ps( b3MulW( CBA, BDC ), EPS );
+			b3FloatW m1 = b3LessThanW( b3MulW( CBA, DBA ), EPS );
+			b3FloatW m2 = b3LessThanW( b3MulW( ADC, BDC ), EPS );
+			b3FloatW m3 = b3LessThanW( b3MulW( CBA, BDC ), EPS );
 
 			// Reject near parallel edges. The arc lerp is ill conditioned when both of B's normals are nearly
 			// perpendicular to edge A, a scale invariant sine threshold relative to the edge length.
@@ -1726,7 +1726,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 
 			// Most A-edges fail the Gauss test, so skip the divide, sqrt and support work when no
 			// lane passed.
-			if ( _mm_movemask_ps( mask ) == 0 )
+			if ( b3AnyTrueW( mask ) == false )
 			{
 				continue;
 			}
@@ -1760,7 +1760,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			// store and scalar reduction. res->support only turns negative just before returning,
 			// so this never skips a lane that would trigger the early out.
 			b3FloatW improves = b3GreaterThanW( separation, b3SplatW( res.separation ) );
-			if ( _mm_movemask_ps( improves ) == 0 )
+			if ( b3AnyTrueW( improves ) == false )
 			{
 				continue;
 			}
