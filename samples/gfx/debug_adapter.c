@@ -122,6 +122,7 @@ typedef struct
 	b3DebugDraw guiDraw;
 
 	bool transparentDynamic;
+	bool transparentKinematic;
 
 	// View box for compound child culling, world space, refreshed once per frame.
 	b3AABB viewBounds;
@@ -159,6 +160,7 @@ void InitAdapter( void )
 	s_adapter.selectedBodyId = b3_nullBodyId;
 	s_adapter.selectedShapeId = b3_nullShapeId;
 	s_adapter.transparentDynamic = false;
+	s_adapter.transparentKinematic = false;
 
 	s_adapter.hasViewBounds = false;
 	s_adapter.lastCompoundAppended = 0;
@@ -198,6 +200,7 @@ void ResetAdapterPool( void )
 	s_adapter.selectedBodyId = b3_nullBodyId;
 	s_adapter.selectedShapeId = b3_nullShapeId;
 	s_adapter.transparentDynamic = false;
+	s_adapter.transparentKinematic = false;
 
 	s_adapter.hasViewBounds = false;
 	s_adapter.lastCompoundAppended = 0;
@@ -235,9 +238,9 @@ void SetTransparentDynamic( bool enabled )
 	s_adapter.transparentDynamic = enabled;
 }
 
-bool GetTransparentDynamic( void )
+void SetTransparentKinematic( bool enabled )
 {
-	return s_adapter.transparentDynamic;
+	s_adapter.transparentKinematic = enabled;
 }
 
 void SetViewBounds( b3AABB bounds )
@@ -733,7 +736,7 @@ static void DestroyDebugShape( void* userShape, void* context )
 // origin to the same grid period.
 
 // Alpha applied to non-static shapes when box3dAdapterSetTransparentDynamic is on.
-#define BOX3D_TRANSPARENT_DYNAMIC_ALPHA 0.5f
+#define BOX3D_TRANSPARENT_ALPHA 0.5f
 
 // Emit one resolved primitive at baseTransform. The per-kind offset (sphere
 // center, capsule frame) layers on top of baseTransform, so the same path
@@ -856,7 +859,12 @@ static bool DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexCo
 
 	if ( s_adapter.transparentDynamic && us->bodyType == b3_dynamicBody )
 	{
-		c.w = BOX3D_TRANSPARENT_DYNAMIC_ALPHA;
+		c.w = BOX3D_TRANSPARENT_ALPHA;
+	}
+
+	if ( s_adapter.transparentKinematic && us->bodyType == b3_kinematicBody )
+	{
+		c.w = BOX3D_TRANSPARENT_ALPHA;
 	}
 
 	TransparentShadowCast shadowCast = TRANSPARENT_SHADOW_NONE;

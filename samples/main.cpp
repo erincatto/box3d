@@ -411,6 +411,7 @@ static void OnFrame( void )
 	// queues the HUD text; Render fills the instance and overlay arenas via the
 	// b3DebugDraw adapter and the sample's own Draw* calls.
 	SetTransparentDynamic( s_context.transparentDynamic );
+	SetTransparentKinematic( s_context.transparentKinematic );
 	s_context.sample->ResetText();
 
 	s_context.sample->Step();
