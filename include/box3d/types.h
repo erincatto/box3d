@@ -419,6 +419,9 @@ typedef struct b3SurfaceMaterial
 	/// carry a b3DebugMaterial preset, see b3MakeDebugColor.
 	/// @see b3HexColor
 	uint32_t customColor;
+
+	/// Explicit padding
+	uint32_t padding;
 } b3SurfaceMaterial;
 
 /// Use this to initialize your surface material

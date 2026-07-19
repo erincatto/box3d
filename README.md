@@ -60,6 +60,7 @@ This uses the presets in `CMakePresets.json`.
 - Windows: `cmake --preset windows` then `cmake --build --preset windows-release`
 - Linux: `cmake --preset linux-release` then `cmake --build --preset linux-release`
 - macOS: `cmake --preset macos` then `cmake --build --preset macos-release`
+- Windows MinGW: `cmake --preset mingw-release` then `cmake --build --preset mingw-release`
 
 Run the samples app (must be in the Box3D directory).
 

@@ -226,13 +226,19 @@ static bool b3CompareMeshes( const b3MeshData* mesh1, const b3MeshData* mesh2 )
 #define FREE_FN b3Free
 #include "verstable.h"
 
+_Static_assert( sizeof( b3SurfaceMaterial ) == 40, "review padding" );
+
 static inline uint64_t b3HashMaterial( const b3SurfaceMaterial* material )
 {
+	B3_ASSERT( material->padding == 0 );
+
 	return vt_wyhash( material, sizeof( b3SurfaceMaterial ) );
 }
 
 static bool b3CompareMaterials( const b3SurfaceMaterial* mat1, const b3SurfaceMaterial* mat2 )
 {
+	B3_ASSERT( mat1->padding == 0 && mat2->padding == 0);
+
 	if ( mat1 == mat2 )
 	{
 		return true;

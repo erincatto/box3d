@@ -28,6 +28,32 @@
       "generator": "Xcode",
       "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" },
       "binaryDir": "${sourceDir}/build"
+    },
+    {
+      "name": "mingw-debug",
+      "displayName": "Windows MinGW Debug (Ninja, needs gcc on PATH)",
+      "generator": "Ninja",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "binaryDir": "${sourceDir}/build/mingw",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "FETCHCONTENT_BASE_DIR": "${sourceDir}/.fetchcontent-cache/mingw"
+      }
+    },
+    {
+      "name": "mingw-release",
+      "displayName": "Windows MinGW Release (Ninja, needs gcc on PATH)",
+      "generator": "Ninja",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "binaryDir": "${sourceDir}/build/mingw",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "FETCHCONTENT_BASE_DIR": "${sourceDir}/.fetchcontent-cache/mingw"
+      }
     }
   ],
   "buildPresets": [
@@ -36,6 +62,8 @@
     { "name": "linux-debug",     "configurePreset": "linux-debug" },
     { "name": "linux-release",   "configurePreset": "linux-release" },
     { "name": "macos-debug",     "configurePreset": "macos",       "configuration": "Debug" },
-    { "name": "macos-release",   "configurePreset": "macos",       "configuration": "Release" }
+    { "name": "macos-release",   "configurePreset": "macos",       "configuration": "Release" },
+    { "name": "mingw-debug",     "configurePreset": "mingw-debug" },
+    { "name": "mingw-release",   "configurePreset": "mingw-release" }
   ]
 }
