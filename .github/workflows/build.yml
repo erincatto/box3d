@@ -85,6 +85,9 @@ jobs:
       run: ${{ matrix.test }}
 
   # mingw needs some extra setup so keeping it separate from the matrix.
+  # Also the one optimized test run. Debug -O0 copies whole structs and hid the
+  # b3SurfaceMaterial padding dedup bug. RelWithDebInfo tests -O2 codegen while
+  # B3_ENABLE_ASSERT keeps asserts alive, heavy validation stays Debug only.
   build-windows-mingw:
     name: windows-mingw
     runs-on: windows-latest
@@ -107,10 +110,10 @@ jobs:
           mingw-w64-ucrt-x86_64-ninja
 
     - name: Configure CMake
-      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DBOX3D_SAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DBOX3D_VALIDATE=ON -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+      run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBOX3D_SAMPLES=OFF -DBUILD_SHARED_LIBS=OFF -DBOX3D_VALIDATE=ON -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
 
     - name: Build
-      run: cmake --build build --config ${{env.BUILD_TYPE}}
+      run: cmake --build build --config RelWithDebInfo
 
     - name: Test
       working-directory: build

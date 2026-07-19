@@ -420,7 +420,7 @@ typedef struct b3SurfaceMaterial
 	/// @see b3HexColor
 	uint32_t customColor;
 
-	/// Explicit padding
+	/// Explicit padding. Must be zero.
 	uint32_t padding;
 } b3SurfaceMaterial;
 

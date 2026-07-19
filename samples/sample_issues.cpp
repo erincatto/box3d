@@ -1124,7 +1124,7 @@ public:
 	}
 
 	b3HullData* m_hulls[s_metalWheel1HullCount];
-	static constexpr int m_wheelCount = 30;
+	static constexpr int m_wheelCount = 6;
 };
 
 static int sampleWheelStack = RegisterSample( "Stacking", "Wheel Stack (PHX)", WheelStack::Create );
