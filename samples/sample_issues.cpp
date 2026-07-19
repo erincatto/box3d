@@ -1062,11 +1062,24 @@ public:
 
 		AddGroundBox( 10.0f );
 
+		constexpr int N = 512;
+		b3Vec3 buffer[N];
+		int bufferCount = 0;
 		for ( int h = 0; h < s_metalWheel1HullCount; ++h )
 		{
 			const WheelHullSpan& span = s_metalWheel1Hulls[h];
 			m_hulls[h] = b3CreateHull( &s_metalWheel1Verts[span.offset], span.count, span.count );
+
+			const b3Vec3* points = b3GetHullPoints( m_hulls[h] );
+			for ( int j = 0; j < m_hulls[h]->vertexCount && bufferCount < N; ++j )
+			{
+				buffer[bufferCount] = points[j];
+				++bufferCount;
+			}
 		}
+
+		// Create a single hull that wraps the input hulls.
+		b3HullData* wheelHull = b3CreateHull( buffer, bufferCount, bufferCount );
 
 		const float height = 0.171f;
 		const float spacing = height + 0.006f;
@@ -1083,11 +1096,16 @@ public:
 			bodyDef.position = { 0.0f, startY + i * spacing, 0.0f };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
-			for ( int h = 0; h < s_metalWheel1HullCount; ++h )
-			{
-				b3CreateHullShape( bodyId, &shapeDef, m_hulls[h] );
-			}
+			//for ( int h = 0; h < s_metalWheel1HullCount; ++h )
+			//{
+			//	b3CreateHullShape( bodyId, &shapeDef, m_hulls[h] );
+			//}
+			
+			// Using a single hull improves the simulation.
+			b3CreateHullShape( bodyId, &shapeDef, wheelHull );
 		}
+
+		b3DestroyHull( wheelHull );
 
 		b3World_SetContactTuning( m_worldId, 240.0f, 10.0f, 3.0f );
 	}
@@ -1124,7 +1142,7 @@ public:
 	}
 
 	b3HullData* m_hulls[s_metalWheel1HullCount];
-	static constexpr int m_wheelCount = 6;
+	static constexpr int m_wheelCount = 30;
 };
 
-static int sampleWheelStack = RegisterSample( "Stacking", "Wheel Stack (PHX)", WheelStack::Create );
+static int sampleWheelStack = RegisterSample( "Issues", "GMod Wheel Stack", WheelStack::Create );
