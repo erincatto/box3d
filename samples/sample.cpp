@@ -1632,13 +1632,13 @@ static void DrawMenuBar( SampleContext* context )
 			ImGui::MenuItem( "Contact Forces", nullptr, &gd->drawContactForces );
 			if ( ImGui::BeginMenu( "Anchor" ) )
 			{
-				if ( ImGui::MenuItem( "Anchor A", nullptr, gd->drawAnchorA != 0 ) )
+				if ( ImGui::MenuItem( "Anchor A", nullptr, gd->drawAnchorA == true ) )
 				{
-					gd->drawAnchorA = 1;
+					gd->drawAnchorA = true;
 				}
-				if ( ImGui::MenuItem( "Anchor B", nullptr, gd->drawAnchorA == 0 ) )
+				if ( ImGui::MenuItem( "Anchor B", nullptr, gd->drawAnchorA == false ) )
 				{
-					gd->drawAnchorA = 0;
+					gd->drawAnchorA = false;
 				}
 				ImGui::EndMenu();
 			}

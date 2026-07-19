@@ -3032,7 +3032,7 @@ typedef struct b3DebugDraw
 	bool drawContacts;
 
 	/// Draw contact anchor A or B
-	int drawAnchorA;
+	bool drawAnchorA;
 
 	/// Option to visualize the graph coloring used for contacts and joints
 	bool drawGraphColors;

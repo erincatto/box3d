@@ -1523,7 +1523,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 							b3Vec3 normal = manifold->normal;
 
 							// Average the anchors not the world points so the friction center stays exact far from the origin
-							b3Pos contactCenter = draw->drawAnchorA == 1 ? bodySimA->center : bodySimB->center;
+							b3Pos contactCenter = draw->drawAnchorA ? bodySimA->center : bodySimB->center;
 							b3Vec3 frictionAnchor = b3Vec3_zero;
 							float totalWeight = 0.0f;
 							float invTau = 1.0f / B3_SPECULATIVE_DISTANCE;
@@ -1535,7 +1535,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 
 								char buffer[32];
 
-								b3Vec3 anchor = draw->drawAnchorA == 1 ? mp->anchorA : mp->anchorB;
+								b3Vec3 anchor = draw->drawAnchorA ? mp->anchorA : mp->anchorB;
 								b3Pos p = b3OffsetPos( contactCenter, anchor );
 
 								// See similar friction anchor weights in b3PrepareContacts_Mesh.
