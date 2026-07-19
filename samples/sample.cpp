@@ -1616,7 +1616,12 @@ static void DrawMenuBar( SampleContext* context )
 				cam.Frame( aabb, aspect, 0.75f );
 			}
 			ImGui::MenuItem( "Shapes", nullptr, &gd->drawShapes );
-			ImGui::MenuItem( "Transparent", nullptr, &context->transparentDynamic );
+			if ( ImGui::BeginMenu( "Transparency" ) )
+			{
+				ImGui::MenuItem( "Dynamic", nullptr, &context->transparentDynamic );
+				ImGui::MenuItem( "Kinematic", nullptr, &context->transparentKinematic );
+				ImGui::EndMenu();
+			}
 			ImGui::MenuItem( "Joints", nullptr, &gd->drawJoints );
 			ImGui::MenuItem( "Joint Extras", nullptr, &gd->drawJointExtras );
 			ImGui::MenuItem( "Bounds", nullptr, &gd->drawBounds );

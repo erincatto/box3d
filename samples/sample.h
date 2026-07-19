@@ -60,7 +60,7 @@ struct SampleContext
 	int subStepCount = 4;
 	int workerCount = 1;
 	bool transparentDynamic = false;
-	bool transparent = false;
+	bool transparentKinematic = false;
 	bool enableWarmStarting = true;
 	bool enableContinuous = true;
 	bool enableSleep = true;

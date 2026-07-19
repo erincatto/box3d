@@ -29,3 +29,5 @@
 // so this suits embedding more than shipping Box3D as its own DLL.
 //#define BOX3D_EXPORT MYENGINE_API
 
+// Enable assertions when NDEBUG is defined
+// #define B3_ENABLE_ASSERT
