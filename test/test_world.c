@@ -11,6 +11,7 @@
 #include "box3d/math_functions.h"
 
 #include <stdio.h>
+#include <string.h>
 
 // This is a simple example of building and running a simulation
 // using Box3D. Here we create a large ground box and a small dynamic
@@ -617,6 +618,139 @@ static int TestCompoundHitEvents( void )
 	return 0;
 }
 
+enum
+{
+	kChild0MaterialId = 101,
+	kChild1MaterialId = 202,
+	kProbeMaterialId = 999,
+};
+
+// No context pointer on mixing callbacks, so capture through file scope
+static struct
+{
+	int callCount;
+	bool sawChild0;
+	bool sawChild1;
+	float mixedFriction;
+} materialCapture;
+
+static float CaptureFrictionMix( float frictionA, uint64_t userMaterialIdA, float frictionB, uint64_t userMaterialIdB )
+{
+	materialCapture.callCount += 1;
+
+	if ( userMaterialIdA == kChild0MaterialId || userMaterialIdB == kChild0MaterialId )
+	{
+		materialCapture.sawChild0 = true;
+	}
+
+	if ( userMaterialIdA == kChild1MaterialId || userMaterialIdB == kChild1MaterialId )
+	{
+		materialCapture.sawChild1 = true;
+		materialCapture.mixedFriction = sqrtf( frictionA * frictionB );
+	}
+
+	return sqrtf( frictionA * frictionB );
+}
+
+// Contact material selection must use the struck compound child's material, not entry 0
+// of the compound material table. Child 0 gets low friction, child 1 high friction, and a
+// unit friction sphere strikes only child 1, so the mixing callback must see child 1's
+// values. Covers sphere, capsule, and hull children. Issue #69.
+static int TestCompoundContactMaterials( void )
+{
+	b3SurfaceMaterial mat0 = b3DefaultSurfaceMaterial();
+	mat0.friction = 0.04f;
+	mat0.userMaterialId = kChild0MaterialId;
+
+	b3SurfaceMaterial mat1 = b3DefaultSurfaceMaterial();
+	mat1.friction = 0.81f;
+	mat1.userMaterialId = kChild1MaterialId;
+
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+	// Children at x = -3 and x = +3, all with their top face or surface at y = 0.5
+	b3CompoundSphereDef spheres[2] = {
+		{ .sphere = { { -3.0f, 0.0f, 0.0f }, 0.5f }, .material = mat0 },
+		{ .sphere = { { 3.0f, 0.0f, 0.0f }, 0.5f }, .material = mat1 },
+	};
+
+	b3CompoundCapsuleDef capsules[2] = {
+		{ .capsule = { { -3.0f, 0.0f, -0.5f }, { -3.0f, 0.0f, 0.5f }, 0.5f }, .material = mat0 },
+		{ .capsule = { { 3.0f, 0.0f, -0.5f }, { 3.0f, 0.0f, 0.5f }, 0.5f }, .material = mat1 },
+	};
+
+	b3CompoundHullDef hulls[2] = {
+		{ .hull = &box.base, .transform = { { -3.0f, 0.0f, 0.0f }, b3Quat_identity }, .material = mat0 },
+		{ .hull = &box.base, .transform = { { 3.0f, 0.0f, 0.0f }, b3Quat_identity }, .material = mat1 },
+	};
+
+	for ( int childType = 0; childType < 3; ++childType )
+	{
+		b3CompoundDef compoundDef = { 0 };
+		if ( childType == 0 )
+		{
+			compoundDef.spheres = spheres;
+			compoundDef.sphereCount = 2;
+		}
+		else if ( childType == 1 )
+		{
+			compoundDef.capsules = capsules;
+			compoundDef.capsuleCount = 2;
+		}
+		else
+		{
+			compoundDef.hulls = hulls;
+			compoundDef.hullCount = 2;
+		}
+
+		b3CompoundData* compound = b3CreateCompound( &compoundDef );
+		ENSURE( compound != NULL );
+
+		memset( &materialCapture, 0, sizeof( materialCapture ) );
+
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		worldDef.frictionCallback = CaptureFrictionMix;
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_staticBody;
+		b3BodyId compoundBodyId = b3CreateBody( worldId, &bodyDef );
+		b3ShapeDef compoundShapeDef = b3DefaultShapeDef();
+		b3CreateBakedCompoundShape( compoundBodyId, &compoundShapeDef, compound );
+
+		// Sphere driven straight down onto child 1
+		bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.gravityScale = 0.0f;
+		bodyDef.position = (b3Pos){ 3.0f, 3.0f, 0.0f };
+		bodyDef.linearVelocity = (b3Vec3){ 0.0f, -30.0f, 0.0f };
+		b3BodyId sphereBodyId = b3CreateBody( worldId, &bodyDef );
+		b3ShapeDef sphereShapeDef = b3DefaultShapeDef();
+		sphereShapeDef.density = 1.0f;
+		sphereShapeDef.baseMaterial.friction = 1.0f;
+		sphereShapeDef.baseMaterial.userMaterialId = kProbeMaterialId;
+		b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+		b3CreateSphereShape( sphereBodyId, &sphereShapeDef, &sphere );
+
+		for ( int i = 0; i < 30; ++i )
+		{
+			b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		}
+
+		b3DestroyWorld( worldId );
+		b3DestroyCompound( compound );
+
+		ENSURE( materialCapture.callCount > 0 );
+		// The pre-fix code fed material table entry 0 to the mixing callback for every child
+		ENSURE( materialCapture.sawChild0 == false );
+		ENSURE( materialCapture.sawChild1 == true );
+		// sqrt(0.81 * 1.0)
+		ENSURE_SMALL( materialCapture.mixedFriction - 0.9f, 1e-5f );
+	}
+
+	return 0;
+}
+
 static int TestSetWorkerCount( void )
 {
 	b3WorldDef worldDef = b3DefaultWorldDef();
@@ -1038,6 +1172,7 @@ int WorldTest( void )
 	RUN_SUBTEST( TestContactEvents );
 	RUN_SUBTEST( TestHitEvents );
 	RUN_SUBTEST( TestCompoundHitEvents );
+	RUN_SUBTEST( TestCompoundContactMaterials );
 	RUN_SUBTEST( TestOverflowColorPile );
 	RUN_SUBTEST( SetBulletDriftTest );
 	RUN_SUBTEST( EnableSleepFlagSyncTest );
