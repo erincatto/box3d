@@ -4,7 +4,7 @@
 #include "utils.h"
 
 #if defined( _WIN64 )
-#include <Windows.h>
+#include <windows.h>
 #elif defined( __APPLE__ )
 #include <unistd.h>
 #elif defined( __linux__ )
