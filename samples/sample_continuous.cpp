@@ -549,8 +549,8 @@ public:
 
 		// Don't allow shapes to collide with each other. This
 		// makes isolating failures easier.
-		shapeDef.filter.categoryBits = 2;
-		shapeDef.filter.maskBits = 1;
+		//shapeDef.filter.categoryBits = 2;
+		//shapeDef.filter.maskBits = 1;
 
 		g_randomSeed = (uint32_t)b3GetTicks();
 

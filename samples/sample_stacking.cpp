@@ -210,7 +210,7 @@ public:
 			bodyDef.name = "cube";
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.position = { 0.0f, 0.5f, 0.0f };
-			//bodyDef.angularVelocity = { 0.0f, 10.0f, 0.0f };
+			// bodyDef.angularVelocity = { 0.0f, 10.0f, 0.0f };
 			m_bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -847,3 +847,67 @@ public:
 };
 
 static int samplePyramid2D = RegisterSample( "Stacking", "Pyramid2D", Pyramid2D::Create );
+
+class SmallJenga : public Sample
+{
+public:
+	explicit SmallJenga( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 25.0f, 10.0f, b3Pos_zero );
+		}
+
+		AddGroundBox( 20.0f );
+
+		b3Vec3 h = { 0.2f, 0.02f, 0.04f };
+		b3BoxHull box = b3MakeBoxHull( h.x, h.y, h.z );
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		{
+			bodyDef.position = { 0.0f, h.y, 0.0f };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 0.0f );
+			b3BodyId boxBody1 = b3CreateBody( m_worldId, &bodyDef );
+
+			bodyDef.position = { 1.75f * h.z, 20.0f * h.y, 2.2f * h.z };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Normalize({0.1f, 0.9f, 0.0f}), 0.45f * B3_PI );
+			b3BodyId boxBody2 = b3CreateBody( m_worldId, &bodyDef );
+
+			b3CreateHullShape( boxBody1, &shapeDef, &box.base );
+			b3CreateHullShape( boxBody2, &shapeDef, &box.base );
+		}
+
+#if 0
+		int count = 2;
+		for ( int i = 0; i < count; ++i )
+		{
+			float alpha = ( i & 1 ) == 1 ? 0.0f : 0.5f * B3_PI;
+
+			float x = ( i & 1 ) == 0 ? h.x - h.z : 0.0f;
+			float z = ( i & 1 ) == 0 ? 0.0f : h.x - h.z;
+
+			bodyDef.position = { x, (0.5f * i + 0.25f) * h.x, z };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, alpha );
+			b3BodyId boxBody1 = b3CreateBody( m_worldId, &bodyDef );
+
+			bodyDef.position = { -x, (0.5f * i + 0.25f) * h.x, -z };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, alpha );
+			b3BodyId boxBody2 = b3CreateBody( m_worldId, &bodyDef );
+
+			b3CreateHullShape( boxBody1, &shapeDef, &box.base );
+			b3CreateHullShape( boxBody2, &shapeDef, &box.base );
+		}
+#endif
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new SmallJenga( context );
+	}
+};
+
+static int sampleSmallJenga = RegisterSample( "Stacking", "Small Jenga", SmallJenga::Create );

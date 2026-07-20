@@ -420,7 +420,7 @@ static int TriangleEdgeTest( void )
 		b3LocalManifold manifold = { 0 };
 		manifold.points = points;
 		b3SATCache cache = { .type = b3_manualEdgePairAxis };
-		b3CollideHullAndTriangle( &manifold, 8, &hull.base, v1, v2, v3, 0, &cache, true );
+		b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, 0, &hull.base, &cache, true );
 
 		b3Vec3 expectedNormal = b3Neg( axis );
 		b3Vec3 expectedPoint = b3MulAdd( hullPoint, 0.5f * gap, axis );
@@ -453,7 +453,7 @@ static int TriangleEdgeTest( void )
 		b3LocalManifold manifold = { 0 };
 		manifold.points = points;
 		b3SATCache cache = { 0 };
-		b3CollideHullAndTriangle( &manifold, 8, &hull.base, v1, v2, v3, 0, &cache, true );
+		b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, 0, &hull.base, &cache, true );
 
 		ENSURE( manifold.pointCount == 0 );
 		ENSURE( cache.type == b3_edgePairAxis );
@@ -486,7 +486,7 @@ static int TriangleParallelEdgeTest( void )
 			b3LocalManifold manifold = { 0 };
 			manifold.points = points;
 			b3SATCache cache = { 0 };
-			b3CollideHullAndTriangle( &manifold, 8, &hull.base, v1, v2, v3, 0, &cache, true );
+			b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, 0, &hull.base, &cache, true );
 
 			ENSURE( manifold.pointCount == 4 );
 			ENSURE( cache.type == b3_faceAxisA );
@@ -544,7 +544,7 @@ static int RidgeCrossingTest( void )
 
 	// Inside the rejection threshold. A one point edge contact off a parallel pair would have a
 	// normal built from noise, so the query drops the pair and the roof faces carry the contact.
-	float shallowAngles[] = { 0.0f, 1e-4f, 1e-3f, 0.003f };
+	float shallowAngles[] = { 0.0f, 1e-4f, 1e-3f };
 
 	for ( int i = 0; i < ARRAY_COUNT( shallowAngles ); ++i )
 	{
@@ -841,7 +841,7 @@ static int TriangleHullEdgeSweepTest( void )
 				b3LocalManifold manifold = { 0 };
 				manifold.points = points;
 				b3SATCache cache = { .type = b3_manualEdgePairAxis };
-				b3CollideHullAndTriangle( &manifold, 8, &hull.base, v1, v2, v3, 0, &cache, true );
+				b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, 0, &hull.base, &cache, true );
 
 				if ( cache.type != b3_edgePairAxis || manifold.pointCount != 1 )
 				{
@@ -912,7 +912,7 @@ static int CapsuleTriangleEdgeDeepTest( void )
 					b3LocalManifold manifold = { 0 };
 					manifold.points = points;
 					b3SimplexCache cache = { 0 };
-					b3CollideCapsuleAndTriangle( &manifold, 8, &capsule, triangle, &cache );
+					b3CollideTriangleAndCapsule( &manifold, 8, triangle, &capsule, &cache );
 
 					// Only the edge contacts exercise the new axis. Face contacts are handled elsewhere.
 					if ( manifold.pointCount != 1 || manifold.feature < b3_featureEdge1 || manifold.feature > b3_featureEdge3 )

@@ -1253,3 +1253,53 @@ public:
 };
 
 static int sampleRestitutionOvershoot = RegisterSample( "Issues", "Restitution Overshoot", RestitutionOvershoot::Create );
+
+class SlideTwistOffCenterShape : public Sample
+{
+public:
+	explicit SlideTwistOffCenterShape( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( -30.0f, 17.0f, 30.0f, { 0.0f, 5.0f, 0.0f } );
+		}
+
+		AddGroundBox( 50.0f );
+
+		b3Quat orientation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 20.0f * B3_DEG_TO_RAD );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		bodyDef.position = { 0.0f, 4.0f, 0.0f };
+		bodyDef.rotation = orientation;
+		b3BodyId planeBody = b3CreateBody( m_worldId, &bodyDef );
+
+		b3BoxHull plane = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
+		shapeDef.baseMaterial.friction = 0.6f;
+		b3CreateHullShape( planeBody, &shapeDef, &plane.base );
+
+		b3Vec3 boxLocalCenter = { 1.0f, 0.5f, 1.0f };
+		b3Vec3 boxOffset = b3RotateVector( orientation, boxLocalCenter );
+
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = { -boxOffset.x, 5.0f - boxOffset.y, -boxOffset.z };
+		bodyDef.rotation = orientation;
+		//bodyDef.angularVelocity = 25.0f * b3RotateVector( orientation, b3Vec3_axisY );
+		b3BodyId boxBody = b3CreateBody( m_worldId, &bodyDef );
+		b3BoxHull mBox = b3MakeOffsetBoxHull( 1.0f, 0.5f, 1.0f, boxLocalCenter );
+		shapeDef.baseMaterial.friction = 0.3f;
+		b3CreateHullShape( boxBody, &shapeDef, &mBox.base );
+
+		b3Body_SetAngularVelocity( boxBody, 25.0f * b3RotateVector( orientation, b3Vec3_axisY ) );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new SlideTwistOffCenterShape( context );
+	}
+};
+
+static int sampleSlideTwistOffCenterShape =
+	RegisterSample( "Issues", "Slide Twist Off Center Shape", SlideTwistOffCenterShape::Create );

@@ -44,7 +44,8 @@ B3_API uint64_t b3DynamicTree_GetCategoryBits( b3DynamicTree* tree, int proxyId 
 B3_API b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
 										b3TreeQueryCallbackFcn* callback, void* context );
 
-/// Query an AABB for the closest object. The callback function is called for each proxy that might be closest to the supplied point.
+/// Query an AABB for the closest object. The callback function is called for each proxy that might be closest to the supplied
+/// point.
 /// @param tree the dynamic tree to query
 /// @param point the query point
 /// @param maskBits nodes are skipped if the bit-wise AND with the node category bits is zero
@@ -634,17 +635,17 @@ B3_API void b3CollideHullAndCapsule( b3LocalManifold* manifold, int capacity, co
 B3_API void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
 							b3Transform transformBtoA, b3SATCache* cache );
 
-/// Collide a capsule and a triangle.
-B3_API void b3CollideCapsuleAndTriangle( b3LocalManifold* manifold, int capacity, const b3Capsule* capsuleA,
-										 const b3Vec3* triangleB, b3SimplexCache* cache );
+/// Collide a triangle and capsule. Normal points from triangle to capsule.
+B3_API void b3CollideTriangleAndCapsule( b3LocalManifold* manifold, int capacity, const b3Vec3* triangleA,
+										 const b3Capsule* capsuleB, b3SimplexCache* cache );
 
-/// Collide a hull and a triangle.
-B3_API void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, b3Vec3 v1, b3Vec3 v2,
-									  b3Vec3 v3, int triangleFlags, b3SATCache* cache, bool enableSpeculative );
+/// Collide a triangle and hull. Normal points from triangle to hull.
+B3_API void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, int triangleFlags,
+									  const b3HullData* hullB, b3SATCache* cache, bool enableSpeculative );
 
-/// Collide a sphere and a triangle.
-B3_API void b3CollideSphereAndTriangle( b3LocalManifold* manifold, int capacity, const b3Sphere* sphereA,
-										const b3Vec3* triangleB );
+/// Collide a triangle and sphere. Normal points from triangle to sphere.
+B3_API void b3CollideTriangleAndSphere( b3LocalManifold* manifold, int capacity, const b3Vec3* triangleA,
+										const b3Sphere* sphereB );
 
 /**@}*/ // collision
 

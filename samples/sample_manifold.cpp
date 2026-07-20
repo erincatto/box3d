@@ -517,7 +517,7 @@ public:
 			b3TransformPoint( xf, m_triangle[2] ),
 		};
 
-		b3CollideSphereAndTriangle( &m_manifold, m_pointCapacity, &m_sphere, localTriangle );
+		b3CollideTriangleAndSphere( &m_manifold, m_pointCapacity, localTriangle, &m_sphere );
 	}
 
 	b3Sphere m_sphere;
@@ -668,7 +668,7 @@ public:
 			b3TransformPoint( xf, m_triangle[2] ),
 		};
 
-		b3CollideCapsuleAndTriangle( &m_manifold, m_pointCapacity, &m_capsule, localTriangle, &m_simplexCache );
+		b3CollideTriangleAndCapsule( &m_manifold, m_pointCapacity, localTriangle, &m_capsule, &m_simplexCache );
 	}
 
 	b3Capsule m_capsule;
@@ -913,8 +913,8 @@ public:
 			b3TransformPoint( xf, m_triangle[2] ),
 		};
 
-		b3CollideHullAndTriangle( &m_manifold, m_pointCapacity, m_hull, localTriangle[0], localTriangle[1], localTriangle[2],
-								  m_flags, &m_satCache, true );
+		b3CollideTriangleAndHull( &m_manifold, m_pointCapacity, localTriangle[0], localTriangle[1], localTriangle[2],
+								  m_flags, m_hull, &m_satCache, true );
 	}
 
 	int m_flags;

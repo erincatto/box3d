@@ -17,6 +17,8 @@
 // Then from that edge, we select the adjacent face that is most anti-parallel to the reference normal.
 int b3FindIncidentFace( const b3HullData* hull, b3Vec3 refNormal, int vertexIndex )
 {
+	B3_ASSERT( 0 <= vertexIndex && vertexIndex < hull->vertexCount );
+
 	const b3HullVertex* vertices = b3GetHullVertices( hull );
 	const b3HullHalfEdge* edges = b3GetHullEdges( hull );
 	const b3Plane* planes = b3GetHullPlanes( hull );
