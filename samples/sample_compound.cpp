@@ -5,6 +5,7 @@
 #include "gfx/draw.h"
 #include "human.h"
 #include "mesh_loader.h"
+#include "mover.h"
 #include "sample.h"
 #include "utils.h"
 

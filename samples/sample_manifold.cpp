@@ -829,19 +829,18 @@ public:
 		//m_triangle[1] = { 1.00000000, 0, 0.00000000 };
 		//m_triangle[2] = { 0.00000000, 0, 0.00000000 };
 
-		m_triangle[0x00000000] = { -1.82879996, -0.0253999997, -0.609600008 };
-		m_triangle[0x00000001] = { -1.82879996, -0.0253999997, -0.406399995 };
-		m_triangle[0x00000002] = { -1.79069996, 0.00000000, -0.406399995 };
+		m_triangle[0] = { 0.299769998f, -1.01549578f, -0.744717002f };
+		m_triangle[1] = { 0.299769998f, -1.01549578f, 1.28728306f   };
+		m_triangle[2] = { 0.299769998f, -0.913895786f, 0.271283031f };
 
-		float SRC = 0.0254f;
-		float bodyHalfWidth = 16.0f * SRC;
-		float bodyHalfHeight = 36.0f * SRC;
+		float bodyHalfWidth = 0.304800004f;
+		float bodyHalfHeight = 0.914399981f;
 
 		m_boxHull = b3MakeBoxHull( bodyHalfWidth, bodyHalfHeight, bodyHalfWidth );
 
 		m_transformA = b3WorldTransform_identity;
 		m_transformB = b3WorldTransform_identity;
-		m_transformB.p = { -2.16650009f, 0.912535489f, 0.00000000f };
+		//m_transformB.p = { -2.16650009f, 0.912535489f, 0.00000000f };
 
 		// b3MeshEdgeFlags
 		m_flags = 0;

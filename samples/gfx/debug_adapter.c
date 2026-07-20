@@ -813,12 +813,12 @@ static bool CompoundCullCallback( int proxyId, uint64_t userData, void* context 
 	return true;
 }
 
-static bool DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexColor color, void* context )
+static void DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexColor color, void* context )
 {
 	(void)context;
 	if ( userShape == NULL )
 	{
-		return true; // unsupported shape type, skip and continue
+		return;
 	}
 
 	// Shift the world transform into the camera relative frame the primitives render in
@@ -920,8 +920,6 @@ static bool DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexCo
 	{
 		AppendResolvedShape( us, shapeRelative, c, metallic, roughness, shadowCast, hk );
 	}
-
-	return true;
 }
 
 #define BOX3D_LINE_THICKNESS_PX 2.5f

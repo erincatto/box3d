@@ -18,27 +18,27 @@
 // Double precision accumulates body positions in double, so the settle/sleep step and the
 // state hash differ from the float build. Both modes are internally deterministic.
 #if defined( BOX3D_DOUBLE_PRECISION )
-#define EXPECTED_SLEEP_STEP 297
-#define EXPECTED_HASH 0x27FF38C1
-#define WAVE_PILE_SLEEP_STEP 287
-#define WAVE_PILE_HASH 0xFFC8DA49
+#define RAGDOLL_SLEEP_STEP 297
+#define RAGDOLL_HASH 0x27FF38C1
+#define WAVE_PILE_SLEEP_STEP 258
+#define WAVE_PILE_HASH 0xA3CDC61B
 #define QUERY_SPAWN_SLEEP_STEP 242
 #define QUERY_SPAWN_HASH 0x1737F5BC
 #define QUERY_SPAWN_HIT_COUNT 59
 #define QUERY_SPAWN_QUERY_HASH 0x31F090DC
-#define MESH_DROP_SLEEP_STEP 206
-#define MESH_DROP_HASH 0xB6A9E1DE
+#define MESH_DROP_SLEEP_STEP 251
+#define MESH_DROP_HASH 0x465381C5
 #else
-#define EXPECTED_SLEEP_STEP 308
-#define EXPECTED_HASH 0x1E5EDD79
-#define WAVE_PILE_SLEEP_STEP 285
-#define WAVE_PILE_HASH 0x4057173C
+#define RAGDOLL_SLEEP_STEP 308
+#define RAGDOLL_HASH 0x1E5EDD79
+#define WAVE_PILE_SLEEP_STEP 239
+#define WAVE_PILE_HASH 0xA2F4D472
 #define QUERY_SPAWN_SLEEP_STEP 242
 #define QUERY_SPAWN_HASH 0xB9F993A5
 #define QUERY_SPAWN_HIT_COUNT 59
 #define QUERY_SPAWN_QUERY_HASH 0xB9D3863D
-#define MESH_DROP_SLEEP_STEP 205
-#define MESH_DROP_HASH 0x8F55FB2D
+#define MESH_DROP_SLEEP_STEP 251
+#define MESH_DROP_HASH 0xE58C7240
 #endif
 
 static int SingleMultithreadingTest( int workerCount )
@@ -68,13 +68,13 @@ static int SingleMultithreadingTest( int workerCount )
 
 	b3DestroyWorld( worldId );
 
-	if ( data.sleepStep != EXPECTED_SLEEP_STEP || data.hash != EXPECTED_HASH )
+	if ( data.sleepStep != RAGDOLL_SLEEP_STEP || data.hash != RAGDOLL_HASH )
 	{
 		printf( "  workers=%d sleepStep=%d hash=0x%08X\n", workerCount, data.sleepStep, data.hash );
 	}
 
-	ENSURE( data.sleepStep == EXPECTED_SLEEP_STEP );
-	ENSURE( data.hash == EXPECTED_HASH );
+	ENSURE( data.sleepStep == RAGDOLL_SLEEP_STEP );
+	ENSURE( data.hash == RAGDOLL_HASH );
 
 	DestroyFallingRagdolls( &data );
 
@@ -113,13 +113,13 @@ static int CrossPlatformTest( void )
 		done = UpdateFallingRagdolls( worldId, &data );
 	}
 
-	if ( data.sleepStep != EXPECTED_SLEEP_STEP || data.hash != EXPECTED_HASH )
+	if ( data.sleepStep != RAGDOLL_SLEEP_STEP || data.hash != RAGDOLL_HASH )
 	{
 		printf( "  cross-platform sleepStep=%d hash=0x%08X\n", data.sleepStep, data.hash );
 	}
 
-	ENSURE( data.sleepStep == EXPECTED_SLEEP_STEP );
-	ENSURE( data.hash == EXPECTED_HASH );
+	ENSURE( data.sleepStep == RAGDOLL_SLEEP_STEP );
+	ENSURE( data.hash == RAGDOLL_HASH );
 
 	DestroyFallingRagdolls( &data );
 

@@ -448,13 +448,12 @@ static void RecTestDestroyDebugShape( void* userShape, void* userContext )
 	counters->destroyed += 1;
 }
 
-static bool RecTestDrawShape( void* userShape, b3WorldTransform transform, b3HexColor color, void* context )
+static void RecTestDrawShape( void* userShape, b3WorldTransform transform, b3HexColor color, void* context )
 {
 	(void)userShape;
 	(void)transform;
 	(void)color;
 	(void)context;
-	return true;
 }
 
 // b3World_Draw lazily fires createDebugShape for shapes entering the draw set, the same way the

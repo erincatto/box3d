@@ -964,6 +964,8 @@ typedef struct b3ContactConstraintWide
 	int indexA[B3_SIMD_WIDTH];
 	int indexB[B3_SIMD_WIDTH];
 
+	int pointCounts[B3_SIMD_WIDTH];
+
 	b3FloatW invMassA, invMassB;
 	b3SymMatrix3W invIA, invIB;
 	b3Vec3W normal;
@@ -1403,6 +1405,8 @@ void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
 				( (float*)&constraint->impulseScale )[lane] = soft.impulseScale;
 
 				int pointCount = manifold->pointCount;
+				constraint->pointCounts[lane] = pointCount;
+
 				b3Vec3 centerA = b3Vec3_zero;
 				b3Vec3 centerB = b3Vec3_zero;
 				float totalFrictionWeight = 0.0f;
@@ -1550,8 +1554,14 @@ void b3WarmStartContacts_Convex( b3SolverBlock block, b3StepContext* context )
 		b3BodyStateW bA = b3GatherBodies( states, c->indexA );
 		b3BodyStateW bB = b3GatherBodies( states, c->indexB );
 
+		_Static_assert( B3_SIMD_WIDTH == 4, "width" );
+		int pointCount1 = b3MaxInt( c->pointCounts[0], c->pointCounts[1] );
+		int pointCount2 = b3MaxInt( c->pointCounts[2], c->pointCounts[3] );
+		int pointCount = b3MaxInt( pointCount1, pointCount2 );
+		B3_VALIDATE( 0 < pointCount && pointCount <= B3_SIMD_WIDTH );
+
 		// Normal impulses
-		for ( int j = 0; j < B3_MAX_MANIFOLD_POINTS; ++j )
+		for ( int j = 0; j < pointCount; ++j )
 		{
 			b3ContactConstraintPointWide* cp = c->points + j;
 
@@ -1618,6 +1628,12 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 	{
 		b3ContactConstraintWide* c = constraints + wideIndex;
 
+		_Static_assert( B3_SIMD_WIDTH == 4, "width" );
+		int pointCount1 = b3MaxInt( c->pointCounts[0], c->pointCounts[1] );
+		int pointCount2 = b3MaxInt( c->pointCounts[2], c->pointCounts[3] );
+		int pointCount = b3MaxInt( pointCount1, pointCount2 );
+		B3_VALIDATE( 0 < pointCount && pointCount <= B3_SIMD_WIDTH );
+
 		b3BodyStateW bA = b3GatherBodies( states, c->indexA );
 		b3BodyStateW bB = b3GatherBodies( states, c->indexB );
 
@@ -1640,8 +1656,7 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context, bool u
 		b3FloatW totalNormalImpulse = b3ZeroW();
 		b3FloatW totalTwistLimit = b3ZeroW();
 
-		// todo_erin use the max point count of the four manifolds
-		for ( int pointIndex = 0; pointIndex < B3_MAX_MANIFOLD_POINTS; ++pointIndex )
+		for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 		{
 			b3ContactConstraintPointWide* cp = c->points + pointIndex;
 
@@ -1828,6 +1843,12 @@ void b3ApplyRestitution_Convex( b3SolverBlock block, b3StepContext* context )
 			continue;
 		}
 
+		_Static_assert( B3_SIMD_WIDTH == 4, "width" );
+		int pointCount1 = b3MaxInt( c->pointCounts[0], c->pointCounts[1] );
+		int pointCount2 = b3MaxInt( c->pointCounts[2], c->pointCounts[3] );
+		int pointCount = b3MaxInt( pointCount1, pointCount2 );
+		B3_VALIDATE( 0 < pointCount && pointCount <= B3_SIMD_WIDTH );
+
 		// Single gather for all manifolds
 		b3BodyStateW bA = b3GatherBodies( states, c->indexA );
 		b3BodyStateW bB = b3GatherBodies( states, c->indexB );
@@ -1836,7 +1857,7 @@ void b3ApplyRestitution_Convex( b3SolverBlock block, b3StepContext* context )
 		// by the calculations below.
 		b3FloatW restitutionMask = b3EqualsW( c->restitution, zero );
 
-		for ( int pointIndex = 0; pointIndex < B3_MAX_MANIFOLD_POINTS; ++pointIndex )
+		for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 		{
 			b3ContactConstraintPointWide* cp = c->points + pointIndex;
 

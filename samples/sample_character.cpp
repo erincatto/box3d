@@ -4,6 +4,7 @@
 #include "gfx/draw.h"
 #include "gfx/keycodes.h"
 #include "mesh_loader.h"
+#include "mover.h"
 #include "sample.h"
 
 #include "box3d/box3d.h"

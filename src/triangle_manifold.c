@@ -1233,10 +1233,9 @@ void b3CollideHullAndTriangle( b3LocalManifold* manifold, int capacity, const b3
 
 	// Don't admit a hull face significantly opposed to the triangle face.
 	// Need a tolerance to avoid ghost collisions.
-	// todo hull query skips faces that point along the triangle normal
 	b3Vec3 hullNormal = hullPlanes[faceQueryB.faceIndex].normal;
 	bool pushingDown = b3Dot( hullNormal, trianglePlane.normal ) > 0.25f;
-	if ( faceQueryB.separation > faceQueryA.separation + linearSlop && pushingDown == false )
+	if ( faceQueryB.separation >= faceQueryA.separation && pushingDown == false )
 	{
 		clippedFaceSeparation = b3CollideHullFace( manifold, capacity, &triangle, hullA, faceQueryB, cache, enableSpeculative );
 	}
