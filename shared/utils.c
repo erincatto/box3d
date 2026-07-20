@@ -4,6 +4,7 @@
 #include "utils.h"
 
 #if defined( _WIN64 )
+// Lower-case windows.h intentionally for cross compiling on mingw.
 #include <windows.h>
 #elif defined( __APPLE__ )
 #include <unistd.h>
