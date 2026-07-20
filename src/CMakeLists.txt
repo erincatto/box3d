@@ -154,7 +154,8 @@ if (BOX3D_PROFILE)
 endif()
 
 if(BOX3D_VALIDATE)
-	message(STATUS "Box3D validation ON")	
+	# Only effective when NDEBUG is undefined, see base.h
+	message(STATUS "Box3D validation ON (debug builds)")
 	target_compile_definitions(box3d PRIVATE BOX3D_VALIDATE)
 endif()
 

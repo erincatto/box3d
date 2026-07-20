@@ -84,6 +84,14 @@ option(BOX3D_DISABLE_SIMD "Disable SIMD math (slower)" OFF)
 option(BOX3D_COMPILE_WARNING_AS_ERROR "Compile warnings as errors" OFF)
 option(BOX3D_DOUBLE_PRECISION "Enable double precision for large worlds" OFF)
 
+# These are read by the library build, so they must precede add_subdirectory(src),
+# otherwise the first configure and a re-configure produce different libraries.
+# Top level only, so they stay hidden from FetchContent consumers.
+if(PROJECT_IS_TOP_LEVEL)
+	option(BOX3D_PROFILE "Enable profiling with Tracy" OFF)
+	option(BOX3D_VALIDATE "Enable heavy validation" ON)
+endif()
+
 # Emscripten maps the SSE2 path onto wasm SIMD128. simd.h is a header included by
 # non-library targets like the tests, so these flags must be directory-wide, not
 # PRIVATE to the box3d library.
@@ -127,8 +135,6 @@ if(PROJECT_IS_TOP_LEVEL)
 	option(BOX3D_SAMPLES "Build the Box3D samples" ON)
 	option(BOX3D_BENCHMARKS "Build the Box3D benchmarks" OFF)
 	option(BOX3D_DOCS "Build the Box3D documentation" OFF)
-	option(BOX3D_PROFILE "Enable profiling with Tracy" OFF)
-	option(BOX3D_VALIDATE "Enable heavy validation" ON)
 	option(BOX3D_UNIT_TESTS "Build the Box3D unit tests" ON)
 
 	# Enable this for shader development using sokol-shdc.
