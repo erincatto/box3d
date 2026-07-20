@@ -98,8 +98,8 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 		float drop = control * m_friction * timeStep;
 		float newSpeed = b3MaxFloat( 0.0f, speed - drop );
 		float ratio = newSpeed / speed;
-		m_velocity.x *= newSpeed / speed;
-		m_velocity.z *= newSpeed / speed;
+		m_velocity.x *= ratio;
+		m_velocity.z *= ratio;
 	}
 
 	float maxSpeed = m_sprint ? 1.5f * m_maxSpeed : m_maxSpeed;
