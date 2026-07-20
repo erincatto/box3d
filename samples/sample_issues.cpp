@@ -1146,3 +1146,110 @@ public:
 };
 
 static int sampleWheelStack = RegisterSample( "Issues", "GMod Wheel Stack", WheelStack::Create );
+
+class RestitutionOvershoot : public Sample
+{
+public:
+	static constexpr float m_boxHalf = 0.5f;
+	static constexpr float m_floorHalfXZ = 0.375f;
+	static constexpr float m_floorHalfY = 0.25f;
+	static constexpr float m_dropHeight = 10.0f;
+	static constexpr float m_tolerance = 0.05f;
+
+	explicit RestitutionOvershoot( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 20.0f, 0.0f, 28.0f, { 0.0f, m_dropHeight + m_boxHalf, 0.0f } );
+		}
+
+		b3BoxHull floor = b3MakeBoxHull( m_floorHalfXZ, m_floorHalfY, m_floorHalfXZ );
+		b3BodyDef floorDef = b3DefaultBodyDef();
+		floorDef.type = b3_staticBody;
+		floorDef.position = { 0.0f, -m_floorHalfY, 0.0f };
+		b3BodyId floorBody = b3CreateBody( m_worldId, &floorDef );
+
+		b3ShapeDef floorShape = b3DefaultShapeDef();
+		b3CreateHullShape( floorBody, &floorShape, &floor.base );
+
+		b3BoxHull box = b3MakeBoxHull( m_boxHalf, m_boxHalf, m_boxHalf );
+		b3BodyDef boxDef = b3DefaultBodyDef();
+		boxDef.type = b3_dynamicBody;
+		boxDef.position = { 0.0f, m_dropHeight, 0.0f };
+		m_boxBody = b3CreateBody( m_worldId, &boxDef );
+
+		b3ShapeDef boxShape = b3DefaultShapeDef();
+		boxShape.baseMaterial.restitution = 1.0f;
+		b3CreateHullShape( m_boxBody, &boxShape, &box.base );
+
+		m_currentY = m_dropHeight;
+		m_maxBounceY = 0.0f;
+		m_bounced = false;
+		m_failed = false;
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		if ( B3_IS_NON_NULL( m_boxBody ) == false )
+		{
+			return;
+		}
+
+		b3Pos position = b3Body_GetPosition( m_boxBody );
+		m_currentY = position.y;
+
+		b3Vec3 velocity = b3Body_GetLinearVelocity( m_boxBody );
+		if ( m_bounced == false && velocity.y > 0.0f )
+		{
+			m_bounced = true;
+		}
+
+		if ( m_bounced )
+		{
+			if ( position.y > m_maxBounceY )
+			{
+				m_maxBounceY = position.y;
+			}
+			if ( position.y > m_dropHeight + m_tolerance )
+			{
+				m_failed = true;
+			}
+		}
+
+		b3Pos markerPoint = { 0.0f, m_dropHeight + m_boxHalf, 0.0f };
+		DrawPlane( b3Vec3_axisY, markerPoint, MakeColor( b3_colorYellow ) );
+
+		DrawTextLine( "drop height = %.2f m", m_dropHeight );
+		DrawTextLine( "current y   = %.2f m", m_currentY );
+		DrawTextLine( "max bounce  = %.2f m", m_maxBounceY );
+
+		if ( m_bounced == false )
+		{
+			DrawTextLine( "waiting for first bounce..." );
+		}
+		else if ( m_failed )
+		{
+			DrawTextLine( "FAIL: box exceeded drop height" );
+		}
+		else
+		{
+			DrawTextLine( "PASS: bounce stays at or below drop height" );
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new RestitutionOvershoot( context );
+	}
+
+	b3BodyId m_boxBody = {};
+	float m_currentY = 0.0f;
+	float m_maxBounceY = 0.0f;
+	bool m_bounced = false;
+	bool m_failed = false;
+};
+
+static int sampleRestitutionOvershoot = RegisterSample( "Issues", "Restitution Overshoot", RestitutionOvershoot::Create );

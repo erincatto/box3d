@@ -24,6 +24,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
+_Static_assert( B3_RESTITUTION_ITERATIONS >= 1, "must 1 or more" );
+
 // these are useful for solver testing
 #define ITERATIONS 1
 #define RELAX_ITERATIONS 1
@@ -1313,6 +1315,7 @@ static void b3SolverTask( void* taskContext )
 		stageIndex += 1 + activeColorCount + ITERATIONS * activeColorCount + 1 + RELAX_ITERATIONS * activeColorCount;
 
 		// Restitution
+		for ( int iteration = 0; iteration < B3_RESTITUTION_ITERATIONS; ++iteration )
 		{
 			b3ApplyRestitution_Overflow( context );
 
@@ -1324,7 +1327,7 @@ static void b3SolverTask( void* taskContext )
 				b3ExecuteMainStage( stages + iterStageIndex, context, syncBits );
 				iterStageIndex += 1;
 			}
-			// graphSyncIndex += 1;
+			graphSyncIndex += 1;
 			stageIndex += activeColorCount;
 		}
 
@@ -1690,7 +1693,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		// b3_stageRelax
 		stageCount += RELAX_ITERATIONS * activeColorCount;
 		// b3_stageRestitution
-		stageCount += activeColorCount;
+		stageCount += B3_RESTITUTION_ITERATIONS * activeColorCount;
 		// b3_stageStoreWideImpulses
 		stageCount += 1;
 		// b3_stageStoreImpulses
@@ -1775,8 +1778,8 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		stage = b3InitColorStages( stage, b3_stageRelax, RELAX_ITERATIONS, activeColorCount, graphColorBlocks, graphBlockCounts,
 								   activeColorIndices );
 		// Note: joint blocks mixed in, could have joint limit restitution
-		stage = b3InitColorStages( stage, b3_stageRestitution, 1, activeColorCount, graphColorBlocks, graphBlockCounts,
-								   activeColorIndices );
+		stage = b3InitColorStages( stage, b3_stageRestitution, B3_RESTITUTION_ITERATIONS, activeColorCount, graphColorBlocks,
+								   graphBlockCounts, activeColorIndices );
 		stage = b3InitStage( stage, b3_stageStoreWideImpulses, convexBlocks, convexPrepareDim.count, UINT8_MAX );
 		stage = b3InitStage( stage, b3_stageStoreImpulses, meshBlocks, meshPrepareDim.count, UINT8_MAX );
 
