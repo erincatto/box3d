@@ -409,7 +409,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 35.0f, 15.0f, 30.0f, { 0.0f, 10.0f, 0.0f } );
+			m_camera->SetView( 35.0f, 15.0f, 12.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
 		m_shapeType = b3_hullShape;
@@ -418,42 +418,43 @@ public:
 
 	void CreateStack()
 	{
-		AddGroundBox( 60.0f );
+		AddGroundBox( 20.0f );
 
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.rollingResistance = m_shapeType == b3_capsuleShape ? 0.1f : 0.05f;
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+
+		float h = 1.0f;
+		float r = 0.1f;
+
+		b3BoxHull box = b3MakeBoxHull( h, r, r );
+		b3Capsule capsule = { { -h, 0.0f, 0.0f }, { h, 0.0f, 0.0f }, r };
+		int count = 30;
+		for ( int i = 0; i < count; ++i )
 		{
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			shapeDef.baseMaterial.rollingResistance = m_shapeType == b3_capsuleShape ? 0.1f : 0.01f;
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.type = b3_dynamicBody;
+			float alpha = ( i & 1 ) == 1 ? 0.0f : 0.5f * B3_PI;
 
-			b3BoxHull box = b3MakeBoxHull( 2.5f, 0.25f, 0.25f );
-			b3Capsule capsule = { { -2.5f, 0.0f, 0.0f }, { 2.5f, 0.0f, 0.0f }, 0.25f };
+			float x = ( i & 1 ) == 0 ? h - 2.0f * r : 0.0f;
+			float z = ( i & 1 ) == 0 ? 0.0f : h - 2.0f * r;
 
-			for ( int i = 0; i < m_size; ++i )
+			bodyDef.position = { x, ( 2.1f * i + 0.5f ) * r, z };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, alpha );
+			b3BodyId boxBody1 = b3CreateBody( m_worldId, &bodyDef );
+
+			bodyDef.position = { -x, ( 2.1f * i + 0.5f ) * r, -z };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, alpha );
+			b3BodyId boxBody2 = b3CreateBody( m_worldId, &bodyDef );
+
+			if ( m_shapeType == b3_capsuleShape )
 			{
-				float alpha = ( i & 1 ) == 1 ? 0.0f : 0.5f * B3_PI;
-
-				float x = ( i & 1 ) == 0 ? 1.75f : 0.0f;
-				float z = ( i & 1 ) == 0 ? 0.0f : 1.75f;
-
-				bodyDef.position = { x, 0.5f * i + 0.25f, z };
-				bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, alpha );
-				b3BodyId boxBody1 = b3CreateBody( m_worldId, &bodyDef );
-
-				bodyDef.position = { -x, 0.5f * i + 0.25f, -z };
-				bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, alpha );
-				b3BodyId boxBody2 = b3CreateBody( m_worldId, &bodyDef );
-
-				if ( m_shapeType == b3_capsuleShape )
-				{
-					b3CreateCapsuleShape( boxBody1, &shapeDef, &capsule );
-					b3CreateCapsuleShape( boxBody2, &shapeDef, &capsule );
-				}
-				else
-				{
-					b3CreateHullShape( boxBody1, &shapeDef, &box.base );
-					b3CreateHullShape( boxBody2, &shapeDef, &box.base );
-				}
+				b3CreateCapsuleShape( boxBody1, &shapeDef, &capsule );
+				b3CreateCapsuleShape( boxBody2, &shapeDef, &capsule );
+			}
+			else
+			{
+				b3CreateHullShape( boxBody1, &shapeDef, &box.base );
+				b3CreateHullShape( boxBody2, &shapeDef, &box.base );
 			}
 		}
 	}
@@ -484,7 +485,6 @@ public:
 		return new JengaStack( context );
 	}
 
-	static constexpr int m_size = 40;
 	b3ShapeType m_shapeType;
 };
 
@@ -811,7 +811,7 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 30.0f, 50.0f, { 0.0f, 5.0f, 0.0f } );
+			m_camera->SetView( 40.0f, 15.0f, 50.0f, { 0.0f, 12.0f, 0.0f } );
 		}
 
 		AddGroundBox( 40.0f );
@@ -848,10 +848,11 @@ public:
 
 static int samplePyramid2D = RegisterSample( "Stacking", "Pyramid2D", Pyramid2D::Create );
 
-class SmallJenga : public Sample
+// This stresses the edge-edge handling.
+class EdgeCrossing : public Sample
 {
 public:
-	explicit SmallJenga( SampleContext* context )
+	explicit EdgeCrossing( SampleContext* context )
 		: Sample( context )
 	{
 		if ( context->restart == false )
@@ -859,55 +860,80 @@ public:
 			m_camera->SetView( 0.0f, 25.0f, 10.0f, b3Pos_zero );
 		}
 
-		AddGroundBox( 20.0f );
+		AddGroundBox( 40.0f );
 
 		b3Vec3 h = { 0.2f, 0.02f, 0.04f };
-		b3BoxHull box = b3MakeBoxHull( h.x, h.y, h.z );
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
-		{
-			bodyDef.position = { 0.0f, h.y, 0.0f };
-			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 0.0f );
-			b3BodyId boxBody1 = b3CreateBody( m_worldId, &bodyDef );
+		bodyDef.position.x = -10.0f;
+		bodyDef.position.z = -2.0f;
 
-			bodyDef.position = { 1.75f * h.z, 20.0f * h.y, 2.2f * h.z };
-			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Normalize({0.1f, 0.9f, 0.0f}), 0.45f * B3_PI );
+		b3BoxHull box1 = b3MakeBoxHull( h.x, h.y, h.z );
+		b3BoxHull box2 = b3MakeBoxHull( h.x, h.z, h.y );
+
+		b3Vec3 axis = b3Normalize( { 0.1f, 0.9f, 0.0f } );
+		for ( float angle = -B3_PI; angle < B3_PI + 0.001f; angle += 0.1f * B3_PI )
+		{
+			bodyDef.position.y = h.y;
+			bodyDef.rotation = b3Quat_identity;
+			b3BodyId bodyId1 = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHullShape( bodyId1, &shapeDef, &box1.base );
+
+			bodyDef.position.y = 20.0f * h.y;
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( axis, angle );
 			b3BodyId boxBody2 = b3CreateBody( m_worldId, &bodyDef );
 
-			b3CreateHullShape( boxBody1, &shapeDef, &box.base );
-			b3CreateHullShape( boxBody2, &shapeDef, &box.base );
+			b3CreateHullShape( boxBody2, &shapeDef, &box1.base );
+
+			bodyDef.position.x += 1.0f;
 		}
 
-#if 0
-		int count = 2;
-		for ( int i = 0; i < count; ++i )
+		bodyDef.position.x = -10.0f;
+		bodyDef.position.z = 0.0f;
+
+		for ( float angle = -B3_PI; angle < B3_PI + 0.001f; angle += 0.1f * B3_PI )
 		{
-			float alpha = ( i & 1 ) == 1 ? 0.0f : 0.5f * B3_PI;
+			bodyDef.position.y = h.z;
+			bodyDef.rotation = b3Quat_identity;
+			b3BodyId bodyId1 = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHullShape( bodyId1, &shapeDef, &box2.base );
 
-			float x = ( i & 1 ) == 0 ? h.x - h.z : 0.0f;
-			float z = ( i & 1 ) == 0 ? 0.0f : h.x - h.z;
-
-			bodyDef.position = { x, (0.5f * i + 0.25f) * h.x, z };
-			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, alpha );
-			b3BodyId boxBody1 = b3CreateBody( m_worldId, &bodyDef );
-
-			bodyDef.position = { -x, (0.5f * i + 0.25f) * h.x, -z };
-			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisY, alpha );
+			bodyDef.position.y = 20.0f * h.z;
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( axis, angle );
 			b3BodyId boxBody2 = b3CreateBody( m_worldId, &bodyDef );
 
-			b3CreateHullShape( boxBody1, &shapeDef, &box.base );
-			b3CreateHullShape( boxBody2, &shapeDef, &box.base );
+			b3CreateHullShape( boxBody2, &shapeDef, &box2.base );
+
+			bodyDef.position.x += 1.0f;
 		}
-#endif
+
+		bodyDef.position.x = -10.0f;
+		bodyDef.position.z = 2.0f;
+
+		for ( float angle = -B3_PI; angle < B3_PI + 0.001f; angle += 0.1f * B3_PI )
+		{
+			bodyDef.position.y = h.y;
+			bodyDef.rotation = b3Quat_identity;
+			b3BodyId bodyId1 = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHullShape( bodyId1, &shapeDef, &box1.base );
+
+			bodyDef.position.y = 20.0f * h.y;
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( axis, angle );
+			b3BodyId boxBody2 = b3CreateBody( m_worldId, &bodyDef );
+
+			b3CreateHullShape( boxBody2, &shapeDef, &box2.base );
+
+			bodyDef.position.x += 1.0f;
+		}
 	}
 
 	static Sample* Create( SampleContext* context )
 	{
-		return new SmallJenga( context );
+		return new EdgeCrossing( context );
 	}
 };
 
-static int sampleSmallJenga = RegisterSample( "Stacking", "Small Jenga", SmallJenga::Create );
+static int sampleEdgeCrossing = RegisterSample( "Stacking", "Edge Crossing", EdgeCrossing::Create );

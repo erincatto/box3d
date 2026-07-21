@@ -2088,12 +2088,12 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 		return;
 	}
 
-	float clippedFaceSeparation = cache->separation;
-	const float edgeTol = 0.5f * linearSlop;
+	float clipSeparation = cache->separation;
+	float edgeTol = linearSlop;
 
 	// Face contact can be empty if it does not realize the axis of minimum penetration.
 	// Create edge contact if face contact fails or edge contact is significantly better!
-	if ( manifold->pointCount == 0 || edgeQuery.separation > clippedFaceSeparation + edgeTol )
+	if ( manifold->pointCount == 0 || edgeQuery.separation > clipSeparation + edgeTol )
 	{
 		B3_ASSERT( 0 <= edgeQuery.indexA && edgeQuery.indexA < hullA->edgeCount );
 		B3_ASSERT( 0 <= edgeQuery.indexB && edgeQuery.indexB < hullB->edgeCount );

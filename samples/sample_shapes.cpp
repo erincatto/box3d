@@ -64,7 +64,7 @@ public:
 			m_camera->SetView( -140.0f, 17.0f, 60.0f, { 0.0f, 7.5f, 0.0f } );
 		}
 
-		AddGroundBox( 50.0f );
+		AddGroundBox( 80.0f );
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		b3ShapeDef shapeDef = b3DefaultShapeDef();

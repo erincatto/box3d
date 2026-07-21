@@ -35,7 +35,7 @@ public:
 	{
 		Sample::Step( );
 
-		if ( m_done == false )
+		if ( m_done == false && (m_context->pause == false || m_context->singleStep > 0) )
 		{
 			m_done = UpdateFallingRagdolls( m_worldId, &m_data );
 			if (m_done)
