@@ -501,6 +501,116 @@ static int TriangleParallelEdgeTest( void )
 	return 0;
 }
 
+// A crossed ridge pair must land on a four point roof face contact. The clipped face
+// separation can be no deeper than root2 times the vertical overlap.
+static int CheckRoofFaceContact( const b3LocalManifold* manifold, const b3SATCache* cache, float overlap )
+{
+	ENSURE( manifold->pointCount == 4 );
+	ENSURE( cache->type == b3_faceAxisA || cache->type == b3_faceAxisB );
+
+	// A roof face of one hull, so 45 degrees off the vertical
+	ENSURE_SMALL( manifold->normal.y - kHalfRoot2, 1e-4f );
+
+	float minSeparation = MinSeparation( manifold );
+	ENSURE( minSeparation < -kHalfRoot2 * overlap + 1e-4f );
+	ENSURE( minSeparation > -kRoot2 * overlap - 1e-4f );
+
+	return 0;
+}
+
+// Two long roof ridges laid across each other. The axis of minimum penetration is the edge
+// pair, but a one point edge contact is weak for stacking. The collider builds the roof face
+// contact first and only switches to the edge contact when the edge axis beats the clipped
+// face separation by more than the slop. This pins all three regimes of that policy.
+static int RidgeCrossingTest( void )
+{
+	b3BoxHull hullA = b3MakeTransformedBoxHull( 1.5f, 0.1f, 0.1f, ExactRotation( kAxisX, 0.25f * B3_PI ) );
+	b3BoxHull hullB = b3MakeTransformedBoxHull( 1.5f, 0.1f, 0.1f, ExactRotation( kAxisX, 0.25f * B3_PI ) );
+
+	float ridgeY = 0.1f * kRoot2;
+
+	// Shallow overlap. The edge axis is better by only ( root2 - 1 ) * overlap, inside the
+	// slop, so the four point face contact carries the crossing at every angle.
+	{
+		float overlap = 0.01f;
+		float lift = 2.0f * ridgeY - overlap;
+		float crossingAngles[] = { 0.0f, 1e-3f, 0.02f, 0.1f, 0.5f };
+
+		for ( int i = 0; i < ARRAY_COUNT( crossingAngles ); ++i )
+		{
+			b3Transform transform = { { 0.0f, lift, 0.0f }, ExactQuat( kAxisY, crossingAngles[i] ) };
+
+			b3LocalManifoldPoint points[8];
+			b3LocalManifold manifold = { 0 };
+			manifold.points = points;
+			b3SATCache cache = { 0 };
+			b3CollideHulls( &manifold, 8, &hullA.base, &hullB.base, transform, &cache );
+
+			if ( CheckRoofFaceContact( &manifold, &cache, overlap ) != 0 )
+			{
+				return 1;
+			}
+		}
+	}
+
+	// Deep overlap at a clear crossing. The edge axis now beats the clipped face separation
+	// by more than the slop, so the edge contact replaces the face contact.
+	{
+		float overlap = 0.05f;
+		float lift = 2.0f * ridgeY - overlap;
+		float crossingAngles[] = { 0.05f, 0.1f, 0.2f, 0.5f };
+
+		for ( int i = 0; i < ARRAY_COUNT( crossingAngles ); ++i )
+		{
+			b3Transform transform = { { 0.0f, lift, 0.0f }, ExactQuat( kAxisY, crossingAngles[i] ) };
+
+			b3LocalManifoldPoint points[8];
+			b3LocalManifold manifold = { 0 };
+			manifold.points = points;
+			b3SATCache cache = { 0 };
+			b3CollideHulls( &manifold, 8, &hullA.base, &hullB.base, transform, &cache );
+
+			ENSURE( manifold.pointCount == 1 );
+			ENSURE( cache.type == b3_edgePairAxis );
+			ENSURE_SMALL( manifold.normal.x, 1e-4f );
+			ENSURE_SMALL( manifold.normal.y - 1.0f, 1e-4f );
+			ENSURE_SMALL( manifold.normal.z, 1e-4f );
+			ENSURE_SMALL( manifold.points[0].separation + overlap, 1e-4f );
+			ENSURE_SMALL( manifold.points[0].point.y - ( ridgeY - 0.5f * overlap ), 1e-4f );
+
+			// Only has to land near the crossing, not at the end of a three meter beam
+			ENSURE_SMALL( manifold.points[0].point.x, 0.01f );
+			ENSURE_SMALL( manifold.points[0].point.z, 0.01f );
+		}
+	}
+
+	// Deep overlap near parallel. A one point edge contact off a parallel pair would have a
+	// normal built from noise, so the roof faces keep the contact.
+	{
+		float overlap = 0.05f;
+		float lift = 2.0f * ridgeY - overlap;
+		float shallowAngles[] = { 0.0f, 1e-4f, 1e-3f, 0.003f };
+
+		for ( int i = 0; i < ARRAY_COUNT( shallowAngles ); ++i )
+		{
+			b3Transform transform = { { 0.0f, lift, 0.0f }, ExactQuat( kAxisY, shallowAngles[i] ) };
+
+			b3LocalManifoldPoint points[8];
+			b3LocalManifold manifold = { 0 };
+			manifold.points = points;
+			b3SATCache cache = { 0 };
+			b3CollideHulls( &manifold, 8, &hullA.base, &hullB.base, transform, &cache );
+
+			if ( CheckRoofFaceContact( &manifold, &cache, overlap ) != 0 )
+			{
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 // The edge pair axis produced by the arc intersection must match the classic edge cross product.
 // Rebuild the axis, the separation and the contact point from the two contributing edges and the
 // convex radius, then compare against the manifold. orientRef fixes the sign of the axis to match
@@ -1016,6 +1126,7 @@ int ManifoldTest( void )
 	RUN_SUBTEST( ParallelEdgeTest );
 	RUN_SUBTEST( ParallelEdgeManualTest );
 	RUN_SUBTEST( OverlapNeverEmptyTest );
+	RUN_SUBTEST( RidgeCrossingTest );
 	RUN_SUBTEST( TriangleEdgeTest );
 	RUN_SUBTEST( TriangleParallelEdgeTest );
 	RUN_SUBTEST( EdgeAxisOracleTest );
