@@ -1558,9 +1558,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	b3StoreW( aV0z + na, zero );
 	b3StoreW( aTol + na, zero );
 
-	// Prefer face contact for more contact points.
-	float absFaceBias = 0.1f * B3_LINEAR_SLOP;
-
 	int edgeCountB = halfEdgeCountB / 2;
 
 #if defined( B3_SIMD_NONE )
@@ -1630,7 +1627,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			float sz = aV0z[i] + bv0z;
 
 			float separation = -( sx * nx + ( sy * ny + sz * nz ) );
-			if ( separation > res.edge.separation + absFaceBias )
+			if ( separation > res.edge.separation )
 			{
 				res.edge.normal = (b3Vec3){ nx, ny, nz };
 				res.edge.separation = separation;
@@ -1639,8 +1636,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 				res.edge.indexA = 2 * i;
 				res.edge.indexB = 2 * j;
 
-				// Edge beats face, remove bias
-				absFaceBias = 0.0f;
 				if ( separation > speculativeDistance && earlyReturn )
 				{
 					res.separatedFeature = b3_edgePairAxis;
@@ -1762,7 +1757,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			{
 				int ei = i + lane;
 				float s = sA[lane];
-				if ( s > res.edge.separation + absFaceBias )
+				if ( s > res.edge.separation )
 				{
 					res.edge.normal = (b3Vec3){ nxA[lane], nyA[lane], nzA[lane] };
 					res.edge.separation = s;
@@ -1770,9 +1765,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 					// Half edge index
 					res.edge.indexA = 2 * ei;
 					res.edge.indexB = 2 * j;
-
-					// Edge beats face, remove bias
-					absFaceBias = 0.0f;
 
 					if ( s > speculativeDistance && earlyReturn )
 					{
@@ -1887,7 +1879,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 
 			// Attempt face contact using cached feature
 			b3SeparatingAxis faceQuery;
-			faceQuery.normal = b3Neg(plane.normal);
+			faceQuery.normal = b3Neg( plane.normal );
 			faceQuery.separation = 0.0f;
 			faceQuery.indexA = vertexIndex;
 			faceQuery.indexB = cache->indexB;
@@ -2119,6 +2111,23 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 }
 
 #else
+
+// todo this code has gone stale, will be deleted soon
+
+typedef struct b3FaceQuery
+{
+	float separation;
+	int faceIndex;
+	int vertexIndex;
+} b3FaceQuery;
+
+typedef struct b3EdgeQuery
+{
+	b3Vec3 normal;
+	float separation;
+	int indexA;
+	int indexB;
+} b3EdgeQuery;
 
 // Old non-SIMD version. Keeping this for testing and comparisons
 

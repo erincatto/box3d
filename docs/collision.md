@@ -1,6 +1,7 @@
 # Collision
 
 Box3D provides geometric types and functions. These include:
+
 - primitives: spheres, capsules, and convex hulls
 - triangle meshes and height fields for static terrain
 - convex hull construction from point clouds
@@ -24,6 +25,7 @@ physics simulation. At a minimum, you should understand how to create primitives
 that can later be attached to rigid bodies.
 
 Box3D shape primitives support several operations:
+
 - Test a point or proxy for overlap with the primitive
 - Perform a ray cast against the primitive
 - Compute the primitive's bounding box
@@ -381,6 +383,7 @@ this for stable stacking.
 
 Normally you do not compute manifolds directly — you use the contact data
 returned by the simulation. The `b3Manifold` struct contains:
+
 - `normal`: unit normal from shape A toward shape B
 - `points[B3_MAX_MANIFOLD_POINTS]`: contact points with separation, impulses,
   and feature ids
@@ -401,15 +404,16 @@ b3CollideHulls(&manifold, B3_MAX_MANIFOLD_POINTS,
 ```
 
 Available collide functions:
+
 - `b3CollideSpheres`
 - `b3CollideCapsuleAndSphere`
 - `b3CollideCapsules`
 - `b3CollideHullAndSphere`
 - `b3CollideHullAndCapsule`
 - `b3CollideHulls`
-- `b3CollideCapsuleAndTriangle`
-- `b3CollideHullAndTriangle`
-- `b3CollideSphereAndTriangle`
+- `b3CollideTriangleAndCapsule`
+- `b3CollideTriangleAndHull`
+- `b3CollideTriangleAndSphere`
 
 The SAT cache in `b3CollideHulls` warm-starts the separating axis search between
 frames, the same idea as the simplex cache for GJK distance.

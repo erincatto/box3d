@@ -24,7 +24,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-_Static_assert( B3_RESTITUTION_ITERATIONS >= 1, "must 1 or more" );
+_Static_assert( B3_RESTITUTION_ITERATIONS >= 1, "must be 1 or more" );
 
 // these are useful for solver testing
 #define ITERATIONS 1
