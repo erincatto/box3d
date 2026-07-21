@@ -60,7 +60,7 @@ static inline uint32_t b3MakeFeatureId( b3FeaturePair pair )
 		   (uint32_t)pair.index2;
 }
 
-static inline b3SeparatingAxis b3GetBestAxis( b3AxisQuery* query )
+static inline b3SeparatingAxis b3GetBestAxis( const b3AxisQuery* query )
 {
 	B3_VALIDATE( query->faceA.type == b3_faceAxisA );
 	B3_VALIDATE( query->edge.type == b3_edgePairAxis );
