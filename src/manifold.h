@@ -62,24 +62,24 @@ static inline uint32_t b3MakeFeatureId( b3FeaturePair pair )
 
 static inline b3SeparatingAxis b3GetBestAxis( b3AxisQuery* query )
 {
+	B3_VALIDATE( query->faceA.type == b3_faceAxisA );
+	B3_VALIDATE( query->edge.type == b3_edgePairAxis );
+	B3_VALIDATE( query->faceB.type == b3_faceAxisB );
+
 	if ( query->faceA.separation > query->faceB.separation )
 	{
-		if ( query->faceA.separation > query->edge.separation )
+		if ( query->edge.separation > query->faceA.separation )
 		{
-			B3_VALIDATE( query->faceA.type == b3_faceAxisA );
-			return query->faceA;
+			return query->edge;
 		}
 
-		B3_VALIDATE( query->faceA.type == b3_edgePairAxis );
+		return query->faceA;
+	}
+
+	if ( query->edge.separation > query->faceB.separation )
+	{
 		return query->edge;
 	}
 
-	if ( query->faceB.separation > query->edge.separation )
-	{
-		B3_VALIDATE( query->faceA.type == b3_faceAxisB );
-		return query->faceB;
-	}
-
-	B3_VALIDATE( query->faceA.type == b3_edgePairAxis );
-	return query->edge;
+	return query->faceB;
 }

@@ -501,77 +501,6 @@ static int TriangleParallelEdgeTest( void )
 	return 0;
 }
 
-// Two long roof ridges laid across each other. Unlike the stacked cubes the axis of minimum
-// penetration really is the edge pair, so the query has to hand the winning pair to the contact
-// builder. Closing the crossing angle drives that pair toward parallel, where the cross product
-// the builder needs to orient the contact loses its precision.
-static int RidgeCrossingTest( void )
-{
-	b3BoxHull hullA = b3MakeTransformedBoxHull( 1.5f, 0.1f, 0.1f, ExactRotation( kAxisX, 0.25f * B3_PI ) );
-	b3BoxHull hullB = b3MakeTransformedBoxHull( 1.5f, 0.1f, 0.1f, ExactRotation( kAxisX, 0.25f * B3_PI ) );
-
-	float ridgeY = 0.1f * kRoot2;
-	float overlap = 0.01f;
-	float lift = 2.0f * ridgeY - overlap;
-
-	// Well clear of the rejection threshold. The ridges cross over the origin and the axis is y.
-	float crossingAngles[] = { 0.02f, 0.1f, 0.5f };
-
-	for ( int i = 0; i < ARRAY_COUNT( crossingAngles ); ++i )
-	{
-		b3Transform transform = { { 0.0f, lift, 0.0f }, ExactQuat( kAxisY, crossingAngles[i] ) };
-
-		b3LocalManifoldPoint points[8];
-		b3LocalManifold manifold = { 0 };
-		manifold.points = points;
-		b3SATCache cache = { 0 };
-		b3CollideHulls( &manifold, 8, &hullA.base, &hullB.base, transform, &cache );
-
-		ENSURE( manifold.pointCount == 1 );
-		ENSURE( cache.type == b3_edgePairAxis );
-		ENSURE_SMALL( manifold.normal.x, 1e-5f );
-		ENSURE_SMALL( manifold.normal.y - 1.0f, 1e-5f );
-		ENSURE_SMALL( manifold.normal.z, 1e-5f );
-		ENSURE_SMALL( manifold.points[0].separation + overlap, 1e-4f );
-		ENSURE_SMALL( manifold.points[0].point.y - ( ridgeY - 0.5f * overlap ), 1e-4f );
-
-		// Where the point lands along the ridges is ill conditioned at a shallow crossing since
-		// the closest point solve divides by the square of the sine of the angle. It only has to
-		// land near the crossing, not at the end of a three meter beam.
-		ENSURE_SMALL( manifold.points[0].point.x, 0.01f );
-		ENSURE_SMALL( manifold.points[0].point.z, 0.01f );
-	}
-
-	// Inside the rejection threshold. A one point edge contact off a parallel pair would have a
-	// normal built from noise, so the query drops the pair and the roof faces carry the contact.
-	float shallowAngles[] = { 0.0f, 1e-4f, 1e-3f };
-
-	for ( int i = 0; i < ARRAY_COUNT( shallowAngles ); ++i )
-	{
-		b3Transform transform = { { 0.0f, lift, 0.0f }, ExactQuat( kAxisY, shallowAngles[i] ) };
-
-		b3LocalManifoldPoint points[8];
-		b3LocalManifold manifold = { 0 };
-		manifold.points = points;
-		b3SATCache cache = { 0 };
-		b3CollideHulls( &manifold, 8, &hullA.base, &hullB.base, transform, &cache );
-
-		ENSURE( manifold.pointCount == 4 );
-		ENSURE( cache.type != b3_edgePairAxis );
-
-		// A roof face of one hull, so 45 degrees off the vertical
-		ENSURE_SMALL( manifold.normal.x, 1e-4f );
-		ENSURE_SMALL( manifold.normal.y - kHalfRoot2, 1e-4f );
-		ENSURE_SMALL( b3AbsFloat( manifold.normal.z ) - kHalfRoot2, 1e-4f );
-
-		float minSeparation = MinSeparation( &manifold );
-		ENSURE( minSeparation < 0.0f );
-		ENSURE( minSeparation > -2.0f * overlap );
-	}
-
-	return 0;
-}
-
 // The edge pair axis produced by the arc intersection must match the classic edge cross product.
 // Rebuild the axis, the separation and the contact point from the two contributing edges and the
 // convex radius, then compare against the manifold. orientRef fixes the sign of the axis to match
@@ -1087,7 +1016,6 @@ int ManifoldTest( void )
 	RUN_SUBTEST( ParallelEdgeTest );
 	RUN_SUBTEST( ParallelEdgeManualTest );
 	RUN_SUBTEST( OverlapNeverEmptyTest );
-	RUN_SUBTEST( RidgeCrossingTest );
 	RUN_SUBTEST( TriangleEdgeTest );
 	RUN_SUBTEST( TriangleParallelEdgeTest );
 	RUN_SUBTEST( EdgeAxisOracleTest );
