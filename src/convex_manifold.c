@@ -2095,7 +2095,8 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 		b3LocalManifoldPoint edgePoint = { 0 };
 		edgeManifold.points = &edgePoint;
 
-		b3BuildEdgeContact( &edgeManifold, hullA, hullB, transformBtoA, edgeQuery, cache );
+		b3SATCache edgeCache = { 0 };
+		b3BuildEdgeContact( &edgeManifold, hullA, hullB, transformBtoA, edgeQuery, &edgeCache );
 
 		// It is possible with speculation to have vertex-vertex collision that is missed by SAT,
 		// so edge contact yields no points. In that case perhaps the face contact has some points.
@@ -2106,6 +2107,7 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 			*manifold = edgeManifold;
 			manifold->points = points;
 			manifold->points[0] = edgePoint;
+			*cache = edgeCache;
 		}
 	}
 }
