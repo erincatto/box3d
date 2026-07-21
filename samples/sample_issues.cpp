@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "gfx/draw.h"
 #include "imgui.h"
 #include "mesh_loader.h"
 #include "sample.h"
-#include "gfx/draw.h"
 
 #include "box3d/box3d.h"
 
@@ -242,7 +242,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 15.0f, 10.0f, { 0.0f, 2.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 10.0f );
@@ -361,11 +360,11 @@ public:
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			m_heightField = b3CreateGrid( 40, 40, { 0.5f, 1.0f, 0.5f }, false );
-			//m_heightField = b3CreateWave( 40, 40, {1.0f, 2.0f, 1.0f}, 0.02f, 0.04f, false );
+			// m_heightField = b3CreateWave( 40, 40, {1.0f, 2.0f, 1.0f}, 0.02f, 0.04f, false );
 			b3CreateHeightFieldShape( groundId, &shapeDef, m_heightField );
 
 			m_gridMesh = b3CreateGridMesh( 40, 40, 0.5f, 1, true );
-			//b3CreateMeshShape( groundId, &shapeDef, m_gridMesh, b3Vec3_one );
+			// b3CreateMeshShape( groundId, &shapeDef, m_gridMesh, b3Vec3_one );
 		}
 
 		{
@@ -492,7 +491,6 @@ public:
 
 static int sampleIndex = RegisterSample( "Issues", "Capsule Mesh", CapsuleMeshBug::Create );
 
-
 // Reproduces s&box rigid body character ghost collisions on a FLAT floor.
 //
 // The s&box player is a fixed rotation dynamic body (zero radius box hull) moved by setting
@@ -564,7 +562,7 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			shapeDef.baseMaterial.friction = 0.0f;
 			shapeDef.baseMaterial.restitution = 0.0f;
-			//shapeDef.baseMaterial.customColor = b3_colorLimeGreen;
+			// shapeDef.baseMaterial.customColor = b3_colorLimeGreen;
 
 			float volume = 8.0f * m_bodyHalfWidth * m_bodyHalfHeight * m_bodyHalfWidth;
 			shapeDef.density = m_characterMass / volume;
@@ -828,7 +826,7 @@ public:
 		}
 		else if ( position.z < -m_walkRangeZ )
 		{
-			m_walkDirectionZ= 1.0f;
+			m_walkDirectionZ = 1.0f;
 		}
 
 		b3Vec3 velocity = b3Body_GetLinearVelocity( m_characterId );
@@ -1096,11 +1094,11 @@ public:
 			bodyDef.position = { 0.0f, startY + i * spacing, 0.0f };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
-			//for ( int h = 0; h < s_metalWheel1HullCount; ++h )
+			// for ( int h = 0; h < s_metalWheel1HullCount; ++h )
 			//{
 			//	b3CreateHullShape( bodyId, &shapeDef, m_hulls[h] );
-			//}
-			
+			// }
+
 			// Using a single hull improves the simulation.
 			b3CreateHullShape( bodyId, &shapeDef, wheelHull );
 		}
@@ -1286,7 +1284,7 @@ public:
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { -boxOffset.x, 5.0f - boxOffset.y, -boxOffset.z };
 		bodyDef.rotation = orientation;
-		//bodyDef.angularVelocity = 25.0f * b3RotateVector( orientation, b3Vec3_axisY );
+		// bodyDef.angularVelocity = 25.0f * b3RotateVector( orientation, b3Vec3_axisY );
 		b3BodyId boxBody = b3CreateBody( m_worldId, &bodyDef );
 		b3BoxHull mBox = b3MakeOffsetBoxHull( 1.0f, 0.5f, 1.0f, boxLocalCenter );
 		shapeDef.baseMaterial.friction = 0.3f;

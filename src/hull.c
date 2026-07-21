@@ -120,12 +120,16 @@ typedef struct b3HullBuilder
 	b3QHHalfEdge* edgeBase;
 	int edgeCapacity;
 	int edgeCount;
-	b3QHHalfEdge* edgeFreeHead; // LIFO free list; overlays edge->next
+
+	 // LIFO free list. Built with edge->next.
+	b3QHHalfEdge* edgeFreeHead;
 
 	b3QHFace* faceBase;
 	int faceCapacity;
 	int faceCount;
-	b3QHFace* faceFreeHead; // LIFO free list; overlays face->link.next
+
+	// LIFO free list. Built with face->link.next.
+	b3QHFace* faceFreeHead; 
 
 	// Reusable scratch buffers.
 	b3QHHalfEdge** horizon;
@@ -145,7 +149,6 @@ typedef struct b3HullBuilder
 	int horizonStackCapacity;
 
 	// Final counts of the constructed hull (vertexList / faceList / half-edges around faces).
-	// Populated by CleanHull; zero until then.
 	int finalVertexCount;
 	int finalHalfEdgeCount;
 	int finalFaceCount;
@@ -300,17 +303,18 @@ static b3QHFace* b3HullBuilder_NewFace( b3HullBuilder* b, b3QHVertex* v1, b3QHVe
 	return face;
 }
 
-// Remove face from faceList if still linked, clear its edge pointer, then push onto faceFreeHead.
-// Uses face->link.next as the free-list next pointer (link.prev stays NULL, so b3QHList_Contains
-// returns false on a free slot, as required by the retire-guard in ResolveFaces).
+// Remove face and add to free list.
 static void b3HullBuilder_RetireFace( b3HullBuilder* b, b3QHFace* face )
 {
+	// Sometimes a cone face gets merge and never added to the list.
 	if ( b3QHList_Contains( &face->link ) )
 	{
 		b3QHList_Remove( &face->link );
 	}
+	
 	face->edge = NULL;
-	// link.prev is already NULL after Remove (or was never set). link.next holds free-list ptr.
+	// link.prev is already NULL after Remove (or was never set).
+	B3_VALIDATE( face->link.prev == NULL );
 	face->link.next = (b3QHListNode*)b->faceFreeHead;
 	b->faceFreeHead = face;
 }
@@ -1232,7 +1236,7 @@ static void b3HullBuilder_ResolveVertices( b3HullBuilder* b )
 static void b3HullBuilder_ResolveFaces( b3HullBuilder* b )
 {
 	// Splice deleted faces out of the face list. Faces already retired by AbsorbFaces are no
-	// longer on faceList, so we guard with b3QHList_Contains before removing.
+	// longer on faceList, so guard with b3QHList_Contains before removing.
 	b3QHListNode* node = b->faceList.link.next;
 	while ( node != &b->faceList.link )
 	{
@@ -1242,7 +1246,20 @@ static void b3HullBuilder_ResolveFaces( b3HullBuilder* b )
 		if ( face->mark == B3_MARK_DELETE && b3QHList_Contains( &face->link ) )
 		{
 			B3_ASSERT( B3_LIST_EMPTY( &face->conflictListHead.link ) );
-			b3QHList_Remove( &face->link );
+
+			// Each half-edge is owned by exactly one face, so ring walks over the
+			// dead region retire every interior edge exactly once.
+			b3QHHalfEdge* start = face->edge;
+			b3QHHalfEdge* edge = start;
+			do
+			{
+				b3QHHalfEdge* next = edge->next;
+				b3HullBuilder_RetireEdge( b, edge );
+				edge = next;
+			}
+			while ( edge != start );
+
+			b3HullBuilder_RetireFace( b, face );
 		}
 	}
 
@@ -1479,39 +1496,19 @@ static b3HullWorkSizes b3ComputeHullWorkSizes( int pointCount, int clampedMaxCou
 	s.vertexCapacity = pointCount + 4;
 
 	// Edges and faces use free-list recycling; capacity is proportional to live hull size.
-	// edgeCapacity: peak is ~twice live edges plus cone edges; floor 48.
-	s.edgeCapacity = 24 * s.M - 48;
-	if ( s.edgeCapacity < 48 )
-	{
-		s.edgeCapacity = 48;
-	}
+	// edgeCapacity: peak is ~twice live edges plus cone edges. Minimum 48.
+	s.edgeCapacity = b3MaxInt(48, 24 * s.M - 48);
 
-	// faceCapacity: peak intermediate state live faces (<=2*M-4) plus full cone (<=3*M-6); floor 16.
-	s.faceCapacity = 5 * s.M - 10;
-	if ( s.faceCapacity < 16 )
-	{
-		s.faceCapacity = 16;
-	}
+	// faceCapacity: peak intermediate state live faces (<=2*M-4) plus full cone (<=3*M-6). Minimum 16.
+	s.faceCapacity = b3MaxInt(16, 5 * s.M - 10);
 
-	// Horizon/cone bounded by current half-edge count; mergedFaces by face count.
-	s.horizonCapacity = 3 * s.M - 6;
-	if ( s.horizonCapacity < 6 )
-	{
-		s.horizonCapacity = 6;
-	}
+	// Horizon/cone bounded by current half-edge count. Merged faces by face count.
+	s.horizonCapacity = b3MaxInt(6, 3 * s.M - 6);
 	s.coneCapacity = s.horizonCapacity;
-	s.mergedFacesCapacity = 2 * s.M - 4;
-	if ( s.mergedFacesCapacity < 4 )
-	{
-		s.mergedFacesCapacity = 4;
-	}
+	s.mergedFacesCapacity = b3MaxInt(4, 2 * s.M - 4);
 
 	// Horizon DFS depth is bounded by the number of live faces (Euler: <=2*M-4).
-	s.horizonStackCapacity = 2 * s.M - 4;
-	if ( s.horizonStackCapacity < 4 )
-	{
-		s.horizonStackCapacity = 4;
-	}
+	s.horizonStackCapacity = b3MaxInt(4, 2 * s.M - 4);
 
 	size_t offset = 0;
 
@@ -2065,14 +2062,14 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 		return NULL;
 	}
 
-	if ( builder.finalVertexCount >= B3_MAX_HULL_VERTICES )
+	if ( builder.finalVertexCount > B3_MAX_HULL_VERTICES )
 	{
 		b3Log( "hull final vertex count of %d exceeds limit of %d", builder.finalVertexCount, B3_MAX_HULL_VERTICES );
 		b3Free( work, sizes.totalBytes );
 		return NULL;
 	}
 
-	if ( builder.finalFaceCount >= B3_MAX_HULL_FACES )
+	if ( builder.finalFaceCount > B3_MAX_HULL_FACES )
 	{
 		b3Log( "hull final face count of %d exceeds limit of %d", builder.finalFaceCount, B3_MAX_HULL_FACES );
 		b3Free( work, sizes.totalBytes );
@@ -2080,7 +2077,7 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	}
 
 	int maxHalfEdgeCount = 2 * B3_MAX_HULL_EDGES;
-	if ( builder.finalHalfEdgeCount >= maxHalfEdgeCount )
+	if ( builder.finalHalfEdgeCount > maxHalfEdgeCount )
 	{
 		b3Log( "hull final half edge count of %d exceeds limit of %d", builder.finalHalfEdgeCount, maxHalfEdgeCount );
 		b3Free( work, sizes.totalBytes );
@@ -2101,7 +2098,7 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	}
 
 	// Collect edges in twin-paired order (i, i+1) by stamping each pair as we discover it.
-	// Replaces b3SortEdges' O(E^2) twin pairing.
+	// Replaces b3SortEdge O(E^2) twin pairing.
 	const b3QHFace* tempFaces[B3_HULL_LIMIT];
 	const b3QHHalfEdge* tempEdges[B3_HULL_LIMIT];
 	int faceCount = 0;
