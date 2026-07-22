@@ -121,7 +121,7 @@ typedef struct b3HullBuilder
 	int edgeCapacity;
 	int edgeCount;
 
-	 // LIFO free list. Built with edge->next.
+	// LIFO free list. Built with edge->next.
 	b3QHHalfEdge* edgeFreeHead;
 
 	b3QHFace* faceBase;
@@ -129,7 +129,7 @@ typedef struct b3HullBuilder
 	int faceCount;
 
 	// LIFO free list. Built with face->link.next.
-	b3QHFace* faceFreeHead; 
+	b3QHFace* faceFreeHead;
 
 	// Reusable scratch buffers.
 	b3QHHalfEdge** horizon;
@@ -311,7 +311,7 @@ static void b3HullBuilder_RetireFace( b3HullBuilder* b, b3QHFace* face )
 	{
 		b3QHList_Remove( &face->link );
 	}
-	
+
 	face->edge = NULL;
 	// link.prev is already NULL after Remove (or was never set).
 	B3_VALIDATE( face->link.prev == NULL );
@@ -1497,18 +1497,18 @@ static b3HullWorkSizes b3ComputeHullWorkSizes( int pointCount, int clampedMaxCou
 
 	// Edges and faces use free-list recycling; capacity is proportional to live hull size.
 	// edgeCapacity: peak is ~twice live edges plus cone edges. Minimum 48.
-	s.edgeCapacity = b3MaxInt(48, 24 * s.M - 48);
+	s.edgeCapacity = b3MaxInt( 48, 24 * s.M - 48 );
 
 	// faceCapacity: peak intermediate state live faces (<=2*M-4) plus full cone (<=3*M-6). Minimum 16.
-	s.faceCapacity = b3MaxInt(16, 5 * s.M - 10);
+	s.faceCapacity = b3MaxInt( 16, 5 * s.M - 10 );
 
 	// Horizon/cone bounded by current half-edge count. Merged faces by face count.
-	s.horizonCapacity = b3MaxInt(6, 3 * s.M - 6);
+	s.horizonCapacity = b3MaxInt( 6, 3 * s.M - 6 );
 	s.coneCapacity = s.horizonCapacity;
-	s.mergedFacesCapacity = b3MaxInt(4, 2 * s.M - 4);
+	s.mergedFacesCapacity = b3MaxInt( 4, 2 * s.M - 4 );
 
 	// Horizon DFS depth is bounded by the number of live faces (Euler: <=2*M-4).
-	s.horizonStackCapacity = b3MaxInt(4, 2 * s.M - 4);
+	s.horizonStackCapacity = b3MaxInt( 4, 2 * s.M - 4 );
 
 	size_t offset = 0;
 
