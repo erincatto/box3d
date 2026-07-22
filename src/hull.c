@@ -1249,7 +1249,7 @@ static void b3HullBuilder_ResolveFaces( b3HullBuilder* b )
 
 			// Each half-edge is owned by exactly one face, so ring walks over the
 			// dead region retire every interior edge exactly once. Merge deleted
-			// faces are already off 
+			// faces are already off the face list.
 			b3QHHalfEdge* start = face->edge;
 			b3QHHalfEdge* edge = start;
 			do

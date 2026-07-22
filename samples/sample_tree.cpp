@@ -5,10 +5,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include "imgui.h"
-#include "utils.h"
-#include "sample.h"
 #include "gfx/draw.h"
+#include "imgui.h"
+#include "sample.h"
+#include "utils.h"
 
 #include "box3d/box3d.h"
 
@@ -266,7 +266,7 @@ public:
 		m_proxies.clear();
 
 		{
-			//bool zUp = true;
+			// bool zUp = true;
 			m_tree = b3DynamicTree_Load( m_saveFileName, m_loadScale );
 		}
 
@@ -431,7 +431,7 @@ public:
 
 	bool DrawControls() override
 	{
-		if (m_tree.proxyCount == 0)
+		if ( m_tree.proxyCount == 0 )
 		{
 			return false;
 		}
@@ -493,7 +493,7 @@ public:
 
 		DrawAxes( b3WorldTransform_identity, 2.0f );
 
-		if (m_tree.proxyCount == 0)
+		if ( m_tree.proxyCount == 0 )
 		{
 			return;
 		}
@@ -586,13 +586,13 @@ public:
 	{
 		Sample::Step();
 
-		if (m_tree.proxyCount == 0)
+		if ( m_tree.proxyCount == 0 )
 		{
 			return;
 		}
 
 		++m_timeStamp;
-		
+
 		if ( m_doRay )
 		{
 			Ray ray = m_rays[m_testIndex];
