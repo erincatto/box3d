@@ -443,6 +443,7 @@ public:
 
 		// --- Building mesh on top of ground ---
 		m_building = CreateMeshData( "data/meshes/building.obj", 1.0f, false, false, true, true );
+		if ( m_building != nullptr )
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { 0.0f, 0.1f, 0.0f };

@@ -10,39 +10,51 @@
 #define TINYOBJLOADER_USE_MAPBOX_EARCUT
 #include "tiny_obj_loader.h"
 
-#include <iostream>
+#include <stdio.h>
 
-// Load a wavefront obj file using tiny obj loader and earcut for triangulation.
-void LoadTempMesh( const char* path, TempMesh* tempMesh, float scale, bool zUp )
+// A missing obj is refused rather than fatal, so the samples still run from a
+// directory with no data beside them.
+static bool ParseObjFile( tinyobj::ObjReader& reader, const char* path )
 {
-	std::string inputFile = path;
 	tinyobj::ObjReaderConfig readerConfig;
 	readerConfig.triangulate = true;
 	readerConfig.mtl_search_path = "./"; // Path to material files
 
-	tinyobj::ObjReader reader;
-
-	if ( !reader.ParseFromFile( inputFile, readerConfig ) )
+	if ( reader.ParseFromFile( path, readerConfig ) == false )
 	{
-		if ( !reader.Error().empty() )
+		fprintf( stderr, "Failed to load mesh '%s'", path );
+		if ( reader.Error().empty() == false )
 		{
-			std::cerr << "TinyObjReader: " << reader.Error();
+			fprintf( stderr, ": %s", reader.Error().c_str() );
 		}
-		exit( 1 );
+		fprintf( stderr, "\n" );
+		return false;
 	}
 
-	if ( !reader.Warning().empty() )
+	if ( reader.Warning().empty() == false )
 	{
-		std::cout << "TinyObjReader: " << reader.Warning();
+		fprintf( stderr, "TinyObjReader: %s\n", reader.Warning().c_str() );
+	}
+
+	return true;
+}
+
+// Load a wavefront obj file using tiny obj loader and earcut for triangulation.
+bool LoadTempMesh( const char* path, TempMesh* tempMesh, float scale, bool zUp )
+{
+	tempMesh->vertices.clear();
+	tempMesh->indices.clear();
+	tempMesh->materialIndices.clear();
+
+	tinyobj::ObjReader reader;
+	if ( ParseObjFile( reader, path ) == false )
+	{
+		return false;
 	}
 
 	const tinyobj::attrib_t& attrib = reader.GetAttrib();
 	const std::vector<tinyobj::shape_t>& shapes = reader.GetShapes();
 	// const std::vector<tinyobj::material_t>& objMaterials = reader.GetMaterials();
-
-	tempMesh->vertices.clear();
-	tempMesh->indices.clear();
-	tempMesh->materialIndices.clear();
 
 	int vertexCount = int( attrib.vertices.size() / 3 );
 	for ( int i = 0; i < vertexCount; i++ )
@@ -84,29 +96,16 @@ void LoadTempMesh( const char* path, TempMesh* tempMesh, float scale, bool zUp )
 			baseIndex += faceVertexCount;
 		}
 	}
+
+	return true;
 }
 
 b3MeshData* CreateMeshData( const char* path, float scale, bool zUp, bool useMedianSplit, bool identifyConvexEdges, bool weldVertices  )
 {
-	std::string inputFile = path;
-	tinyobj::ObjReaderConfig readerConfig;
-	readerConfig.triangulate = true;
-	readerConfig.mtl_search_path = "./"; // Path to material files
-
 	tinyobj::ObjReader reader;
-
-	if ( !reader.ParseFromFile( inputFile, readerConfig ) )
+	if ( ParseObjFile( reader, path ) == false )
 	{
-		if ( !reader.Error().empty() )
-		{
-			std::cerr << "TinyObjReader: " << reader.Error();
-		}
-		exit( 1 );
-	}
-
-	if ( !reader.Warning().empty() )
-	{
-		std::cout << "TinyObjReader: " << reader.Warning();
+		return nullptr;
 	}
 
 	const tinyobj::attrib_t& attrib = reader.GetAttrib();
@@ -168,5 +167,18 @@ b3MeshData* CreateMeshData( const char* path, float scale, bool zUp, bool useMed
 	def.weldTolerance = 0.002f;
 
 	b3MeshData* meshData = b3CreateMesh( &def, nullptr, 0 );
+	if ( meshData == nullptr )
+	{
+		fprintf( stderr, "Mesh '%s' has no usable triangles\n", path );
+	}
+
 	return meshData;
+}
+
+void DestroyMeshData( b3MeshData* meshData )
+{
+	if ( meshData != nullptr )
+	{
+		b3DestroyMesh( meshData );
+	}
 }

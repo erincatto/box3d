@@ -44,18 +44,34 @@ static char* ReadFile( int& size, const char* filename )
 	}
 
 	fseek( file, 0, SEEK_END );
-	size = static_cast<int>( ftell( file ) );
+	long length = ftell( file );
 	fseek( file, 0, SEEK_SET );
 
-	if ( size == 0 )
+	if ( length <= 0 )
 	{
 		fclose( file );
 		return nullptr;
 	}
 
+	size = static_cast<int>( length );
+
 	char* data = (char*)malloc( size + 1 );
-	fread( data, size, 1, file );
+	if ( data == nullptr )
+	{
+		fclose( file );
+		return nullptr;
+	}
+
+	// Short read means a truncated or racing file, so treat it as no file at all
+	size_t read = fread( data, 1, size, file );
 	fclose( file );
+
+	if ( read != (size_t)size )
+	{
+		free( data );
+		return nullptr;
+	}
+
 	data[size] = 0;
 
 	return data;
@@ -355,7 +371,13 @@ void Sample::FinishRecording()
 	}
 
 	b3World_StopRecording( m_worldId );
-	b3SaveRecordingToFile( m_recording, m_context->recordingFile );
+
+	// The buffer is freed either way, so a failed write has to be said out loud
+	if ( b3SaveRecordingToFile( m_recording, m_context->recordingFile ) == false )
+	{
+		fprintf( stderr, "Failed to write recording '%s'\n", m_context->recordingFile );
+	}
+
 	b3DestroyRecording( m_recording );
 	m_recording = nullptr;
 }
@@ -1349,13 +1371,20 @@ void OpenReplayFileDialog( SampleContext* context )
 		return;
 	}
 
-	NFD_Init();
+	if ( NFD_Init() != NFD_OKAY )
+	{
+		return;
+	}
+
 	nfdu8char_t* outPath = nullptr;
 	nfdu8filteritem_t filter[1] = { { "Box3D recording", "b3rec" } };
 
-	// Start in the working directory, where recordings are saved by default.
-	std::u8string cwd = std::filesystem::current_path().u8string();
-	const nfdu8char_t* defaultPath = reinterpret_cast<const nfdu8char_t*>( cwd.c_str() );
+	// Start in the working directory, where recordings are saved by default. A
+	// deleted or unreadable working directory just means no starting point.
+	std::error_code ec;
+	std::u8string cwd = std::filesystem::current_path( ec ).u8string();
+	const nfdu8char_t* defaultPath = ec ? nullptr : reinterpret_cast<const nfdu8char_t*>( cwd.c_str() );
+
 	if ( NFD_OpenDialogU8( &outPath, filter, 1, defaultPath ) == NFD_OKAY )
 	{
 		snprintf( context->replayFile, sizeof( context->replayFile ), "%s", outPath );

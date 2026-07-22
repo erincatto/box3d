@@ -91,6 +91,11 @@ public:
 	{
 		m_depths.resize( m_tree.nodeCapacity, 0 );
 
+		if ( m_tree.nodes == nullptr || m_tree.nodeCount == 0 || m_tree.root == B3_NULL_INDEX )
+		{
+			return 0;
+		}
+
 		int* queue = (int*)malloc( m_tree.nodeCount * sizeof( int ) );
 		int front = 0;
 		int back = 0;
@@ -149,6 +154,7 @@ public:
 		FILE* file = fopen( filePath, "r" );
 		if ( file == nullptr )
 		{
+			fprintf( stderr, "Failed to open '%s'\n", filePath );
 			return;
 		}
 
@@ -217,6 +223,13 @@ public:
 			// }
 		}
 
+		fclose( file );
+
+		if ( m_proxies.empty() )
+		{
+			return;
+		}
+
 		printf( "max index = %d\n", maxAreaIndex );
 
 		// constexpr int n = m_isDebug ? 1000 : INT_MAX;
@@ -254,6 +267,17 @@ public:
 		{
 			//bool zUp = true;
 			m_tree = b3DynamicTree_Load( m_saveFileName, m_loadScale );
+		}
+
+		// A missing or stale save file loads as an empty tree, which has no root to walk
+		if ( m_tree.nodes == nullptr || m_tree.proxyCount == 0 )
+		{
+			fprintf( stderr, "Failed to load tree '%s'\n", m_saveFileName );
+			m_height = 0;
+			m_drawLevel = -1;
+			m_buildTime = 0.0f;
+			m_areaRatio = 0.0f;
+			return;
 		}
 
 		constexpr int bufferSize = 512;
@@ -599,9 +623,11 @@ public:
 	std::unordered_map<uint64_t, Proxy> m_proxies;
 	std::vector<uint16_t> m_depths;
 	b3DynamicTree m_tree;
-	Ray m_rays[m_testCount];
-	b3AABB m_overlapQueries[m_testCount];
-	b3Sphere m_closestPointQueries[m_testCount];
+
+	// Zeroed because the queries are only generated once a tree loads
+	Ray m_rays[m_testCount] = {};
+	b3AABB m_overlapQueries[m_testCount] = {};
+	b3Sphere m_closestPointQueries[m_testCount] = {};
 	b3Pos m_closestPoint;
 	float m_areaRatio;
 	float m_rayTime;

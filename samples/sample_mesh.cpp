@@ -599,12 +599,16 @@ public:
 
 			bodyDef.position = { -10.0f, 0.0f, 0.0f };
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateMeshShape( body, &meshShapeDef, m_buildingMesh, b3Vec3_one );
 
 			m_scale = { -1.0f, 1.0f, 1.0f };
 			bodyDef.position = { 10.0f, 0.0f, 0.0f };
 			m_meshBodyId = b3CreateBody( m_worldId, &bodyDef );
-			m_meshShapeId = b3CreateMeshShape( m_meshBodyId, &meshShapeDef, m_buildingMesh, m_scale );
+
+			if ( m_buildingMesh != nullptr )
+			{
+				b3CreateMeshShape( body, &meshShapeDef, m_buildingMesh, b3Vec3_one );
+				m_meshShapeId = b3CreateMeshShape( m_meshBodyId, &meshShapeDef, m_buildingMesh, m_scale );
+			}
 		}
 
 		bodyDef.type = b3_dynamicBody;
@@ -652,7 +656,7 @@ public:
 	~MeshReflection() override
 	{
 		b3DestroyMesh( m_gridMesh );
-		b3DestroyMesh( m_buildingMesh );
+		DestroyMeshData( m_buildingMesh );
 
 		for ( int i = 0; i < e_humanCount; ++i )
 		{
@@ -710,7 +714,10 @@ public:
 		{
 			m_scale = scale;
 
-			b3Shape_SetMesh( m_meshShapeId, m_buildingMesh, m_scale );
+			if ( m_buildingMesh != nullptr )
+			{
+				b3Shape_SetMesh( m_meshShapeId, m_buildingMesh, m_scale );
+			}
 		}
 
 		return true;
@@ -1047,7 +1054,7 @@ public:
 
 	~MeshViewer() override
 	{
-		b3DestroyMesh( m_mesh );
+		DestroyMeshData( m_mesh );
 	}
 
 	void LoadMesh()
@@ -1078,7 +1085,14 @@ public:
 		char buffer[64] = {};
 		snprintf( buffer, 64, "data/meshes/%s", filesNames[m_meshIndex] );
 
-		LoadTempMesh( buffer, &m_tempMesh, scale, true );
+		if ( LoadTempMesh( buffer, &m_tempMesh, scale, true ) == false )
+		{
+			m_buildTime = 0.0f;
+			m_area = 0.0f;
+			m_height = 0;
+			m_drawLevel = -1;
+			return;
+		}
 
 		b3MeshDef def = {};
 		def.vertices = m_tempMesh.vertices.data();
@@ -1094,6 +1108,14 @@ public:
 		uint64_t startTicks = b3GetTicks();
 		m_mesh = b3CreateMesh( &def, m_degenerateTriangles, m_degenerateCapacity );
 		m_buildTime = b3GetMilliseconds( startTicks );
+
+		if ( m_mesh == nullptr )
+		{
+			m_area = 0.0f;
+			m_height = 0;
+			m_drawLevel = -1;
+			return;
+		}
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		b3CreateMeshShape( m_bodyId, &shapeDef, m_mesh, b3Vec3_one );
@@ -1231,6 +1253,12 @@ public:
 		Sample::Render();
 		DrawAxes( b3WorldTransform_identity, 1.0f );
 
+		if ( m_mesh == nullptr )
+		{
+			DrawTextLine( "mesh failed to load" );
+			return;
+		}
+
 		DrawTextLine( "triangle count = %d", m_mesh->triangleCount );
 		DrawTextLine( "vertex count = %d", m_mesh->vertexCount );
 		DrawTextLine( "degenerate count = %d", m_mesh->degenerateCount );
@@ -1347,6 +1375,11 @@ public:
 				def.weldTolerance = 0.0015f;
 
 				b3MeshData* meshData = b3CreateMesh( &def, nullptr, 0 );
+				if ( meshData == nullptr )
+				{
+					continue;
+				}
+
 				triangleCount += i == 0 ? meshData->triangleCount : 0;
 
 				if ( computeArea && i == 0 )
@@ -1420,8 +1453,11 @@ public:
 
 			m_meshData = b3CreateMesh( &def, nullptr, 0 );
 
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3CreateMeshShape( groundId, &shapeDef, m_meshData, b3Vec3_one );
+			if ( m_meshData != nullptr )
+			{
+				b3ShapeDef shapeDef = b3DefaultShapeDef();
+				b3CreateMeshShape( groundId, &shapeDef, m_meshData, b3Vec3_one );
+			}
 		}
 
 		{
@@ -1475,7 +1511,7 @@ public:
 
 	~VoxelMesh() override
 	{
-		b3DestroyMesh( m_meshData );
+		DestroyMeshData( m_meshData );
 	}
 
 	void Step() override
