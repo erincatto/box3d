@@ -26,7 +26,7 @@
 #define B3_MARK_VISIBLE 0
 #define B3_MARK_DELETE 1
 
-// Final hull is index-encoded with uint8_t, so vertex/edge/face counts are capped at UINT8_MAX.
+// Final hull is index-encoded with uint8_t, so vertex/edge/face counts are capped at 256.
 #define B3_HULL_MAX_COUNT ( UINT8_MAX + 1 )
 
 typedef struct b3QHListNode
@@ -306,7 +306,7 @@ static b3QHFace* b3HullBuilder_NewFace( b3HullBuilder* b, b3QHVertex* v1, b3QHVe
 // Remove face and add to free list.
 static void b3HullBuilder_RetireFace( b3HullBuilder* b, b3QHFace* face )
 {
-	// Sometimes a cone face gets merge and never added to the list.
+	// Sometimes a cone face gets merged and never added to the list.
 	if ( b3QHList_Contains( &face->link ) )
 	{
 		b3QHList_Remove( &face->link );
@@ -1248,7 +1248,8 @@ static void b3HullBuilder_ResolveFaces( b3HullBuilder* b )
 			B3_ASSERT( B3_LIST_EMPTY( &face->conflictListHead.link ) );
 
 			// Each half-edge is owned by exactly one face, so ring walks over the
-			// dead region retire every interior edge exactly once.
+			// dead region retire every interior edge exactly once. Merge deleted
+			// faces are already off 
 			b3QHHalfEdge* start = face->edge;
 			b3QHHalfEdge* edge = start;
 			do

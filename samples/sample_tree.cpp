@@ -63,6 +63,7 @@ public:
 
 		m_closestPoint = b3Pos_zero;
 		m_timeStamp = 1;
+		m_drawLevel = -1;
 		m_doOverlap = false;
 		m_doClosest = false;
 		m_doRay = false;
@@ -154,9 +155,6 @@ public:
 		FILE* file = fopen( filePath, "r" );
 		if ( file == nullptr )
 		{
-			m_height = ComputeDepths();
-			m_drawLevel = -1;
-
 			fprintf( stderr, "Failed to open '%s'\n", filePath );
 			return;
 		}
@@ -433,6 +431,11 @@ public:
 
 	bool DrawControls() override
 	{
+		if (m_tree.proxyCount == 0)
+		{
+			return false;
+		}
+
 		DrawTextLine( "leaves = %d, height = %d, area = %g", m_tree.proxyCount, m_height, m_areaRatio );
 		DrawTextLine( "build time = %g ms", m_buildTime );
 		DrawTextLine( "total: ray = %g ms, overlap = %g ms, closest = %g ms", m_rayTime, m_overlapTime, m_closestTime );
@@ -489,6 +492,11 @@ public:
 		Sample::Render();
 
 		DrawAxes( b3WorldTransform_identity, 2.0f );
+
+		if (m_tree.proxyCount == 0)
+		{
+			return;
+		}
 
 		b3Pos cp = m_camera->DrawOrigin();
 		b3TreeNode* nodes = m_tree.nodes;
@@ -577,6 +585,12 @@ public:
 	void Step() override
 	{
 		Sample::Step();
+
+		if (m_tree.proxyCount == 0)
+		{
+			return;
+		}
+
 		++m_timeStamp;
 		
 		if ( m_doRay )

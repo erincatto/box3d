@@ -604,6 +604,7 @@ public:
 			bodyDef.position = { 10.0f, 0.0f, 0.0f };
 			m_meshBodyId = b3CreateBody( m_worldId, &bodyDef );
 
+			m_meshShapeId = b3_nullShapeId;
 			if ( m_buildingMesh != nullptr )
 			{
 				b3CreateMeshShape( body, &meshShapeDef, m_buildingMesh, b3Vec3_one );

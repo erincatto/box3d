@@ -9,12 +9,11 @@
 
 struct b3MeshData;
 
-// Both return failure when the file is missing so a sample can build without its
-// geometry instead of taking the app down.
+// Returns null if the mesh cannot be created.
 b3MeshData* CreateMeshData( const char* path, float scale, bool zUp, bool useMedianSplit, bool identifyConvexEdges,
 							bool weldVertices );
 
-// Null tolerant, so a sample whose geometry failed to load still tears down cleanly.
+// Null tolerant.
 void DestroyMeshData( b3MeshData* meshData );
 
 struct TempMesh

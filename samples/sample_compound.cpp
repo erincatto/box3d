@@ -667,10 +667,7 @@ public:
 			delete[] spheres;
 			spheres = nullptr;
 
-			if ( buildingMesh != nullptr )
-			{
-				b3DestroyMesh( buildingMesh );
-			}
+			DestroyMeshData( buildingMesh );
 		}
 
 		m_rayOrigin = { -0.45f * m_worldWidth, 20.0f, -0.45f * m_worldWidth };
