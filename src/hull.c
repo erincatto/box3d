@@ -1466,8 +1466,10 @@ static bool b3HullBuilder_Construct( b3HullBuilder* b, const b3Vec3* points, int
 
 typedef struct b3HullWorkSizes
 {
-	int N; // pointCount
-	int M; // clamped maxVertexCount, in [4, B3_HULL_LIMIT]
+	// Input point count
+	int N;
+	// Output point limit
+	int M;
 	int vertexCapacity;
 	int edgeCapacity;
 	int faceCapacity;
@@ -2085,7 +2087,7 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 		return NULL;
 	}
 
-	// Walk lists into temp arrays bounded by B3_HULL_LIMIT, stamping finalIndex on each node so
+	// Walk lists into temp arrays bounded by B3_HULL_MAX_COUNT, stamping finalIndex on each node so
 	// the resolution pass below is O(E + F) instead of O(E^2 + F^2).
 	const b3QHVertex* tempVertices[B3_HULL_MAX_COUNT];
 	int vertexCount = 0;
@@ -2099,7 +2101,6 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	}
 
 	// Collect edges in twin-paired order (i, i+1) by stamping each pair as we discover it.
-	// Replaces b3SortEdge O(E^2) twin pairing.
 	const b3QHFace* tempFaces[B3_HULL_MAX_COUNT];
 	const b3QHHalfEdge* tempEdges[B3_HULL_MAX_COUNT];
 	int faceCount = 0;
