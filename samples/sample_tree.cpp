@@ -154,6 +154,9 @@ public:
 		FILE* file = fopen( filePath, "r" );
 		if ( file == nullptr )
 		{
+			m_height = ComputeDepths();
+			m_drawLevel = -1;
+
 			fprintf( stderr, "Failed to open '%s'\n", filePath );
 			return;
 		}

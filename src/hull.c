@@ -27,7 +27,7 @@
 #define B3_MARK_DELETE 1
 
 // Final hull is index-encoded with uint8_t, so vertex/edge/face counts are capped at UINT8_MAX.
-#define B3_HULL_LIMIT UINT8_MAX
+#define B3_HULL_MAX_COUNT ( UINT8_MAX + 1 )
 
 typedef struct b3QHListNode
 {
@@ -1444,7 +1444,7 @@ static bool b3HullBuilder_Construct( b3HullBuilder* b, const b3Vec3* points, int
 		return false;
 	}
 
-	int budget = b3ClampInt( maxVertexCount - 4, 0, B3_HULL_LIMIT - 4 );
+	int budget = b3ClampInt( maxVertexCount - 4, 0, B3_HULL_MAX_COUNT - 4 );
 
 	b3QHVertex* vertex = b3HullBuilder_NextConflictVertex( b );
 	while ( vertex && budget > 0 )
@@ -2086,11 +2086,11 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 
 	// Walk lists into temp arrays bounded by B3_HULL_LIMIT, stamping finalIndex on each node so
 	// the resolution pass below is O(E + F) instead of O(E^2 + F^2).
-	const b3QHVertex* tempVertices[B3_HULL_LIMIT];
+	const b3QHVertex* tempVertices[B3_HULL_MAX_COUNT];
 	int vertexCount = 0;
 	for ( b3QHListNode* node = builder.vertexList.link.next; node != &builder.vertexList.link; node = node->next )
 	{
-		B3_ASSERT( vertexCount <= B3_HULL_LIMIT - 1 );
+		B3_ASSERT( vertexCount < B3_HULL_MAX_COUNT );
 
 		b3QHVertex* vertex = (b3QHVertex*)node;
 		vertex->finalIndex = vertexCount;
@@ -2099,14 +2099,14 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 
 	// Collect edges in twin-paired order (i, i+1) by stamping each pair as we discover it.
 	// Replaces b3SortEdge O(E^2) twin pairing.
-	const b3QHFace* tempFaces[B3_HULL_LIMIT];
-	const b3QHHalfEdge* tempEdges[B3_HULL_LIMIT];
+	const b3QHFace* tempFaces[B3_HULL_MAX_COUNT];
+	const b3QHHalfEdge* tempEdges[B3_HULL_MAX_COUNT];
 	int faceCount = 0;
 	int edgeCount = 0;
 
 	for ( b3QHListNode* faceNode = builder.faceList.link.next; faceNode != &builder.faceList.link; faceNode = faceNode->next )
 	{
-		B3_ASSERT( faceCount <= B3_HULL_LIMIT - 1 );
+		B3_ASSERT( faceCount < B3_HULL_MAX_COUNT );
 
 		b3QHFace* face = (b3QHFace*)faceNode;
 		face->finalIndex = faceCount;
@@ -2117,7 +2117,7 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 		{
 			if ( edge->finalIndex < 0 )
 			{
-				B3_ASSERT( edgeCount + 1 <= B3_HULL_LIMIT - 1 );
+				B3_ASSERT( edgeCount + 1 < B3_HULL_MAX_COUNT );
 
 				edge->finalIndex = edgeCount;
 				tempEdges[edgeCount++] = edge;
@@ -2346,9 +2346,9 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 		{
 			const b3HullFace* face = faces + i;
 
-			uint8_t startEdgeIndex = face->edge;
-			uint8_t currentEdgeIndex = startEdgeIndex;
-			uint8_t prevEdgeIndex = UINT8_MAX;
+			int startEdgeIndex = face->edge;
+			int currentEdgeIndex = startEdgeIndex;
+			int prevEdgeIndex = B3_NULL_INDEX;
 
 			do
 			{
@@ -2364,7 +2364,7 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 			}
 			while ( currentEdgeIndex != startEdgeIndex );
 
-			B3_ASSERT( prevEdgeIndex != UINT8_MAX );
+			B3_ASSERT( prevEdgeIndex != B3_NULL_INDEX );
 
 			currentEdgeIndex = startEdgeIndex;
 
@@ -2372,7 +2372,7 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 			{
 				b3HullHalfEdge* edge = edges + currentEdgeIndex;
 				uint8_t nextIndex = edge->next;
-				edge->next = prevEdgeIndex;
+				edge->next = (uint8_t)prevEdgeIndex;
 
 				if ( currentEdgeIndex < edge->twin )
 				{
