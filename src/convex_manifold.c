@@ -758,19 +758,6 @@ static bool b3BuildHullFaceAndCapsuleContact( b3LocalManifold* manifold, const b
 	return false;
 }
 
-static inline float b3DeepestPointSeparation( const b3LocalManifold* manifold )
-{
-	// Deepest point
-	float minSeparation = FLT_MAX;
-	int pointCount = manifold->pointCount;
-	for ( int i = 0; i < pointCount; ++i )
-	{
-		minSeparation = b3MinFloat( minSeparation, manifold->points[i].separation );
-	}
-
-	return minSeparation;
-}
-
 static bool b3BuildHullAndCapsuleEdgeContact( b3LocalManifold* manifold, int capacity, const b3HullData* hullA,
 											  const b3Capsule* capsuleB, b3Transform transformBtoA, b3SeparatingAxis query )
 {
