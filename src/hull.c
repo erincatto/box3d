@@ -2772,6 +2772,8 @@ static const b3BoxHull s_boxHull = {
 
 b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform transform )
 {
+	B3_ASSERT( b3IsValidTransform( transform ) );
+
 	b3BoxHull boxHull = s_boxHull;
 
 	float minH = 0.2f * B3_LINEAR_SLOP;
@@ -2934,6 +2936,8 @@ void b3ScaleBox( b3Vec3* halfWidths, b3Transform* transform, b3Vec3 postScale, f
 // todo use new hull scaling technique
 b3BoxHull b3MakeScaledBoxHull( b3Vec3 halfWidths, b3Transform transform, b3Vec3 postScale )
 {
+	B3_ASSERT( b3IsValidTransform( transform ) );
+
 	b3Vec3 h = halfWidths;
 	b3Transform xf = transform;
 	b3ScaleBox( &h, &xf, postScale, 4.0f * B3_LINEAR_SLOP );

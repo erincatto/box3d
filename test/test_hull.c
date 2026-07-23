@@ -409,6 +409,107 @@ static int CreateHullMergeChurnStressTest( void )
 	return 0;
 }
 
+// b3ComputeCosSin is a coarse approximation, so build rotations from libm to keep the
+// analytic corner and plane positions exact.
+static b3Quat ExactQuat( b3Vec3 axis, float radians )
+{
+	float half = 0.5f * radians;
+	float s = sinf( half );
+	return (b3Quat){ { s * axis.x, s * axis.y, s * axis.z }, cosf( half ) };
+}
+
+// Corner sign pattern baked by b3MakeTransformedBoxHull, in order.
+static const b3Vec3 s_boxCornerSigns[8] = {
+	{ 1.0f, 1.0f, 1.0f },  { -1.0f, 1.0f, 1.0f },	{ -1.0f, -1.0f, 1.0f },	 { 1.0f, -1.0f, 1.0f },
+	{ 1.0f, 1.0f, -1.0f }, { -1.0f, 1.0f, -1.0f },	{ -1.0f, -1.0f, -1.0f }, { 1.0f, -1.0f, -1.0f },
+};
+
+// The baked box hull is only exercised elsewhere through mass properties, which are analytic
+// and never read boxPoints or boxPlanes. Pin the geometry itself against the transform so an
+// axis swap in the point or plane bake cannot pass silently.
+static int CheckTransformedBox( b3Vec3 h, b3Transform xf )
+{
+	b3BoxHull box = b3MakeTransformedBoxHull( h.x, h.y, h.z, xf );
+
+	const float tol = 1e-5f;
+
+	// Each corner is the transform of the signed half extent.
+	for ( int i = 0; i < 8; ++i )
+	{
+		b3Vec3 local = { s_boxCornerSigns[i].x * h.x, s_boxCornerSigns[i].y * h.y, s_boxCornerSigns[i].z * h.z };
+		b3Vec3 expected = b3TransformPoint( xf, local );
+		ENSURE_SMALL( box.boxPoints[i].x - expected.x, tol );
+		ENSURE_SMALL( box.boxPoints[i].y - expected.y, tol );
+		ENSURE_SMALL( box.boxPoints[i].z - expected.z, tol );
+	}
+
+	// Face normals rotate with the box, offsets carry the rotated normal through the translation.
+	b3Vec3 localNormals[6] = {
+		b3Neg( b3Vec3_axisX ), b3Vec3_axisX, b3Neg( b3Vec3_axisY ), b3Vec3_axisY, b3Neg( b3Vec3_axisZ ), b3Vec3_axisZ,
+	};
+	float localOffsets[6] = { h.x, h.x, h.y, h.y, h.z, h.z };
+	for ( int i = 0; i < 6; ++i )
+	{
+		b3Vec3 n = b3RotateVector( xf.q, localNormals[i] );
+		float offset = localOffsets[i] + b3Dot( n, xf.p );
+		ENSURE_SMALL( box.boxPlanes[i].normal.x - n.x, tol );
+		ENSURE_SMALL( box.boxPlanes[i].normal.y - n.y, tol );
+		ENSURE_SMALL( box.boxPlanes[i].normal.z - n.z, tol );
+		ENSURE_SMALL( box.boxPlanes[i].offset - offset, tol );
+	}
+
+	// SoA vertex mirrors match the AoS points on all eight lanes.
+	for ( int i = 0; i < 8; ++i )
+	{
+		ENSURE_SMALL( box.vx[i] - box.boxPoints[i].x, tol );
+		ENSURE_SMALL( box.vy[i] - box.boxPoints[i].y, tol );
+		ENSURE_SMALL( box.vz[i] - box.boxPoints[i].z, tol );
+	}
+
+	// SoA normal mirrors carry the six real faces and zero the two pad lanes.
+	for ( int i = 0; i < 6; ++i )
+	{
+		ENSURE_SMALL( box.nx[i] - box.boxPlanes[i].normal.x, tol );
+		ENSURE_SMALL( box.ny[i] - box.boxPlanes[i].normal.y, tol );
+		ENSURE_SMALL( box.nz[i] - box.boxPlanes[i].normal.z, tol );
+	}
+	ENSURE( box.nx[6] == 0.0f && box.nx[7] == 0.0f );
+	ENSURE( box.ny[6] == 0.0f && box.ny[7] == 0.0f );
+	ENSURE( box.nz[6] == 0.0f && box.nz[7] == 0.0f );
+
+	// The stored AABB bounds every baked corner.
+	b3AABB pointBox = b3MakeAABB( box.boxPoints, 8, 0.0f );
+	ENSURE( b3AABB_Contains( box.base.aabb, pointBox ) );
+
+	return 0;
+}
+
+static int TransformedBoxHullTest( void )
+{
+	b3Vec3 h = { 0.25f, 0.5f, 0.3f };
+
+	// Identity.
+	if ( CheckTransformedBox( h, b3Transform_identity ) )
+		return 1;
+
+	// Translation only.
+	b3Transform translated = { { 0.4f, -0.7f, 0.1f }, b3Quat_identity };
+	if ( CheckTransformedBox( h, translated ) )
+		return 1;
+
+	// Rotation only. A quarter turn about Y swaps the world X and Z extents.
+	b3Transform rotated = { b3Vec3_zero, ExactQuat( b3Vec3_axisY, 0.25f * B3_PI ) };
+	if ( CheckTransformedBox( h, rotated ) )
+		return 1;
+
+	// Translation and rotation together.
+	b3Transform transformed = { { 3.0f, -2.0f, 1.5f }, ExactQuat( b3Vec3_axisZ, 0.25f * B3_PI ) };
+	if ( CheckTransformedBox( h, transformed ) )
+		return 1;
+
+	return 0;
+}
+
 static int CreateHullDegenerateTest( void )
 {
 	// Real (non-null) buffer; pointCount < 4 cases are guarded inside Construct().
@@ -456,6 +557,7 @@ int HullTest( void )
 	RUN_SUBTEST( CreateHullSphereStressTest );
 	RUN_SUBTEST( CreateHullMergeChurnStressTest );
 	RUN_SUBTEST( CreateHullDegenerateTest );
+	RUN_SUBTEST( TransformedBoxHullTest );
 
 	return 0;
 }
