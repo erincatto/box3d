@@ -79,6 +79,114 @@ static int ShapeCastTest( void )
 	return 0;
 }
 
+// unit box with a segment resting 2mm from its +x face: inside the cast
+// target distance, not overlapped
+static b3ShapeCastPairInput EncroachCastInput( b3Vec3 translationB )
+{
+	static const b3Vec3 vas[] = { { -1.0f, -1.0f, 0.0f }, { 1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 0.0f }, { -1.0f, 1.0f, 0.0f } };
+	static const b3Vec3 vbs[] = {
+		{ 1.002f, -1.0f, 0.0f },
+		{ 1.002f, 1.0f, 0.0f },
+	};
+
+	b3ShapeCastPairInput input;
+	input.proxyA = (b3ShapeProxy){ vas, ARRAY_COUNT( vas ), 0.0f };
+	input.proxyB = (b3ShapeProxy){ vbs, ARRAY_COUNT( vbs ), 0.0f };
+	input.transform = b3Transform_identity;
+	input.translationB = translationB;
+	input.maxFraction = 1.0f;
+	input.canEncroach = true;
+	return input;
+}
+
+static int ShapeCastEncroachRecedeTest( void )
+{
+	b3ShapeCastPairInput input = EncroachCastInput( (b3Vec3){ 1.0f, 0.0f, 0.0f } );
+	b3CastOutput output = b3ShapeCast( &input );
+	ENSURE( output.hit == false );
+
+	return 0;
+}
+
+static int ShapeCastEncroachSlideTest( void )
+{
+	b3ShapeCastPairInput input = EncroachCastInput( (b3Vec3){ 0.0f, 2.0f, 0.0f } );
+	b3CastOutput output = b3ShapeCast( &input );
+	ENSURE( output.hit == false );
+
+	return 0;
+}
+
+static int ShapeCastEncroachClosingTest( void )
+{
+	b3ShapeCastPairInput input = EncroachCastInput( (b3Vec3){ -1.0f, 0.0f, 0.0f } );
+	b3CastOutput output = b3ShapeCast( &input );
+	ENSURE( output.hit );
+	ENSURE_SMALL( output.fraction, FLT_EPSILON );
+	ENSURE_SMALL( output.normal.x - 1.0f, 0.001f );
+
+	return 0;
+}
+
+static int ShapeCastEncroachGradedTest( void )
+{
+	// 5mm gap: closing consumes the gap down to the retained rest separation
+	static const b3Vec3 vbs[] = {
+		{ 1.005f, -1.0f, 0.0f },
+		{ 1.005f, 1.0f, 0.0f },
+	};
+
+	b3ShapeCastPairInput input = EncroachCastInput( (b3Vec3){ -1.0f, 0.0f, 0.0f } );
+	input.proxyB = (b3ShapeProxy){ vbs, ARRAY_COUNT( vbs ), 0.0f };
+	b3CastOutput output = b3ShapeCast( &input );
+	ENSURE( output.hit );
+	ENSURE_SMALL( output.fraction - 0.0025f, 0.0005f );
+	ENSURE_SMALL( output.normal.x - 1.0f, 0.001f );
+
+	return 0;
+}
+
+static int ShapeCastEncroachGrazeTest( void )
+{
+	// mostly tangential slide with a slight closing component: free
+	static const b3Vec3 vbs[] = {
+		{ 1.005f, -1.0f, 0.0f },
+		{ 1.005f, 1.0f, 0.0f },
+	};
+
+	b3ShapeCastPairInput input = EncroachCastInput( (b3Vec3){ -0.001f, 2.0f, 0.0f } );
+	input.proxyB = (b3ShapeProxy){ vbs, ARRAY_COUNT( vbs ), 0.0f };
+	b3CastOutput output = b3ShapeCast( &input );
+	ENSURE( output.hit == false );
+
+	return 0;
+}
+
+static int ShapeCastStartTouchingDefaultTest( void )
+{
+	b3ShapeCastPairInput input = EncroachCastInput( (b3Vec3){ 1.0f, 0.0f, 0.0f } );
+	input.canEncroach = false;
+	b3CastOutput output = b3ShapeCast( &input );
+	ENSURE( output.hit );
+
+	return 0;
+}
+
+static int ShapeCastEncroachOverlapTest( void )
+{
+	static const b3Vec3 vcs[] = {
+		{ 0.5f, -1.0f, 0.0f },
+		{ 0.5f, 1.0f, 0.0f },
+	};
+
+	b3ShapeCastPairInput input = EncroachCastInput( (b3Vec3){ 1.0f, 0.0f, 0.0f } );
+	input.proxyB = (b3ShapeProxy){ vcs, ARRAY_COUNT( vcs ), 0.0f };
+	b3CastOutput output = b3ShapeCast( &input );
+	ENSURE( output.hit );
+
+	return 0;
+}
+
 static int TimeOfImpactTest( void )
 {
 	b3Vec3 vas[] = { { -1.0f, -1.0f }, { 1.0f, -1.0f }, { 1.0f, 1.0f }, { -1.0f, 1.0f } };
@@ -108,6 +216,13 @@ int DistanceTest( void )
 	RUN_SUBTEST( SegmentDistanceTest );
 	RUN_SUBTEST( ShapeDistanceTest );
 	RUN_SUBTEST( ShapeCastTest );
+	RUN_SUBTEST( ShapeCastEncroachRecedeTest );
+	RUN_SUBTEST( ShapeCastEncroachSlideTest );
+	RUN_SUBTEST( ShapeCastEncroachClosingTest );
+	RUN_SUBTEST( ShapeCastEncroachGradedTest );
+	RUN_SUBTEST( ShapeCastEncroachGrazeTest );
+	RUN_SUBTEST( ShapeCastStartTouchingDefaultTest );
+	RUN_SUBTEST( ShapeCastEncroachOverlapTest );
 	RUN_SUBTEST( TimeOfImpactTest );
 
 	return 0;
