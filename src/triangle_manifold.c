@@ -390,9 +390,9 @@ void b3CollideTriangleAndCapsule( b3LocalManifold* manifold, int capacity, const
 	distanceInput.useRadii = false;
 
 	b3DistanceOutput distanceOutput = b3ShapeDistance( &distanceInput, cache, NULL, 0 );
-
+	float speculativeDistance = B3_SPECULATIVE_DISTANCE;
 	float radius = capsuleB->radius;
-	if ( distanceOutput.distance > radius + B3_SPECULATIVE_DISTANCE )
+	if ( distanceOutput.distance > radius + speculativeDistance )
 	{
 		// Shapes are separated, persist the cache
 		return;
@@ -468,32 +468,32 @@ void b3CollideTriangleAndCapsule( b3LocalManifold* manifold, int capacity, const
 	b3SeparatingAxis faceQuery = b3QueryTriangleFaceAndCapsule( plane, capsuleB );
 	if ( faceQuery.separation > radius )
 	{
-		// Shapes are separated
+		// Shapes are separated. Should be impossible for a reasonable capsule radius.
 		return;
 	}
 
 	b3SeparatingAxis edgeQuery = b3QueryTriangleAndCapsuleEdges( triangleA, plane, capsuleB );
 	if ( edgeQuery.separation > radius )
 	{
-		// Shapes are separated
+		// Shapes are separated. Should be impossible for a reasonable capsule radius.
 		return;
 	}
 
 	// Create face contact
 	float faceSeparation = faceQuery.separation - radius;
 	b3BuildTriangleAndCapsuleFaceContact( manifold, triangleA, plane, capsuleB );
+	B3_VALIDATE( manifold->pointCount == 0 || manifold->pointCount == 2 );
 	if ( manifold->pointCount == 2 )
 	{
+		// This becomes the clipped separation.
 		faceSeparation = b3MinFloat( manifold->points[0].separation, manifold->points[1].separation );
 	}
-	B3_VALIDATE( faceSeparation <= 0.0f );
 
 	// Face contact can be empty if it does not realize the axis of minimum penetration.
 	// Create edge contact if face contact fails or edge contact is significantly better!
-	const float kRelEdgeTolerance = 0.50f;
-	const float kAbsTolerance = 1.0f * B3_LINEAR_SLOP;
+	float linearSlop = B3_LINEAR_SLOP;
 	float edgeSeparation = edgeQuery.separation - radius;
-	if ( manifold->pointCount == 0 || edgeSeparation > kRelEdgeTolerance * faceSeparation + kAbsTolerance )
+	if ( manifold->pointCount == 0 || edgeSeparation > faceSeparation + linearSlop )
 	{
 		// Edge contact
 		b3BuildTriangleAndCapsuleEdgeContact( manifold, triangleA, plane, capsuleB, edgeQuery );

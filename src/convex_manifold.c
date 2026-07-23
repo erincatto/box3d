@@ -934,14 +934,12 @@ void b3CollideHullAndCapsule( b3LocalManifold* manifold, int capacity, const b3H
 	// Create face contact
 	float faceSeparation = faceQuery.separation - capsuleB->radius;
 	b3BuildHullFaceAndCapsuleContact( manifold, hullA, capsuleB, transformBtoA, faceQuery );
-	if ( manifold->pointCount > 1 )
+	B3_VALIDATE( manifold->pointCount == 0 || manifold->pointCount == 2 );
+	if ( manifold->pointCount == 2 )
 	{
-		// If ( Out.PointCount <= 1 ) -> Compare with unclipped separation
-		// If ( Out.PointCount > 1 ) -> Be aggressive and compare with clipped separation
-		// Face contact can be empty if it does not realize the axis of minimum penetration
-		faceSeparation = b3DeepestPointSeparation( manifold );
+		// This becomes the clipped separation.
+		faceSeparation = b3MinFloat( manifold->points[0].separation, manifold->points[1].separation );
 	}
-	B3_VALIDATE( faceSeparation <= 0.0f );
 
 	// Is there a valid edge-edge axis?
 	if ( edgeQuery.indexA == B3_NULL_INDEX )
@@ -951,10 +949,9 @@ void b3CollideHullAndCapsule( b3LocalManifold* manifold, int capacity, const b3H
 
 	// Face contact can be empty if it does not realize the axis of minimum penetration.
 	// Create edge contact if face contact fails or edge contact is significantly better!
-	const float kRelEdgeTolerance = 0.90f;
-	const float kAbsTolerance = 0.5f * B3_LINEAR_SLOP;
+	float linearSlop = B3_LINEAR_SLOP;
 	float edgeSeparation = edgeQuery.separation - capsuleB->radius;
-	if ( manifold->pointCount == 0 || edgeSeparation > kRelEdgeTolerance * faceSeparation + kAbsTolerance )
+	if ( manifold->pointCount == 0 || edgeSeparation > faceSeparation + linearSlop )
 	{
 		// Edge contact
 		b3BuildHullAndCapsuleEdgeContact( manifold, capacity, hullA, capsuleB, transformBtoA, edgeQuery );
