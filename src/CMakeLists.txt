@@ -33,6 +33,7 @@ set(BOX3D_SOURCE_FILES
 	dynamic_tree.c
 	height_field.c
 	hull.c
+	hull.h
 	id_pool.c
 	id_pool.h
 	island.c

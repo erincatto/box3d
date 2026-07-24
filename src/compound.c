@@ -3,7 +3,7 @@
 
 #include "compound.h"
 
-#include "hull_map.h"
+#include "hull.h"
 #include "math_internal.h"
 #include "shape.h"
 

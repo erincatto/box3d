@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "container.h"
 #include "core.h"
 
 #include "box3d/id.h"
@@ -106,13 +107,13 @@ typedef struct b3GeometryEntry
 	int hashNext;
 } b3GeometryEntry;
 
+b3DeclareArray( b3GeometryEntry );
+
 // Growable array of geometry entries. Ids are array indices, so the array is serialized in order.
 // dedupMap maps content hash to entry id for O(1) dedup; it is opaque here and owned by recording.c.
 typedef struct b3GeometryRegistry
 {
-	b3GeometryEntry* entries;
-	int count;
-	int capacity;
+	b3Array(b3GeometryEntry) entries;
 	void* dedupMap;
 } b3GeometryRegistry;
 

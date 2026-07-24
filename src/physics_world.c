@@ -11,7 +11,7 @@
 #include "contact.h"
 #include "core.h"
 #include "ctz.h"
-#include "hull_map.h"
+#include "hull.h"
 #include "island.h"
 #include "joint.h"
 #include "parallel_for.h"
@@ -41,18 +41,21 @@ const b3HullData* b3AddHullToDatabase( b3World* world, const b3HullData* src )
 {
 	b3HullMap* database = world->hullDatabase;
 
-	// Compare by content so an unowned query hull finds the shared copy.
+	// Compare by content to de-duplicated. Not trusting the hash.
 	b3HullMap_itr itr = b3HullMap_get( database, src );
 	if ( b3HullMap_is_end( itr ) == false )
 	{
+		// Bump reference count.
 		itr.data->val += 1;
 		return itr.data->key;
 	}
 
-	b3HullData* owned = b3CloneHull( src );
-	B3_ASSERT( owned != NULL );
-	b3HullMap_insert( database, owned, 1 );
-	return owned;
+	b3HullData* clone = b3CloneHull( src );
+	B3_ASSERT( clone != NULL );
+
+	// Start with reference count of 1.
+	b3HullMap_insert( database, clone, 1 );
+	return clone;
 }
 
 const b3HullData* b3AddOwnedHullToDatabase( b3World* world, b3HullData* owned )

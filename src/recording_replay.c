@@ -2614,12 +2614,12 @@ static void b3RecCaptureKeyframe( b3RecPlayer* player )
 	b3World* world = b3GetWorldFromId( player->rdr.replayWorldId );
 	b3RecBuffer buf = { 0 };
 
-	int regCountBefore = player->keyframeRec->registry.count;
+	int regCountBefore = player->keyframeRec->registry.entries.count;
 	B3_UNUSED( regCountBefore );
 
 	b3SerializeWorld( world, &buf, player->keyframeRec );
 	// Registry must not grow: all geometry was pre-seeded and the registry dedups exactly.
-	B3_ASSERT( player->keyframeRec->registry.count == regCountBefore );
+	B3_ASSERT( player->keyframeRec->registry.entries.count == regCountBefore );
 
 	size_t bodyBytes = (size_t)player->bodyIdCount * sizeof( b3BodyId );
 	size_t newBytes = (size_t)buf.capacity + bodyBytes;

@@ -1691,7 +1691,7 @@ static int GeometryHashCollision( void )
 	uint32_t idA = b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobA, n );
 	uint32_t idB = b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobB, n );
 	ENSURE( idA != idB );
-	ENSURE( reg.count == 2 );
+	ENSURE( reg.entries.count == 2 );
 
 	// Re-interning either blob must find it through the hash chain and never grow the registry,
 	// including the one shadowed behind the bucket head. The old single-entry lookup missed the
@@ -1699,12 +1699,12 @@ static int GeometryHashCollision( void )
 	uint8_t* blobA2 = (uint8_t*)b3Alloc( (size_t)n );
 	memset( blobA2, 0xAA, (size_t)n );
 	ENSURE( b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobA2, n ) == idA );
-	ENSURE( reg.count == 2 );
+	ENSURE( reg.entries.count == 2 );
 
 	uint8_t* blobB2 = (uint8_t*)b3Alloc( (size_t)n );
 	memset( blobB2, 0xBB, (size_t)n );
 	ENSURE( b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobB2, n ) == idB );
-	ENSURE( reg.count == 2 );
+	ENSURE( reg.entries.count == 2 );
 
 	b3FreeRegistry( &reg );
 
@@ -1724,10 +1724,10 @@ static int GeometryHashCollision( void )
 	uint8_t* live = (uint8_t*)b3Alloc( (size_t)n );
 	memset( live, 0xAA, (size_t)n );
 	uint32_t resolved = b3InternGeometry( &seeded, b3_geometryHull, sharedHash, live, n );
-	ENSURE( seeded.count == 3 );			  // no growth
+	ENSURE( seeded.entries.count == 3 );	  // no growth
 	ENSURE( resolved == 0 || resolved == 2 ); // a valid slot index for that content
-	ENSURE( seeded.entries[resolved].byteCount == n );
-	ENSURE( memcmp( seeded.entries[resolved].bytes, slot0, (size_t)n ) == 0 );
+	ENSURE( seeded.entries.data[resolved].byteCount == n );
+	ENSURE( memcmp( seeded.entries.data[resolved].bytes, slot0, (size_t)n ) == 0 );
 
 	b3FreeRegistry( &seeded );
 	return 0;

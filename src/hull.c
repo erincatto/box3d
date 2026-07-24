@@ -4,7 +4,7 @@
 // Dirk Gregorius contributed portions of this code
 
 #include "algorithm.h"
-#include "hull_map.h"
+#include "hull.h"
 #include "math_internal.h"
 #include "shape.h"
 
@@ -2303,6 +2303,7 @@ bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 )
 _Static_assert( sizeof( b3HullData ) == 144, "unexpected hull data size" );
 _Static_assert( sizeof( b3BoxHull ) == 648, "unexpected box hull size" );
 
+// Implement b3HullMap.
 #define NAME b3HullMap
 #define KEY_TY const b3HullData*
 #define VAL_TY int
