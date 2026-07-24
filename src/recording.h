@@ -50,10 +50,10 @@ typedef struct b3World b3World;
 #define B3_REC_VERSION_MAJOR 4
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.
-// Minor version 3 added name cache.
-#define B3_REC_VERSION_MINOR 3
+// Minor version 3 added b3Shape_SetMeshMaterial, b3Shape_SetHull, b3Shape_SetMesh
+#define B3_REC_VERSION_MINOR 4
 
-// File header, fixed 48 bytes, little-endian. Contains the registry locator so the player
+// File header, fixed 48 bytes. Contains the registry locator so the player
 // can load geometry before replaying any ops.
 typedef struct b3RecHeader
 {
@@ -126,7 +126,7 @@ typedef struct b3GeometryRegistry
 typedef struct b3RecTag
 {
 	// hash of (id, queryName)
-	uint64_t key;				  
+	uint64_t key;
 	uint64_t id;
 	char queryName[B3_MAX_QUERY_NAME_LENGTH + 1];
 } b3RecTag;

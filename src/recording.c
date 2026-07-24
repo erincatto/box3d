@@ -1196,7 +1196,7 @@ b3Recording* b3LoadRecordingFromFile( const char* path )
 uint32_t b3RecInternHull( b3Recording* rec, const b3HullData* hull )
 {
 	int byteCount = hull->byteCount;
-	uint8_t* bytes = (uint8_t*)b3Alloc( (size_t)byteCount );
+	uint8_t* bytes = b3Alloc( (size_t)byteCount );
 	memcpy( bytes, hull, (size_t)byteCount );
 	uint64_t h = b3Hash64Blob( bytes, byteCount );
 	return b3InternGeometry( &rec->registry, b3_geometryHull, h, bytes, byteCount );
@@ -1205,7 +1205,7 @@ uint32_t b3RecInternHull( b3Recording* rec, const b3HullData* hull )
 uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh )
 {
 	int byteCount = mesh->byteCount;
-	uint8_t* bytes = (uint8_t*)b3Alloc( (size_t)byteCount );
+	uint8_t* bytes = b3Alloc( (size_t)byteCount );
 	memcpy( bytes, mesh, (size_t)byteCount );
 	uint64_t h = b3Hash64Blob( bytes, byteCount );
 	return b3InternGeometry( &rec->registry, b3_geometryMesh, h, bytes, byteCount );
@@ -1214,7 +1214,7 @@ uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh )
 uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightFieldData* hf )
 {
 	int byteCount = hf->byteCount;
-	uint8_t* bytes = (uint8_t*)b3Alloc( (size_t)byteCount );
+	uint8_t* bytes = b3Alloc( (size_t)byteCount );
 	memcpy( bytes, hf, (size_t)byteCount );
 	uint64_t h = b3Hash64Blob( bytes, byteCount );
 	return b3InternGeometry( &rec->registry, b3_geometryHeightField, h, bytes, byteCount );
@@ -1223,7 +1223,7 @@ uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightFieldData* hf )
 uint32_t b3RecInternCompound( b3Recording* rec, const b3CompoundData* compound )
 {
 	int byteCount = compound->byteCount;
-	uint8_t* bytes = (uint8_t*)b3Alloc( (size_t)byteCount );
+	uint8_t* bytes = b3Alloc( (size_t)byteCount );
 	memcpy( bytes, compound, (size_t)byteCount );
 	// Null the tree node pointer in the copy so the canonical bytes are pointer-free.
 	// b3ConvertBytesToCompound fixes it back on load via nodeOffset.

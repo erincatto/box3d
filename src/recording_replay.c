@@ -1110,6 +1110,11 @@ static void b3RecDispatch_ShapeSetSurfaceMaterial( const b3RecArgs_ShapeSetSurfa
 	b3Shape_SetSurfaceMaterial( b3RecMakeShapeId( rdr, a->shape ), a->material );
 }
 
+static void b3RecDispatch_ShapeSetMeshMaterial( const b3RecArgs_ShapeSetMeshMaterial* a, b3RecReader* rdr )
+{
+	b3Shape_SetMeshMaterial( b3RecMakeShapeId( rdr, a->shape ), a->material, a->index );
+}
+
 static void b3RecDispatch_ShapeSetFilter( const b3RecArgs_ShapeSetFilter* a, b3RecReader* rdr )
 {
 	b3Shape_SetFilter( b3RecMakeShapeId( rdr, a->shape ), a->filter, a->invokeContacts );
@@ -1143,6 +1148,34 @@ static void b3RecDispatch_ShapeSetSphere( const b3RecArgs_ShapeSetSphere* a, b3R
 static void b3RecDispatch_ShapeSetCapsule( const b3RecArgs_ShapeSetCapsule* a, b3RecReader* rdr )
 {
 	b3Shape_SetCapsule( b3RecMakeShapeId( rdr, a->shape ), &a->capsule );
+}
+
+static void b3RecDispatch_ShapeSetHull( const b3RecArgs_ShapeSetHull* a, b3RecReader* rdr )
+{
+	uint32_t id = a->geometryId;
+	if ( id >= (uint32_t)rdr->slotCount )
+	{
+		printf( "b3ReplayFile: hull geometryId %u out of range\n", id );
+		rdr->ok = false;
+		return;
+	}
+	b3RegistrySlot* slot = rdr->slots + id;
+	b3ShapeId shapeId = b3RecMakeShapeId( rdr, a->shape );
+	b3Shape_SetHull( shapeId, (const b3HullData*)slot->bytes );
+}
+
+static void b3RecDispatch_ShapeSetMesh( const b3RecArgs_ShapeSetMesh* a, b3RecReader* rdr )
+{
+	uint32_t id = a->geometryId;
+	if ( id >= (uint32_t)rdr->slotCount )
+	{
+		printf( "b3ReplayFile: mesh geometryId %u out of range\n", id );
+		rdr->ok = false;
+		return;
+	}
+	b3RegistrySlot* slot = rdr->slots + id;
+	b3ShapeId shapeId = b3RecMakeShapeId( rdr, a->shape );
+	b3Shape_SetMesh( shapeId, (const b3MeshData*)slot->bytes, a->scale );
 }
 
 static void b3RecDispatch_ShapeApplyWind( const b3RecArgs_ShapeApplyWind* a, b3RecReader* rdr )

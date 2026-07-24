@@ -333,12 +333,6 @@ public:
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3SurfaceMaterial materials[3];
-			materials[0] = { 0.6f, 0.0f, 0 };
-			materials[1] = { 0.6f, 1.0f, 1 };
-			materials[2] = { 0.1f, 0.0f, 2 };
-			shapeDef.materials = materials;
-			shapeDef.materialCount = 3;
 
 			if ( m_levelMesh != nullptr )
 			{
@@ -399,13 +393,6 @@ public:
 
 			m_heightField = b3CreateWave( 50.0f, 50.0f, b3Vec3_one, 0.02f, 0.04f, true );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3SurfaceMaterial materials[3];
-			materials[0] = { 0.6f, 0.0f, 0 };
-			materials[1] = { 0.6f, 1.0f, 1 };
-			materials[2] = { 0.1f, 0.0f, 2 };
-			shapeDef.materials = materials;
-			shapeDef.materialCount = 3;
-
 			b3CreateHeightFieldShape( body, &shapeDef, m_heightField );
 		}
 
@@ -1339,12 +1326,6 @@ public:
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3SurfaceMaterial materials[3];
-			materials[0] = { 0.6f, 0.0f, 0 };
-			materials[1] = { 0.6f, 1.0f, 1 };
-			materials[2] = { 0.1f, 0.0f, 2 };
-			shapeDef.materials = materials;
-			shapeDef.materialCount = 3;
 
 			if ( m_levelMesh != nullptr )
 			{
@@ -1414,13 +1395,6 @@ public:
 
 			m_heightField = b3CreateWave( 50.0f, 50.0f, b3Vec3_one, 0.02f, 0.04f, true );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			b3SurfaceMaterial materials[3];
-			materials[0] = { 0.6f, 0.0f, 0 };
-			materials[1] = { 0.6f, 1.0f, 1 };
-			materials[2] = { 0.1f, 0.0f, 2 };
-			shapeDef.materials = materials;
-			shapeDef.materialCount = 3;
-
 			b3CreateHeightFieldShape( body, &shapeDef, m_heightField );
 		}
 

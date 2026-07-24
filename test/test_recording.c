@@ -1117,8 +1117,11 @@ static int AllOps( void )
 	b3BodyId meshBodyId = b3CreateBody( worldId, &meshBodyDef );
 	b3MeshData* meshData = b3CreateGridMesh( 3, 3, 2.0f, 0, false );
 	ENSURE( meshData != NULL );
+	b3MeshData* swapMeshData = b3CreateGridMesh( 4, 4, 1.5f, 0, false );
+	ENSURE( swapMeshData != NULL );
 	b3ShapeDef meshShapeDef = b3DefaultShapeDef();
-	b3CreateMeshShape( meshBodyId, &meshShapeDef, meshData, (b3Vec3){ 1.0f, 1.0f, 1.0f } );
+	b3ShapeId meshShapeId = b3CreateMeshShape( meshBodyId, &meshShapeDef, meshData, (b3Vec3){ 1.0f, 1.0f, 1.0f } );
+	ENSURE( b3Shape_IsValid( meshShapeId ) );
 
 	b3BodyDef hfBodyDef = b3DefaultBodyDef();
 	hfBodyDef.type = b3_staticBody;
@@ -1150,9 +1153,9 @@ static int AllOps( void )
 	b3ShapeId tmpShapeId = b3CreateSphereShape( capsuleBodyId, &capsuleShapeDef, &tmpSphere );
 	b3DestroyShape( tmpShapeId, true );
 
-	// Shape mutators: SetFriction, SetRestitution, SetDensity, SetSurfaceMaterial, SetFilter,
-	// EnableSensorEvents, EnableContactEvents, EnableHitEvents, EnablePreSolveEvents, ApplyWind,
-	// SetSphere, SetCapsule, SetName
+	// Shape mutators: SetFriction, SetRestitution, SetDensity, SetSurfaceMaterial, SetMeshMaterial,
+	// SetFilter, EnableSensorEvents, EnableContactEvents, EnableHitEvents, EnablePreSolveEvents,
+	// ApplyWind, SetSphere, SetCapsule, SetHull, SetMesh, SetName
 	b3Shape_SetFriction( boxShapeId, 0.3f );
 	b3Shape_SetRestitution( capsuleShapeId, 0.5f );
 	b3Shape_SetDensity( boxShapeId, 3.0f, true );
@@ -1173,6 +1176,14 @@ static int AllOps( void )
 	b3Capsule newCapsule = { { 0.0f, -0.3f, 0.0f }, { 0.0f, 0.3f, 0.0f }, 0.3f };
 	b3Shape_SetCapsule( capsuleShapeId, &newCapsule );
 	b3Shape_SetName( boxShapeId, "box" );
+
+	// Geometry swaps intern into the registry at the record site. The repeated SetHull takes the
+	// shared hull short circuit, which changes nothing and so must leave the stream alone.
+	b3BoxHull swapHull = b3MakeBoxHull( 0.3f, 0.7f, 0.4f );
+	b3Shape_SetHull( boxShapeId, &swapHull.base );
+	b3Shape_SetHull( boxShapeId, &swapHull.base );
+	b3Shape_SetMesh( meshShapeId, swapMeshData, (b3Vec3){ 1.0f, 1.0f, 1.0f } );
+	b3Shape_SetMeshMaterial( meshShapeId, surfMat, 0 );
 
 	// Body mutators: SetTransform, SetLinearVelocity/AngularVelocity (Vec3), SetName,
 	// damping, gravity scale, sleep threshold, SetAwake, EnableSleep, SetBullet, SetMotionLocks,
@@ -1453,6 +1464,7 @@ static int AllOps( void )
 	// Free geometry allocated for this subtest
 	b3DestroyHull( customHull );
 	b3DestroyMesh( meshData );
+	b3DestroyMesh( swapMeshData );
 	b3DestroyHeightField( hf );
 	b3DestroyCompound( compound );
 
@@ -1924,6 +1936,147 @@ static int ShapeNameReplay( void )
 	return 0;
 }
 
+// A box sliding across a mesh floor, with the option to swap both geometries and retune a
+// per-triangle material part way through. Returns the final state hash so the caller can prove the
+// mutations move the simulation. Recording is optional so the same scene serves as the control.
+static uint64_t RunGeometryMutatorScene( b3Recording* rec, bool mutate, const b3MeshData* meshA, const b3MeshData* meshB,
+										 const b3HullData* swapHull, float swapFriction )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.workerCount = 1;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	if ( rec != NULL )
+	{
+		b3World_StartRecording( worldId, rec );
+	}
+
+	// The mesh body is created first so its ordinal is stable for the read back after replay.
+	b3SurfaceMaterial meshMaterials[2] = { b3DefaultSurfaceMaterial(), b3DefaultSurfaceMaterial() };
+	meshMaterials[1].friction = 0.05f;
+
+	b3BodyDef meshBodyDef = b3DefaultBodyDef();
+	meshBodyDef.type = b3_staticBody;
+	b3BodyId meshBodyId = b3CreateBody( worldId, &meshBodyDef );
+
+	b3ShapeDef meshShapeDef = b3DefaultShapeDef();
+	meshShapeDef.materials = meshMaterials;
+	meshShapeDef.materialCount = 2;
+	b3ShapeId meshShapeId = b3CreateMeshShape( meshBodyId, &meshShapeDef, meshA, (b3Vec3){ 1.0f, 1.0f, 1.0f } );
+
+	b3BodyDef boxBodyDef = b3DefaultBodyDef();
+	boxBodyDef.type = b3_dynamicBody;
+	boxBodyDef.position = (b3Pos){ -2.0f, 2.0f, 0.0f };
+	boxBodyDef.linearVelocity = (b3Vec3){ 4.0f, 0.0f, 0.0f };
+	b3BodyId boxBodyId = b3CreateBody( worldId, &boxBodyDef );
+
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3ShapeDef boxShapeDef = b3DefaultShapeDef();
+	boxShapeDef.density = 1.0f;
+	b3ShapeId boxShapeId = b3CreateHullShape( boxBodyId, &boxShapeDef, &box.base );
+
+	float timeStep = 1.0f / 60.0f;
+	for ( int i = 0; i < 10; ++i )
+	{
+		b3World_Step( worldId, timeStep, 4 );
+	}
+
+	if ( mutate )
+	{
+		b3Shape_SetHull( boxShapeId, swapHull );
+		b3Shape_SetMesh( meshShapeId, meshB, (b3Vec3){ 1.0f, 1.0f, 1.0f } );
+
+		b3SurfaceMaterial grippy = b3DefaultSurfaceMaterial();
+		grippy.friction = swapFriction;
+		b3Shape_SetMeshMaterial( meshShapeId, grippy, 1 );
+	}
+
+	for ( int i = 0; i < 30; ++i )
+	{
+		b3World_Step( worldId, timeStep, 4 );
+	}
+
+	uint64_t hash = b3HashWorldState( b3GetWorldFromId( worldId ) );
+
+	if ( rec != NULL )
+	{
+		b3World_StopRecording( worldId );
+	}
+	b3DestroyWorld( worldId );
+
+	return hash;
+}
+
+// Swapping a shape's hull or mesh, or retuning one of its per-triangle materials, is a world
+// mutation like any other and has to ride the stream. The geometry pair interns into the registry
+// at the record site so replay rebuilds the same shape instead of running on the geometry it was
+// created with. The control run proves the mutations move the simulation, so the state hash gate
+// has teeth, and the read back covers each op on its own where dynamics alone would not.
+static int GeometryMutatorReplay( void )
+{
+	// Two flat floors with different triangulations, both carrying two material slots so the
+	// material index stays live across the swap.
+	b3MeshData* meshA = b3CreateGridMesh( 8, 8, 2.0f, 2, false );
+	ENSURE( meshA != NULL );
+	b3MeshData* meshB = b3CreateGridMesh( 12, 12, 1.5f, 2, false );
+	ENSURE( meshB != NULL );
+	ENSURE( meshA->triangleCount != meshB->triangleCount );
+
+	b3BoxHull swapHull = b3MakeBoxHull( 0.25f, 1.5f, 0.25f );
+	const float swapFriction = 0.95f;
+
+	uint64_t controlHash = RunGeometryMutatorScene( NULL, false, meshA, meshB, &swapHull.base, swapFriction );
+
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+	uint64_t mutatedHash = RunGeometryMutatorScene( rec, true, meshA, meshB, &swapHull.base, swapFriction );
+
+	// Without this the replay gate below could pass on a recording that never carried the ops.
+	ENSURE( mutatedHash != controlHash );
+
+	const uint8_t* data = b3Recording_GetData( rec );
+	int size = b3Recording_GetSize( rec );
+	ENSURE( size > 0 );
+
+	ENSURE( b3ValidateReplay( data, size, 1 ) );
+	ENSURE( b3ValidateReplay( data, size, 4 ) );
+
+	b3RecPlayer* player = b3RecPlayer_Create( data, size, 1 );
+	ENSURE( player != NULL );
+	while ( b3RecPlayer_StepFrame( player ) )
+	{
+	}
+	ENSURE( b3RecPlayer_HasDiverged( player ) == false );
+
+	// Body ordinals follow creation order in the replayed world.
+	b3BodyId replayMeshBody = b3RecPlayer_GetBodyId( player, 0 );
+	b3BodyId replayBoxBody = b3RecPlayer_GetBodyId( player, 1 );
+	ENSURE( b3Body_IsValid( replayMeshBody ) && b3Body_IsValid( replayBoxBody ) );
+
+	b3ShapeId replayMeshShape;
+	ENSURE( b3Body_GetShapes( replayMeshBody, &replayMeshShape, 1 ) == 1 );
+	b3ShapeId replayBoxShape;
+	ENSURE( b3Body_GetShapes( replayBoxBody, &replayBoxShape, 1 ) == 1 );
+
+	const b3HullData* replayHull = b3Shape_GetHull( replayBoxShape );
+	ENSURE( replayHull != NULL );
+	ENSURE( replayHull->hash == swapHull.base.hash );
+
+	b3Mesh replayMesh = b3Shape_GetMesh( replayMeshShape );
+	ENSURE( replayMesh.data != NULL );
+	ENSURE( replayMesh.data->hash == meshB->hash );
+	ENSURE( replayMesh.data->triangleCount == meshB->triangleCount );
+
+	b3SurfaceMaterial replayMaterial = b3Shape_GetMeshSurfaceMaterial( replayMeshShape, 1 );
+	ENSURE( replayMaterial.friction == swapFriction );
+
+	b3RecPlayer_Destroy( player );
+	b3DestroyRecording( rec );
+	b3DestroyMesh( meshA );
+	b3DestroyMesh( meshB );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( GeometryHashCollision );
@@ -1942,6 +2095,7 @@ int RecordingTest( void )
 	RUN_SUBTEST( QueryReplay );
 	RUN_SUBTEST( TaggedQuery );
 	RUN_SUBTEST( TransformedHullRoundTrip );
+	RUN_SUBTEST( GeometryMutatorReplay );
 	RUN_SUBTEST( AllOps );
 	RUN_SUBTEST( ReservedHeaderBytes );
 	return 0;
