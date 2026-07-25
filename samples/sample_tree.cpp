@@ -281,9 +281,6 @@ public:
 			return;
 		}
 
-		constexpr int bufferSize = 512;
-		char buffer[bufferSize];
-
 		int maxArea = 0.0f;
 		int maxAreaIndex = -1;
 

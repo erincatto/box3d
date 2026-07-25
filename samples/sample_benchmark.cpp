@@ -638,7 +638,7 @@ public:
 
 		float aveCastTime = 1000.0f * milliseconds / float( castCount );
 
-		DrawTextLine( "count = %d, hit count = %d, iterations = %d, inner = %d, ticks = %ld", castCount, hitCount, iterationCount,
+		DrawTextLine( "count = %d, hit count = %d, iterations = %d, inner = %d, ticks = %lld", castCount, hitCount, iterationCount,
 					  innerIterationCount, tickCount );
 
 		DrawTextLine( "ave iterations = %.1f, ave inner = %.1f, ave cast us %.3f", aveIterations, aveInner, aveCastTime );

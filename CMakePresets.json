@@ -54,6 +54,42 @@
         "CMAKE_CXX_COMPILER": "g++",
         "FETCHCONTENT_BASE_DIR": "${sourceDir}/.fetchcontent-cache/mingw"
       }
+    },
+    {
+      "name": "windows-clang-cl",
+      "displayName": "Windows clang-cl (Visual Studio solution, ClangCL toolset)",
+      "toolset": "ClangCL",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "binaryDir": "${sourceDir}/build/clang-cl-vs",
+      "cacheVariables": {
+        "FETCHCONTENT_BASE_DIR": "${sourceDir}/.fetchcontent-cache/clang-cl-vs"
+      }
+    },
+    {
+      "name": "clang-cl-debug",
+      "displayName": "Windows clang-cl Debug (Ninja, needs LLVM on PATH)",
+      "generator": "Ninja",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "binaryDir": "${sourceDir}/build/clang-cl",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl",
+        "FETCHCONTENT_BASE_DIR": "${sourceDir}/.fetchcontent-cache/clang-cl"
+      }
+    },
+    {
+      "name": "clang-cl-release",
+      "displayName": "Windows clang-cl Release (Ninja, needs LLVM on PATH)",
+      "generator": "Ninja",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "binaryDir": "${sourceDir}/build/clang-cl",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl",
+        "FETCHCONTENT_BASE_DIR": "${sourceDir}/.fetchcontent-cache/clang-cl"
+      }
     }
   ],
   "buildPresets": [
@@ -64,6 +100,10 @@
     { "name": "macos-debug",     "configurePreset": "macos",       "configuration": "Debug" },
     { "name": "macos-release",   "configurePreset": "macos",       "configuration": "Release" },
     { "name": "mingw-debug",     "configurePreset": "mingw-debug" },
-    { "name": "mingw-release",   "configurePreset": "mingw-release" }
+    { "name": "mingw-release",   "configurePreset": "mingw-release" },
+    { "name": "windows-clang-cl-debug",   "configurePreset": "windows-clang-cl", "configuration": "Debug" },
+    { "name": "windows-clang-cl-release", "configurePreset": "windows-clang-cl", "configuration": "Release" },
+    { "name": "clang-cl-debug",   "configurePreset": "clang-cl-debug" },
+    { "name": "clang-cl-release", "configurePreset": "clang-cl-release" }
   ]
 }

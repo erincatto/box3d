@@ -735,7 +735,7 @@ public:
 
 		for ( int i = 0; i < m_castContext.count; ++i )
 		{
-			DrawTextLine( "material = %d, triangle = %d", m_castContext.materialIds[i], m_castContext.triangleIndices[i] );
+			DrawTextLine( "material = %lld, triangle = %d", m_castContext.materialIds[i], m_castContext.triangleIndices[i] );
 		}
 
 		DrawGroundGrid( 10 );

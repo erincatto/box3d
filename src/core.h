@@ -137,6 +137,7 @@ void* b3AllocZeroed( size_t size );
 void b3Free( void* mem, size_t size );
 void* b3GrowAlloc( void* oldMem, int oldSize, int newSize );
 
+B3_PRINTF_FORMAT( 1, 2 )
 void b3Log( const char* format, ... );
 
 // Geometry content hashes reserve zero to mean unhashed

@@ -119,7 +119,9 @@ public:
 	// Update and render are split to support pausing the simulation
 	virtual void Step();
 
-	virtual void Render() {}
+	virtual void Render()
+	{
+	}
 
 	// Draw sample controls into the shared info panel. Return true if any widget
 	// was drawn so the panel can add a separator.
@@ -180,6 +182,8 @@ public:
 	virtual void MouseMove( b3Vec2 p );
 
 	void ToggleThirdPerson();
+
+	B3_PRINTF_FORMAT( 2, 3 )
 	void DrawTextLine( const char* text, ... );
 	void ResetProfile();
 

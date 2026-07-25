@@ -208,14 +208,6 @@ static int sampleRagdollMesh = RegisterSample( "Ragdoll", "Mesh", RagdollOnMesh:
 class RagdollPile : public Sample
 {
 public:
-	enum
-	{
-#ifdef NDEBUG
-		e_count = 20
-#else
-		e_count = 8
-#endif
-	};
 
 	explicit RagdollPile( SampleContext* context )
 		: Sample( context )
@@ -234,10 +226,10 @@ public:
 		b3CreateMeshShape( groundId, &shapeDef, m_groundMesh, b3Vec3_one );
 
 		g_randomSeed = 42;
-		float a = 0.1f * e_count;
+		float a = 0.1f * m_count;
 		b3Vec3 lower = { -a, -a, -a };
 		b3Vec3 upper = { a, a, a };
-		for ( int i = 0; i < e_count; ++i )
+		for ( int i = 0; i < m_count; ++i )
 		{
 			b3Vec3 offset = RandomVec3( lower, upper );
 			b3Pos position = { offset.x, 2.0f, offset.z };
@@ -261,8 +253,10 @@ public:
 		return new RagdollPile( context );
 	}
 
+	static constexpr int m_count = m_isDebug ? 8 : 20;
+
 	b3MeshData* m_groundMesh;
-	Human m_humans[e_count] = {};
+	Human m_humans[m_count] = {};
 };
 
 static int sampleRagdollPile = RegisterSample( "Ragdoll", "Pile", RagdollPile::Create );

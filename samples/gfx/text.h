@@ -52,6 +52,8 @@ void DrawString( b3Vec3 worldPos, Vec4 color, const char* text );
 // Submit a UTF-8 string at a screen-pixel position (origin top-left, Y down,
 // framebuffer pixels). Same copy/truncation/overflow rules as DrawString.
 void DrawScreenString( int x, int y, Vec4 color, const char* text );
+
+B3_PRINTF_FORMAT( 4, 5 )
 void DrawScreenStringFormat( int x, int y, Vec4 color, const char* fmt, ... );
 
 // Iteration surface for the GUI shell. Pointers/strings are valid until

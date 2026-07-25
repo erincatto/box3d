@@ -121,6 +121,7 @@ void DrawWireSphere( b3WorldTransform transform, const b3Sphere* sphere, int seg
 void DrawWireCapsule( b3WorldTransform transform, const b3Capsule* capsule, int segments, Vec4 color );
 
 // printf-style positioned text label. The renderer projects with its latched camera.
+B3_PRINTF_FORMAT(3, 4)
 void DrawString3D( b3Pos point, Vec4 color, const char* format, ... );
 
 #ifdef __cplusplus
