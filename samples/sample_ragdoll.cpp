@@ -208,7 +208,6 @@ static int sampleRagdollMesh = RegisterSample( "Ragdoll", "Mesh", RagdollOnMesh:
 class RagdollPile : public Sample
 {
 public:
-
 	explicit RagdollPile( SampleContext* context )
 		: Sample( context )
 	{
@@ -254,7 +253,6 @@ public:
 	}
 
 	static constexpr int m_count = m_isDebug ? 8 : 20;
-
 	b3MeshData* m_groundMesh;
 	Human m_humans[m_count] = {};
 };

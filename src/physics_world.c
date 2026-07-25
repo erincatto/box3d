@@ -41,7 +41,7 @@ const b3HullData* b3AddHullToDatabase( b3World* world, const b3HullData* src )
 {
 	b3HullMap* database = world->hullDatabase;
 
-	// Compare by content to de-duplicated. Not trusting the hash.
+	// Compare by content to de-duplicate. Not trusting the hash.
 	b3HullMap_itr itr = b3HullMap_get( database, src );
 	if ( b3HullMap_is_end( itr ) == false )
 	{

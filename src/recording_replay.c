@@ -1024,7 +1024,7 @@ static void b3RecDispatch_CreateMeshShape( const b3RecArgs_CreateMeshShape* a, b
 		return;
 	}
 	b3RegistrySlot* slot = rdr->slots + id;
-	const b3MeshData* mesh = (const b3MeshData*)b3RecGetLiveMesh( slot );
+	const b3MeshData* mesh = b3RecGetLiveMesh( slot );
 	b3BodyId bodyId = b3RecMakeBodyId( rdr, a->body );
 	b3ShapeId gotId = b3CreateMeshShape( bodyId, &a->def, mesh, a->scale );
 	b3RecCheckShapeId( rdr, gotId, recId );
@@ -1175,7 +1175,8 @@ static void b3RecDispatch_ShapeSetMesh( const b3RecArgs_ShapeSetMesh* a, b3RecRe
 	}
 	b3RegistrySlot* slot = rdr->slots + id;
 	b3ShapeId shapeId = b3RecMakeShapeId( rdr, a->shape );
-	b3Shape_SetMesh( shapeId, (const b3MeshData*)slot->bytes, a->scale );
+	const b3MeshData* mesh = b3RecGetLiveMesh( slot );
+	b3Shape_SetMesh( shapeId, mesh, a->scale );
 }
 
 static void b3RecDispatch_ShapeApplyWind( const b3RecArgs_ShapeApplyWind* a, b3RecReader* rdr )

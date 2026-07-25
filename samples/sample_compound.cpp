@@ -692,7 +692,7 @@ public:
 		b3Transform transform = { { 0.0f, 0.01f, 0.0f }, b3Quat_identity };
 		DrawAxes( b3MakeWorldTransform( transform ), 4.0f );
 
-		DrawTextLine( "surface type = %lld", m_userMaterialId );
+		DrawTextLine( "surface type = %d", (int)m_userMaterialId );
 		DrawTextLine( "compound capsules/hulls/meshes/sphere = %d / %d / %d / %d", m_compound->capsuleCount,
 					  m_compound->hullCount, m_compound->meshCount, m_compound->sphereCount );
 		DrawTextLine( "compound byte count = %d", m_compound->byteCount );
@@ -725,8 +725,8 @@ public:
 				b3Pos p2 = p1 + 0.5f * context.normal;
 				DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
 				DrawPoint( p1, 8.0f, MakeColor( b3_colorLightCoral ) );
-				DrawTextLine( "ray hit triangle/child/material = %d / %d / %lld", context.triangleIndex, context.childIndex,
-							  context.materialId );
+				DrawTextLine( "ray hit triangle/child/material = %d / %d / %d", context.triangleIndex, context.childIndex,
+							  (int)context.materialId );
 			}
 			else
 			{
@@ -750,8 +750,8 @@ public:
 				DrawPoint( p1, 8.0f, MakeColor( b3_colorLightCoral ) );
 				b3Sphere sphere = { b3Vec3_zero, 0.25f };
 				DrawSolidSphere( { position, b3Quat_identity }, sphere, MakeColor( b3_colorOrchid ) );
-				DrawTextLine( "shape hit triangle/child/material = %d / %d / %lld", context.triangleIndex, context.childIndex,
-							  context.materialId );
+				DrawTextLine( "shape hit triangle/child/material = %d / %d / %d", context.triangleIndex, context.childIndex,
+							  (int)context.materialId );
 			}
 			else
 			{

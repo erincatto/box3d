@@ -800,7 +800,7 @@ static uint32_t b3RegistryPush( b3GeometryRegistry* reg, b3GeometryHashMap* map,
 								b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount )
 {
 	uint32_t id = (uint32_t)reg->entries.count;
-	b3GeometryEntry* entry = b3Array_Emplace(reg->entries);
+	b3GeometryEntry* entry = b3Array_Emplace( reg->entries );
 	entry->contentHash = contentHash;
 	entry->id = id;
 	entry->kind = kind;

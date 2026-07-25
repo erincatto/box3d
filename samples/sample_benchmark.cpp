@@ -632,13 +632,13 @@ public:
 		}
 
 		float milliseconds = b3GetMilliseconds( startTick );
-		uint64_t tickCount = b3GetTicks() - startTick;
+		int tickCount = (int)(b3GetTicks() - startTick);
 		float aveIterations = float( iterationCount ) / float( castCount );
 		float aveInner = float( innerIterationCount ) / float( castCount );
 
 		float aveCastTime = 1000.0f * milliseconds / float( castCount );
 
-		DrawTextLine( "count = %d, hit count = %d, iterations = %d, inner = %d, ticks = %lld", castCount, hitCount, iterationCount,
+		DrawTextLine( "count = %d, hit count = %d, iterations = %d, inner = %d, ticks = %d", castCount, hitCount, iterationCount,
 					  innerIterationCount, tickCount );
 
 		DrawTextLine( "ave iterations = %.1f, ave inner = %.1f, ave cast us %.3f", aveIterations, aveInner, aveCastTime );

@@ -727,7 +727,7 @@ public:
 	void Render() override
 	{
 		DrawTextLine( "scale = (%.2g, %.2g, %.2g)", m_scale.x, m_scale.y, m_scale.z );
-		DrawTextLine( "surface type = %lld", m_userMaterialId );
+		DrawTextLine( "surface type = %d", (int)m_userMaterialId );
 
 		Sample::Render();
 	}

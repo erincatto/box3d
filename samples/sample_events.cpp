@@ -218,7 +218,8 @@ public:
 
 			DrawPoint( p1, 10.0f, MakeColor( b3_colorYellow ) );
 			DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
-			DrawString3D( p1, MakeColor( b3_colorWhite ), "%.1f, %lld", m_events[i].approachSpeed, m_events[i].userMaterialIdA );
+			DrawString3D( p1, MakeColor( b3_colorWhite ), "%.1f, %d", m_events[i].approachSpeed,
+						  (int)m_events[i].userMaterialIdA );
 		}
 
 		DrawTextLine( "event count = %d", m_eventCount );
