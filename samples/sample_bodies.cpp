@@ -1181,8 +1181,9 @@ public:
 
 static int sampleFixedRotation = RegisterSample( "Bodies", "Fixed Rotation", FixedRotation::Create );
 
-// This should invert like this video. I'm not sure why it doesn't.
+// A spinning class ring flips its heavy gem from bottom to top, like this video:
 // https://www.youtube.com/watch?v=_up0BiLCliA
+// This is a fiddley test and requires careful tuning.
 class ClassRing : public Sample
 {
 public:
@@ -1194,69 +1195,84 @@ public:
 			m_camera->SetView( 40.0f, 30.0f, 15.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
-		AddGroundBox( 40.0f );
+		AddGroundBox( 100.0f );
 
-		constexpr int n = 32;
+		constexpr int n = 24;
 		constexpr float r = 1.0f;
-		b3Vec3 hullPoints[2 * n];
-
-		b3Vec3 tangent1 = b3Vec3_axisX;
-		b3Vec3 tangent2 = b3Vec3_axisY;
-
-		float deltaAngle = 2.0f * B3_PI / n;
-		b3CosSin cs = b3ComputeCosSin( deltaAngle );
-
-		float zs[2] = { -0.05f * r, 0.05f * r };
-		int m = 0;
-
-		for ( int j = 0; j < 2; ++j )
-		{
-			float x1 = r, y1 = 0.0f;
-			b3Vec3 p = b3Blend2( x1, tangent1, y1, tangent2 );
-			for ( int i = 0; i < n; ++i )
-			{
-				hullPoints[m] = p;
-				hullPoints[m].z = zs[j];
-				m += 1;
-
-				float x2 = cs.cosine * x1 - cs.sine * y1;
-				float y2 = cs.sine * x1 + cs.cosine * y1;
-				p = b3Blend2( x2, tangent1, y2, tangent2 );
-
-				x1 = x2;
-				y1 = y2;
-			}
-		}
-
-		assert( m == 2 * n );
-
-		b3HullData* hull = b3CreateHull( hullPoints, m, m );
+		constexpr float tubeRadius = 0.1f * r;
+		constexpr float axisRadius = r - tubeRadius;
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = { 0.0f, r, 0.0f };
-		bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 15.0f * B3_PI / 180.0f );
+		bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 13.0f * B3_PI / 180.0f );
 		bodyDef.allowFastRotation = true;
+		bodyDef.enableContactRecycling = false;
 		b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.density = 1.0f;
-		shapeDef.baseMaterial.rollingResistance = 0.1f;
 
-		b3CreateHullShape( bodyId, &shapeDef, hull );
-		b3Sphere sphere = { .center = { 0.0f, -0.75f * r, 0.0f }, .radius = 0.3f };
+		// Band built from a loop of capsules.
+		b3Vec3 vertices[n];
+		float deltaAngle = 2.0f * B3_PI / n;
+		b3CosSin cs = b3ComputeCosSin( deltaAngle );
+		float x = axisRadius, y = 0.0f;
+		for ( int i = 0; i < n; ++i )
+		{
+			vertices[i] = { x, y, 0.0f };
+			float x2 = cs.cosine * x - cs.sine * y;
+			float y2 = cs.sine * x + cs.cosine * y;
+			x = x2;
+			y = y2;
+		}
+
+		for ( int i = 0; i < n; ++i )
+		{
+			b3Capsule capsule = { vertices[i], vertices[( i + 1 ) % n], tubeRadius };
+			b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
+		}
+
+		// Heavy gem provides the mass asymmetry that drives the inversion
+		shapeDef.density = 2.0f;
+		b3Sphere sphere = { .center = { 0.0f, -0.65f * r, 0.0f }, .radius = 0.3f };
 		b3CreateSphereShape( bodyId, &shapeDef, &sphere );
 
-		b3Vec3 angularVelocity = b3RotateVector( bodyDef.rotation, { 0.0f, 50.0f, 0.0f } );
+		b3Vec3 angularVelocity = b3RotateVector( bodyDef.rotation, { 0.0f, 100.0f, 0.0f } );
 		b3Body_SetAngularVelocity( bodyId, angularVelocity );
 
-		b3DestroyHull( hull );
+		m_ringId = bodyId;
+	}
+
+	void Step() override
+	{
+		// This needs a high simulation rate so that contact points keep up with the high speed rotation.
+		float hertz = m_context->hertz;
+		int subStepCount = m_context->subStepCount;
+
+		// 960Hz simulation
+		int multiplier = 16;
+		m_context->hertz = multiplier * 60.0f;
+		m_context->subStepCount = 8;
+
+		// Multiple hidden steps to keep the render real-time.
+		for ( int i = 0; i < multiplier - 1; ++i )
+		{
+			b3World_Step( m_worldId, 1.0f / m_context->hertz, m_context->subStepCount );
+		}
+		
+		Sample::Step();
+
+		m_context->hertz = hertz;
+		m_context->subStepCount = subStepCount;
 	}
 
 	static Sample* Create( SampleContext* context )
 	{
 		return new ClassRing( context );
 	}
+
+	b3BodyId m_ringId;
 };
 
 static int sampleClassRing = RegisterSample( "Bodies", "Class Ring", ClassRing::Create );

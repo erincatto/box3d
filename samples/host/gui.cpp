@@ -336,8 +336,21 @@ static void RenderText()
 				v = 1.0f;
 			return (uint32_t)( v * 255.0f + 0.5f );
 		};
-		const uint32_t col = IM_COL32( byte( e->color.x ), byte( e->color.y ), byte( e->color.z ), byte( e->color.w ) );
-		dl->AddText( nullptr, 0.0f, ImVec2( origin.x + sx, origin.y + sy ), col, e->text );
+		const uint32_t alpha = byte( e->color.w );
+		const uint32_t col = IM_COL32( byte( e->color.x ), byte( e->color.y ), byte( e->color.z ), alpha );
+
+		// ImGui has no outlined text, so ring the glyphs with offset copies.
+		// Labels land on whatever the scene put behind them, sky or a pale box,
+		// and a plain color loses against half of that. Halo alpha tracks the
+		// label alpha so a faded label doesn't leave a solid black ring.
+		const uint32_t halo = IM_COL32( 0, 0, 0, alpha );
+		const float x = origin.x + sx;
+		const float y = origin.y + sy;
+		dl->AddText( nullptr, 0.0f, ImVec2( x - 1.0f, y ), halo, e->text );
+		dl->AddText( nullptr, 0.0f, ImVec2( x + 1.0f, y ), halo, e->text );
+		dl->AddText( nullptr, 0.0f, ImVec2( x, y - 1.0f ), halo, e->text );
+		dl->AddText( nullptr, 0.0f, ImVec2( x, y + 1.0f ), halo, e->text );
+		dl->AddText( nullptr, 0.0f, ImVec2( x, y ), col, e->text );
 	}
 }
 
