@@ -24,6 +24,7 @@
 #include "gfx/shadow.h"
 #include "gfx/sky.h"
 #include "gfx/text.h"
+#include "gfx/world_text.h"
 #include "gfx/tone_map.h"
 #include "shadow_caster_capsule.glsl.h"
 #include "shadow_caster_cube.glsl.h"
@@ -1214,6 +1215,7 @@ void InitRenderer( const sg_environment* env )
 	HighlightMaskInit();
 	InitHighlightOutline();
 	OverlayInit();
+	WorldTextInit();
 	s_gfx.swapchainColorFormat = env->defaults.color_format;
 
 	s_gfx.sun.dirToSun = b3Normalize( (b3Vec3){ 0.5f, 0.8f, 0.4f } );
@@ -2662,6 +2664,12 @@ void RenderFrame( const sg_swapchain* swapChain, const FrameInput* frame )
 				   frame->cameraPosition, frame->time, GetLinearDepthSampleView(), GetAOLinearSampler(), swapChain->color_format,
 				   swapChain->depth_format );
 	sg_pop_debug_group();
+	// World labels ride the same pass as the overlays, after them so a label
+	// reads on top of the primitive it names.
+	sg_push_debug_group( "world_text" );
+	WorldTextSubmit( swapChain->width, swapChain->height, &frame->view, &frame->viewInv, &frame->proj, &frame->projInv,
+				   frame->cameraPosition, frame->time, swapChain->color_format, swapChain->depth_format );
+	sg_pop_debug_group();
 	sg_end_pass();
 	sg_pop_debug_group();
 
@@ -2723,6 +2731,10 @@ void RenderFrameOffscreen( const sg_attachments* attachments, sg_pixel_format ou
 	sg_push_debug_group( "overlays" );
 	OverlaySubmit( width, height, &frame->view, &frame->viewInv, &frame->proj, &frame->projInv, frame->cameraPosition,
 				   frame->time, GetLinearDepthSampleView(), GetAOLinearSampler(), outputFormat, SG_PIXELFORMAT_NONE );
+	sg_pop_debug_group();
+	sg_push_debug_group( "world_text" );
+	WorldTextSubmit( width, height, &frame->view, &frame->viewInv, &frame->proj, &frame->projInv, frame->cameraPosition,
+				   frame->time, outputFormat, SG_PIXELFORMAT_NONE );
 	sg_pop_debug_group();
 	sg_end_pass();
 	sg_pop_debug_group();
@@ -2837,6 +2849,7 @@ int GetCubeProxyIndexCount( void )
 void ShutdownRenderer( void )
 {
 	OverlayShutdown();
+	WorldTextShutdown();
 	ShutdownHighlightOutline();
 	HighlightMaskShutdown();
 	ShutdownHighlightTarget();

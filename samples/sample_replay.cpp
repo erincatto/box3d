@@ -3,6 +3,7 @@
 
 #include "gfx/debug_adapter.h"
 #include "gfx/draw.h"
+#include "gfx/keycodes.h"
 #include "gfx/text.h"
 #include "imgui.h"
 #include "sample.h"
@@ -511,6 +512,32 @@ public:
 		m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
 	}
 
+	// Jump to a recorded frame. Rewinds through the nearest keyframe, so a backward hop costs the
+	// re-simulation from there.
+	void SeekTo( int frame )
+	{
+		b3RecPlayer_SeekFrame( m_player, frame );
+		m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
+		m_frameAccumulator = 0.0f;
+	}
+
+	// , steps backward. Forward is the global single step on . so it works in every sample, and the
+	// step count lands in the context. Shift moves five frames, matching that key.
+	void Keyboard( int key, int action, int mods ) override
+	{
+		if ( m_player == nullptr || action != ACTION_PRESS || ( mods & ( MOD_CTRL | MOD_ALT ) ) != 0 )
+		{
+			return;
+		}
+
+		if ( key == KEY_COMMA )
+		{
+			int back = ( mods & MOD_SHIFT ) ? 5 : 1;
+			SeekTo( b3RecPlayer_GetFrame( m_player ) - back );
+			m_context->pause = true;
+		}
+	}
+
 	void Step() override
 	{
 		SetDrawOrigin( m_camera->DrawOrigin() );
@@ -525,9 +552,11 @@ public:
 
 		if ( m_player != nullptr )
 		{
-			if ( m_context->pause && m_context->singleStep > 0 )
+			if ( m_context->singleStep > 0 )
 			{
+				// Stepping takes over from playback, like the transport buttons.
 				m_context->singleStep = b3MaxInt( 0, m_context->singleStep - 1 );
+				m_context->pause = true;
 				if ( b3RecPlayer_IsAtEnd( m_player ) == false )
 				{
 					AdvanceOne( m_subStepOnCreate );
@@ -752,16 +781,12 @@ public:
 
 		if ( ImGui::Button( "|<" ) )
 		{
-			b3RecPlayer_SeekFrame( m_player, 0 );
-			m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
-			m_frameAccumulator = 0.0f;
+			SeekTo( 0 );
 		}
 		ImGui::SameLine();
 		if ( ImGui::Button( "<" ) )
 		{
-			b3RecPlayer_SeekFrame( m_player, frame - 1 );
-			m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
-			m_frameAccumulator = 0.0f;
+			SeekTo( frame - 1 );
 			m_context->pause = true;
 		}
 		ImGui::SameLine();
@@ -795,21 +820,18 @@ public:
 			if ( m_subStepOnCreate )
 			{
 				AdvanceOne( true );
+				m_frameAccumulator = 0.0f;
 			}
 			else
 			{
-				b3RecPlayer_SeekFrame( m_player, frame + 1 );
-				m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
+				SeekTo( frame + 1 );
 			}
-			m_frameAccumulator = 0.0f;
 			m_context->pause = true;
 		}
 		ImGui::SameLine();
 		if ( ImGui::Button( ">|" ) )
 		{
-			b3RecPlayer_SeekFrame( m_player, m_info.frameCount );
-			m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
-			m_frameAccumulator = 0.0f;
+			SeekTo( m_info.frameCount );
 		}
 	}
 
@@ -1227,10 +1249,8 @@ public:
 			ImGui::PopStyleColor();
 			if ( clicked )
 			{
-				b3RecPlayer_SeekFrame( m_player, row.frame );
-				m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
+				SeekTo( row.frame );
 				m_context->pause = true;
-				m_frameAccumulator = 0.0f;
 				m_selKind = SelQuery;
 				m_selQueryKey = row.key;
 				FormatQueryLabel( m_selQueryLabel, sizeof( m_selQueryLabel ), row.name, row.id, row.type, row.kindOrdinal );
@@ -1733,9 +1753,7 @@ public:
 		ImGui::PushItemWidth( -FLT_MIN );
 		if ( ImGui::SliderInt( "##frame", &scrub, 0, m_info.frameCount ) )
 		{
-			b3RecPlayer_SeekFrame( m_player, scrub );
-			m_replayWorldId = b3RecPlayer_GetWorldId( m_player );
-			m_frameAccumulator = 0.0f;
+			SeekTo( scrub );
 			m_context->pause = true;
 		}
 		ImGui::PopItemWidth();

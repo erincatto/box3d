@@ -15,6 +15,7 @@
 #include "gfx/renderer.h"
 #include "gfx/shadow.h"
 #include "gfx/text.h"
+#include "host/gui.h"
 #include "human.h"
 #include "imgui.h"
 #include "implot.h"
@@ -1597,7 +1598,7 @@ static void DrawMenuBar( SampleContext* context )
 		if ( ImGui::BeginMenu( "Sim" ) )
 		{
 			ImGui::MenuItem( "Pause", "P", &context->pause );
-			if ( ImGui::MenuItem( "Single Step", "O" ) )
+			if ( ImGui::MenuItem( "Single Step", "." ) )
 			{
 				context->singleStep += 1;
 			}
@@ -1769,7 +1770,8 @@ static void DrawMenuBar( SampleContext* context )
 					DrawRow( "Tab", "Show / hide UI" );
 					DrawRow( "M", "Show / hide diagnostics" );
 					DrawRow( "P", "Pause / resume" );
-					DrawRow( "O", "Single step (Shift: 5)" );
+					DrawRow( ".", "Single step (Shift: 5)" );
+					DrawRow( ",", "Step back, replay only (Shift: 5)" );
 					DrawRow( "R", "Restart sample" );
 					DrawRow( "[  ]", "Previous / next sample" );
 					DrawRow( "Ctrl+O", "Open sample picker" );
@@ -1788,7 +1790,7 @@ static void DrawMenuBar( SampleContext* context )
 					DrawRow( "Alt + left drag", "Orbit camera" );
 					DrawRow( "Alt + middle drag", "Pan camera" );
 					DrawRow( "Alt + right drag", "Zoom (dolly)" );
-					DrawRow( "Right drag", "Fly look (WASD to move)" );
+					DrawRow( "Right drag", "Fly look (WASD, Q / E to move)" );
 					DrawRow( "Scroll", "Zoom" );
 					DrawRow( "Shift + left", "Shoot (Ctrl spin, Alt ragdoll)" );
 					ImGui::EndTable();

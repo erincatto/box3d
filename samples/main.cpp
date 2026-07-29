@@ -214,11 +214,15 @@ static void OnEvent( const sapp_event* e )
 							// Ctrl+O opens the fuzzy picker. Force the UI visible so it shows.
 							s_context.showUI = true;
 							s_context.openSamplePicker = true;
+							break;
 						}
-						else
-						{
-							s_context.singleStep += ( mods & SAPP_MODIFIER_SHIFT ) ? 5 : 1;
-						}
+						s_context.sample->Keyboard( e->key_code, ACTION_PRESS, mods );
+						break;
+
+					// Step forward. Backward is , and only a sample that can rewind
+					// handles it, so that key falls through to the sample.
+					case KEY_PERIOD:
+						s_context.singleStep += ( mods & SAPP_MODIFIER_SHIFT ) ? 5 : 1;
 						break;
 
 					case SAPP_KEYCODE_P:

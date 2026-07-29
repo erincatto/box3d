@@ -103,6 +103,7 @@ add_shader(highlight_outline "post/highlight_outline.glsl")
 # overlay
 add_shader(overlay_line "overlays/line.glsl")
 add_shader(overlay_point "overlays/point.glsl")
+add_shader(world_text "overlays/world_text.glsl")
 
 get_property(_outputs GLOBAL PROPERTY SHADER_OUTPUTS)
 get_property(_inputs  GLOBAL PROPERTY SHADER_INPUTS)

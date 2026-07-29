@@ -13,9 +13,11 @@
 #include "gui.h"
 
 #include "gfx/draw.h"
+#include "gfx/fonts.h"
 #include "gfx/projection.h"
 #include "gfx/renderer.h"
 #include "gfx/text.h"
+#include "gfx/world_text.h"
 #include "imgui.h"
 #include "implot.h"
 #include "sokol_app.h"
@@ -135,7 +137,6 @@ void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn )
 	desc.sample_count = env->defaults.sample_count;
 	desc.ini_filename = "imgui.ini";
 	desc.logger.func = slog_func;
-	// Skip ImGui's auto-pick so we always get the vector font we add below.
 	desc.no_default_font = true;
 	simgui_setup( &desc );
 
@@ -168,10 +169,15 @@ void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn )
 		style.ScaleAllSizes( s_uiScale );
 	}
 
-	// 13px base for the proportional UI font, scaled to a whole physical
-	// pixel. Rasterizer density is 1.0 (DisplayFramebufferScale 1.0), so the
-	// atlas bakes at exactly this - floorf keeps it on a whole-pixel size.
+	// 13px base, scaled to a whole physical pixel. Rasterizer density is 1.0
+	// (DisplayFramebufferScale 1.0), so the atlas bakes at exactly this -
+	// floorf keeps it on a whole-pixel size.
 	style.FontSizeBase = floorf( 13.0f * s_uiScale );
+
+	// World labels are SDF glyphs in the scene pass, so they miss the ImGui
+	// style entirely. Hand them the same size, or a label and the panel quoting
+	// the same number disagree.
+	WorldTextSetPixelHeight( floorf( 14.0f * s_uiScale ) );
 
 	s_uiInitialized = true;
 }
@@ -288,12 +294,12 @@ void EndPanel( void )
 }
 
 // Text overlay. Drain the per-frame label arena (filled by DrawString /
-// DrawScreenString and the Box3D adapter's DrawString callback). World
-// entries project to screen pixels with the last rendered camera, screen
-// entries pass through their pixel position, and both emit into ImGui's
-// background draw list - labels sit on the scene but under any ImGui
-// windows. The drain runs in StartUIFrame because the calling app
-// guarantees RenderFrame already ran this frame, so GetCameraState
+// DrawScreenString and the Box3D adapter's DrawString callback). Screen
+// entries pass through their pixel position into ImGui's background draw
+// list, so labels sit on the scene but under any ImGui windows. World
+// entries belong to the SDF pass and are only projected here when that
+// atlas failed to bake. The drain runs in StartUIFrame because the calling
+// app guarantees RenderFrame already ran this frame, so GetCameraState
 // returns the matrices the scene was actually rasterized with.
 static void RenderText()
 {
@@ -318,9 +324,19 @@ static void RenderText()
 	ImDrawList* dl = ImGui::GetBackgroundDrawList();
 	const ImVec2 origin = vp->Pos;
 
+	// World labels render as SDF glyphs in the scene pass. Drawing them here too
+	// would double up, so this pass keeps only the screen-space entries once the
+	// atlas is live.
+	const bool worldLabelsAreSdf = WorldTextIsReady();
+
 	for ( int i = 0; i < n; ++i )
 	{
 		const TextEntry* e = GetTextAt( i );
+		if ( worldLabelsAreSdf && e->space == TEXT_SPACE_WORLD )
+		{
+			continue;
+		}
+
 		float sx, sy;
 		if ( !ResolveTextScreenPos( e, cam.view, cam.proj, vpW, vpH, &sx, &sy ) )
 		{
@@ -339,17 +355,8 @@ static void RenderText()
 		const uint32_t alpha = byte( e->color.w );
 		const uint32_t col = IM_COL32( byte( e->color.x ), byte( e->color.y ), byte( e->color.z ), alpha );
 
-		// ImGui has no outlined text, so ring the glyphs with offset copies.
-		// Labels land on whatever the scene put behind them, sky or a pale box,
-		// and a plain color loses against half of that. Halo alpha tracks the
-		// label alpha so a faded label doesn't leave a solid black ring.
-		const uint32_t halo = IM_COL32( 0, 0, 0, alpha );
 		const float x = origin.x + sx;
 		const float y = origin.y + sy;
-		dl->AddText( nullptr, 0.0f, ImVec2( x - 1.0f, y ), halo, e->text );
-		dl->AddText( nullptr, 0.0f, ImVec2( x + 1.0f, y ), halo, e->text );
-		dl->AddText( nullptr, 0.0f, ImVec2( x, y - 1.0f ), halo, e->text );
-		dl->AddText( nullptr, 0.0f, ImVec2( x, y + 1.0f ), halo, e->text );
 		dl->AddText( nullptr, 0.0f, ImVec2( x, y ), col, e->text );
 	}
 }

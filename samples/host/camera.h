@@ -11,6 +11,7 @@
 //   FLY (right mouse held, no Alt)
 //     right-drag         : FPS look (yaw/pitch the view direction)
 //     WASD               : translate eye along view forward/right at m_speed
+//     QE                 : translate eye along world down/up at m_speed
 //     scroll             : tune m_speed
 //
 //   Always
@@ -253,4 +254,6 @@ public:
 	bool m_aDown = false;
 	bool m_sDown = false;
 	bool m_dDown = false;
+	bool m_qDown = false;
+	bool m_eDown = false;
 };

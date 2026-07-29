@@ -493,6 +493,7 @@ typedef struct b3ShapeDef
 	bool isSensor;
 
 	/// Enable sensor events for this shape. This applies to sensors and non-sensors. False by default, even for sensors.
+	/// Only convex shapes may act as sensor visitors.
 	bool enableSensorEvents;
 
 	/// Enable contact events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors. False by default.
