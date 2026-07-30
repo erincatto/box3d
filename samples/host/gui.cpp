@@ -292,8 +292,7 @@ void EndPanel( void )
 // DrawScreenString and the Box3D adapter's DrawString callback). Screen
 // entries pass through their pixel position into ImGui's background draw
 // list, so labels sit on the scene but under any ImGui windows. World
-// entries belong to the SDF pass and are only projected here when that
-// atlas failed to bake. The drain runs in StartUIFrame because the calling
+// entries belong to the SDF pass. The drain runs in StartUIFrame because the calling
 // app guarantees RenderFrame already ran this frame, so GetCameraState
 // returns the matrices the scene was actually rasterized with.
 static void RenderText()

@@ -346,6 +346,15 @@ void WorldTextInit( void )
 	if ( s_text.instances == NULL )
 	{
 		fprintf( stderr, "[world_text] failed to allocate glyph instances\n" );
+
+		// Clean up
+		sg_destroy_sampler( s_text.atlasSampler );
+		s_text.atlasSampler.id = 0;
+		sg_destroy_view( s_text.atlasView );
+		s_text.atlasView.id = 0;
+		sg_destroy_image( s_text.atlas );
+		s_text.atlas.id = 0;
+
 		return;
 	}
 
@@ -400,7 +409,7 @@ void WorldTextShutdown( void )
 
 // Walk this frame's labels and lay each one out into glyph quads. Advances
 // accumulate along the pen, so a label's characters share an anchor and differ
-// only in their pen offset, which keeps the whole string billboarding as one.
+// only in their pen offset, which keeps the whole string bill-boarding as one.
 // The pen accumulates fractionally and each origin rounds off it, so spacing
 // stays true across a word while every glyph still starts on a whole pixel.
 static void BuildGlyphs( void )
