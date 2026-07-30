@@ -10,10 +10,11 @@
 // Based on ProggyForever: https://github.com/ocornut/proggyforever
 // MIT license / Copyright (c) 2026 Disco Hello, Copyright (c) 2019,2023 Tristan Grimmerom.
 
-#pragma once
 // File: 'data/fonts/ProggyForever-Regular-minimal.ttf' (18556 bytes)
 // Exported using binary_to_compressed_c.exe -u8 "data/fonts/ProggyForever-Regular-minimal.ttf" ProggyForeverMinimal
 static const unsigned int ProggyForeverMinimal_size = 18556;
+
+// clang-format off
 static const unsigned char ProggyForeverMinimal_data[18556] =
 {
     0,1,0,0,0,14,0,128,0,3,0,96,70,70,84,77,176,111,174,190,0,0,72,96,0,0,0,28,71,68,69,70,0,136,0,105,0,0,72,64,0,0,0,30,79,83,47,50,104,97,19,194,0,0,1,104,0,0,0,96,99,109,97,112,177,
@@ -308,6 +309,7 @@ static const unsigned char ProggyForeverMinimal_data[18556] =
     97,108,98,97,114,7,117,110,105,48,48,56,53,9,111,118,101,114,115,99,111,114,101,4,69,117,114,111,0,0,0,0,0,0,1,255,255,0,2,0,1,0,0,0,12,0,0,0,22,0,0,0,2,0,1,0,98,0,98,0,1,0,4,0,0,0,
     2,0,0,0,0,0,0,0,1,0,0,0,0,229,13,183,147,0,0,0,0,229,175,187,66,0,0,0,0,229,178,59,232,
 };
+// clang-format on
 
 const unsigned char* GetFontBytes( int* outSize )
 {

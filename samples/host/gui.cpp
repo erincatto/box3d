@@ -174,11 +174,6 @@ void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn )
 	// floorf keeps it on a whole-pixel size.
 	style.FontSizeBase = floorf( 13.0f * s_uiScale );
 
-	// World labels are SDF glyphs in the scene pass, so they miss the ImGui
-	// style entirely. Hand them the same size, or a label and the panel quoting
-	// the same number disagree.
-	WorldTextSetPixelHeight( floorf( 14.0f * s_uiScale ) );
-
 	s_uiInitialized = true;
 }
 
@@ -324,15 +319,10 @@ static void RenderText()
 	ImDrawList* dl = ImGui::GetBackgroundDrawList();
 	const ImVec2 origin = vp->Pos;
 
-	// World labels render as SDF glyphs in the scene pass. Drawing them here too
-	// would double up, so this pass keeps only the screen-space entries once the
-	// atlas is live.
-	const bool worldLabelsAreSdf = WorldTextIsReady();
-
 	for ( int i = 0; i < n; ++i )
 	{
 		const TextEntry* e = GetTextAt( i );
-		if ( worldLabelsAreSdf && e->space == TEXT_SPACE_WORLD )
+		if ( e->space == TEXT_SPACE_WORLD )
 		{
 			continue;
 		}

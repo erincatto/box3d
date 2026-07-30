@@ -99,7 +99,6 @@ static void OnInit( void )
 #if defined( _WIN32 )
 	timeBeginPeriod( 1 );
 #endif
-
 	const sg_environment env = sglue_environment();
 	InitRenderer( &env );
 	InitUI( &env, OnDrawUI );

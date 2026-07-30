@@ -24,8 +24,8 @@
 #include "gfx/shadow.h"
 #include "gfx/sky.h"
 #include "gfx/text.h"
-#include "gfx/world_text.h"
 #include "gfx/tone_map.h"
+#include "gfx/world_text.h"
 #include "shadow_caster_capsule.glsl.h"
 #include "shadow_caster_cube.glsl.h"
 #include "shadow_caster_geom.glsl.h"
@@ -2668,7 +2668,7 @@ void RenderFrame( const sg_swapchain* swapChain, const FrameInput* frame )
 	// reads on top of the primitive it names.
 	sg_push_debug_group( "world_text" );
 	WorldTextSubmit( swapChain->width, swapChain->height, &frame->view, &frame->viewInv, &frame->proj, &frame->projInv,
-				   frame->cameraPosition, frame->time, swapChain->color_format, swapChain->depth_format );
+					 frame->cameraPosition, frame->time, swapChain->color_format, swapChain->depth_format );
 	sg_pop_debug_group();
 	sg_end_pass();
 	sg_pop_debug_group();
@@ -2734,7 +2734,7 @@ void RenderFrameOffscreen( const sg_attachments* attachments, sg_pixel_format ou
 	sg_pop_debug_group();
 	sg_push_debug_group( "world_text" );
 	WorldTextSubmit( width, height, &frame->view, &frame->viewInv, &frame->proj, &frame->projInv, frame->cameraPosition,
-				   frame->time, outputFormat, SG_PIXELFORMAT_NONE );
+					 frame->time, outputFormat, SG_PIXELFORMAT_NONE );
 	sg_pop_debug_group();
 	sg_end_pass();
 	sg_pop_debug_group();

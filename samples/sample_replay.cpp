@@ -525,6 +525,11 @@ public:
 	// step count lands in the context. Shift moves five frames, matching that key.
 	void Keyboard( int key, int action, int mods ) override
 	{
+		if ( m_generating )
+		{
+			return;
+		}
+
 		if ( m_player == nullptr || action != ACTION_PRESS || ( mods & ( MOD_CTRL | MOD_ALT ) ) != 0 )
 		{
 			return;
@@ -633,8 +638,6 @@ public:
 		}
 
 		b3World_Draw( m_replayWorldId, &debugDraw, B3_DEFAULT_MASK_BITS );
-
-		// DrawSelectionHighlight();
 
 		// Overlay query geometry and recorded hits on top of the world. The toggle draws every recorded
 		// query, otherwise just the selected one. Re-resolve the pinned query to this frame so a repeated
@@ -1041,53 +1044,6 @@ public:
 					DrawPoint( point, 6.0f, MakeColor( b3_colorOrange ) );
 					DrawLine( point, b3OffsetPos( point, b3MulSV( 0.3f, manifold->normal ) ), MakeColor( b3_colorOrange ) );
 				}
-			}
-		}
-	}
-
-	// Selection overlays drawn on top of the outline highlight: body axes, center of mass, and
-	// contacts. Joints mark both connected body centers.
-	void DrawSelectionHighlight()
-	{
-		if ( m_selKind == SelShape )
-		{
-			b3ShapeId shape = SelectedShape();
-			if ( b3Shape_IsValid( shape ) == false )
-			{
-				return;
-			}
-			b3BodyId body = b3Shape_GetBody( shape );
-			DrawAxes( b3Body_GetTransform( body ), 0.5f );
-			DrawPoint( b3Body_GetWorldCenter( body ), 8.0f, MakeColor( b3_colorYellow ) );
-			DrawBodyContacts( body );
-		}
-		else if ( m_selKind == SelBody )
-		{
-			b3BodyId body = SelectedBody();
-			if ( b3Body_IsValid( body ) == false )
-			{
-				return;
-			}
-			DrawAxes( b3Body_GetTransform( body ), 0.5f );
-			DrawPoint( b3Body_GetWorldCenter( body ), 8.0f, MakeColor( b3_colorYellow ) );
-			DrawBodyContacts( body );
-		}
-		else if ( m_selKind == SelJoint )
-		{
-			b3JointId joint = SelectedJoint();
-			if ( b3Joint_IsValid( joint ) == false )
-			{
-				return;
-			}
-			b3BodyId a = b3Joint_GetBodyA( joint );
-			b3BodyId b = b3Joint_GetBodyB( joint );
-			if ( b3Body_IsValid( a ) )
-			{
-				DrawPoint( b3Body_GetWorldCenter( a ), 8.0f, MakeColor( b3_colorMagenta ) );
-			}
-			if ( b3Body_IsValid( b ) )
-			{
-				DrawPoint( b3Body_GetWorldCenter( b ), 8.0f, MakeColor( b3_colorMagenta ) );
 			}
 		}
 	}

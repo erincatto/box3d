@@ -15,6 +15,7 @@
 #include "stb_truetype.h"
 
 #include <math.h>
+#include <sokol_app.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -80,7 +81,6 @@ static struct
 	int pipelineCount;
 
 	float pixelHeight;
-	Vec4 haloColor; // .w is strength at the glyph edge
 	float haloPixels;
 
 	bool ready;
@@ -334,15 +334,7 @@ void WorldTextInit( void )
 		return;
 	}
 
-	// Matches Dear ImGui's unscaled font size. The host overrides it with
-	// whatever size it baked its own atlas at.
-	s_text.pixelHeight = 13.0f;
-
-	// A map pads dark names against light paper, where the halo is the paper
-	// color and so invisible. Over a scene of any luminance it cannot hide, so
-	// it wants to stay narrow and weak or it reads as an outline around every
-	// glyph rather than as contrast behind the word.
-	s_text.haloColor = MakeVec4( 1.0f, 1.0f, 1.0f, 0.5f );
+	s_text.pixelHeight = floorf( 13.0f * sapp_dpi_scale() );
 	s_text.haloPixels = 2.0f;
 
 	if ( BakeAtlas() == false )
@@ -406,48 +398,6 @@ void WorldTextShutdown( void )
 	s_text.ready = false;
 }
 
-bool WorldTextIsReady( void )
-{
-	return s_text.ready;
-}
-
-void WorldTextSetPixelHeight( float pixels )
-{
-	if ( pixels < 1.0f )
-	{
-		pixels = 1.0f;
-	}
-	if ( pixels == s_text.pixelHeight )
-	{
-		return;
-	}
-
-	s_text.pixelHeight = pixels;
-
-	// The atlas is baked for one size, so a change rebuilds it. That makes this
-	// a resource creating call, hence the no-pass rule in the header.
-	if ( s_text.ready )
-	{
-		BakeAtlas();
-	}
-}
-
-float WorldTextGetPixelHeight( void )
-{
-	return s_text.pixelHeight;
-}
-
-void WorldTextSetHalo( Vec4 color, float widthPixels )
-{
-	s_text.haloColor = color;
-	s_text.haloPixels = widthPixels;
-}
-
-int WorldTextGlyphCount( void )
-{
-	return s_text.glyphCount;
-}
-
 // Walk this frame's labels and lay each one out into glyph quads. Advances
 // accumulate along the pen, so a label's characters share an anchor and differ
 // only in their pen offset, which keeps the whole string billboarding as one.
@@ -503,7 +453,7 @@ static void BuildGlyphs( void )
 }
 
 void WorldTextSubmit( int width, int height, const Mat4* view, const Mat4* viewInv, const Mat4* proj, const Mat4* projInv,
-					b3Vec3 cameraPos, float time, sg_pixel_format colorFormat, sg_pixel_format depthFormat )
+					  b3Vec3 cameraPos, float time, sg_pixel_format colorFormat, sg_pixel_format depthFormat )
 {
 	if ( !s_text.ready )
 	{
@@ -537,16 +487,15 @@ void WorldTextSubmit( int width, int height, const Mat4* view, const Mat4* viewI
 	ub.camera_pos = MakeVec4( cameraPos.x, cameraPos.y, cameraPos.z, time );
 	ub.viewport = MakeVec4( w, h, w > 0.0f ? 1.0f / w : 0.0f, h > 0.0f ? 1.0f / h : 0.0f );
 
-	//Vec4 haloColor = MakeVec4( 1.0f, 1.0f, 1.0f, 0.5f );
-	Vec4 haloColor = MakeVec4( 0.1f, 0.1f, 0.1f, 0.5f );
-
 	// Halo width in pixels plus the distance one pixel spans, which the bake fixes
 	// since the field is rasterized at the size it draws at. The field saturates
 	// SDF_PADDING pixels out, so that is the ceiling on the fade.
 	world_text_ub_text_style_t styleUb = { 0 };
 	const float distancePerPixel = ( (float)SDF_ONEDGE / (float)SDF_PADDING ) / 255.0f;
 	styleUb.style_params = MakeVec4( s_text.haloPixels, (float)SDF_ONEDGE / 255.0f, distancePerPixel, 0.0f );
-	styleUb.halo_params = haloColor;
+
+	// .w is strength at the glyph edge
+	styleUb.halo_params = MakeVec4( 0.2f, 0.2f, 0.2f, 0.2f );
 
 	sg_range instanceRange;
 	instanceRange.ptr = s_text.instances;

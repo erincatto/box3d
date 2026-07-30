@@ -1260,7 +1260,7 @@ public:
 		{
 			b3World_Step( m_worldId, 1.0f / m_context->hertz, m_context->subStepCount );
 		}
-		
+
 		Sample::Step();
 
 		m_context->hertz = hertz;
