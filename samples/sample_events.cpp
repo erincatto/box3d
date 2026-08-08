@@ -571,6 +571,368 @@ public:
 
 static int sampleJointEvent = RegisterSample( "Events", "Joint", JointEvent::Create );
 
+struct BodyUserData
+{
+	int index;
+};
+
+// This shows how to use contact events to transfer shapes from one body to another.
+class ContactEvent : public Sample
+{
+public:
+	enum
+	{
+		e_count = 200
+	};
+
+	explicit ContactEvent( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 35.0f, 60.0f, b3Pos_zero );
+		}
+
+		m_groundExtent = 80.0f;
+		AddGroundBox( m_groundExtent );
+
+		// The walls live on their own body so a contact can be told apart from the floor. The player
+		// rides on the floor at all times, so treating every non-debris body as a wall would strip
+		// each pickup the moment it dragged along the ground.
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.name = "walls";
+			m_wallsId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+			float extent = m_groundExtent + 0.5f;
+			float height = 5.0f;
+			float thickness = 0.5f;
+
+			b3BoxHull wall =
+				b3MakeTransformedBoxHull( thickness, height, extent, { { extent, height, 0.0f }, b3Quat_identity } );
+			b3CreateHullShape( m_wallsId, &shapeDef, &wall.base );
+
+			wall = b3MakeTransformedBoxHull( thickness, height, extent, { { -extent, height, 0.0f }, b3Quat_identity } );
+			b3CreateHullShape( m_wallsId, &shapeDef, &wall.base );
+
+			wall = b3MakeTransformedBoxHull( extent, height, thickness, { { 0.0f, height, extent }, b3Quat_identity } );
+			b3CreateHullShape( m_wallsId, &shapeDef, &wall.base );
+
+			wall = b3MakeTransformedBoxHull( extent, height, thickness, { { 0.0f, height, -extent }, b3Quat_identity } );
+			b3CreateHullShape( m_wallsId, &shapeDef, &wall.base );
+		}
+
+		// Player
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.name = "player";
+			bodyDef.position = { 0.0f, 1.0f, 0.0f };
+			bodyDef.angularDamping = 0.1f;
+			m_playerId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+			// Contact events fire when either shape enables them, so opting in the player alone
+			// still reports every collision it has while debris hitting debris stays silent.
+			shapeDef.enableContactEvents = true;
+
+			// Friction is what turns the drive torque into motion
+			shapeDef.baseMaterial.friction = 0.6f;
+			shapeDef.baseMaterial.rollingResistance = 0.1f;
+			shapeDef.baseMaterial.customColor = b3MakeDebugColor( b3_colorPlum, b3_debugMaterialMetallic );
+
+			b3Sphere sphere = { b3Vec3_zero, 1.0f };
+			m_coreShapeId = b3CreateSphereShape( m_playerId, &shapeDef, &sphere );
+		}
+
+		for ( int i = 0; i < e_count; ++i )
+		{
+			m_debrisIds[i] = b3_nullBodyId;
+			m_bodyUserData[i].index = i;
+		}
+
+		b3AABB bounds = b3Body_ComputeAABB( m_playerId );
+		b3Vec3 extents = b3AABB_Extents( bounds );
+		float mass = b3Body_GetMass( m_playerId );
+		m_massExtent = ( mass / 3.0f ) * ( extents.x + extents.y + extents.z );
+		m_torque = 30000.0f;
+		m_wait = 0.5f;
+	}
+
+	void SpawnDebris()
+	{
+		int index = -1;
+		for ( int i = 0; i < e_count; ++i )
+		{
+			if ( B3_IS_NULL( m_debrisIds[i] ) )
+			{
+				index = i;
+				break;
+			}
+		}
+
+		if ( index == -1 )
+		{
+			return;
+		}
+
+		float a = m_groundExtent - 2.0f;
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = RandomPos( { -a, 1.0f, -a }, { a, 6.0f, a } );
+		bodyDef.rotation = RandomQuat();
+		bodyDef.linearVelocity = RandomVec3Uniform( -2.0f, 2.0f );
+		bodyDef.angularVelocity = RandomVec3Uniform( -1.0f, 1.0f );
+		bodyDef.userData = m_bodyUserData + index;
+		m_debrisIds[index] = b3CreateBody( m_worldId, &bodyDef );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.restitution = 0.3f;
+
+		if ( ( index + 1 ) % 3 == 0 )
+		{
+			b3Sphere sphere = { b3Vec3_zero, 0.5f };
+			b3CreateSphereShape( m_debrisIds[index], &shapeDef, &sphere );
+		}
+		else if ( ( index + 1 ) % 2 == 0 )
+		{
+			b3Capsule capsule = { { 0.0f, -0.25f, 0.0f }, { 0.0f, 0.25f, 0.0f }, 0.25f };
+			b3CreateCapsuleShape( m_debrisIds[index], &shapeDef, &capsule );
+		}
+		else
+		{
+			b3BoxHull box = b3MakeBoxHull( 0.4f, 0.6f, 0.5f );
+			b3CreateHullShape( m_debrisIds[index], &shapeDef, &box.base );
+		}
+	}
+
+	// Rebuild a debris shape in the player frame and destroy the body it came from
+	void AttachDebris( int index )
+	{
+		b3BodyId debrisId = m_debrisIds[index];
+		if ( B3_IS_NULL( debrisId ) )
+		{
+			return;
+		}
+
+		b3WorldTransform playerTransform = b3Body_GetTransform( m_playerId );
+		b3WorldTransform debrisTransform = b3Body_GetTransform( debrisId );
+		b3Transform relativeTransform = b3InvMulWorldTransforms( playerTransform, debrisTransform );
+
+		b3ShapeId shapeId;
+		if ( b3Body_GetShapes( debrisId, &shapeId, 1 ) == 0 )
+		{
+			return;
+		}
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.enableContactEvents = true;
+		shapeDef.baseMaterial.customColor = b3_colorGold;
+
+		// Several shapes may land in one step, so take the mass update once at the end
+		shapeDef.updateBodyMass = false;
+
+		switch ( b3Shape_GetType( shapeId ) )
+		{
+			case b3_sphereShape:
+			{
+				b3Sphere sphere = b3Shape_GetSphere( shapeId );
+				sphere.center = b3TransformPoint( relativeTransform, sphere.center );
+
+				b3CreateSphereShape( m_playerId, &shapeDef, &sphere );
+			}
+			break;
+
+			case b3_capsuleShape:
+			{
+				b3Capsule capsule = b3Shape_GetCapsule( shapeId );
+				capsule.center1 = b3TransformPoint( relativeTransform, capsule.center1 );
+				capsule.center2 = b3TransformPoint( relativeTransform, capsule.center2 );
+
+				b3CreateCapsuleShape( m_playerId, &shapeDef, &capsule );
+			}
+			break;
+
+			case b3_hullShape:
+			{
+				// The hull is cloned and baked, so the source body can go away right after
+				const b3HullData* hull = b3Shape_GetHull( shapeId );
+				b3CreateTransformedHullShape( m_playerId, &shapeDef, hull, relativeTransform, b3Vec3_one );
+			}
+			break;
+
+			default:
+				assert( false );
+		}
+
+		b3DestroyBody( debrisId );
+		m_debrisIds[index] = b3_nullBodyId;
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
+		ImGui::SliderFloat( "torque", &m_torque, 0.0f, 60000.0f, "%.0f" );
+		ImGui::PopItemWidth();
+
+		return true;
+	}
+
+	void Step() override
+	{
+		// Drive relative to the camera so the controls hold up as the view orbits
+		b3Vec2 throttle = { 0.0f, 0.0f };
+
+		if ( IsKeyDown( KEY_W ) )
+		{
+			throttle.x += 1.0f;
+		}
+
+		if ( IsKeyDown( KEY_S ) )
+		{
+			throttle.x -= 1.0f;
+		}
+
+		if ( IsKeyDown( KEY_A ) )
+		{
+			throttle.y -= 1.0f;
+		}
+
+		if ( IsKeyDown( KEY_D ) )
+		{
+			throttle.y += 1.0f;
+		}
+
+		b3Vec3 forward = -m_camera->GetForward();
+		forward.y = 0.0f;
+		forward = b3Normalize( forward );
+
+		b3Vec3 right = m_camera->GetRight();
+		right.y = 0.0f;
+		right = b3Normalize( right );
+
+		b3Vec3 direction = throttle.x * forward + throttle.y * right;
+		if ( b3LengthSquared( direction ) > 0.0f )
+		{
+			b3AABB bounds = b3Body_ComputeAABB( m_playerId );
+			b3Vec3 extents = b3AABB_Extents( bounds );
+			float mass = b3Body_GetMass( m_playerId );
+			float massExtent = ( mass / 3.0f ) * ( extents.x + extents.y + extents.z );
+			float scale = massExtent / m_massExtent;
+
+			// Rolling without slipping spins about up cross velocity
+			b3Vec3 axis = b3Cross( b3Vec3_axisY, b3Normalize( direction ) );
+			b3Body_ApplyTorque( m_playerId, (scale * m_torque) * axis, true );
+		}
+
+		Sample::Step();
+
+		int debrisToAttach[e_count] = {};
+		b3ShapeId shapesToDestroy[e_count] = {};
+		int attachCount = 0;
+		int destroyCount = 0;
+
+		b3ContactEvents contactEvents = b3World_GetContactEvents( m_worldId );
+		for ( int i = 0; i < contactEvents.beginCount; ++i )
+		{
+			b3ContactBeginTouchEvent event = contactEvents.beginEvents[i];
+
+			b3ShapeId playerShapeId = event.shapeIdA;
+			b3ShapeId otherShapeId = event.shapeIdB;
+			if ( B3_ID_EQUALS( b3Shape_GetBody( playerShapeId ), m_playerId ) == false )
+			{
+				playerShapeId = event.shapeIdB;
+				otherShapeId = event.shapeIdA;
+			}
+
+			// Only the player enables contact events, so one side is always the player
+			assert( B3_ID_EQUALS( b3Shape_GetBody( playerShapeId ), m_playerId ) );
+
+			b3BodyId otherBodyId = b3Shape_GetBody( otherShapeId );
+			BodyUserData* userData = static_cast<BodyUserData*>( b3Body_GetUserData( otherBodyId ) );
+
+			if ( userData != nullptr )
+			{
+				if ( attachCount < e_count )
+				{
+					debrisToAttach[attachCount] = userData->index;
+					attachCount += 1;
+				}
+			}
+			else if ( B3_ID_EQUALS( otherBodyId, m_wallsId ) && B3_ID_EQUALS( playerShapeId, m_coreShapeId ) == false )
+			{
+				// An accreted shape scraped a wall. The core is exempt or the player would dissolve.
+				bool found = false;
+				for ( int j = 0; j < destroyCount; ++j )
+				{
+					if ( B3_ID_EQUALS( playerShapeId, shapesToDestroy[j] ) )
+					{
+						found = true;
+						break;
+					}
+				}
+
+				// Avoid double deletion
+				if ( found == false && destroyCount < e_count )
+				{
+					shapesToDestroy[destroyCount] = playerShapeId;
+					destroyCount += 1;
+				}
+			}
+		}
+
+		for ( int i = 0; i < attachCount; ++i )
+		{
+			AttachDebris( debrisToAttach[i] );
+		}
+
+		for ( int i = 0; i < destroyCount; ++i )
+		{
+			bool updateMass = false;
+			b3DestroyShape( shapesToDestroy[i], updateMass );
+		}
+
+		if ( attachCount > 0 || destroyCount > 0 )
+		{
+			b3Body_ApplyMassFromShapes( m_playerId );
+		}
+
+		if ( m_context->hertz > 0.0f && m_context->pause == false )
+		{
+			m_wait -= 1.0f / m_context->hertz;
+			if ( m_wait < 0.0f )
+			{
+				SpawnDebris();
+				m_wait += 0.5f;
+			}
+		}
+
+		DrawTextLine( "move using WASD" );
+		DrawTextLine( "player shape count = %d", b3Body_GetShapeCount( m_playerId ) );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new ContactEvent( context );
+	}
+
+	static constexpr int m_capacity = 200;
+	b3BodyId m_playerId;
+	b3BodyId m_wallsId;
+	b3ShapeId m_coreShapeId;
+	b3BodyId m_debrisIds[m_capacity];
+	BodyUserData m_bodyUserData[m_capacity];
+	float m_groundExtent;
+	float m_massExtent;
+	float m_torque;
+	float m_wait;
+};
+
+static int sampleContactEvent = RegisterSample( "Events", "Contact", ContactEvent::Create );
+
 class PersistentContact : public Sample
 {
 public:
