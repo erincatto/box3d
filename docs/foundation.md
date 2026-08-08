@@ -42,11 +42,13 @@ printf("Box3D version %d.%d.%d\n", version.major, version.minor, version.revisio
 ```
 
 ## Vector Math
+
 Box3D includes a vector math library covering types `b3Vec3`, `b3Quat`, `b3Transform`,
 `b3Matrix3`, and `b3AABB`. The library is designed to suit the internal needs of Box3D
 and its interface. All members are exposed, so you can use them freely in your application.
 
 ### b3Vec3
+
 Three-component float vector with fields `x`, `y`, `z`. Useful constants and operations:
 
 ```c
@@ -64,6 +66,7 @@ b3Vec3 q = b3Lerp(a, b, 0.5f);     // linear interpolation
 ```
 
 ### b3Quat
+
 Unit quaternion representing orientation. Stored as a vector part `q.v` (x, y, z) and a
 scalar part `q.s`. The identity quaternion is `b3Quat_identity`.
 
@@ -103,6 +106,7 @@ Because orientation in 3D is three-dimensional, there is no single scalar angle 
 in 2D. Always work with the full quaternion or the derived matrix.
 
 ### b3Transform
+
 A rigid transform: a position vector `t.p` (`b3Vec3`) combined with an orientation `t.q`
 (`b3Quat`). The identity transform is `b3Transform_identity`.
 

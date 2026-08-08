@@ -44,6 +44,24 @@ for orientation and 3x3 inertia tensors for rotational dynamics. If you come acr
 understand, please read about it on Wikipedia. Visit this [page](https://box2d.org/publications/) if you want a deeper
 knowledge of the algorithms used in Box3D.
 
+### Working with Unreal
+
+You can use Box3D in Unreal as a plug-in. Here is the module file I use:
+
+![Box3D module](https://gist.github.com/erincatto/6f08df5f1e6e9a79fb4be6298a3e1125)
+
+Unreal uses centimeters as units while Box3D has tolerances tuned for meters. You can either scale dimensions you send and recieve from Box3D or you can use this to set the length units:
+
+```c
+b3SetLengthUnitsPerMeter(100.0f);
+```
+
+This doesn't scale the units. Instead it scales the tolerances used internally in Box3D to be more appropriate for centimeters.
+
+Another issue is that Box3D is right-handed while Unreal is left-handed. Box3D has way too much math for it to be reasonable to support a left-handed option. However, it doesn't matter. In practice you don't need to do any conversions. Box3D will run in a mirrored world and the outputs from Box3D are fully compatible with the Unreal coordinates.
+
+I would just be careful about using Box3D math functions like `b3Cross` and expecting it to give the same result as the Unreal cross product.
+
 ## API
 
 ### What units does Box3D use?

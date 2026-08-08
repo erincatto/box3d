@@ -273,7 +273,7 @@ B3_INLINE float b3DistanceSquared( b3Vec3 a, b3Vec3 b )
 }
 
 /// Normalize a vector. Returns a zero vector if the input vector is very small.
-B3_INLINE b3Vec3 b3Normalize( b3Vec3 a )
+B3_FORCE_INLINE b3Vec3 b3Normalize( b3Vec3 a )
 {
 	float lengthSquared = a.x * a.x + a.y * a.y + a.z * a.z;
 
@@ -571,7 +571,7 @@ B3_INLINE float b3GetTwistAngle( b3Quat q )
 }
 
 /// Swing angle used for cone limit
-B3_INLINE float b3GetSwingAngle( b3Quat q )
+B3_FORCE_INLINE float b3GetSwingAngle( b3Quat q )
 {
 	// Polarity should not matter because all terms are squared.
 	float x = sqrtf( q.v.z * q.v.z + q.s * q.s );
@@ -629,7 +629,7 @@ B3_INLINE b3Transform b3InvertTransform( b3Transform t )
 }
 
 /// Transform a point.
-B3_INLINE b3Vec3 b3TransformPoint( b3Transform t, b3Vec3 v )
+B3_FORCE_INLINE b3Vec3 b3TransformPoint( b3Transform t, b3Vec3 v )
 {
 	b3Vec3 rv = b3RotateVector( t.q, v );
 	return b3Add( rv, t.p );
@@ -718,23 +718,23 @@ B3_INLINE b3Vec3 b3InvTransformWorldPoint( b3WorldTransform t, b3Pos p )
 	return b3InvRotateVector( t.q, d );
 }
 
-/// Relative transform of frame B in frame A. The narrow phase boundary.
-B3_INLINE b3Transform b3InvMulWorldTransforms( b3WorldTransform A, b3WorldTransform B )
-{
-	b3Transform C;
-	C.q = b3InvMulQuat( A.q, B.q );
-	b3Vec3 d = { (float)( B.p.x - A.p.x ), (float)( B.p.y - A.p.y ), (float)( B.p.z - A.p.z ) };
-	C.p = b3InvRotateVector( A.q, d );
-	return C;
-}
-
 /// Compose a world transform with a local transform.
-B3_INLINE b3WorldTransform b3MulWorldTransforms( b3WorldTransform A, b3Transform B )
+B3_FORCE_INLINE b3WorldTransform b3MulWorldTransforms( b3WorldTransform A, b3Transform B )
 {
 	b3WorldTransform C;
 	C.q = b3MulQuat( A.q, B.q );
 	b3Vec3 r = b3RotateVector( A.q, B.p );
 	C.p = B3_LITERAL( b3Pos ){ A.p.x + r.x, A.p.y + r.y, A.p.z + r.z };
+	return C;
+}
+
+/// Relative transform of frame B in frame A. The narrow phase boundary.
+B3_FORCE_INLINE b3Transform b3InvMulWorldTransforms( b3WorldTransform A, b3WorldTransform B )
+{
+	b3Transform C;
+	C.q = b3InvMulQuat( A.q, B.q );
+	b3Vec3 d = { (float)( B.p.x - A.p.x ), (float)( B.p.y - A.p.y ), (float)( B.p.z - A.p.z ) };
+	C.p = b3InvRotateVector( A.q, d );
 	return C;
 }
 
@@ -872,7 +872,7 @@ B3_INLINE b3Matrix3 b3InvertMatrix( b3Matrix3 m )
 
 /// Solve a matrix equation.
 /// @return inv(m) * a
-B3_INLINE b3Vec3 b3Solve3( b3Matrix3 m, b3Vec3 a )
+B3_FORCE_INLINE b3Vec3 b3Solve3( b3Matrix3 m, b3Vec3 a )
 {
 	float det = b3Det( m );
 	if ( b3AbsFloat( det ) > 1000.0f * FLT_MIN )
@@ -1037,7 +1037,7 @@ B3_INLINE bool b3AABB_Overlaps( b3AABB a, b3AABB b )
 /// Transform an axis-aligned bounding box. This can create a larger box
 /// than if you recomputed the AABB of the original shape with the transform
 /// applied.
-B3_INLINE b3AABB b3AABB_Transform( b3Transform transform, b3AABB a )
+B3_FORCE_INLINE b3AABB b3AABB_Transform( b3Transform transform, b3AABB a )
 {
 	b3Vec3 center = b3TransformPoint( transform, b3AABB_Center( a ) );
 	b3Matrix3 m = b3MakeMatrixFromQuat( transform.q );

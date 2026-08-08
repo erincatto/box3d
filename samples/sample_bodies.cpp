@@ -1276,3 +1276,54 @@ public:
 };
 
 static int sampleClassRing = RegisterSample( "Bodies", "Class Ring", ClassRing::Create );
+
+/*
+mandude — 9:34 AM
+I've run into a minor, and admittedly pretty niche, issue with kinematic bodies. Because box3d will skip mass computations on
+kinematic bodies, the center of mass is never set. This means if the origin of a shape attached to the body isn't in the center of
+the shape, and you add an angular velocity, the shape will rotate about whatever the shape's origin is. For a simple example, if
+you have a cube as a mesh, with opposing corners at (0, 0, 0) and (1, 1, 1), rotation will happen about the corner of the cube.
+It's possible to work around this by calling setMassData with zero mass, a custom center of mass, and an identity matrix for the
+inertia tensor. That function tries to preserve momentum, so it can have unexpected effects on the velocity if the body is already
+moving, so perhaps it would be useful to have a more direct way to specify a custom offset for the origin of a kinematic body?
+ */
+class OffsetKinematic : public Sample
+{
+public:
+	explicit OffsetKinematic( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 30.0f, 10.0f, { 0.0f, 1.5f, 0.0f } );
+		}
+
+		AddGroundBox( 20.0f );
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.name = "kinematic";
+			bodyDef.type = b3_kinematicBody;
+			bodyDef.position.y = 3.0;
+			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3Vec3 offset = { 0.5f, 0.5f, 1.0f };
+			b3BoxHull box = b3MakeTransformedBoxHull( 0.5f, 0.5f, 1.0f, { .p = offset, .q = b3Quat_identity} );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+			b3MassData massData = b3Body_GetMassData( bodyId );
+			massData.center = offset;
+			b3Body_SetMassData( bodyId, massData );
+
+			b3Vec3 angularVelocity = {1.0f, -1.0f, 2.0f};
+			b3Body_SetAngularVelocity( bodyId, angularVelocity );
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new OffsetKinematic( context );
+	}
+};
+
+static int sampleOffsetKinematic = RegisterSample( "Bodies", "Offset Kinematic", OffsetKinematic::Create );

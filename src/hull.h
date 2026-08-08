@@ -7,8 +7,6 @@
 
 #include <stddef.h>
 
-// Content hash and equality over the whole baked hull. Shared by every hull
-// de-duplication map so they agree on identity.
 uint64_t b3HashHullData( const b3HullData* hull );
 bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 );
 

@@ -3,12 +3,24 @@
 # Each .glsl file in shaders/ becomes a single C header in
 # generated/<name>.glsl.h that holds source/bytecode for every enabled backend
 # (D3D11, Metal, GL 4.5 core). The generated headers are committed so a fresh
-# clone builds without sokol-shdc. BOX3D_BUILD_SHADERS (default ON) recompiles
+# clone builds without sokol-shdc. BOX3D_BUILD_SHADERS (default OFF) recompiles
 # them in place when a .glsl changes; off builds straight from the committed
 # headers and fetches no tooling.
 
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/generated"
     CACHE INTERNAL "Directory holding generated shader headers")
+
+# Shared @include fragments - sokol-shdc's @include resolves relative to the
+# input file, so shaders include these via "../common/<name>.glsl". Listed in
+# the shaders target's SOURCES so they show up in IDE project trees, which is
+# the only way they get there - sokol-shdc never sees them as direct inputs.
+# Globbed unconditionally so they stay searchable when codegen is off, which
+# is the default. With codegen on they are also DEPENDS on every shader so an
+# edit to a shared file rebuilds everything that might include it.
+# CONFIGURE_DEPENDS re-globs when a new common file appears, at the cost of a
+# configure-step stat each build.
+file(GLOB SHADER_COMMON_INCLUDES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/common/*.glsl")
 
 if(BOX3D_BUILD_SHADERS)
     if(NOT SOKOL_SHDC_EXECUTABLE OR NOT EXISTS "${SOKOL_SHDC_EXECUTABLE}")
@@ -17,17 +29,6 @@ if(BOX3D_BUILD_SHADERS)
             "${SOKOL_SHDC_EXECUTABLE}")
     endif()
     file(MAKE_DIRECTORY "${SHADER_OUTPUT_DIR}")
-
-    # Shared @include fragments - sokol-shdc's @include resolves relative to
-    # the input file, so shaders include these via "../common/<name>.glsl".
-    # Tracked as DEPENDS on every shader so an edit to a shared file triggers
-    # a rebuild of everything that might include it, and listed in the shaders
-    # target's SOURCES so they show up in IDE project trees - sokol-shdc never
-    # sees them as direct inputs, so they would be invisible otherwise.
-    # CONFIGURE_DEPENDS re-globs when a new common file appears, at the cost of
-    # a configure-step stat each build.
-    file(GLOB SHADER_COMMON_INCLUDES CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_LIST_DIR}/common/*.glsl")
 endif()
 
 # Reset the accumulators on every configure so stale entries from a prior
@@ -108,30 +109,30 @@ add_shader(world_text "overlays/world_text.glsl")
 get_property(_outputs GLOBAL PROPERTY SHADER_OUTPUTS)
 get_property(_inputs  GLOBAL PROPERTY SHADER_INPUTS)
 
+# SOURCES is purely an IDE hint - Visual Studio and Xcode show listed files in
+# the project tree even though nothing here is compiled. We list the leaf .glsl
+# shaders, the common/ @include fragments, and the generated .glsl.h.
 if(BOX3D_BUILD_SHADERS)
     # DEPENDS drives the build (run sokol-shdc when the .glsl inputs change).
-    # SOURCES is purely an IDE hint - Visual Studio and Xcode show listed files
-    # in the project tree even though nothing here is compiled. We list the leaf
-    # .glsl shaders, the common/ @include fragments, and the generated .glsl.h.
     add_custom_target(shaders
         DEPENDS ${_outputs}
         SOURCES ${_inputs} ${SHADER_COMMON_INCLUDES} ${_outputs}
     )
-
-    # IDE grouping. TREE mirrors the on-disk shaders layout.
-    source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
-        FILES ${_inputs} ${SHADER_COMMON_INCLUDES})
-    source_group("Generated" FILES ${_outputs})
-
-    # The Visual Studio generator emits a build-stamp file named
-    # CMakeFiles/<target> for each custom target. Left ungrouped it floats at
-    # the project root as a stray "shaders" node with a can't-find-file icon -
-    # file it under the build-rule machinery.
-    source_group("CMake Rules" FILES "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/shaders")
 else()
     # No codegen: the samples build straight from the committed headers.
-    add_custom_target(shaders SOURCES ${_inputs} ${_outputs})
+    add_custom_target(shaders SOURCES ${_inputs} ${SHADER_COMMON_INCLUDES} ${_outputs})
 endif()
+
+# IDE grouping. TREE mirrors the on-disk shaders layout.
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+    FILES ${_inputs} ${SHADER_COMMON_INCLUDES})
+source_group("Generated" FILES ${_outputs})
+
+# The Visual Studio generator emits a build-stamp file named CMakeFiles/<target>
+# for each custom target. Left ungrouped it floats at the project root as a
+# stray "shaders" node with a can't-find-file icon - file it under the
+# build-rule machinery.
+source_group("CMake Rules" FILES "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/shaders")
 
 # shader_gen is the INTERFACE library consumers link to. It forwards the include
 # path for the generated headers (SYSTEM so /WX doesn't trip on shdc output) and

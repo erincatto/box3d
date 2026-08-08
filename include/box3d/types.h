@@ -1968,7 +1968,7 @@ typedef struct b3HullFace
 } b3HullFace;
 
 /// 64-bit hull version. Useful for validating serialized data.
-#define B3_HULL_VERSION 0xDA5150191B994C01ull
+#define B3_HULL_VERSION 0xa3c284c7fc779e29ull
 
 /// A convex hull.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -1977,11 +1977,8 @@ typedef struct b3HullData
 	/// Version must be first and match B3_HULL_VERSION
 	uint64_t version;
 
-	/// The total number of bytes for this hull.
-	int byteCount;
-
 	/// Hash of this hull (this field is zero when the hash is computed).
-	uint32_t hash;
+	uint64_t hash;
 
 	/// Axis-aligned box in local space.
 	b3AABB aabb;
@@ -2031,9 +2028,10 @@ typedef struct b3HullData
 	/// Offset of structure of array (SOA) unit normal vectors
 	int soaNormalOffset;
 
-	/// Explicit padding. Hull identity is a content hash and memcmp over raw bytes,
-	/// so there must be no unnamed padding for struct copies to scramble.
-	int padding;
+	/// The total number of bytes for this hull.
+	int byteCount;
+
+	/// Any padding must be explicit.
 } b3HullData;
 
 /// Efficient box hull

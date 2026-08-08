@@ -1034,13 +1034,12 @@ public:
 
 		g_randomSeed = 42;
 
-		m_count = 64;
-		for ( int i = 0; i < m_count; ++i )
+		for ( int i = 0; i < m_capacity; ++i )
 		{
 			m_points[i] = RandomVec3( { -1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f, 1.0f } );
 		}
 
-		m_hull = b3CreateHull( m_points, m_count, m_count );
+		m_hull = b3CreateHull( m_points, m_capacity, m_count );
 		m_scale = { -1.0f, 1.0f, 1.0f };
 		m_transformedHull = b3CloneAndTransformHull( m_hull, b3Transform_identity, m_scale );
 	}
@@ -1070,7 +1069,7 @@ public:
 
 		for ( int i = 0; i < trials; ++i )
 		{
-			b3HullData* hull = b3CreateHull( m_points, m_count, m_count );
+			b3HullData* hull = b3CreateHull( m_points, m_capacity, m_count );
 			area += hull->surfaceArea;
 			b3DestroyHull( hull );
 		}
@@ -1099,12 +1098,12 @@ public:
 		return new BenchmarkHull( sampleContext );
 	}
 
-	static constexpr int m_capacity = 64;
+	static constexpr int m_capacity = 100;
+	static constexpr int m_count = 16;
 	b3HullData* m_hull;
 	b3HullData* m_transformedHull;
 	b3Vec3 m_scale;
 	b3Vec3 m_points[m_capacity];
-	int m_count;
 };
 
 static int sampleBenchmarkHull = RegisterSample( "Benchmark", "Hull", BenchmarkHull::Create );

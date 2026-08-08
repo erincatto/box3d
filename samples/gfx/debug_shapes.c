@@ -6,6 +6,7 @@
 #include "gfx/qsort.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -301,7 +302,7 @@ static MeshHandle BuildHull( const b3HullData* hull )
 	const b3Plane* planes = b3GetHullPlanes( hull );
 	if ( !points || !edges || !faces || !planes )
 	{
-		fprintf( stderr, "error: hull missing arrays (hash=0x%08x)\n", hull->hash );
+		fprintf( stderr, "error: hull missing arrays (hash=0x%016" PRIx64 ")\n", hull->hash );
 		return InvalidMeshHandle();
 	}
 
@@ -330,7 +331,7 @@ static MeshHandle BuildHull( const b3HullData* hull )
 			e = edges[e].next;
 			if ( loopLen > 256 )
 			{
-				fprintf( stderr, "error: hull face loop runaway (hash=0x%08x)\n", hull->hash );
+				fprintf( stderr, "error: hull face loop runaway (hash=0x%016" PRIx64 ")\n", hull->hash );
 				BufferFree( &buf );
 				return InvalidMeshHandle();
 			}
