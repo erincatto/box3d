@@ -24,7 +24,7 @@
 // debug_view_mode (ub_pass.flags.x) selects the output:
 //   0 = Lambert + ambient * shadow factor.
 //   1 = view-space distance from camera as grayscale.
-//   2 = cascade-index tint (red/green/blue = cascade 0/1/2, white = UV
+//   2 = cascade-index tint (one color per cascade, white = UV
 //       out of bounds on the chosen cascade, i.e. unsampled).
 //
 // UBO bindings are stage-specific in sokol-shdc.
@@ -101,19 +101,22 @@ void main()
 #pragma sokol @fs fs
 
 #pragma sokol @include ../common/pbr.glsl
+#pragma sokol @include ../common/shadow_cascade.glsl
 
 layout( binding = 1 ) uniform ub_pass
 {
-	vec4 sun_dir_view;		  // .xyz = view-space dir TO sun (normalized), for direct lighting
-	vec4 sun_color;			  // .rgb = color, .a = ambient strength (flat-ambient fallback)
-	ivec4 flags;			  // .x = debug_view_mode
-	vec4 cascade_far_view_z;  // .xyz = far view-space Z per cascade
-	mat4 cascade_matrices[3]; // light-space view-proj per cascade
-	vec4 cascade_pcf_scale;	  // .xyz = PCF tap-offset scale per cascade (constant world penumbra)
-	mat4 view;				  // IBL: world->view rotation for view->world n_view transform
-	vec4 camera_pos_world;	  // IBL: world camera pos for V_world derivation
-	vec4 sh[9];				  // IBL diffuse SH coefficients (band 0..2, RGB in .xyz)
-	vec4 ibl_params;		  // .x = prefilter cube max_lod, .y = IBL enable (1=IBL, 0=flat ambient), .zw reserved
+	vec4 sun_dir_view;							 // .xyz = view-space dir TO sun (normalized), for direct lighting
+	vec4 sun_color;								 // .rgb = color, .a = ambient strength (flat-ambient fallback)
+	ivec4 flags;								 // .x = debug_view_mode
+	vec4 cascade_far_view_z;					 // far view-space Z per cascade
+	vec4 cascade_texel_world;					 // one shadow texel in world units per cascade
+	vec4 cascade_depth_bias;					 // residual comparison bias in shadow clip-Z per cascade
+	vec4 shadow_params;							 // .x = UV.y sign, .y = one texel in UV
+	mat4 cascade_matrices[SHADOW_CASCADE_COUNT]; // light-space view-proj per cascade
+	mat4 view;									 // IBL: world->view rotation for view->world n_view transform
+	vec4 camera_pos_world;						 // IBL: world camera pos for V_world derivation
+	vec4 sh[9];									 // IBL diffuse SH coefficients (band 0..2, RGB in .xyz)
+	vec4 ibl_params; // .x = prefilter cube max_lod, .y = IBL enable (1=IBL, 0=flat ambient), .zw reserved
 };
 
 // binding=1 (not 0): sokol-shdc enforces disjoint binding numbers between
@@ -155,87 +158,92 @@ out vec4 out_color;
 // Kernel details and the X3570 unrolling note live in the include.
 #pragma sokol @include ../common/shadow_pcf.glsl
 
-float sampleCascade( int cascade, vec3 world_pos, float n_dot_l )
+// Normal-offset shadows. A depth bias pushes the comparison back along
+// the light, which detaches contact shadows and can never win at a
+// silhouette where the stored depth gradient is effectively infinite.
+// Moving the lookup sideways along the surface normal instead reads a
+// well-behaved part of the map and leaves the compared depth alone, so
+// contacts stay welded to the ground.
+float sampleCascade( int cascade, vec3 world_pos, vec3 world_normal, float n_dot_l )
 {
-	vec4 light_clip = cascade_matrices[cascade] * vec4( world_pos, 1.0 );
+	float texel_world = cascade_texel_world[cascade];
+	float depth_bias = cascade_depth_bias[cascade];
+
+	// Shrink the kernel in the coarser cascades so the penumbra keeps a
+	// constant world width instead of going crisp to blurry at every
+	// boundary. The floor leaves the taps about two texels apart, close
+	// enough that the hardware 2x2 compare still overlaps them.
+	float scale = clamp( cascade_texel_world.x / texel_world, 0.25, 1.0 );
+
+	// Sine of the angle between surface and light. Zero facing the light
+	// where no offset is wanted, growing toward grazing. The offset has to
+	// clear the whole filter, not one texel, or the outer ring of the
+	// kernel self-shadows into a texel-quantized comb along the
+	// terminator. 3 texels is the scaled 7x7 half-width, plus the sampling
+	// snap, and the root two reaches the kernel's corner tap.
+	float sin_theta = sqrt( max( 1.0 - n_dot_l * n_dot_l, 0.0 ) );
+	float offset = ( 3.0 * scale + 0.5 ) * 1.41421 * sin_theta * texel_world;
+
+	vec4 light_clip = cascade_matrices[cascade] * vec4( world_pos + world_normal * offset, 1.0 );
 	vec3 light_ndc = light_clip.xyz / light_clip.w;
 
 	// UV.y orientation is BACKEND-DEPENDENT. D3D11/Metal/WebGPU sample
 	// render targets with V = 0 at the top (NDC.y = +1 -> texture row 0),
 	// they need UV.y = 0.5 - NDC.y * 0.5. OpenGL samples with V = 0 at
 	// the bottom (NDC.y = +1 -> top row N-1), it needs the textbook
-	// UV.y = NDC.y * 0.5 + 0.5. Renderer side sets cascade_far_view_z.w
-	// to -1 on D3D11/Metal/WGPU and +1 on glcore so a single multiply
+	// UV.y = NDC.y * 0.5 + 0.5. Renderer side sets the sign to -1 on
+	// D3D11/Metal/WGPU and +1 on glcore so a single multiply
 	// here picks the right convention.
-	float ny = light_ndc.y * cascade_far_view_z.w;
+	float ny = light_ndc.y * shadow_params.x;
 	vec3 light_uv = vec3( light_ndc.x * 0.5 + 0.5, ny * 0.5 + 0.5, light_ndc.z );
 
-	if ( any( lessThan( light_uv, vec3( 0.0 ) ) ) || any( greaterThan( light_uv, vec3( 1.0 ) ) ) )
+	if ( light_uv.z < 0.0 || light_uv.z > 1.0 )
 	{
 		return 1.0;
 	}
 
-	// Slope-scaled bias: tan(angle to light) = sqrt(1 - n.l^2) / n.l.
-	// Constant texel-step factor keeps the bias roughly the same world
-	// size across cascades (each cascade's depth range scales with its
-	// bounding sphere, bias scales with it via the texel step).
-	float ndl = clamp( n_dot_l, 0.001, 1.0 );
-	float tanAngle = sqrt( 1.0 - ndl * ndl ) / ndl;
-	float texelDepthStep = 0.001;
-	float bias = clamp( texelDepthStep * tanAngle, 0.0005, 0.05 );
-
-	float pcf = sampleShadowPCF( tex_shadow, smp_shadow, cascade, light_uv, bias, cascade_pcf_scale[cascade] );
-
-	// Cascade 2 is the last cascade, sampleShadowCascaded's view-z blend
-	// has nothing to blend into beyond it. On flat ground at glancing sun
-	// angles PCF inside the cascade reads slightly below 1.0 (bias slop
-	// across a kernel that covers ~5 cm of world per texel here), while
-	// fragments outside the cascade's spatial sphere fall through to the
-	// OOB return of 1.0. Without smoothing, cascade 2's UV boundary reads
-	// as a hexagonal polygon on the ground. Fade PCF toward 1.0 over the
-	// outer 10% of UV space to hide the seam.
-	if ( cascade == 2 )
+	// No hard XY bounds test. The sampler's white border makes taps past
+	// the edge compare lit, so the boundary dissolves across the kernel
+	// rather than flipping whole pixels between sampled and lit as the
+	// texel snap steps the map. Rejecting only what lies beyond the
+	// kernel's reach is exact and spares nine taps for everything well
+	// outside the cascade.
+	//
+	// The 3 * scale here and in the normal offset above both encode the
+	// 7x7 kernel's three-texel radius. Widen the kernel and both have to
+	// grow, or the outer ring self-shadows along the terminator.
+	float reach = ( 3.0 * scale + 1.0 ) * shadow_params.y;
+	if ( any( lessThan( light_uv.xy, vec2( -reach ) ) ) || any( greaterThan( light_uv.xy, vec2( 1.0 + reach ) ) ) )
 	{
-		vec2 edge = min( light_uv.xy, 1.0 - light_uv.xy );
-		float fade = clamp( min( edge.x, edge.y ) * 10.0, 0.0, 1.0 );
-		pcf = mix( 1.0, pcf, fade );
+		return 1.0;
 	}
 
-	return pcf;
+	return sampleShadowPCF( tex_shadow, smp_shadow, cascade, light_uv, depth_bias, scale, shadow_params.y );
 }
 
 // n_dot_l is the (clamped) dot of the surface normal with the sun
 // direction, passed in by the caller in whichever space is convenient
-// (rotation-invariant, same value in view and world space).
-float sampleShadowCascaded( vec3 world_pos, float n_dot_l, float view_z )
+// (rotation-invariant, same value in view and world space). The normal
+// itself must be world space, it steers the normal offset.
+float sampleShadowCascaded( vec3 world_pos, vec3 world_normal, float n_dot_l, float view_z )
 {
-	int cascade = 2;
-	if ( view_z < cascade_far_view_z.x )
-	{
-		cascade = 0;
-	}
-	else if ( view_z < cascade_far_view_z.y )
-	{
-		cascade = 1;
-	}
+	int cascade = selectShadowCascade( cascade_far_view_z, view_z );
 
-	float shadow = sampleCascade( cascade, world_pos, n_dot_l );
+	float shadow = sampleCascade( cascade, world_pos, world_normal, n_dot_l );
 
 	// Blend the last 10% of each cascade's range with the next cascade.
-	// Each cascade uses the same slope-scaled bias in shadow-UV units,
-	// but cascades cover very different world extents (cascade 0 ~= 1 m,
-	// cascade 2 ~= 25 m+), so PCF response on flat receivers differs
-	// slightly per cascade, without this blend the boundary reads as a
-	// polygonal step on the ground at glancing sun angles.
-	if ( cascade < 2 )
+	// Texel density jumps by roughly 2.5x at every boundary, so even with
+	// matched bias the penumbra width changes there. Without the blend
+	// that reads as a polygonal step on the ground.
+	if ( cascade < SHADOW_CASCADE_COUNT - 1 )
 	{
-		float far_z = ( cascade == 0 ) ? cascade_far_view_z.x : cascade_far_view_z.y;
-		float near_z = ( cascade == 0 ) ? 0.0 : cascade_far_view_z.x;
+		float far_z = cascade_far_view_z[cascade];
+		float near_z = ( cascade == 0 ) ? 0.0 : cascade_far_view_z[cascade - 1];
 		float blend_start = mix( far_z, near_z, 0.1 );
 		if ( view_z > blend_start )
 		{
 			float alpha = ( view_z - blend_start ) / ( far_z - blend_start );
-			shadow = mix( shadow, sampleCascade( cascade + 1, world_pos, n_dot_l ), alpha );
+			shadow = mix( shadow, sampleCascade( cascade + 1, world_pos, world_normal, n_dot_l ), alpha );
 		}
 	}
 
@@ -255,14 +263,14 @@ void main()
 	// GL's dFdy points in +view_y (screen origin is lower-left), while HLSL
 	// ddy and Metal dfdy point in -view_y (screen origin is upper-left).
 	// sokol-shdc cross-compiles dFdy->ddy/dfdy without a sign flip, so the raw
-	// value's screen direction depends on the backend. cascade_far_view_z.w
+	// value's screen direction depends on the backend. shadow_params.x
 	// is +1 on glcore/gles3 and -1 on D3D11/Metal/WGPU (same flag used by
 	// the shadow UV.y remap below), negating it gives a multiplier that
 	// canonicalizes dFdy to the -view_y direction on every backend. With
 	// canonical dy, cross(dy, dx) = (-view_y) x (+view_x) = +view_z, which
 	// points toward the camera (out of the screen), the correct outward
 	// normal for a back-culled front face.
-	vec3 dy = dFdy( v_view_pos ) * ( -cascade_far_view_z.w );
+	vec3 dy = dFdy( v_view_pos ) * ( -shadow_params.x );
 	vec3 n_view = normalize( cross( dy, dx ) );
 
 	float view_z = -v_view_pos.z;
@@ -278,36 +286,17 @@ void main()
 	// Debug view : shadow cascades
 	if ( flags.x == 2 )
 	{
-		int cascade = 2;
-		if ( view_z < cascade_far_view_z.x )
-		{
-			cascade = 0;
-		}
-		else if ( view_z < cascade_far_view_z.y )
-		{
-			cascade = 1;
-		}
+		int cascade = selectShadowCascade( cascade_far_view_z, view_z );
 
 		vec4 light_clip = cascade_matrices[cascade] * vec4( v_world_pos, 1.0 );
 		vec3 light_ndc = light_clip.xyz / light_clip.w;
-		float ny = light_ndc.y * cascade_far_view_z.w;
+		float ny = light_ndc.y * shadow_params.x;
 		vec3 light_uv = vec3( light_ndc.x * 0.5 + 0.5, ny * 0.5 + 0.5, light_ndc.z );
 		bool oob = any( lessThan( light_uv, vec3( 0.0 ) ) ) || any( greaterThan( light_uv, vec3( 1.0 ) ) );
 		vec3 tint = vec3( 1.0 );
 		if ( !oob )
 		{
-			if ( cascade == 0 )
-			{
-				tint = vec3( 1.0, 0.4, 0.4 );
-			}
-			else if ( cascade == 1 )
-			{
-				tint = vec3( 0.4, 1.0, 0.4 );
-			}
-			else
-			{
-				tint = vec3( 0.4, 0.4, 1.0 );
-			}
+			tint = shadowCascadeTint( cascade );
 		}
 		out_color = vec4( tint, 1.0 );
 		return;
@@ -335,23 +324,25 @@ void main()
 		return;
 	}
 
+	// The shadow normal offset and IBL both need a world-space N. view is
+	// the world->view matrix, its 3x3 is orthonormal (camera rotation), so
+	// transpose(mat3(view)) takes view-space -> world-space without
+	// inverse cost. Stays clear of the D3D11 cross-product handedness trap
+	// that forced n_view to be computed in view space. Only rotate here,
+	// no derivatives.
+	mat3 view_to_world = transpose( mat3( view ) );
+	vec3 N_world = normalize( view_to_world * n_view );
+
 	// dot(n, L) is rotation-invariant. Same value with view-space or world-space
 	// normals + sun directions. Use the view-space pair for direct light.
 	vec3 L = normalize( sun_dir_view.xyz );
 	float n_dot_l = max( dot( n_view, L ), 0.0 );
-	float shadow = sampleShadowCascaded( v_world_pos, n_dot_l, view_z );
+	float shadow = sampleShadowCascaded( v_world_pos, N_world, n_dot_l, view_z );
 
 	// Camera sits at origin in view space, so V_view = normalize(-v_view_pos).
 	vec3 V_view = normalize( -v_view_pos );
 	vec3 direct = brdf_evaluate( n_view, V_view, L, sun_color.rgb * shadow, v_base_color.rgb, v_material.x, v_material.y );
 
-	// IBL needs world-space N and V. view is the world->view matrix, its
-	// 3x3 is orthonormal (camera rotation), so transpose(mat3(view))
-	// takes view-space -> world-space without inverse cost. Stays clear
-	// of the D3D11 cross-product handedness trap that forced n_view to
-	// be computed in view space. Only rotate here, no derivatives.
-	mat3 view_to_world = transpose( mat3( view ) );
-	vec3 N_world = normalize( view_to_world * n_view );
 	vec3 V_world = normalize( camera_pos_world.xyz - v_world_pos );
 	vec3 ambient = pbrEvaluateAmbient( ibl_params.y > 0.5, N_world, V_world, v_base_color.rgb, v_material.x, v_material.y,
 									   sun_color.a, sh, tex_ibl_spec, smp_ibl_spec, tex_brdf_lut, smp_brdf_lut, ibl_params.x );

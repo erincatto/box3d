@@ -468,9 +468,8 @@ b3HeightFieldData* b3CreateHeightField( const b3HeightFieldDef* data )
 
 	b3Free( decompressedHeights, heightCount * sizeof( float ) );
 
-	// Content hash over the whole blob with the hash field zeroed, like b3HullData/b3MeshData.
 	hf->hash = 0;
-	hf->hash = b3NonZeroHash( b3Hash( B3_HASH_INIT, (const uint8_t*)hf, hf->byteCount ) );
+	hf->hash = b3Hash64NonZero( (const uint8_t*)hf, hf->byteCount );
 
 	return hf;
 }

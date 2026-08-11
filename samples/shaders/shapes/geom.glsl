@@ -101,6 +101,7 @@ void main()
 #pragma sokol @fs fs
 
 #pragma sokol @include ../common/pbr.glsl
+#pragma sokol @include ../common/shadow_cascade.glsl
 
 layout( binding = 1 ) uniform ub_pass
 {
@@ -110,9 +111,11 @@ layout( binding = 1 ) uniform ub_pass
 	vec4 camera_pos;		  // .xyz = camera world pos, .w unused
 	vec4 grid_offset;		  // .xy = origin wrapped to grid period (lines), .zw = full origin (axes)
 	mat4 view;				  // for view-space depth debug mode + cascade selection
-	vec4 cascade_far_view_z;  // .xyz = far view-space Z per cascade
-	mat4 cascade_matrices[3]; // light-space view-proj per cascade
-	vec4 cascade_pcf_scale;	  // .xyz = PCF tap-offset scale per cascade (constant world penumbra)
+	vec4 cascade_far_view_z;  // far view-space Z per cascade
+	vec4 cascade_texel_world; // one shadow texel in world units per cascade
+	vec4 cascade_depth_bias;  // residual comparison bias in shadow clip-Z per cascade
+	vec4 shadow_params;		  // .x = UV.y sign, .y = one texel in UV
+	mat4 cascade_matrices[SHADOW_CASCADE_COUNT]; // light-space view-proj per cascade
 	vec4 sh[9];				  // IBL diffuse SH coefficients (band 0..2, RGB in .xyz)
 	vec4 ibl_params;		  // .x = prefilter cube max_lod, .y = IBL enable (1=IBL, 0=flat ambient), .zw reserved
 };
@@ -141,54 +144,57 @@ layout( binding = 3 ) uniform sampler smp_ao;
 
 #pragma sokol @include ../common/shadow_pcf.glsl
 
+// Normal-offset shadows, see cube.glsl for the longer note.
 float sampleCascade( int cascade, vec3 world_pos, vec3 world_normal )
 {
-	vec4 light_clip = cascade_matrices[cascade] * vec4( world_pos, 1.0 );
+	float texel_world = cascade_texel_world[cascade];
+	float depth_bias = cascade_depth_bias[cascade];
+
+	// Shrink the kernel in the coarser cascades so the penumbra keeps a
+	// constant world width. See cube.glsl for the longer note.
+	float scale = clamp( cascade_texel_world.x / texel_world, 0.25, 1.0 );
+
+	// Slide the lookup along the surface far enough to clear the whole
+	// scaled 7x7 footprint, growing toward grazing light.
+	float n_dot_l = max( dot( world_normal, normalize( sun_dir_world.xyz ) ), 0.0 );
+	float sin_theta = sqrt( max( 1.0 - n_dot_l * n_dot_l, 0.0 ) );
+	float offset = ( 3.0 * scale + 0.5 ) * 1.41421 * sin_theta * texel_world;
+
+	vec4 light_clip = cascade_matrices[cascade] * vec4( world_pos + world_normal * offset, 1.0 );
 	vec3 light_ndc = light_clip.xyz / light_clip.w;
 	// Backend-dependent Y orientation, see cube.glsl for the longer note.
-	float ny = light_ndc.y * cascade_far_view_z.w;
+	float ny = light_ndc.y * shadow_params.x;
 	vec3 light_uv = vec3( light_ndc.x * 0.5 + 0.5, ny * 0.5 + 0.5, light_ndc.z );
 
-	if ( any( lessThan( light_uv, vec3( 0.0 ) ) ) || any( greaterThan( light_uv, vec3( 1.0 ) ) ) )
+	if ( light_uv.z < 0.0 || light_uv.z > 1.0 )
 	{
 		return 1.0;
 	}
 
-	float n_dot_l = max( dot( world_normal, normalize( sun_dir_world.xyz ) ), 0.0 );
-	float bias = mix( 0.0040, 0.0008, n_dot_l );
-
-	float pcf = sampleShadowPCF( tex_shadow, smp_shadow, cascade, light_uv, bias, cascade_pcf_scale[cascade] );
-
-	// See cube.glsl for the longer note. Cascade 2 has no fallback at its
-	// UV boundary, so fade PCF toward 1.0 over the outer 10% to hide the
-	// polygonal seam where cascade 2's spatial extent ends on the ground.
-	if ( cascade == 2 )
+	// The white border dissolves the XY boundary, only reject past the
+	// kernel's reach. See cube.glsl for the longer note.
+	float reach = ( 3.0 * scale + 1.0 ) * shadow_params.y;
+	if ( any( lessThan( light_uv.xy, vec2( -reach ) ) ) || any( greaterThan( light_uv.xy, vec2( 1.0 + reach ) ) ) )
 	{
-		vec2 edge = min( light_uv.xy, 1.0 - light_uv.xy );
-		float fade = clamp( min( edge.x, edge.y ) * 10.0, 0.0, 1.0 );
-		pcf = mix( 1.0, pcf, fade );
+		return 1.0;
 	}
 
-	return pcf;
+	return sampleShadowPCF( tex_shadow, smp_shadow, cascade, light_uv, depth_bias, scale, shadow_params.y );
 }
 
 float sampleShadowCascaded( vec3 world_pos, vec3 world_normal, float view_z )
 {
-	int cascade = 2;
-	if ( view_z < cascade_far_view_z.x )
-		cascade = 0;
-	else if ( view_z < cascade_far_view_z.y )
-		cascade = 1;
+	int cascade = selectShadowCascade( cascade_far_view_z, view_z );
 
 	float shadow = sampleCascade( cascade, world_pos, world_normal );
 
 	// Blend the last 10% of each cascade's range with the next cascade
 	// to hide the polygonal step where they meet. See cube.glsl for the
 	// longer note.
-	if ( cascade < 2 )
+	if ( cascade < SHADOW_CASCADE_COUNT - 1 )
 	{
-		float far_z = ( cascade == 0 ) ? cascade_far_view_z.x : cascade_far_view_z.y;
-		float near_z = ( cascade == 0 ) ? 0.0 : cascade_far_view_z.x;
+		float far_z = cascade_far_view_z[cascade];
+		float near_z = ( cascade == 0 ) ? 0.0 : cascade_far_view_z[cascade - 1];
 		float blend_start = mix( far_z, near_z, 0.1 );
 		if ( view_z > blend_start )
 		{
@@ -230,25 +236,16 @@ void main()
 	{
 		// v_view_pos is actually world_pos forwarded from the VS.
 		float view_z_dbg = -( view * vec4( v_view_pos, 1.0 ) ).z;
-		int cascade = 2;
-		if ( view_z_dbg < cascade_far_view_z.x )
-			cascade = 0;
-		else if ( view_z_dbg < cascade_far_view_z.y )
-			cascade = 1;
+		int cascade = selectShadowCascade( cascade_far_view_z, view_z_dbg );
 		vec4 light_clip = cascade_matrices[cascade] * vec4( v_view_pos, 1.0 );
 		vec3 light_ndc = light_clip.xyz / light_clip.w;
-		float ny = light_ndc.y * cascade_far_view_z.w;
+		float ny = light_ndc.y * shadow_params.x;
 		vec3 light_uv = vec3( light_ndc.x * 0.5 + 0.5, ny * 0.5 + 0.5, light_ndc.z );
 		bool oob = any( lessThan( light_uv, vec3( 0.0 ) ) ) || any( greaterThan( light_uv, vec3( 1.0 ) ) );
 		vec3 tint = vec3( 1.0 );
 		if ( !oob )
 		{
-			if ( cascade == 0 )
-				tint = vec3( 1.0, 0.4, 0.4 );
-			else if ( cascade == 1 )
-				tint = vec3( 0.4, 1.0, 0.4 );
-			else
-				tint = vec3( 0.4, 0.4, 1.0 );
+			tint = shadowCascadeTint( cascade );
 		}
 		out_color = vec4( tint, 1.0 );
 		return;

@@ -52,12 +52,12 @@ extern "C"
 typedef struct MeshHandle
 {
 	int index;	   // -1 means invalid
-	uint32_t hash; // for cheap validation against index reuse
+	uint64_t hash; // for cheap validation against index reuse
 } MeshHandle;
 
 static inline MeshHandle InvalidMeshHandle( void )
 {
-	MeshHandle h = { -1, 0u };
+	MeshHandle h = { -1, 0ull };
 	return h;
 }
 
@@ -142,9 +142,9 @@ typedef struct MeshXpInstance
 void CreateMeshRegistry( void );
 void DestroyMeshRegistry( void );
 
-MeshHandle FindMesh( uint32_t hash );
+MeshHandle FindMesh( uint64_t hash );
 
-MeshHandle RegisterMesh( uint32_t hash, const MeshVertex* vertices, int vertexCount, const uint32_t* indices,
+MeshHandle RegisterMesh( uint64_t hash, const MeshVertex* vertices, int vertexCount, const uint32_t* indices,
 								int indexCount, const char* debugLabel );
 
 // Optional: register an edge list for a geometry already registered via

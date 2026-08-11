@@ -1,28 +1,18 @@
 // SPDX-FileCopyrightText: 2026 Erin Catto
 // SPDX-License-Identifier: MIT
 
-// Shadow caster for capsules. As with the sphere caster, we substitute
-// a proxy mesh for the analytic impostor. The proxy is a lat/long cylinder
-// with two hemispherical caps (see BuildCapsuleProxy in renderer.c for
-// counts and the silhouette-straddling scale). Vertices are authored in
-// a "unit-capsule" coordinate frame where each component carries enough
-// information to scale independently by halfLength and radius.
+// Shadow caster for capsules. See shadow_caster_sphere.glsl for why the
+// analytic surface is worth the fill cost and what `depth_greater` rests
+// on.
 //
-// Each vertex is encoded as two attributes:
-// in_axis, direction along the long axis (vec3). Scaled by halfLength.
-// For body verts: (+/-1, 0, 0). For cap verts: same as the
-//                attached cap (i.e., (+1,0,0) for +X cap, (-1,0,0) for -X).
-// in_radial, radial offset (vec3). Scaled by radius. For body verts:
-// (0, cos theta, sin theta). For cap verts: an extension of the
-//                hemisphere parameterization that includes the cap's
-// axial bulge, e.g. for +X cap at latitude alpha: in_radial =
-// (sin alpha, cos alpha cos beta, cos alpha sin beta).
+// Rasterizes the same OBB the lit capsule impostor uses, half-extents
+// (halfLength + radius, radius, radius) about the local +X axis.
 //
-// The world position is then
-//   world = center + R * (in_axis * halfLength + in_radial * radius)
-// where R is the capsule's rotation. Since rotation is orthonormal and
-// halfLength/radius are scalars, the encoding scales linearly and
-// produces a true capsule for any (halfLength, radius) pair.
+// Only the entry point matters here, not the normal, so this is a
+// cheaper intersection than the lit shader's. The capsule is the union
+// of a finite cylinder and two cap spheres, and the entry into a union
+// is the nearest entry across its parts, so the hemisphere-rejection
+// the lit shader needs for correct normals is unnecessary.
 //
 // `@module shadow_capsule` namespaces the generated symbols.
 
@@ -61,8 +51,14 @@ layout( binding = 0 ) readonly buffer instances
 	instance items[];
 };
 
-in vec3 in_axis;   // axis-direction component, scaled by halfLength
-in vec3 in_radial; // radial component, scaled by radius
+in vec3 in_pos; // unit-cube corner, half-extent 0.5
+
+out vec3 v_world_pos_proxy;
+
+flat out vec3 v_center;
+flat out float v_half_length;
+flat out float v_radius;
+flat out vec3 v_axis_x_world;
 
 void main()
 {
@@ -71,16 +67,120 @@ void main()
 	float halfLength = inst.params.x;
 	float radius = inst.params.y;
 
-	vec3 local_pos = in_axis * halfLength + in_radial * radius;
-	vec3 world_pos = center + vec3( dot( inst.xform_row0.xyz, local_pos ), dot( inst.xform_row1.xyz, local_pos ),
-									dot( inst.xform_row2.xyz, local_pos ) );
+	vec3 obj_pos = vec3( in_pos.x * 2.0 * ( halfLength + radius ), in_pos.y * 2.0 * radius, in_pos.z * 2.0 * radius );
+	vec3 world_pos = center + vec3( dot( inst.xform_row0.xyz, obj_pos ), dot( inst.xform_row1.xyz, obj_pos ),
+									dot( inst.xform_row2.xyz, obj_pos ) );
+
+	v_world_pos_proxy = world_pos;
+	v_center = center;
+	v_half_length = halfLength;
+	v_radius = radius;
+	// Local +X in world is the first column of R.
+	v_axis_x_world = vec3( inst.xform_row0.x, inst.xform_row1.x, inst.xform_row2.x );
+
 	gl_Position = light_view_proj * vec4( world_pos, 1.0 );
 }
 #pragma sokol @end
 
 #pragma sokol @fs fs
+
+// UBOs are per-stage in sokol-shdc, so this is a second block rather
+// than a reuse of the VS ub_frame.
+layout( binding = 1 ) uniform ub_pass
+{
+	vec4 light_dir; // .xyz = world-space direction light travels (normalized)
+	vec4 depth_row; // depth row of the light view-proj, world position to clip depth
+};
+
+in vec3 v_world_pos_proxy;
+
+flat in vec3 v_center;
+flat in float v_half_length;
+flat in float v_radius;
+flat in vec3 v_axis_x_world;
+
+layout( depth_greater ) out float gl_FragDepth;
+
 void main()
 {
+	vec3 ro = v_world_pos_proxy;
+	vec3 rd = light_dir.xyz;
+
+	vec3 pa = v_center - v_half_length * v_axis_x_world;
+	vec3 pb = v_center + v_half_length * v_axis_x_world;
+
+	// Ray-cylinder, Quilez closed form.
+	// Reference: https://iquilezles.org/articles/intersectors/
+	vec3 ba = pb - pa;
+	vec3 oa = ro - pa;
+	float baba = dot( ba, ba );
+	float bard = dot( ba, rd );
+	float baoa = dot( ba, oa );
+	float rdoa = dot( rd, oa );
+	float oaoa = dot( oa, oa );
+
+	float a_c = baba - bard * bard;
+	float b_c = baba * rdoa - baoa * bard;
+	float c_c = baba * oaoa - baoa * baoa - v_radius * v_radius * baba;
+	float h_c = b_c * b_c - a_c * c_c;
+
+	float t = -1.0;
+
+	// Entry into each part, clamped forward rather than rejected. The
+	// proxy faces are tangent to the surface along a line, and rounding
+	// there puts the origin a hair inside, which drives the near root
+	// negative. Treating that as a miss punches a dashed hole straight
+	// down the middle of the shadow. A part whose far root is behind us
+	// too is a genuine miss, which is what the end faces need: they sit
+	// beyond one cap and the other cap is legitimately behind.
+	//
+	// a_c collapses when the ray runs along the axis, the caps cover
+	// that case. baba collapses when halfLength is zero, and the axial
+	// range test rejects the body for free.
+	if ( h_c >= 0.0 && a_c > 1e-8 )
+	{
+		float q = sqrt( h_c );
+		if ( -b_c + q >= 0.0 )
+		{
+			float t_body = max( ( -b_c - q ) / a_c, 0.0 );
+			float y = baoa + t_body * bard;
+			if ( y > 0.0 && y < baba )
+			{
+				t = t_body;
+			}
+		}
+	}
+
+	// Cap spheres at both ends.
+	for ( int i = 0; i < 2; ++i )
+	{
+		vec3 p = ( i == 0 ) ? pa : pb;
+		vec3 oc = ro - p;
+		float b = dot( oc, rd );
+		float c = dot( oc, oc ) - v_radius * v_radius;
+		float h = b * b - c;
+		if ( h >= 0.0 )
+		{
+			float q = sqrt( h );
+			if ( -b + q >= 0.0 )
+			{
+				float tc = max( -b - q, 0.0 );
+				if ( t < 0.0 || tc < t )
+				{
+					t = tc;
+				}
+			}
+		}
+	}
+
+	if ( t < 0.0 )
+	{
+		// OBB corner, the ray clears the capsule.
+		discard;
+	}
+
+	// Orthographic light, so the clip w is 1 and the divide drops out.
+	gl_FragDepth = dot( depth_row, vec4( ro + t * rd, 1.0 ) );
 }
 #pragma sokol @end
 

@@ -399,7 +399,11 @@ public:
 		hullPoints[numSegs] = b3Vec3_zero;
 		b3HullData* hull = b3CreateHull( hullPoints, numSegs + 1, numSegs + 1 );
 
+		// Capsule for testing alternate shapes. Keep this.
+		//b3Capsule capsule = {{0.0f, -0.6f, 0.0f}, {0.0f, 0.6f, 0.0f }, 0.4f};
+
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
 
 		// Tilt the top, then spin it about its own symmetry axis. Gravity does the rest.
 		b3Quat rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 15.0f * B3_PI / 180.0f );
@@ -421,6 +425,8 @@ public:
 
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 				b3CreateHullShape( bodyId, &shapeDef, hull );
+
+				//b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
 
 				b3Body_SetAngularVelocity( bodyId, angularVelocity );
 

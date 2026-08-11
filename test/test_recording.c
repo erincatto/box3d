@@ -298,7 +298,7 @@ static int ScrubBackward( void )
 	int sz = b3Recording_GetSize( rec );
 
 	// Create the player
-	b3RecPlayer* player = b3RecPlayer_Create( data, sz, 1 );
+	b3RecPlayer* player = b3CreatePlayer( data, sz, 1 );
 	ENSURE( player != NULL );
 	ENSURE( b3RecPlayer_GetFrameCount( player ) == totalFrames );
 
@@ -340,7 +340,7 @@ static int ScrubBackward( void )
 	}
 
 	b3Free( hashes, (size_t)( totalFrames + 1 ) * sizeof( uint64_t ) );
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( rec );
 	return 0;
 }
@@ -402,7 +402,7 @@ static int SeekWithHull( void )
 	const uint8_t* data = b3Recording_GetData( rec );
 	int sz = b3Recording_GetSize( rec );
 
-	b3RecPlayer* player = b3RecPlayer_Create( data, sz, 1 );
+	b3RecPlayer* player = b3CreatePlayer( data, sz, 1 );
 	ENSURE( player != NULL );
 
 	// Step to end
@@ -420,7 +420,7 @@ static int SeekWithHull( void )
 	b3RecPlayer_SeekFrame( player, 0 );
 	ENSURE( b3RecPlayer_GetFrame( player ) == 0 );
 
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( rec );
 	return 0;
 }
@@ -517,7 +517,7 @@ static int DebugShapeCallbacks( void )
 	b3Recording* loaded = b3LoadRecordingFromFile( path );
 	ENSURE( loaded != NULL );
 
-	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( loaded ), b3Recording_GetSize( loaded ), 1 );
+	b3RecPlayer* player = b3CreatePlayer( b3Recording_GetData( loaded ), b3Recording_GetSize( loaded ), 1 );
 	ENSURE( player != NULL );
 
 	// Wiring the callbacks rebuilds the world and rewinds to frame 0.
@@ -543,7 +543,7 @@ static int DebugShapeCallbacks( void )
 	ENSURE( counters.created > createdBefore );
 
 	// Teardown destroys the final world; every live shape is released, so the counts balance.
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	ENSURE( counters.created == counters.destroyed );
 
 	b3DestroyRecording( loaded );
@@ -604,7 +604,7 @@ static int PlayerAccessors( void )
 	b3World_StopRecording( worldId );
 	b3DestroyWorld( worldId );
 
-	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
+	b3RecPlayer* player = b3CreatePlayer( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
 	ENSURE( player != NULL );
 
 	// Info reflects the recorded tuning and a non-degenerate bounds.
@@ -648,7 +648,7 @@ static int PlayerAccessors( void )
 	ENSURE( b3RecPlayer_GetKeyframeBudget( player ) == (size_t)256 * 1024 * 1024 );
 	ENSURE( b3RecPlayer_GetKeyframeBytes( player ) == 0 );
 
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( rec );
 	return 0;
 }
@@ -702,7 +702,7 @@ static int KeyframeHandleReuse( void )
 	b3World_StopRecording( worldId );
 	b3DestroyWorld( worldId );
 
-	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
+	b3RecPlayer* player = b3CreatePlayer( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
 	ENSURE( player != NULL );
 
 	DebugShapeCounters counters = { 0, 0 };
@@ -726,7 +726,7 @@ static int KeyframeHandleReuse( void )
 	ENSURE( counters.created == createdAfterFirstDraw );
 
 	// Teardown releases exactly the live handles, so the leak-free invariant holds.
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	ENSURE( counters.created == counters.destroyed );
 
 	b3DestroyRecording( rec );
@@ -835,7 +835,7 @@ static int QueryReplay( void )
 	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 ) );
 
 	// Player path: seek to a mid frame and confirm the per-frame store holds all seven queries.
-	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
+	b3RecPlayer* player = b3CreatePlayer( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
 	ENSURE( player != NULL );
 
 	b3RecPlayer_SeekFrame( player, 15 );
@@ -858,7 +858,7 @@ static int QueryReplay( void )
 	}
 	ENSURE( sawCastRay );
 
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( rec );
 	return 0;
 }
@@ -925,7 +925,7 @@ static int TaggedQuery( void )
 	b3Recording* loaded = b3LoadRecordingFromFile( path );
 	ENSURE( loaded != NULL );
 
-	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( loaded ), b3Recording_GetSize( loaded ), 1 );
+	b3RecPlayer* player = b3CreatePlayer( b3Recording_GetData( loaded ), b3Recording_GetSize( loaded ), 1 );
 	ENSURE( player != NULL );
 
 	b3RecPlayer_SeekFrame( player, 5 );
@@ -954,7 +954,7 @@ static int TaggedQuery( void )
 	}
 	ENSURE( saw53 && saw54 && sawUntagged );
 
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( loaded );
 	b3DestroyRecording( rec );
 	return 0;
@@ -993,7 +993,7 @@ static int EmptyWorldRoundTrip( void )
 	ENSURE( b3ValidateReplay( data, size, 1 ) );
 
 	// Restart restores in place, so the replay world id survives a rewind.
-	b3RecPlayer* player = b3RecPlayer_Create( data, size, 1 );
+	b3RecPlayer* player = b3CreatePlayer( data, size, 1 );
 	ENSURE( player != NULL );
 
 	uint32_t worldKey = b3StoreWorldId( b3RecPlayer_GetWorldId( player ) );
@@ -1006,7 +1006,7 @@ static int EmptyWorldRoundTrip( void )
 	ENSURE( b3RecPlayer_GetFrame( player ) == 0 );
 	ENSURE( !b3RecPlayer_HasDiverged( player ) );
 
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( rec );
 	return 0;
 }
@@ -1486,7 +1486,7 @@ static int AllOps( void )
 	// Drive the incremental player. Exercises per-frame stepping, restart, getters, and the
 	// draw path beyond what b3ValidateReplay covers.
 	{
-		b3RecPlayer* player = b3RecPlayer_Create( recData, recSize, 1 );
+		b3RecPlayer* player = b3CreatePlayer( recData, recSize, 1 );
 		ENSURE( player != NULL );
 
 		b3RecPlayerInfo info = b3RecPlayer_GetInfo( player );
@@ -1529,7 +1529,7 @@ static int AllOps( void )
 		ENSURE( frames2 == 12 );
 		ENSURE( b3RecPlayer_HasDiverged( player ) == false );
 
-		b3RecPlayer_Destroy( player );
+		b3DestroyPlayer( player );
 	}
 
 	b3DestroyRecording( rec );
@@ -1674,8 +1674,8 @@ static int GeometryHashCollision( void )
 		memset( p, 0x11, sizeof( p ) );
 		memset( q, 0x11, sizeof( q ) );
 		q[7] = 0x12;
-		uint64_t hp = b3Hash64Blob( p, (int)sizeof( p ) );
-		uint64_t hq = b3Hash64Blob( q, (int)sizeof( q ) );
+		uint64_t hp = b3Hash64NonZero( p, (int)sizeof( p ) );
+		uint64_t hq = b3Hash64NonZero( q, (int)sizeof( q ) );
 		ENSURE( hp != hq );
 		ENSURE( (uint32_t)( hp >> 32 ) != (uint32_t)( hq >> 32 ) );
 	}
@@ -1792,7 +1792,7 @@ static int StagedStepCreationPose( void )
 
 	// Atomic replay fuses the create and its step, so at the creation frame the body is already
 	// integrated and displaced along +x. Capture that pose and the final state hash.
-	b3RecPlayer* atomic = b3RecPlayer_Create( data, sz, 1 );
+	b3RecPlayer* atomic = b3CreatePlayer( data, sz, 1 );
 	ENSURE( atomic != NULL );
 	b3Pos atomicPose = { 0.0, 0.0, 0.0 };
 	while ( !b3RecPlayer_IsAtEnd( atomic ) )
@@ -1809,11 +1809,11 @@ static int StagedStepCreationPose( void )
 	ENSURE( !b3RecPlayer_HasDiverged( atomic ) );
 	ENSURE( atomicPose.x - spawn.x > 0.01 ); // the impulse moved it before it was ever seen
 	uint64_t atomicHash = b3HashWorldState( b3GetWorldFromId( b3RecPlayer_GetWorldId( atomic ) ) );
-	b3RecPlayer_Destroy( atomic );
+	b3DestroyPlayer( atomic );
 
 	// Staged replay: step forward until the first pre-step park. It must sit at the creation frame's
 	// pre-integration state with the new body at exactly its spawn transform.
-	b3RecPlayer* staged = b3RecPlayer_Create( data, sz, 1 );
+	b3RecPlayer* staged = b3CreatePlayer( data, sz, 1 );
 	ENSURE( staged != NULL );
 	while ( !b3RecPlayer_IsAtEnd( staged ) )
 	{
@@ -1847,7 +1847,7 @@ static int StagedStepCreationPose( void )
 	ENSURE( !b3RecPlayer_HasDiverged( staged ) );
 	uint64_t stagedHash = b3HashWorldState( b3GetWorldFromId( b3RecPlayer_GetWorldId( staged ) ) );
 	ENSURE( stagedHash == atomicHash );
-	b3RecPlayer_Destroy( staged );
+	b3DestroyPlayer( staged );
 
 	b3DestroyRecording( rec );
 	return 0;
@@ -1905,7 +1905,7 @@ static int ShapeNameReplay( void )
 	const uint8_t* data = b3Recording_GetData( rec );
 	int sz = b3Recording_GetSize( rec );
 
-	b3RecPlayer* player = b3RecPlayer_Create( data, sz, 1 );
+	b3RecPlayer* player = b3CreatePlayer( data, sz, 1 );
 	ENSURE( player != NULL );
 	while ( b3RecPlayer_StepFrame( player ) )
 	{
@@ -1931,7 +1931,7 @@ static int ShapeNameReplay( void )
 		}
 	}
 
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( rec );
 	return 0;
 }
@@ -2041,7 +2041,7 @@ static int GeometryMutatorReplay( void )
 	ENSURE( b3ValidateReplay( data, size, 1 ) );
 	ENSURE( b3ValidateReplay( data, size, 4 ) );
 
-	b3RecPlayer* player = b3RecPlayer_Create( data, size, 1 );
+	b3RecPlayer* player = b3CreatePlayer( data, size, 1 );
 	ENSURE( player != NULL );
 	while ( b3RecPlayer_StepFrame( player ) )
 	{
@@ -2070,7 +2070,7 @@ static int GeometryMutatorReplay( void )
 	b3SurfaceMaterial replayMaterial = b3Shape_GetMeshSurfaceMaterial( replayMeshShape, 1 );
 	ENSURE( replayMaterial.friction == swapFriction );
 
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( rec );
 	b3DestroyMesh( meshA );
 	b3DestroyMesh( meshB );

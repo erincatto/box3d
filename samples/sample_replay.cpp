@@ -4,6 +4,7 @@
 #include "gfx/debug_adapter.h"
 #include "gfx/draw.h"
 #include "gfx/keycodes.h"
+#include "gfx/shadow.h"
 #include "gfx/text.h"
 #include "imgui.h"
 #include "sample.h"
@@ -300,7 +301,7 @@ public:
 	{
 		if ( m_player != nullptr )
 		{
-			b3RecPlayer_Destroy( m_player );
+			b3DestroyPlayer( m_player );
 			m_player = nullptr;
 		}
 		m_replayWorldId = b3_nullWorldId;
@@ -336,7 +337,7 @@ public:
 		if ( recording != nullptr )
 		{
 			m_player =
-				b3RecPlayer_Create( b3Recording_GetData( recording ), b3Recording_GetSize( recording ), m_context->workerCount );
+				b3CreatePlayer( b3Recording_GetData( recording ), b3Recording_GetSize( recording ), m_context->workerCount );
 			b3DestroyRecording( recording );
 		}
 		else
@@ -613,8 +614,19 @@ public:
 		b3DebugDraw debugDraw;
 		MakeDebugDraw( &debugDraw );
 		ApplyGuiFlags( &debugDraw );
-		debugDraw.drawingBounds = m_camera->DrawBounds(); // view-distance box in length units around the eye
-		SetViewBounds( debugDraw.drawingBounds );
+		const b3AABB drawBox = m_camera->DrawBounds(); // view-distance box in length units around the eye
+
+		// Reach past the view box for casters between it and the sun, see Sample::Draw.
+		b3Vec3 casterLo, casterHi;
+		const Mat4 viewInv = m_camera->ViewInverse();
+		const Mat4 projInv = m_camera->ProjInverse();
+		GetShadowCasterBounds( &viewInv, &projInv, &casterLo, &casterHi );
+		const b3AABB casterBox = b3OffsetAABB( { casterLo, casterHi }, m_camera->DrawOrigin() );
+
+		debugDraw.drawingBounds.lowerBound = b3Min( drawBox.lowerBound, casterBox.lowerBound );
+		debugDraw.drawingBounds.upperBound = b3Max( drawBox.upperBound, casterBox.upperBound );
+
+		SetViewBounds( drawBox );
 
 		// Drive the shared outline highlight from the selection. A shape selection outlines that
 		// shape alone, a body selection outlines the whole body. Set before the draw so the mask

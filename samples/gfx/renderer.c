@@ -88,24 +88,12 @@ static struct
 	sg_pipeline shadowGeomPipeline;
 	sg_pipeline shadowGeomPipelineMirror;
 
-	// Shadow caster pipeline (sphere). The lit sphere pipeline is an
-	// analytic impostor, too expensive for the shadow pass, so the
-	// caster rasterizes a low-poly icosphere proxy generated at InitRenderer.
-	// The icosphere vbo/ibo live here, the sphere instance buffer is
-	// shared with the lit pipeline.
-	sg_buffer icosphereVbuf;
-	sg_buffer icosphereIbuf;
-	int icosphereIndexCount;
+	// Shadow caster pipelines (sphere, capsule). Both rasterize the same
+	// bounding proxy the lit impostor uses and ray-cast the exact surface,
+	// so they borrow the cube's vbuf/ibuf and share the lit pipeline's
+	// instance buffers.
 	sg_shader shadowSphereShader;
 	sg_pipeline shadowSpherePipeline;
-
-	// Shadow caster pipeline (capsule). Cylinder-plus-caps proxy mesh
-	// built once at InitRenderer, the capsule instance buffer is shared with
-	// the lit pipeline. Per-vertex format is two vec3s: in_axis (scaled
-	// by halfLength) + in_radial (scaled by radius).
-	sg_buffer capsuleProxyVbuf;
-	sg_buffer capsuleProxyIbuf;
-	int capsuleProxyIndexCount;
 	sg_shader shadowCapsuleShader;
 	sg_pipeline shadowCapsulePipeline;
 
@@ -253,307 +241,6 @@ static const uint16_t CUBE_INDICES[36] = {
 	0, 2, 3, 0, 3, 1, // -Z
 	4, 5, 7, 4, 7, 6, // +Z
 };
-
-// Ico-sphere shadow proxy
-// N-level subdivided ico-sphere built from a 12-vert icosahedron: each
-// subdivision step splits every face into 4 by inserting edge midpoints,
-// then renormalizes every new vertex to the unit sphere. After L levels:
-// verts = 10 * 4^L + 2, tris = 20 * 4^L. Built once at InitRenderer and uploaded
-// to dedicated vbuf/ibuf for the shadow_caster_sphere pipeline.
-//
-// We use L=2 (162 verts, 320 tris), subdiv-1 gave visibly polygonal
-// shadow silhouettes when the sun grazed a sphere, subdiv-2 reads as
-// round at any zoom we're likely to use. Subdiv-3 (1280 tris) is overkill.
-//
-// The icosahedron's golden-ratio coordinates produce a remarkably even
-// vertex distribution, better silhouette quality than a UV sphere
-// comparable triangle count.
-#define ICO_SPHERE_SUBDIV_LEVEL 2
-#define ICO_SPHERE_VERTICES 162		   // 10 * 4^L + 2 for L=2
-#define ICO_SPHERE_INDICES ( 320 * 3 ) // 20 * 4^L for L=2
-
-static void BuildIcosphere( float ( *outVerts )[3], uint32_t* outIndices )
-{
-	const float phi = ( 1.0f + sqrtf( 5.0f ) ) * 0.5f;
-	const float invLen = 1.0f / sqrtf( 1.0f + phi * phi );
-
-	// 12 icosahedron vertices, normalized to the unit sphere.
-	const float baseVerts[12][3] = {
-		{ -1.0f, phi, 0.0f }, { 1.0f, phi, 0.0f }, { -1.0f, -phi, 0.0f }, { 1.0f, -phi, 0.0f },
-		{ 0.0f, -1.0f, phi }, { 0.0f, 1.0f, phi }, { 0.0f, -1.0f, -phi }, { 0.0f, 1.0f, -phi },
-		{ phi, 0.0f, -1.0f }, { phi, 0.0f, 1.0f }, { -phi, 0.0f, -1.0f }, { -phi, 0.0f, 1.0f },
-	};
-	for ( int i = 0; i < 12; ++i )
-	{
-		outVerts[i][0] = baseVerts[i][0] * invLen;
-		outVerts[i][1] = baseVerts[i][1] * invLen;
-		outVerts[i][2] = baseVerts[i][2] * invLen;
-	}
-
-	// 20 base faces, CCW from outside.
-	static const uint32_t baseTris[20 * 3] = {
-		0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4,	 11, 10, 2,	 10, 7, 6, 7, 1, 8,
-		3, 9,  4, 3, 4, 2, 3, 2, 6, 3, 6, 8,  3, 8,	 9,	 4, 9, 5, 2, 4,	 11, 6,	 2,	 10, 8,	 6, 7, 9, 8, 1,
-	};
-
-	// Ping-pong tri buffers. Each level reads `cur` and writes `nxt`, then
-	// swaps. Static so the ~7.5 KB doesn't pressure the call-site stack.
-	static uint32_t triA[ICO_SPHERE_INDICES];
-	static uint32_t triB[ICO_SPHERE_INDICES];
-	uint32_t* cur = triA;
-	uint32_t* nxt = triB;
-	int triCount = 20;
-	for ( int i = 0; i < 20 * 3; ++i )
-		cur[i] = baseTris[i];
-
-	int vertCount = 12;
-
-	// Edge midpoint cache, sized for the final vertex count. Each edge
-	// the *current* tri set pairs exactly two faces, so a midpoint computed
-	// for one face is reused by exactly one other. Cleared per level so
-	// midpoint indices from earlier levels don't leak in. ~104 KB static.
-	static int midCache[ICO_SPHERE_VERTICES][ICO_SPHERE_VERTICES];
-
-	for ( int L = 0; L < ICO_SPHERE_SUBDIV_LEVEL; ++L )
-	{
-		for ( int i = 0; i < ICO_SPHERE_VERTICES; ++i )
-		{
-			for ( int j = 0; j < ICO_SPHERE_VERTICES; ++j )
-			{
-				midCache[i][j] = -1;
-			}
-		}
-
-		int nxtCount = 0;
-		for ( int t = 0; t < triCount; ++t )
-		{
-			const uint32_t v[3] = { cur[t * 3 + 0], cur[t * 3 + 1], cur[t * 3 + 2] };
-
-			uint32_t mid[3];
-			for ( int e = 0; e < 3; ++e )
-			{
-				uint32_t a = v[e];
-				uint32_t b = v[( e + 1 ) % 3];
-				if ( a > b )
-				{
-					uint32_t tmp = a;
-					a = b;
-					b = tmp;
-				}
-				if ( midCache[a][b] < 0 )
-				{
-					const int index = vertCount++;
-					float mx = 0.5f * ( outVerts[a][0] + outVerts[b][0] );
-					float my = 0.5f * ( outVerts[a][1] + outVerts[b][1] );
-					float mz = 0.5f * ( outVerts[a][2] + outVerts[b][2] );
-					const float len = sqrtf( mx * mx + my * my + mz * mz );
-					if ( len > 0.0f )
-					{
-						mx /= len;
-						my /= len;
-						mz /= len;
-					}
-					outVerts[index][0] = mx;
-					outVerts[index][1] = my;
-					outVerts[index][2] = mz;
-					midCache[a][b] = index;
-				}
-				mid[e] = (uint32_t)midCache[a][b];
-			}
-
-			// Subdivide one tri (v0,v1,v2) into four:
-			// (v0, m01, m20), (v1, m12, m01), (v2, m20, m12), (m01, m12, m20).
-			// mid[0] = m01, mid[1] = m12, mid[2] = m20.
-			nxt[nxtCount++] = v[0];
-			nxt[nxtCount++] = mid[0];
-			nxt[nxtCount++] = mid[2];
-			nxt[nxtCount++] = v[1];
-			nxt[nxtCount++] = mid[1];
-			nxt[nxtCount++] = mid[0];
-			nxt[nxtCount++] = v[2];
-			nxt[nxtCount++] = mid[2];
-			nxt[nxtCount++] = mid[1];
-			nxt[nxtCount++] = mid[0];
-			nxt[nxtCount++] = mid[1];
-			nxt[nxtCount++] = mid[2];
-		}
-		triCount = nxtCount / 3;
-		uint32_t* tmp = cur;
-		cur = nxt;
-		nxt = tmp;
-	}
-
-	for ( int i = 0; i < triCount * 3; ++i )
-		outIndices[i] = cur[i];
-}
-
-// Capsule proxy for shadows
-// Lat/long mesh: CAPSULE_SLICES azimuthal slices around the long axis, a
-// cylinder body, and two hemispherical caps with CAPSULE_CAP_RINGS interior
-// latitude rings plus a pole each. Verts are encoded with two vec3s, in_axis
-// (scaled by halfLength) and in_radial (scaled by radius), so the same proxy
-// mesh works for any (halfLength, radius) pair.
-//
-// An inscribed facet mesh casts a shadow up to 1 - cos(halfAz) cos(halfLat)
-// too small and its outline shows the slices. Scaling the radial vectors so
-// facets straddle the true surface halves the max silhouette error, at 32
-// slices it lands under 0.5% of radius, below a cascade texel.
-//
-// Vertex layout:
-// - body ring -X, then body ring +X (these double as the caps' equators)
-// - +X cap: interior rings equator->pole order, then the pole
-// - -X cap: same
-//
-// Caps share their equator ring with the body's end ring, saves a ring of
-// verts per cap and avoids any seam in the depth render.
-#define CAPSULE_SLICES 32
-#define CAPSULE_CAP_RINGS 7
-#define CAPSULE_VERTICES ( 2 * CAPSULE_SLICES + 2 * ( CAPSULE_CAP_RINGS * CAPSULE_SLICES + 1 ) )
-#define CAPSULE_INDICES ( 12 * CAPSULE_SLICES * ( CAPSULE_CAP_RINGS + 1 ) )
-
-typedef struct CapsuleVertex
-{
-	float axis[3];
-	float radial[3];
-} CapsuleVertex;
-
-// Helper macro: emit two triangles for a quad with corners
-// bl, br, tr, tl (CCW outside-front).
-#define CAPSULE_QUAD( bl, br, tr, tl )                                                                                           \
-	do                                                                                                                           \
-	{                                                                                                                            \
-		outIndices[index++] = (uint32_t)( bl );                                                                                  \
-		outIndices[index++] = (uint32_t)( br );                                                                                  \
-		outIndices[index++] = (uint32_t)( tr );                                                                                  \
-		outIndices[index++] = (uint32_t)( bl );                                                                                  \
-		outIndices[index++] = (uint32_t)( tr );                                                                                  \
-		outIndices[index++] = (uint32_t)( tl );                                                                                  \
-	}                                                                                                                            \
-	while ( 0 )
-
-static void BuildCapsuleProxy( CapsuleVertex* outVerts, uint32_t* outIndices )
-{
-	const float TWO_PI = 6.28318530717958647692f;
-
-	// Quad centers of an inscribed lat/long mesh dip below the true surface
-	// by cos(halfAz) cos(halfLat). Scale all radials so facets straddle the
-	// surface, halving the max silhouette error. Uniform scale keeps the
-	// proxy a true capsule of radius scale * r, no seam at the equators.
-	const float halfAz = B3_PI / (float)CAPSULE_SLICES;
-	const float halfLat = 0.25f * B3_PI / (float)( CAPSULE_CAP_RINGS + 1 );
-	const float scale = 2.0f / ( 1.0f + cosf( halfAz ) * cosf( halfLat ) );
-
-	// Vertices
-	int v = 0;
-	// Body rings, -X then +X. These double as the caps' equators.
-	for ( int side = 0; side < 2; ++side )
-	{
-		const float sx = ( side == 0 ) ? -1.0f : +1.0f;
-		for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
-		{
-			const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
-			outVerts[v].axis[0] = sx;
-			outVerts[v].axis[1] = 0.0f;
-			outVerts[v].axis[2] = 0.0f;
-			outVerts[v].radial[0] = 0.0f;
-			outVerts[v].radial[1] = scale * cosf( beta );
-			outVerts[v].radial[2] = scale * sinf( beta );
-		}
-	}
-	// Caps, +X then -X: interior latitude rings equator->pole, then the pole.
-	// Ring r sits at latitude alpha = r * (pi/2) / (rings + 1).
-	for ( int side = 0; side < 2; ++side )
-	{
-		const float sx = ( side == 0 ) ? +1.0f : -1.0f;
-		for ( int r = 1; r <= CAPSULE_CAP_RINGS; ++r )
-		{
-			const float alpha = 0.5f * B3_PI * (float)r / (float)( CAPSULE_CAP_RINGS + 1 );
-			for ( int i = 0; i < CAPSULE_SLICES; ++i, ++v )
-			{
-				const float beta = TWO_PI * (float)i / (float)CAPSULE_SLICES;
-				outVerts[v].axis[0] = sx;
-				outVerts[v].axis[1] = 0.0f;
-				outVerts[v].axis[2] = 0.0f;
-				outVerts[v].radial[0] = scale * sx * sinf( alpha );
-				outVerts[v].radial[1] = scale * cosf( alpha ) * cosf( beta );
-				outVerts[v].radial[2] = scale * cosf( alpha ) * sinf( beta );
-			}
-		}
-		outVerts[v].axis[0] = sx;
-		outVerts[v].axis[1] = 0.0f;
-		outVerts[v].axis[2] = 0.0f;
-		outVerts[v].radial[0] = scale * sx;
-		outVerts[v].radial[1] = 0.0f;
-		outVerts[v].radial[2] = 0.0f;
-		++v;
-	}
-
-	// Indices
-	int index = 0;
-
-	// Body: ring -X to ring +X. For slice i and i+1, the outward face winds
-	// from -X[i] up the slice direction (beta increasing) to -X[i+1], across
-	// to +X[i+1], down to +X[i].
-	for ( int i = 0; i < CAPSULE_SLICES; ++i )
-	{
-		const int next = ( i + 1 ) % CAPSULE_SLICES;
-		CAPSULE_QUAD( i, next, CAPSULE_SLICES + next, CAPSULE_SLICES + i );
-	}
-
-	// +X cap: quad bands march outward from the equator (the +X body ring)
-	// through the latitude rings, then a fan to the pole. Going outward the
-	// face winds prev[i] -> prev[i+1] -> cur[i+1] -> cur[i].
-	{
-		int prev = CAPSULE_SLICES;
-		int cur = 2 * CAPSULE_SLICES;
-		for ( int r = 0; r < CAPSULE_CAP_RINGS; ++r )
-		{
-			for ( int i = 0; i < CAPSULE_SLICES; ++i )
-			{
-				const int next = ( i + 1 ) % CAPSULE_SLICES;
-				CAPSULE_QUAD( prev + i, prev + next, cur + next, cur + i );
-			}
-			prev = cur;
-			cur += CAPSULE_SLICES;
-		}
-		const int pole = cur;
-		for ( int i = 0; i < CAPSULE_SLICES; ++i )
-		{
-			const int next = ( i + 1 ) % CAPSULE_SLICES;
-			outIndices[index++] = (uint32_t)( prev + i );
-			outIndices[index++] = (uint32_t)( prev + next );
-			outIndices[index++] = (uint32_t)pole;
-		}
-	}
-
-	// -X cap: winding flipped relative to +X because the outward normal
-	// points toward -X, the "outside-front" side of each quad swaps slice
-	// order.
-	{
-		int prev = 0;
-		int cur = 2 * CAPSULE_SLICES + CAPSULE_CAP_RINGS * CAPSULE_SLICES + 1;
-		for ( int r = 0; r < CAPSULE_CAP_RINGS; ++r )
-		{
-			for ( int i = 0; i < CAPSULE_SLICES; ++i )
-			{
-				const int next = ( i + 1 ) % CAPSULE_SLICES;
-				CAPSULE_QUAD( prev + next, prev + i, cur + i, cur + next );
-			}
-			prev = cur;
-			cur += CAPSULE_SLICES;
-		}
-		const int pole = cur;
-		for ( int i = 0; i < CAPSULE_SLICES; ++i )
-		{
-			const int next = ( i + 1 ) % CAPSULE_SLICES;
-			outIndices[index++] = (uint32_t)( prev + next );
-			outIndices[index++] = (uint32_t)( prev + i );
-			outIndices[index++] = (uint32_t)pole;
-		}
-	}
-}
-
-#undef CAPSULE_QUAD
 
 // On the GL backend, set clip-space Z to [0,1] so the rasterizer's
 // gl_FragCoord.z matches what the impostor shaders write into gl_FragDepth
@@ -888,30 +575,10 @@ void InitRenderer( const sg_environment* env )
 	s_gfx.shadowGeomPipelineMirror = sg_make_pipeline( &shadowGeomMirrorPdesc );
 
 	// Shadow caster pipeline: spheres
-	// Build the ico-sphere proxy once and upload to a
-	// dedicated vbo/ibo. Position-only vertex layout (no normals, the
-	// caster shader never reads them).
-	{
-		float icoVerts[ICO_SPHERE_VERTICES][3];
-		uint32_t icoIndices[ICO_SPHERE_INDICES];
-		BuildIcosphere( icoVerts, icoIndices );
-		s_gfx.icosphereIndexCount = ICO_SPHERE_INDICES;
-
-		sg_buffer_desc ivdesc = { 0 };
-		ivdesc.usage.vertex_buffer = true;
-		ivdesc.data.ptr = icoVerts;
-		ivdesc.data.size = sizeof( icoVerts );
-		ivdesc.label = "icosphere_verts";
-		s_gfx.icosphereVbuf = sg_make_buffer( &ivdesc );
-
-		sg_buffer_desc iidesc = { 0 };
-		iidesc.usage.index_buffer = true;
-		iidesc.data.ptr = icoIndices;
-		iidesc.data.size = sizeof( icoIndices );
-		iidesc.label = "icosphere_indices";
-		s_gfx.icosphereIbuf = sg_make_buffer( &iidesc );
-	}
-
+	// Rasterizes the bounding cube the lit impostor uses, so it borrows the
+	// cube's buffers and vertex format. Culling stays on back faces: the
+	// shader's conservative-depth promise only holds while the rasterized
+	// surface is the light-facing one.
 	s_gfx.shadowSphereShader = sg_make_shader( shadow_sphere_caster_shader_desc( sg_query_backend() ) );
 
 	sg_pipeline_desc shadowSpherePdesc = { 0 };
@@ -919,7 +586,7 @@ void InitRenderer( const sg_environment* env )
 	shadowSpherePdesc.layout.buffers[0].stride = sizeof( float ) * 3;
 	shadowSpherePdesc.layout.attrs[ATTR_shadow_sphere_caster_in_pos].format = SG_VERTEXFORMAT_FLOAT3;
 	shadowSpherePdesc.layout.attrs[ATTR_shadow_sphere_caster_in_pos].buffer_index = 0;
-	shadowSpherePdesc.index_type = SG_INDEXTYPE_UINT32;
+	shadowSpherePdesc.index_type = SG_INDEXTYPE_UINT16;
 	shadowSpherePdesc.colors[0].pixel_format = SG_PIXELFORMAT_NONE;
 	shadowSpherePdesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
 	shadowSpherePdesc.depth.compare = SG_COMPAREFUNC_LESS;
@@ -930,40 +597,16 @@ void InitRenderer( const sg_environment* env )
 	shadowSpherePdesc.label = "shadow_sphere_pipeline";
 	s_gfx.shadowSpherePipeline = sg_make_pipeline( &shadowSpherePdesc );
 
-	// Shadow caster pipeline: capsules
-	{
-		CapsuleVertex capsVerts[CAPSULE_VERTICES];
-		uint32_t capsIndices[CAPSULE_INDICES];
-		BuildCapsuleProxy( capsVerts, capsIndices );
-		s_gfx.capsuleProxyIndexCount = CAPSULE_INDICES;
-
-		sg_buffer_desc cvdesc = { 0 };
-		cvdesc.usage.vertex_buffer = true;
-		cvdesc.data.ptr = capsVerts;
-		cvdesc.data.size = sizeof( capsVerts );
-		cvdesc.label = "capsule_proxy_verts";
-		s_gfx.capsuleProxyVbuf = sg_make_buffer( &cvdesc );
-
-		sg_buffer_desc cidesc = { 0 };
-		cidesc.usage.index_buffer = true;
-		cidesc.data.ptr = capsIndices;
-		cidesc.data.size = sizeof( capsIndices );
-		cidesc.label = "capsule_proxy_indices";
-		s_gfx.capsuleProxyIbuf = sg_make_buffer( &cidesc );
-	}
-
+	// Shadow caster pipeline: capsules, see the sphere caster above. The
+	// OBB comes from the same cube buffers.
 	s_gfx.shadowCapsuleShader = sg_make_shader( shadow_capsule_caster_shader_desc( sg_query_backend() ) );
 
 	sg_pipeline_desc shadowCapsulePdesc = { 0 };
 	shadowCapsulePdesc.shader = s_gfx.shadowCapsuleShader;
-	shadowCapsulePdesc.layout.buffers[0].stride = sizeof( float ) * 6;
-	shadowCapsulePdesc.layout.attrs[ATTR_shadow_capsule_caster_in_axis].format = SG_VERTEXFORMAT_FLOAT3;
-	shadowCapsulePdesc.layout.attrs[ATTR_shadow_capsule_caster_in_axis].buffer_index = 0;
-	shadowCapsulePdesc.layout.attrs[ATTR_shadow_capsule_caster_in_axis].offset = 0;
-	shadowCapsulePdesc.layout.attrs[ATTR_shadow_capsule_caster_in_radial].format = SG_VERTEXFORMAT_FLOAT3;
-	shadowCapsulePdesc.layout.attrs[ATTR_shadow_capsule_caster_in_radial].buffer_index = 0;
-	shadowCapsulePdesc.layout.attrs[ATTR_shadow_capsule_caster_in_radial].offset = sizeof( float ) * 3;
-	shadowCapsulePdesc.index_type = SG_INDEXTYPE_UINT32;
+	shadowCapsulePdesc.layout.buffers[0].stride = sizeof( float ) * 3;
+	shadowCapsulePdesc.layout.attrs[ATTR_shadow_capsule_caster_in_pos].format = SG_VERTEXFORMAT_FLOAT3;
+	shadowCapsulePdesc.layout.attrs[ATTR_shadow_capsule_caster_in_pos].buffer_index = 0;
+	shadowCapsulePdesc.index_type = SG_INDEXTYPE_UINT16;
 	shadowCapsulePdesc.colors[0].pixel_format = SG_PIXELFORMAT_NONE;
 	shadowCapsulePdesc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
 	shadowCapsulePdesc.depth.compare = SG_COMPAREFUNC_LESS;
@@ -1291,6 +934,26 @@ static b3Vec3 TransformDir( Mat4 m, b3Vec3 v )
 	return (b3Vec3){ r.x, r.y, r.z };
 }
 
+// The lit shaders carry their own SHADOW_CASCADE_COUNT, and nothing links it
+// to the one here. Check the generated layout instead, so a half-finished
+// change is a build error rather than a cascade that silently never receives
+// its matrix. Tripping this means regenerating the shaders.
+_Static_assert( sizeof( ( (ub_pass_t*)0 )->cascade_matrices ) / sizeof( Mat4 ) == SHADOW_CASCADE_COUNT,
+				"shader cascade count differs from SHADOW_CASCADE_COUNT" );
+
+// One vec4 lane per cascade, which is what caps the count at four. Lanes past
+// the count stay zero, so a shader built for more would read unlit rather than
+// garbage.
+static Vec4 PackCascades( float ( *get )( int cascade ) )
+{
+	float lanes[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
+	{
+		lanes[i] = get( i );
+	}
+	return MakeVec4( lanes[0], lanes[1], lanes[2], lanes[3] );
+}
+
 static sg_pass_action MakeSceneClear( void )
 {
 	sg_pass_action a = { 0 };
@@ -1366,6 +1029,17 @@ static void DrawShadowCascade( int cascade )
 	const Mat4 lightVP = GetCascadeMatrix( cascade );
 	bool viewportApplied = false;
 
+	// Impostor casters march along the light from the proxy face they
+	// rasterized, then turn the hit into clip depth themselves. Both
+	// quantities come out of the projection's depth row, which under an
+	// orthographic light varies only along the light axis: its gradient
+	// is the direction light travels, and it is the row that maps a
+	// world position to depth. Reading the direction back off the matrix
+	// rather than off the sun keeps the two from drifting apart.
+	const Vec4 lightDepthRow = MakeVec4( lightVP.cx.z, lightVP.cy.z, lightVP.cz.z, lightVP.cw.z );
+	const b3Vec3 lightDir = b3Normalize( ( b3Vec3 ){ lightDepthRow.x, lightDepthRow.y, lightDepthRow.z } );
+	const Vec4 lightDirPacked = MakeVec4( lightDir.x, lightDir.y, lightDir.z, 0.0f );
+
 	// Cubes
 	if ( s_gfx.cubeCount > 0 )
 	{
@@ -1392,7 +1066,7 @@ static void DrawShadowCascade( int cascade )
 		sg_pop_debug_group();
 	}
 
-	// Spheres (low-poly icosphere proxy)
+	// Spheres
 	if ( s_gfx.sphereCount > 0 )
 	{
 		sg_push_debug_group( "caster_sphere" );
@@ -1403,22 +1077,26 @@ static void DrawShadowCascade( int cascade )
 		}
 		sg_apply_pipeline( s_gfx.shadowSpherePipeline );
 		sg_bindings bindings = { 0 };
-		bindings.vertex_buffers[0] = s_gfx.icosphereVbuf;
-		bindings.index_buffer = s_gfx.icosphereIbuf;
+		bindings.vertex_buffers[0] = s_gfx.vbuf;
+		bindings.index_buffer = s_gfx.ibuf;
 		bindings.views[VIEW_shadow_sphere_instances] = s_gfx.sphereInstView;
 		sg_apply_bindings( &bindings );
 
 		shadow_sphere_ub_frame_t sub = { 0 };
 		sub.light_view_proj = lightVP;
 		sg_apply_uniforms( UB_shadow_sphere_ub_frame, &SG_RANGE( sub ) );
+		shadow_sphere_ub_pass_t supass = { 0 };
+		supass.light_dir = lightDirPacked;
+		supass.depth_row = lightDepthRow;
+		sg_apply_uniforms( UB_shadow_sphere_ub_pass, &SG_RANGE( supass ) );
 		shadow_sphere_ub_draw_t sudraw = { 0 };
 		sg_apply_uniforms( UB_shadow_sphere_ub_draw, &SG_RANGE( sudraw ) );
 
-		sg_draw( 0, s_gfx.icosphereIndexCount, (int)s_gfx.sphereCount );
+		sg_draw( 0, (int)( sizeof( CUBE_INDICES ) / sizeof( CUBE_INDICES[0] ) ), (int)s_gfx.sphereCount );
 		sg_pop_debug_group();
 	}
 
-	// Capsules (cylinder + caps proxy)
+	// Capsules
 	if ( s_gfx.capsuleCount > 0 )
 	{
 		sg_push_debug_group( "caster_capsule" );
@@ -1429,18 +1107,22 @@ static void DrawShadowCascade( int cascade )
 		}
 		sg_apply_pipeline( s_gfx.shadowCapsulePipeline );
 		sg_bindings bindings = { 0 };
-		bindings.vertex_buffers[0] = s_gfx.capsuleProxyVbuf;
-		bindings.index_buffer = s_gfx.capsuleProxyIbuf;
+		bindings.vertex_buffers[0] = s_gfx.vbuf;
+		bindings.index_buffer = s_gfx.ibuf;
 		bindings.views[VIEW_shadow_capsule_instances] = s_gfx.capsuleInstView;
 		sg_apply_bindings( &bindings );
 
 		shadow_capsule_ub_frame_t cub = { 0 };
 		cub.light_view_proj = lightVP;
 		sg_apply_uniforms( UB_shadow_capsule_ub_frame, &SG_RANGE( cub ) );
+		shadow_capsule_ub_pass_t cupass = { 0 };
+		cupass.light_dir = lightDirPacked;
+		cupass.depth_row = lightDepthRow;
+		sg_apply_uniforms( UB_shadow_capsule_ub_pass, &SG_RANGE( cupass ) );
 		shadow_capsule_ub_draw_t cudraw = { 0 };
 		sg_apply_uniforms( UB_shadow_capsule_ub_draw, &SG_RANGE( cudraw ) );
 
-		sg_draw( 0, s_gfx.capsuleProxyIndexCount, (int)s_gfx.capsuleCount );
+		sg_draw( 0, (int)( sizeof( CUBE_INDICES ) / sizeof( CUBE_INDICES[0] ) ), (int)s_gfx.capsuleCount );
 		sg_pop_debug_group();
 	}
 
@@ -1539,14 +1221,18 @@ static void DrawShadowCascade( int cascade )
 		}
 		sg_apply_pipeline( s_gfx.shadowSpherePipeline );
 		sg_bindings bindings = { 0 };
-		bindings.vertex_buffers[0] = s_gfx.icosphereVbuf;
-		bindings.index_buffer = s_gfx.icosphereIbuf;
+		bindings.vertex_buffers[0] = s_gfx.vbuf;
+		bindings.index_buffer = s_gfx.ibuf;
 		bindings.views[VIEW_shadow_sphere_instances] = s_gfx.sphereInstViewXp;
 		sg_apply_bindings( &bindings );
 
 		shadow_sphere_ub_frame_t sub = { 0 };
 		sub.light_view_proj = lightVP;
 		sg_apply_uniforms( UB_shadow_sphere_ub_frame, &SG_RANGE( sub ) );
+		shadow_sphere_ub_pass_t supass = { 0 };
+		supass.light_dir = lightDirPacked;
+		supass.depth_row = lightDepthRow;
+		sg_apply_uniforms( UB_shadow_sphere_ub_pass, &SG_RANGE( supass ) );
 
 		for ( size_t i = 0; i < s_gfx.sphereCountXp; ++i )
 		{
@@ -1555,7 +1241,7 @@ static void DrawShadowCascade( int cascade )
 			shadow_sphere_ub_draw_t sudraw = { 0 };
 			sudraw.inst_base[0] = (int)i;
 			sg_apply_uniforms( UB_shadow_sphere_ub_draw, &SG_RANGE( sudraw ) );
-			sg_draw( 0, s_gfx.icosphereIndexCount, 1 );
+			sg_draw( 0, (int)( sizeof( CUBE_INDICES ) / sizeof( CUBE_INDICES[0] ) ), 1 );
 		}
 		sg_pop_debug_group();
 	}
@@ -1570,14 +1256,18 @@ static void DrawShadowCascade( int cascade )
 		}
 		sg_apply_pipeline( s_gfx.shadowCapsulePipeline );
 		sg_bindings bindings = { 0 };
-		bindings.vertex_buffers[0] = s_gfx.capsuleProxyVbuf;
-		bindings.index_buffer = s_gfx.capsuleProxyIbuf;
+		bindings.vertex_buffers[0] = s_gfx.vbuf;
+		bindings.index_buffer = s_gfx.ibuf;
 		bindings.views[VIEW_shadow_capsule_instances] = s_gfx.capsuleInstViewXp;
 		sg_apply_bindings( &bindings );
 
 		shadow_capsule_ub_frame_t cub = { 0 };
 		cub.light_view_proj = lightVP;
 		sg_apply_uniforms( UB_shadow_capsule_ub_frame, &SG_RANGE( cub ) );
+		shadow_capsule_ub_pass_t cupass = { 0 };
+		cupass.light_dir = lightDirPacked;
+		cupass.depth_row = lightDepthRow;
+		sg_apply_uniforms( UB_shadow_capsule_ub_pass, &SG_RANGE( cupass ) );
 
 		for ( size_t i = 0; i < s_gfx.capsuleCountXp; ++i )
 		{
@@ -1586,7 +1276,7 @@ static void DrawShadowCascade( int cascade )
 			shadow_capsule_ub_draw_t cudraw = { 0 };
 			cudraw.inst_base[0] = (int)i;
 			sg_apply_uniforms( UB_shadow_capsule_ub_draw, &SG_RANGE( cudraw ) );
-			sg_draw( 0, s_gfx.capsuleProxyIndexCount, 1 );
+			sg_draw( 0, (int)( sizeof( CUBE_INDICES ) / sizeof( CUBE_INDICES[0] ) ), 1 );
 		}
 		sg_pop_debug_group();
 	}
@@ -1669,10 +1359,12 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 	// flip). The shader multiplies NDC.y by this before mapping to UV.y.
 	const sg_backend backend = sg_query_backend();
 	const float uvYSign = ( backend == SG_BACKEND_GLCORE || backend == SG_BACKEND_GLES3 ) ? 1.0f : -1.0f;
-	const Vec4 cascadeFarViewZ = MakeVec4( GetCascadeFarViewZ( 0 ), GetCascadeFarViewZ( 1 ), GetCascadeFarViewZ( 2 ), uvYSign );
-	const Vec4 cascadePcfScale = MakeVec4( GetCascadePcfScale( 0 ), GetCascadePcfScale( 1 ), GetCascadePcfScale( 2 ), 0.0f );
-	Mat4 cascadeMatrices[3];
-	for ( int i = 0; i < 3; ++i )
+	const Vec4 shadowParams = MakeVec4( uvYSign, GetShadowTexelSize(), 0.0f, 0.0f );
+	const Vec4 cascadeFarViewZ = PackCascades( GetCascadeFarViewZ );
+	const Vec4 cascadeTexelWorld = PackCascades( GetCascadeTexelWorld );
+	const Vec4 cascadeDepthBias = PackCascades( GetCascadeDepthBias );
+	Mat4 cascadeMatrices[SHADOW_CASCADE_COUNT];
+	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 	{
 		cascadeMatrices[i] = GetCascadeMatrix( i );
 	}
@@ -1716,8 +1408,10 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		up.sun_color = sunColor;
 		up.flags[0] = frame->debugMode;
 		up.cascade_far_view_z = cascadeFarViewZ;
-		up.cascade_pcf_scale = cascadePcfScale;
-		for ( int i = 0; i < 3; ++i )
+		up.cascade_texel_world = cascadeTexelWorld;
+		up.cascade_depth_bias = cascadeDepthBias;
+		up.shadow_params = shadowParams;
+		for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 			up.cascade_matrices[i] = cascadeMatrices[i];
 		up.view = frame->view;
 		up.camera_pos_world = MakeVec4( frame->cameraPosition.x, frame->cameraPosition.y, frame->cameraPosition.z, 0.0f );
@@ -1765,8 +1459,10 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		sup.view_proj = viewProj;
 		sup.view = frame->view;
 		sup.cascade_far_view_z = cascadeFarViewZ;
-		sup.cascade_pcf_scale = cascadePcfScale;
-		for ( int i = 0; i < 3; ++i )
+		sup.cascade_texel_world = cascadeTexelWorld;
+		sup.cascade_depth_bias = cascadeDepthBias;
+		sup.shadow_params = shadowParams;
+		for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 			sup.cascade_matrices[i] = cascadeMatrices[i];
 		for ( int i = 0; i < 9; ++i )
 		{
@@ -1809,8 +1505,10 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		cup.view_proj = viewProj;
 		cup.view = frame->view;
 		cup.cascade_far_view_z = cascadeFarViewZ;
-		cup.cascade_pcf_scale = cascadePcfScale;
-		for ( int i = 0; i < 3; ++i )
+		cup.cascade_texel_world = cascadeTexelWorld;
+		cup.cascade_depth_bias = cascadeDepthBias;
+		cup.shadow_params = shadowParams;
+		for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 			cup.cascade_matrices[i] = cascadeMatrices[i];
 		for ( int i = 0; i < 9; ++i )
 		{
@@ -1862,8 +1560,10 @@ static void DrawScene( int targetWidth, int targetHeight, const FrameInput* fram
 		gup.grid_offset = MakeVec4( frame->gridWrap.x, frame->gridWrap.y, frame->drawOrigin.x, frame->drawOrigin.z );
 		gup.view = frame->view;
 		gup.cascade_far_view_z = cascadeFarViewZ;
-		gup.cascade_pcf_scale = cascadePcfScale;
-		for ( int i = 0; i < 3; ++i )
+		gup.cascade_texel_world = cascadeTexelWorld;
+		gup.cascade_depth_bias = cascadeDepthBias;
+		gup.shadow_params = shadowParams;
+		for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 			gup.cascade_matrices[i] = cascadeMatrices[i];
 		for ( int i = 0; i < 9; ++i )
 		{
@@ -2272,10 +1972,12 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 
 	const sg_backend backend = sg_query_backend();
 	const float uvYSign = ( backend == SG_BACKEND_GLCORE || backend == SG_BACKEND_GLES3 ) ? 1.0f : -1.0f;
-	const Vec4 cascadeFarViewZ = MakeVec4( GetCascadeFarViewZ( 0 ), GetCascadeFarViewZ( 1 ), GetCascadeFarViewZ( 2 ), uvYSign );
-	const Vec4 cascadePcfScale = MakeVec4( GetCascadePcfScale( 0 ), GetCascadePcfScale( 1 ), GetCascadePcfScale( 2 ), 0.0f );
-	Mat4 cascadeMatrices[3];
-	for ( int i = 0; i < 3; ++i )
+	const Vec4 shadowParams = MakeVec4( uvYSign, GetShadowTexelSize(), 0.0f, 0.0f );
+	const Vec4 cascadeFarViewZ = PackCascades( GetCascadeFarViewZ );
+	const Vec4 cascadeTexelWorld = PackCascades( GetCascadeTexelWorld );
+	const Vec4 cascadeDepthBias = PackCascades( GetCascadeDepthBias );
+	Mat4 cascadeMatrices[SHADOW_CASCADE_COUNT];
+	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 	{
 		cascadeMatrices[i] = GetCascadeMatrix( i );
 	}
@@ -2308,8 +2010,10 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	cubePass.sun_color = sunColor;
 	cubePass.flags[0] = frame->debugMode;
 	cubePass.cascade_far_view_z = cascadeFarViewZ;
-	cubePass.cascade_pcf_scale = cascadePcfScale;
-	for ( int i = 0; i < 3; ++i )
+	cubePass.cascade_texel_world = cascadeTexelWorld;
+	cubePass.cascade_depth_bias = cascadeDepthBias;
+	cubePass.shadow_params = shadowParams;
+	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 	{
 		cubePass.cascade_matrices[i] = cascadeMatrices[i];
 	}
@@ -2331,8 +2035,10 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	spherePass.view_proj = view_proj;
 	spherePass.view = frame->view;
 	spherePass.cascade_far_view_z = cascadeFarViewZ;
-	spherePass.cascade_pcf_scale = cascadePcfScale;
-	for ( int i = 0; i < 3; ++i )
+	spherePass.cascade_texel_world = cascadeTexelWorld;
+	spherePass.cascade_depth_bias = cascadeDepthBias;
+	spherePass.shadow_params = shadowParams;
+	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 		spherePass.cascade_matrices[i] = cascadeMatrices[i];
 	for ( int i = 0; i < 9; ++i )
 		spherePass.sh[i] = MakeVec4( iblSh[i].x, iblSh[i].y, iblSh[i].z, 0.0f );
@@ -2348,8 +2054,10 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	capsulePass.view_proj = view_proj;
 	capsulePass.view = frame->view;
 	capsulePass.cascade_far_view_z = cascadeFarViewZ;
-	capsulePass.cascade_pcf_scale = cascadePcfScale;
-	for ( int i = 0; i < 3; ++i )
+	capsulePass.cascade_texel_world = cascadeTexelWorld;
+	capsulePass.cascade_depth_bias = cascadeDepthBias;
+	capsulePass.shadow_params = shadowParams;
+	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 		capsulePass.cascade_matrices[i] = cascadeMatrices[i];
 	for ( int i = 0; i < 9; ++i )
 		capsulePass.sh[i] = MakeVec4( iblSh[i].x, iblSh[i].y, iblSh[i].z, 0.0f );
@@ -2366,8 +2074,10 @@ static void DrawTransparentIntoResolve( int width, int height, const FrameInput*
 	geomPass.grid_offset = MakeVec4( frame->gridWrap.x, frame->gridWrap.y, frame->drawOrigin.x, frame->drawOrigin.z );
 	geomPass.view = frame->view;
 	geomPass.cascade_far_view_z = cascadeFarViewZ;
-	geomPass.cascade_pcf_scale = cascadePcfScale;
-	for ( int i = 0; i < 3; ++i )
+	geomPass.cascade_texel_world = cascadeTexelWorld;
+	geomPass.cascade_depth_bias = cascadeDepthBias;
+	geomPass.shadow_params = shadowParams;
+	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
 		geomPass.cascade_matrices[i] = cascadeMatrices[i];
 	for ( int i = 0; i < 9; ++i )
 		geomPass.sh[i] = MakeVec4( iblSh[i].x, iblSh[i].y, iblSh[i].z, 0.0f );
@@ -2870,12 +2580,8 @@ void ShutdownRenderer( void )
 	ShutdownSky();
 	sg_destroy_pipeline( s_gfx.shadowCapsulePipeline );
 	sg_destroy_shader( s_gfx.shadowCapsuleShader );
-	sg_destroy_buffer( s_gfx.capsuleProxyIbuf );
-	sg_destroy_buffer( s_gfx.capsuleProxyVbuf );
 	sg_destroy_pipeline( s_gfx.shadowSpherePipeline );
 	sg_destroy_shader( s_gfx.shadowSphereShader );
-	sg_destroy_buffer( s_gfx.icosphereIbuf );
-	sg_destroy_buffer( s_gfx.icosphereVbuf );
 	sg_destroy_pipeline( s_gfx.shadowGeomPipelineMirror );
 	sg_destroy_pipeline( s_gfx.shadowGeomPipeline );
 	sg_destroy_shader( s_gfx.shadowGeomShader );

@@ -116,6 +116,7 @@ void SampleContext::Save()
 	fprintf( file, "  \"enableIbl\": %s,\n", GetIblEnabled() ? "true" : "false" );
 	fprintf( file, "  \"exposure\": %g,\n", GetExposure() );
 	fprintf( file, "  \"sunStrength\": %g,\n", GetSun().strength );
+	fprintf( file, "  \"shadowSplitLambda\": %g,\n", GetShadowSplitLambda() );
 	fprintf( file, "  \"debugView\": %d,\n", debugView );
 	fprintf( file, "  \"drawDistance\": %g,\n", drawDistance );
 	fprintf( file, "  \"showHullEdges\": %s,\n", GetEdgeOverlayParams().showHulls ? "true" : "false" );
@@ -234,6 +235,15 @@ void SampleContext::Load()
 			sun.strength = strtof( buffer, nullptr );
 			SetSun( sun );
 		}
+		else if ( jsoneq( data, &tokens[i], "shadowSplitLambda" ) == 0 )
+		{
+			int count = tokens[i + 1].end - tokens[i + 1].start;
+			assert( count < 32 );
+			const char* s = data + tokens[i + 1].start;
+			strncpy( buffer, s, count );
+			buffer[count] = 0;
+			SetShadowSplitLambda( strtof( buffer, nullptr ) );
+		}
 		else if ( jsoneq( data, &tokens[i], "debugView" ) == 0 )
 		{
 			int count = tokens[i + 1].end - tokens[i + 1].start;
@@ -333,6 +343,9 @@ Sample::Sample( SampleContext* context )
 	m_mouseLast = { 0.0f, 0.0f };
 	m_mouseDelta = { 0.0f, 0.0f };
 	m_launchSpeedScale = 5.0f;
+
+	m_shadowSplitNear = 0.0f;
+	m_shadowSplitFar = 0.0f;
 
 	g_randomSeed = RAND_SEED;
 
@@ -510,10 +523,23 @@ void Sample::Step()
 	// Box3D uses this to decide which shapes enter the draw set and lazily fire
 	// createDebugShape. The camera derives it from the view distance, in length units
 	// around the simulation eye, matching the broad-phase tree and the far plane.
-	debugDraw.drawingBounds = m_camera->DrawBounds();
+	const b3AABB drawBox = m_camera->DrawBounds();
 
-	// Same view box drives compound child culling in the adapter.
-	SetViewBounds( debugDraw.drawingBounds );
+	// A caster between the view and the sun is off screen but still darkens what
+	// is on screen, so the draw set has to reach past the view box. Bounds come
+	// back in the eye-relative frame the view inverse maps into, hence the offset.
+	b3Vec3 casterLo, casterHi;
+	const Mat4 viewInv = m_camera->ViewInverse();
+	const Mat4 projInv = m_camera->ProjInverse();
+	GetShadowCasterBounds( &viewInv, &projInv, &casterLo, &casterHi );
+	const b3AABB casterBox = b3OffsetAABB( { casterLo, casterHi }, m_camera->DrawOrigin() );
+
+	debugDraw.drawingBounds.lowerBound = b3Min( drawBox.lowerBound, casterBox.lowerBound );
+	debugDraw.drawingBounds.upperBound = b3Max( drawBox.upperBound, casterBox.upperBound );
+
+	// Compound child culling keeps the tighter view box. Widening it there would
+	// cull nothing.
+	SetViewBounds( drawBox );
 
 	ApplyGuiFlags( &debugDraw );
 
@@ -1355,10 +1381,25 @@ void SelectSample( SampleContext* context, int selection, bool restart )
 	context->restart = restart;
 	context->sample = g_sampleEntries[selection].CreateFcn( context );
 
-	// Fit the shadow cascade range to the world bounds.
-	b3AABB bounds = b3World_GetBounds( context->sample->m_worldId );
-	float diagonal = b3Distance( bounds.lowerBound, bounds.upperBound );
-	SetShadowSplitFar( b3ClampFloat( diagonal, SHADOW_SPLIT_FAR, 200.0f ) );
+	// A sample that knows where its content sits relative to its camera says
+	// so, and is taken at its word. The ceiling below guards a guess, not a
+	// measurement, so capping an explicit request would only hide it.
+	if ( context->sample->m_shadowSplitFar > 0.0f )
+	{
+		// A sample wanting only more reach leaves the near end at zero.
+		float splitNear = context->sample->m_shadowSplitNear;
+		SetShadowSplits( splitNear > 0.0f ? splitNear : SHADOW_SPLIT_NEAR, context->sample->m_shadowSplitFar );
+	}
+	else
+	{
+		// Otherwise fit the range to the world bounds. The bounds are a poor
+		// proxy for how far shadows need to reach: a ground plate stretches
+		// the diagonal well past anything worth shadowing, so the ceiling
+		// matters more than the estimate.
+		b3AABB bounds = b3World_GetBounds( context->sample->m_worldId );
+		float diagonal = b3Distance( bounds.lowerBound, bounds.upperBound );
+		SetShadowSplits( SHADOW_SPLIT_NEAR, b3ClampFloat( diagonal, SHADOW_SPLIT_FAR, SHADOW_SPLIT_FAR_MAX ) );
+	}
 
 	// Samples read restart only while constructing, to keep the camera across a
 	// restart. Clear it so a later switch starts fresh.
@@ -1521,6 +1562,61 @@ static ImVec4 HexColor( b3HexColor hexColor )
 static void DrawRenderMenu( SampleContext& ctx )
 {
 	ImGui::MenuItem( "Shadows", nullptr, &ctx.enableShadows );
+
+	if ( ImGui::BeginMenu( "Cascades" ) )
+	{
+		ImGui::PushItemWidth( 8.0f * ImGui::GetFontSize() );
+
+		// Where the split distribution starts, not where shadows start. Raising
+		// it hands the whole working volume to the first cascade and coarsens
+		// it to suit. The c0 row below is what to steer by: it says how far the
+		// sharp cascade reaches and what one of its texels costs.
+		float splitNear = GetShadowSplitNear();
+		if ( ImGui::SliderFloat( "Start", &splitNear, 0.1f, 30.0f, "%.1f m" ) )
+		{
+			SetShadowSplits( splitNear, GetShadowSplitFar() );
+		}
+
+		// Selecting a sample refits the range to the world, so a value dialed
+		// in here survives only until the next sample switch.
+		float splitFar = GetShadowSplitFar();
+		if ( ImGui::SliderFloat( "Range", &splitFar, 10.0f, 200.0f, "%.0f m" ) )
+		{
+			SetShadowSplitFar( splitFar );
+		}
+
+		float lambda = GetShadowSplitLambda();
+		if ( ImGui::SliderFloat( "Distribution", &lambda, 0.0f, 1.0f, "%.2f" ) )
+		{
+			SetShadowSplitLambda( lambda );
+		}
+
+		ImGui::PopItemWidth();
+
+		// Where each cascade ends and how much world one of its texels covers.
+		// A quality cliff at a boundary is the step between two neighboring
+		// texel sizes, which is easier to read here than off the image.
+		if ( ImGui::BeginTable( "cascades", 3, ImGuiTableFlags_SizingFixedFit ) )
+		{
+			ImGui::TableSetupColumn( "csm" );
+			ImGui::TableSetupColumn( "far" );
+			ImGui::TableSetupColumn( "texel" );
+			ImGui::TableHeadersRow();
+			for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
+			{
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex( 0 );
+				ImGui::Text( "%d", i );
+				ImGui::TableSetColumnIndex( 1 );
+				ImGui::Text( "%.1f m", GetCascadeFarViewZ( i ) );
+				ImGui::TableSetColumnIndex( 2 );
+				ImGui::Text( "%.0f mm", 1000.0f * GetCascadeTexelWorld( i ) );
+			}
+			ImGui::EndTable();
+		}
+
+		ImGui::EndMenu();
+	}
 
 	if ( ImGui::BeginMenu( "GTAO" ) )
 	{

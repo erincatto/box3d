@@ -2260,7 +2260,7 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	}
 
 	hull->hash = 0;
-	uint64_t hash = b3Hash64Blob( (uint8_t*)hull, hull->byteCount );
+	uint64_t hash = b3Hash64NonZero( (uint8_t*)hull, hull->byteCount );
 	hull->hash = hash ? hash : 1;
 	return hull;
 }
@@ -2494,9 +2494,9 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 		return NULL;
 	}
 
+	// Must ensure the hash is 0 so it doesn't contribute to itself.
 	hull->hash = 0;
-	uint64_t hash = b3Hash64Blob( (uint8_t*)hull, hull->byteCount );
-	hull->hash = hash ? hash : 1;
+	hull->hash = b3Hash64NonZero( (uint8_t*)hull, hull->byteCount );
 
 	B3_VALIDATE( b3IsValidHull( hull ) );
 
@@ -2864,10 +2864,9 @@ b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform tr
 	boxHull.nz[6] = 0.0f;
 	boxHull.nz[7] = 0.0f;
 
+	// Must ensure the hash is 0 so it doesn't contribute to itself.
 	boxHull.base.hash = 0;
-
-	uint64_t hash = b3Hash64Blob( (uint8_t*)&boxHull.base, boxHull.base.byteCount );
-	boxHull.base.hash = hash ? hash : 1;
+	boxHull.base.hash = b3Hash64NonZero( (uint8_t*)&boxHull.base, boxHull.base.byteCount );
 
 	return boxHull;
 }

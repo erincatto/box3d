@@ -165,3 +165,6 @@ b3Thread* b3CreateThread( b3ThreadFunction* function, void* context, const char*
 void b3JoinThread( b3Thread* t );
 
 void b3StrCpy( char* dst, int size, const char* src );
+
+// Good quality 64-bit hash that never returns 0.
+uint64_t b3Hash64NonZero( const uint8_t* bytes, int n );

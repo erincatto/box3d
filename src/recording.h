@@ -373,8 +373,6 @@ uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh );
 uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightFieldData* hf );
 uint32_t b3RecInternCompound( b3Recording* rec, const b3CompoundData* compound );
 
-uint64_t b3Hash64Blob( const uint8_t* bytes, int n );
-
 // Lifecycle engine-side hooks
 void b3StartRecordingIntoBuffer( b3World* world, b3Recording* recording );
 void b3StopRecordingInternal( b3World* world );

@@ -138,14 +138,14 @@ static int NameRoundTrip( void )
 
 	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 ) );
 
-	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
+	b3RecPlayer* player = b3CreatePlayer( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
 	ENSURE( player != NULL );
 
 	b3RecPlayer_SeekFrame( player, 20 );
 	ENSURE( !b3RecPlayer_HasDiverged( player ) );
 	ENSURE( CheckReplayNames( player ) == 0 );
 
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( rec );
 	return 0;
 }
@@ -178,7 +178,7 @@ static int RollbackNames( void )
 	b3World_StopRecording( worldId );
 	b3DestroyWorld( worldId );
 
-	b3RecPlayer* player = b3RecPlayer_Create( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
+	b3RecPlayer* player = b3CreatePlayer( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 );
 	ENSURE( player != NULL );
 
 	// Play to the end so the keyframe ring is populated.
@@ -195,7 +195,7 @@ static int RollbackNames( void )
 		ENSURE( CheckReplayNames( player ) == 0 );
 	}
 
-	b3RecPlayer_Destroy( player );
+	b3DestroyPlayer( player );
 	b3DestroyRecording( rec );
 
 	// Every restore reloaded the name table; dropped duplicate copies must be freed, not leaked.

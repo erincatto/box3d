@@ -22,14 +22,17 @@ float sampleShadowTap( texture2DArray tex, samplerShadow smp, vec2 uv, float lay
 }
 
 // scale multiplies the tap offsets. Cascades cover different world sizes
-// per texel, the caller passes GetCascadePcfScale's texel-size ratio so
-// the penumbra keeps a constant world width instead of jumping from
-// crisp to blurry at every cascade boundary. 1.0 = the full 7x7 kernel.
-float sampleShadowPCF( texture2DArray tex, samplerShadow smp, int cascade, vec3 light_uv, float bias, float scale )
+// per texel, so the caller passes the texel-size ratio against the near
+// cascade and the penumbra keeps a constant world width instead of
+// jumping from crisp to blurry at every cascade boundary. 1.0 = the full
+// 7x7 kernel.
+//
+// inv_size is one texel in UV. Passed in rather than baked in so the
+// kernel follows SHADOW_RESOLUTION without a second place to edit.
+float sampleShadowPCF( texture2DArray tex, samplerShadow smp, int cascade, vec3 light_uv, float bias, float scale,
+					   float inv_size )
 {
-	// Must match SHADOW_RESOLUTION in shadow.h
-	const float size = 4096.0;
-	const float inv_size = 1.0 / size;
+	float size = 1.0 / inv_size;
 
 	float ly = float( cascade );
 	float rz = light_uv.z - bias;

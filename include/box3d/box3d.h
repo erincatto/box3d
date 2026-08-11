@@ -323,10 +323,10 @@ typedef struct b3RecPlayerInfo
 /// Replaying at a different count re-partitions the constraint graph, so the StateHash check
 /// becomes a cross-thread determinism test. Adjustable later with b3RecPlayer_SetWorkerCount.
 /// @return a new player, or NULL on bad header or deserialization failure
-B3_API b3RecPlayer* b3RecPlayer_Create( const void* data, int size, int workerCount );
+B3_API b3RecPlayer* b3CreatePlayer( const void* data, int size, int workerCount );
 
 /// Destroy the player and free all memory. Restores the previous global length scale.
-B3_API void b3RecPlayer_Destroy( b3RecPlayer* player );
+B3_API void b3DestroyPlayer( b3RecPlayer* player );
 
 /// Advance one frame. dispatch ops until the next Step completes.
 /// @return true when a frame was stepped, false at end-of-recording

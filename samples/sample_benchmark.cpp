@@ -30,6 +30,8 @@ public:
 			m_camera->SetView( 40.0f, -10.0f, 110.0f, { 0.0f, 40.0f, 0.0f } );
 		}
 
+		m_shadowSplitFar = 180.0f;
+
 		CreateLargePyramid( m_worldId );
 
 		SetGroundShape( GetGroundShapeId() );
@@ -1463,6 +1465,10 @@ public:
 		{
 			m_camera->SetView( 45.0f, 20.0f, 150.0f, { 0.0f, 15.0f, 0.0f } );
 		}
+
+		// Watched from 150 m out, so the settled pile sits between 100 and 180 m
+		// of view depth and the guessed range stops less than halfway into it.
+		m_shadowSplitFar = 180.0f;
 
 		b3Capacity capacity = {};
 		GetConvexPileCapacity( &capacity );

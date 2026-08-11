@@ -735,45 +735,6 @@ void b3RecEndRecord( b3Recording* rec )
 
 // Geometry registry
 
-// Full 64-bit content hash, so distinct blobs of the same length get independent bits. A reseeded
-// 32-bit djb2 cannot: djb2 is affine in its seed, so a same-length collision survives every seed and
-// the high word would just track the low one. Word folded for speed, byte order normalized on
-// big-endian to match b3Hash, then a splitmix64 finalizer so tiny inputs still spread across all bits.
-// From Fowler/Noll/Vo FNV-1a salted by length, then the splitmix64 mix.
-uint64_t b3Hash64Blob( const uint8_t* bytes, int n )
-{
-	uint64_t h = 0xcbf29ce484222325ull ^ (uint64_t)(uint32_t)n;
-	const uint64_t prime = 0x100000001b3ull;
-	int i = 0;
-
-	while ( i + 8 <= n )
-	{
-		uint64_t word;
-		memcpy( &word, bytes + i, sizeof( word ) );
-#if defined( __BYTE_ORDER__ ) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-		word = ( ( word & 0x00000000000000FFULL ) << 56 ) | ( ( word & 0x000000000000FF00ULL ) << 40 ) |
-			   ( ( word & 0x0000000000FF0000ULL ) << 24 ) | ( ( word & 0x00000000FF000000ULL ) << 8 ) |
-			   ( ( word & 0x000000FF00000000ULL ) >> 8 ) | ( ( word & 0x0000FF0000000000ULL ) >> 24 ) |
-			   ( ( word & 0x00FF000000000000ULL ) >> 40 ) | ( ( word & 0xFF00000000000000ULL ) >> 56 );
-#endif
-		h = ( h ^ word ) * prime;
-		i += 8;
-	}
-
-	while ( i < n )
-	{
-		h = ( h ^ (uint64_t)bytes[i] ) * prime;
-		i += 1;
-	}
-
-	h ^= h >> 30;
-	h *= 0xbf58476d1ce4e5b9ull;
-	h ^= h >> 27;
-	h *= 0x94d049bb133111ebull;
-	h ^= h >> 31;
-	return h;
-}
-
 // Content hash to chain head, so dedup is near O(1). Colliding hashes share a head and are walked
 // through b3GeometryEntry::hashNext, so the byteCount + memcmp check always finds an existing blob.
 #define NAME b3GeometryHashMap
@@ -1186,7 +1147,7 @@ uint32_t b3RecInternHull( b3Recording* rec, const b3HullData* hull )
 	int byteCount = hull->byteCount;
 	uint8_t* bytes = b3Alloc( (size_t)byteCount );
 	memcpy( bytes, hull, (size_t)byteCount );
-	uint64_t h = b3Hash64Blob( bytes, byteCount );
+	uint64_t h = b3Hash64NonZero( bytes, byteCount );
 	return b3InternGeometry( &rec->registry, b3_geometryHull, h, bytes, byteCount );
 }
 
@@ -1195,7 +1156,7 @@ uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh )
 	int byteCount = mesh->byteCount;
 	uint8_t* bytes = b3Alloc( (size_t)byteCount );
 	memcpy( bytes, mesh, (size_t)byteCount );
-	uint64_t h = b3Hash64Blob( bytes, byteCount );
+	uint64_t h = b3Hash64NonZero( bytes, byteCount );
 	return b3InternGeometry( &rec->registry, b3_geometryMesh, h, bytes, byteCount );
 }
 
@@ -1204,7 +1165,7 @@ uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightFieldData* hf )
 	int byteCount = hf->byteCount;
 	uint8_t* bytes = b3Alloc( (size_t)byteCount );
 	memcpy( bytes, hf, (size_t)byteCount );
-	uint64_t h = b3Hash64Blob( bytes, byteCount );
+	uint64_t h = b3Hash64NonZero( bytes, byteCount );
 	return b3InternGeometry( &rec->registry, b3_geometryHeightField, h, bytes, byteCount );
 }
 
@@ -1216,7 +1177,7 @@ uint32_t b3RecInternCompound( b3Recording* rec, const b3CompoundData* compound )
 	// Null the tree node pointer in the copy so the canonical bytes are pointer-free.
 	// b3ConvertBytesToCompound fixes it back on load via nodeOffset.
 	( (b3CompoundData*)bytes )->tree.nodes = NULL;
-	uint64_t h = b3Hash64Blob( bytes, byteCount );
+	uint64_t h = b3Hash64NonZero( bytes, byteCount );
 	return b3InternGeometry( &rec->registry, b3_geometryCompound, h, bytes, byteCount );
 }
 
