@@ -19,9 +19,9 @@
 // state hash differ from the float build. Both modes are internally deterministic.
 #if defined( BOX3D_DOUBLE_PRECISION )
 #define RAGDOLL_SLEEP_STEP 297
-#define RAGDOLL_HASH 0x27FF38C1
+#define RAGDOLL_HASH 0xF4036C3A
 #define WAVE_PILE_SLEEP_STEP 297
-#define WAVE_PILE_HASH 0x420CA784
+#define WAVE_PILE_HASH 0x658C00CF
 #define QUERY_SPAWN_SLEEP_STEP 242
 #define QUERY_SPAWN_HASH 0x1737F5BC
 #define QUERY_SPAWN_HIT_COUNT 59

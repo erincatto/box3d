@@ -7,7 +7,6 @@
 
 #include "algorithm.h"
 #include "math_internal.h"
-#include "recording.h"
 #include "shape.h"
 
 #include "box3d/collision.h"
