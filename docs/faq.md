@@ -48,7 +48,7 @@ knowledge of the algorithms used in Box3D.
 
 You can use Box3D in Unreal as a plug-in. Here is the module file I use:
 
-![Box3D module](https://gist.github.com/erincatto/6f08df5f1e6e9a79fb4be6298a3e1125)
+[Box3D module](https://gist.github.com/erincatto/6f08df5f1e6e9a79fb4be6298a3e1125)
 
 Unreal uses centimeters as units while Box3D has tolerances tuned for meters. You can either scale dimensions you send and recieve from Box3D or you can use this to set the length units:
 

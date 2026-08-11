@@ -1968,7 +1968,7 @@ typedef struct b3HullFace
 } b3HullFace;
 
 /// 64-bit hull version. Useful for validating serialized data.
-#define B3_HULL_VERSION 1 /// 64-bit hash
+#define B3_HULL_VERSION 0xE3BD07365000417Cull
 
 /// A convex hull.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -2044,7 +2044,7 @@ typedef struct b3BoxHull
 	b3HullHalfEdge boxEdges[24]; ///< Box half-edges.
 	b3Plane boxPlanes[6];		 ///< Box face planes.
 	b3HullFace boxFaces[6];		 ///< Box faces.
-	uint8_t padding[10];		 ///< Explicit padding, see b3HullData::padding.
+	uint8_t padding[2];			 ///< Explicit padding.
 	float vx[8];				 ///< vertex x
 	float vy[8];				 ///< vertex y
 	float vz[8];				 ///< vertex z
@@ -2097,7 +2097,7 @@ typedef struct b3MeshDef
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.
-#define B3_MESH_VERSION 1 // 64-bit hash
+#define B3_MESH_VERSION 0xA661B13E6655156Full
 
 /// Triangle mesh edge flags.
 typedef enum b3MeshEdgeFlags
@@ -2278,7 +2278,7 @@ typedef struct b3HeightFieldDef
 #define B3_HEIGHT_FIELD_HOLE 0xFF
 
 /// 64-bit height-field version. Useful for validating serialized data.
-#define B3_HEIGHT_FIELD_VERSION 1 // 64-bit hash
+#define B3_HEIGHT_FIELD_VERSION 0x9FEE70DB5A860835ull
 
 /// A height field with compressed storage.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -2974,7 +2974,7 @@ typedef struct b3DebugShape
 typedef struct b3DebugDraw
 {
 	/// Draws a user shape. The userShape pointer is owned by the application and is known to Box3D as
-	/// an opaque pointer returned from b3CreateDebugShapeCallback. When this is called the drawn shape has 
+	/// an opaque pointer returned from b3CreateDebugShapeCallback. When this is called the drawn shape has
 	/// passed a culling test against drawingBounds below.
 	void ( *DrawShapeFcn )( void* userShape, b3WorldTransform transform, b3HexColor color, void* context );
 

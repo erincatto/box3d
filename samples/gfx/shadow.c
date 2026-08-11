@@ -231,6 +231,15 @@ void InitShadows( void )
 	s_shadow.splitFar = SHADOW_SPLIT_FAR;
 	s_shadow.splitLambda = PSSM_LAMBDA;
 
+	// The lit shaders divide by the texel size to scale the filter against
+	// cascade zero, so leaving these zero until the first FitShadows would
+	// render a frame of NaN. This is what a unit cascade radius works out to,
+	// which makes every ratio one.
+	for ( int i = 0; i < SHADOW_CASCADE_COUNT; ++i )
+	{
+		s_shadow.cascadeTexelWorld[i] = 2.0f / (float)SHADOW_RESOLUTION;
+	}
+
 	sg_image_desc desc = { 0 };
 	desc.type = SG_IMAGETYPE_ARRAY;
 	desc.usage.depth_stencil_attachment = true;

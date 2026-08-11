@@ -2259,8 +2259,8 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	}
 
 	hull->hash = 0;
-	uint64_t hash = b3Hash64NonZero( (uint8_t*)hull, hull->byteCount );
-	hull->hash = hash ? hash : 1;
+	hull->hash = b3Hash64NonZero( (uint8_t*)hull, hull->byteCount );
+
 	return hull;
 }
 

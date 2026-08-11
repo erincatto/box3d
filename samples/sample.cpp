@@ -139,6 +139,34 @@ static int jsoneq( const char* json, jsmntok_t* tok, const char* s )
 	return -1;
 }
 
+// Tokens are not terminated, so copy before handing one to strtof or strtol.
+// The settings file is hand editable, so truncate a long token rather than
+// trusting it to fit.
+static void CopyToken( char* buffer, int capacity, const char* json, const jsmntok_t& tok )
+{
+	int count = tok.end - tok.start;
+	if ( count > capacity - 1 )
+	{
+		count = capacity - 1;
+	}
+	memcpy( buffer, json + tok.start, count );
+	buffer[count] = 0;
+}
+
+static float ParseFloat( const char* json, const jsmntok_t& tok )
+{
+	char buffer[32];
+	CopyToken( buffer, (int)sizeof( buffer ), json, tok );
+	return strtof( buffer, nullptr );
+}
+
+static int ParseInt( const char* json, const jsmntok_t& tok )
+{
+	char buffer[32];
+	CopyToken( buffer, (int)sizeof( buffer ), json, tok );
+	return (int)strtol( buffer, nullptr, 10 );
+}
+
 void SampleContext::Load()
 {
 	recycleDistance = B3_CONTACT_RECYCLE_DISTANCE;
@@ -159,19 +187,12 @@ void SampleContext::Load()
 	jsmn_init( &parser );
 
 	int tokenCount = jsmn_parse( &parser, data, size, tokens, MAX_TOKENS );
-	char buffer[32];
 
 	for ( int i = 0; i < tokenCount; ++i )
 	{
 		if ( jsoneq( data, &tokens[i], "sampleIndex" ) == 0 )
 		{
-			int count = tokens[i + 1].end - tokens[i + 1].start;
-			assert( count < 32 );
-			const char* s = data + tokens[i + 1].start;
-			strncpy( buffer, s, count );
-			buffer[count] = 0;
-			char* dummy;
-			sampleIndex = (int)strtol( buffer, &dummy, 10 );
+			sampleIndex = ParseInt( data, tokens[i + 1] );
 
 			if ( sampleIndex < 0 )
 			{
@@ -199,12 +220,7 @@ void SampleContext::Load()
 		}
 		else if ( jsoneq( data, &tokens[i], "gtaoQuality" ) == 0 )
 		{
-			int count = tokens[i + 1].end - tokens[i + 1].start;
-			assert( count < 32 );
-			const char* s = data + tokens[i + 1].start;
-			strncpy( buffer, s, count );
-			buffer[count] = 0;
-			int quality = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 0, 2 );
+			int quality = b3ClampInt( ParseInt( data, tokens[i + 1] ), 0, 2 );
 
 			GtaoTraceParams p = GetGtaoTraceParams();
 			p.quality = (AmbientOcclusionQuality)quality;
@@ -217,50 +233,25 @@ void SampleContext::Load()
 		}
 		else if ( jsoneq( data, &tokens[i], "exposure" ) == 0 )
 		{
-			int count = tokens[i + 1].end - tokens[i + 1].start;
-			assert( count < 32 );
-			const char* s = data + tokens[i + 1].start;
-			strncpy( buffer, s, count );
-			buffer[count] = 0;
-			SetExposure( strtof( buffer, nullptr ) );
+			SetExposure( ParseFloat( data, tokens[i + 1] ) );
 		}
 		else if ( jsoneq( data, &tokens[i], "sunStrength" ) == 0 )
 		{
-			int count = tokens[i + 1].end - tokens[i + 1].start;
-			assert( count < 32 );
-			const char* s = data + tokens[i + 1].start;
-			strncpy( buffer, s, count );
-			buffer[count] = 0;
 			Sun sun = GetSun();
-			sun.strength = strtof( buffer, nullptr );
+			sun.strength = ParseFloat( data, tokens[i + 1] );
 			SetSun( sun );
 		}
 		else if ( jsoneq( data, &tokens[i], "shadowSplitLambda" ) == 0 )
 		{
-			int count = tokens[i + 1].end - tokens[i + 1].start;
-			assert( count < 32 );
-			const char* s = data + tokens[i + 1].start;
-			strncpy( buffer, s, count );
-			buffer[count] = 0;
-			SetShadowSplitLambda( strtof( buffer, nullptr ) );
+			SetShadowSplitLambda( ParseFloat( data, tokens[i + 1] ) );
 		}
 		else if ( jsoneq( data, &tokens[i], "debugView" ) == 0 )
 		{
-			int count = tokens[i + 1].end - tokens[i + 1].start;
-			assert( count < 32 );
-			const char* s = data + tokens[i + 1].start;
-			strncpy( buffer, s, count );
-			buffer[count] = 0;
-			debugView = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 0, 4 );
+			debugView = b3ClampInt( ParseInt( data, tokens[i + 1] ), 0, 4 );
 		}
 		else if ( jsoneq( data, &tokens[i], "drawDistance" ) == 0 )
 		{
-			int count = tokens[i + 1].end - tokens[i + 1].start;
-			assert( count < 32 );
-			const char* s = data + tokens[i + 1].start;
-			strncpy( buffer, s, count );
-			buffer[count] = 0;
-			drawDistance = b3ClampFloat( strtof( buffer, nullptr ), 1.0f, Camera::kViewDistance );
+			drawDistance = b3ClampFloat( ParseFloat( data, tokens[i + 1] ), 1.0f, Camera::kViewDistance );
 		}
 		else if ( jsoneq( data, &tokens[i], "showHullEdges" ) == 0 )
 		{
@@ -278,27 +269,11 @@ void SampleContext::Load()
 		}
 		else if ( jsoneq( data, &tokens[i], "replayKeyframeBudgetMB" ) == 0 )
 		{
-			int count = tokens[i + 1].end - tokens[i + 1].start;
-			if ( count > (int)sizeof( buffer ) - 1 )
-			{
-				count = (int)sizeof( buffer ) - 1;
-			}
-			const char* s = data + tokens[i + 1].start;
-			memcpy( buffer, s, count );
-			buffer[count] = 0;
-			replayKeyframeBudgetMB = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 64, 4096 );
+			replayKeyframeBudgetMB = b3ClampInt( ParseInt( data, tokens[i + 1] ), 64, 4096 );
 		}
 		else if ( jsoneq( data, &tokens[i], "replayKeyframeMinInterval" ) == 0 )
 		{
-			int count = tokens[i + 1].end - tokens[i + 1].start;
-			if ( count > (int)sizeof( buffer ) - 1 )
-			{
-				count = (int)sizeof( buffer ) - 1;
-			}
-			const char* s = data + tokens[i + 1].start;
-			memcpy( buffer, s, count );
-			buffer[count] = 0;
-			replayKeyframeMinInterval = b3ClampInt( (int)strtol( buffer, nullptr, 10 ), 1, 1024 );
+			replayKeyframeMinInterval = b3ClampInt( ParseInt( data, tokens[i + 1] ), 1, 1024 );
 		}
 	}
 

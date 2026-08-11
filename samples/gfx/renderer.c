@@ -937,9 +937,18 @@ static b3Vec3 TransformDir( Mat4 m, b3Vec3 v )
 // The lit shaders carry their own SHADOW_CASCADE_COUNT, and nothing links it
 // to the one here. Check the generated layout instead, so a half-finished
 // change is a build error rather than a cascade that silently never receives
-// its matrix. Tripping this means regenerating the shaders.
+// its matrix, or a fill loop that runs off the end of the array into the
+// uniforms behind it. Every shader that takes cascades needs its own check,
+// since they are generated one at a time. Tripping this means regenerating
+// the shaders.
 _Static_assert( sizeof( ( (ub_pass_t*)0 )->cascade_matrices ) / sizeof( Mat4 ) == SHADOW_CASCADE_COUNT,
-				"shader cascade count differs from SHADOW_CASCADE_COUNT" );
+				"cube shader cascade count differs from SHADOW_CASCADE_COUNT" );
+_Static_assert( sizeof( ( (sphere_ub_pass_t*)0 )->cascade_matrices ) / sizeof( Mat4 ) == SHADOW_CASCADE_COUNT,
+				"sphere shader cascade count differs from SHADOW_CASCADE_COUNT" );
+_Static_assert( sizeof( ( (capsule_ub_pass_t*)0 )->cascade_matrices ) / sizeof( Mat4 ) == SHADOW_CASCADE_COUNT,
+				"capsule shader cascade count differs from SHADOW_CASCADE_COUNT" );
+_Static_assert( sizeof( ( (geom_ub_pass_t*)0 )->cascade_matrices ) / sizeof( Mat4 ) == SHADOW_CASCADE_COUNT,
+				"geom shader cascade count differs from SHADOW_CASCADE_COUNT" );
 
 // One vec4 lane per cascade, which is what caps the count at four. Lanes past
 // the count stay zero, so a shader built for more would read unlit rather than

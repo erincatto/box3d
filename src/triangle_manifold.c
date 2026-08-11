@@ -933,9 +933,7 @@ static void b3CollideTriangleAndHullEdges( b3LocalManifold* manifold, int capaci
 		return;
 	}
 
-	// This can slide off the end from caching
 	float separation = b3Dot( query.normal, b3Sub( pB, pA ) );
-
 	b3Vec3 point = b3MulSV( 0.5f, b3Add( result.point1, result.point2 ) );
 
 	b3LocalManifoldPoint* pt = manifold->points + 0;
