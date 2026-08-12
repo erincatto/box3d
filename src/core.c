@@ -11,6 +11,7 @@
 #endif
 
 #include "core.h"
+#include "rapidhash.h"
 
 #include "box3d/constants.h"
 #include "box3d/math_functions.h"
@@ -254,26 +255,8 @@ void b3StrCpy( char* dst, int size, const char* src )
 	}
 }
 
-// FNV-1a with splitmix64 finalizer so tiny inputs still spread across all bits.
-uint64_t b3Hash64NonZero( const uint8_t* bytes, int n )
+uint64_t b3Hash64NonZero( const uint8_t* bytes, size_t n )
 {
-	// FNV-1a
-	uint64_t h = 0xcbf29ce484222325ull;
-	for ( int i = 0; i < n; ++i )
-	{
-		h = ( h ^ bytes[i] ) * 0x100000001b3ull;
-	}
-
-	// Fold in the length.
-	h ^= (uint64_t)(uint32_t)n;
-
-	// splitmix64 finalizer
-	h ^= h >> 30;
-	h *= 0xbf58476d1ce4e5b9ull;
-	h ^= h >> 27;
-	h *= 0x94d049bb133111ebull;
-	h ^= h >> 31;
-
-	// Prevent 0.
+	uint64_t h = rapidhash( bytes, n );
 	return h == 0 ? 1 : h;
 }

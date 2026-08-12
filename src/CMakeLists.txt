@@ -58,6 +58,7 @@ set(BOX3D_SOURCE_FILES
 	platform.h
 	prismatic_joint.c
 	qsort.h
+	rapidhash.h
 	recording.c
 	recording.h
 	recording_ops.inl

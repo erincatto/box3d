@@ -2595,11 +2595,12 @@ static void b3RecSeedKeyframeRegistry( b3RecPlayer* player )
 		// Copy so the registry can take ownership.
 		int n = slot->byteCount > 0 ? slot->byteCount : 1;
 		uint8_t* copy = (uint8_t*)b3Alloc( (size_t)n );
+		uint64_t h = 1;
 		if ( slot->byteCount > 0 )
 		{
 			memcpy( copy, slot->bytes, (size_t)slot->byteCount );
+			h = b3Hash64NonZero( slot->bytes, slot->byteCount );
 		}
-		uint64_t h = b3Hash64NonZero( slot->bytes, slot->byteCount );
 		uint32_t id = b3AppendGeometry( reg, slot->kind, h, copy, slot->byteCount );
 		// Seeding in order without dedup keeps id == slot index.
 		B3_ASSERT( id == (uint32_t)i );
