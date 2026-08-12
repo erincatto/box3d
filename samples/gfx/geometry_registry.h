@@ -3,7 +3,7 @@
 
 // Ref-counted GPU buffer store for triangle geometries (convex hulls,
 // triangle meshes, heightfields). Owned by the renderer
-// Keyed by uint32_t content hash for Box3D shapes we
+// Keyed by uint64_t content hash for Box3D shapes we
 // pass through b3HullData.hash / b3MeshData.hash / b3HeightFieldData.hash
 //
 // Lifecycle:

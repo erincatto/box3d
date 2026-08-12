@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static const char* s_recPath = "recording_allops_test.b3rec";
@@ -1657,6 +1658,59 @@ static int ReservedHeaderBytes( void )
 	return 0;
 }
 
+static int CompareHashes( const void* a, const void* b )
+{
+	uint64_t x = *(const uint64_t*)a;
+	uint64_t y = *(const uint64_t*)b;
+	return x < y ? -1 : ( x > y ? 1 : 0 );
+}
+
+// The content hash must reach the whole 64 bit space, not just the bits above where the input
+// entered. Multiply carries bits upward only, so a hash that consumed 8 bytes per round left the
+// low bits of the accumulator blind to the upper bytes of every word: blobs agreeing in the low
+// bits of each word agreed in the low bits of the hash forever, and a bijective finalizer cannot
+// put back what never mixed. Varying only the top byte of two words gives 65536 blobs that
+// collapsed onto 256 hashes. Hashing a byte at a time enters every input bit at the bottom of the
+// multiply, so all 65536 stay distinct. A pairwise avalanche check does not catch this, since the
+// finalizer spreads any single difference across all bits.
+static int GeometryHashWidth( void )
+{
+	enum
+	{
+		blobSize = 16,
+		familySize = 256 * 256
+	};
+
+	uint64_t* hashes = B3_ALLOC( uint64_t, familySize );
+
+	uint8_t blob[blobSize];
+	for ( int i = 0; i < blobSize; ++i )
+	{
+		blob[i] = (uint8_t)( 0x5A + i );
+	}
+
+	for ( int a = 0; a < 256; ++a )
+	{
+		for ( int b = 0; b < 256; ++b )
+		{
+			// Top byte of each 8 byte word, the positions a wide mix could not reach down from
+			blob[7] = (uint8_t)a;
+			blob[15] = (uint8_t)b;
+			hashes[a * 256 + b] = b3Hash64NonZero( blob, blobSize );
+		}
+	}
+
+	qsort( hashes, familySize, sizeof( uint64_t ), CompareHashes );
+
+	for ( int i = 1; i < familySize; ++i )
+	{
+		ENSURE( hashes[i] != hashes[i - 1] );
+	}
+
+	B3_FREE( hashes, uint64_t, familySize );
+	return 0;
+}
+
 // Geometry that shares a content hash but differs in bytes must dedup exactly. Mirrors the keyframe
 // flow that crashed: the seed appends every slot 1:1 (even byte-identical duplicates a hash collision
 // left in an already-recorded file), then capture must resolve a live blob back to an existing slot
@@ -2079,6 +2133,7 @@ static int GeometryMutatorReplay( void )
 
 int RecordingTest( void )
 {
+	RUN_SUBTEST( GeometryHashWidth );
 	RUN_SUBTEST( GeometryHashCollision );
 	RUN_SUBTEST( ShapeNameReplay );
 	RUN_SUBTEST( SphereRoundTrip );

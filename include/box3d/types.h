@@ -1968,7 +1968,7 @@ typedef struct b3HullFace
 } b3HullFace;
 
 /// 64-bit hull version. Useful for validating serialized data.
-#define B3_HULL_VERSION 0xE3BD07365000417Cull
+#define B3_HULL_VERSION 0x4A4C9587DE57485Cull
 
 /// A convex hull.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -2097,7 +2097,7 @@ typedef struct b3MeshDef
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.
-#define B3_MESH_VERSION 0xA661B13E6655156Full
+#define B3_MESH_VERSION 0xAAAB9A00F1A8AAF7ull
 
 /// Triangle mesh edge flags.
 typedef enum b3MeshEdgeFlags
@@ -2278,7 +2278,7 @@ typedef struct b3HeightFieldDef
 #define B3_HEIGHT_FIELD_HOLE 0xFF
 
 /// 64-bit height-field version. Useful for validating serialized data.
-#define B3_HEIGHT_FIELD_VERSION 0x9FEE70DB5A860835ull
+#define B3_HEIGHT_FIELD_VERSION 0x8E41E5FB084848F8ull
 
 /// A height field with compressed storage.
 /// @note This data structure has data hanging off the end and cannot be directly copied.

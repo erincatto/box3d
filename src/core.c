@@ -254,38 +254,26 @@ void b3StrCpy( char* dst, int size, const char* src )
 	}
 }
 
-// Fowler/Noll/Vo FNV-1a salted by length, then the splitmix64 finalizer so tiny inputs
-// still spread across all bits.
+// FNV-1a with splitmix64 finalizer so tiny inputs still spread across all bits.
 uint64_t b3Hash64NonZero( const uint8_t* bytes, int n )
 {
-	uint64_t h = 0xcbf29ce484222325ull ^ (uint64_t)(uint32_t)n;
-	const uint64_t prime = 0x100000001b3ull;
-	int i = 0;
-
-	while ( i + 8 <= n )
+	// FNV-1a
+	uint64_t h = 0xcbf29ce484222325ull;
+	for ( int i = 0; i < n; ++i )
 	{
-		uint64_t word;
-		memcpy( &word, bytes + i, sizeof( word ) );
-#if defined( __BYTE_ORDER__ ) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-		word = ( ( word & 0x00000000000000FFULL ) << 56 ) | ( ( word & 0x000000000000FF00ULL ) << 40 ) |
-			   ( ( word & 0x0000000000FF0000ULL ) << 24 ) | ( ( word & 0x00000000FF000000ULL ) << 8 ) |
-			   ( ( word & 0x000000FF00000000ULL ) >> 8 ) | ( ( word & 0x0000FF0000000000ULL ) >> 24 ) |
-			   ( ( word & 0x00FF000000000000ULL ) >> 40 ) | ( ( word & 0xFF00000000000000ULL ) >> 56 );
-#endif
-		h = ( h ^ word ) * prime;
-		i += 8;
+		h = ( h ^ bytes[i] ) * 0x100000001b3ull;
 	}
 
-	while ( i < n )
-	{
-		h = ( h ^ (uint64_t)bytes[i] ) * prime;
-		i += 1;
-	}
+	// Fold in the length.
+	h ^= (uint64_t)(uint32_t)n;
 
+	// splitmix64 finalizer
 	h ^= h >> 30;
 	h *= 0xbf58476d1ce4e5b9ull;
 	h ^= h >> 27;
 	h *= 0x94d049bb133111ebull;
 	h ^= h >> 31;
+
+	// Prevent 0.
 	return h == 0 ? 1 : h;
 }
