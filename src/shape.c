@@ -352,7 +352,14 @@ b3ShapeId b3CreateCapsuleShape( b3BodyId bodyId, const b3ShapeDef* def, const b3
 b3ShapeId b3CreateHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HullData* hull )
 {
 	B3_VALIDATE( b3IsValidHull( hull ) );
-	B3_VALIDATE( hull->hash != 0 );
+	B3_ASSERT( hull->version == B3_HULL_VERSION );
+	B3_ASSERT( hull->hash != 0 );
+
+	if ( hull->version != B3_HULL_VERSION )
+	{
+		return b3_nullShapeId;
+	}
+
 	b3ShapeId shapeId = b3CreateShape( bodyId, def, hull, b3_hullShape, b3Transform_identity, b3Vec3_one, false );
 	if ( shapeId.index1 != 0 )
 	{
@@ -371,6 +378,14 @@ b3ShapeId b3CreateTransformedHullShape( b3BodyId bodyId, const b3ShapeDef* def, 
 										b3Vec3 scale )
 {
 	B3_VALIDATE( b3IsValidHull( hull ) );
+	B3_ASSERT( hull->version == B3_HULL_VERSION );
+	B3_ASSERT( hull->hash != 0 );
+
+	if ( hull->version != B3_HULL_VERSION )
+	{
+		return b3_nullShapeId;
+	}
+
 	b3ShapeId shapeId = b3CreateShape( bodyId, def, hull, b3_hullShape, transform, scale, true );
 	if ( shapeId.index1 != 0 )
 	{
@@ -392,7 +407,14 @@ b3ShapeId b3CreateTransformedHullShape( b3BodyId bodyId, const b3ShapeDef* def, 
 b3ShapeId b3CreateMeshShape( b3BodyId bodyId, const b3ShapeDef* def, const b3MeshData* mesh, b3Vec3 scale )
 {
 	B3_VALIDATE( b3IsValidMesh( mesh ) );
-	B3_VALIDATE( mesh->hash != 0 );
+	B3_ASSERT( mesh->version == B3_MESH_VERSION );
+	B3_ASSERT( mesh->hash != 0 );
+
+	if ( mesh->version != B3_MESH_VERSION )
+	{
+		return b3_nullShapeId;
+	}
+
 	b3ShapeId shapeId = b3CreateShape( bodyId, def, mesh, b3_meshShape, b3Transform_identity, scale, true );
 	if ( shapeId.index1 != 0 )
 	{
@@ -409,7 +431,14 @@ b3ShapeId b3CreateMeshShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Mes
 
 b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HeightFieldData* heightField )
 {
-	B3_VALIDATE( heightField->hash != 0 );
+	B3_ASSERT( heightField->version == B3_HEIGHT_FIELD_VERSION );
+	B3_ASSERT( heightField->hash != 0 );
+
+	if ( heightField->version != B3_HEIGHT_FIELD_VERSION )
+	{
+		return b3_nullShapeId;
+	}
+
 	b3ShapeId shapeId = b3CreateShape( bodyId, def, heightField, b3_heightShape, b3Transform_identity, b3Vec3_one, false );
 	if ( shapeId.index1 != 0 )
 	{
@@ -426,6 +455,13 @@ b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* def, cons
 
 b3ShapeId b3CreateBakedCompoundShape( b3BodyId bodyId, b3ShapeDef* def, const b3CompoundData* compound )
 {
+	B3_ASSERT( compound->version == B3_COMPOUND_VERSION );
+
+	if ( compound->version != B3_COMPOUND_VERSION )
+	{
+		return b3_nullShapeId;
+	}
+
 	b3ShapeId shapeId = b3CreateShape( bodyId, def, compound, b3_compoundShape, b3Transform_identity, b3Vec3_one, false );
 	if ( shapeId.index1 != 0 )
 	{

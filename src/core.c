@@ -255,8 +255,13 @@ void b3StrCpy( char* dst, int size, const char* src )
 	}
 }
 
-uint64_t b3Hash64NonZero( const uint8_t* bytes, size_t n )
+uint64_t b3Hash64NonZero( const uint8_t* bytes, int n )
 {
+	if ( n <= 0 )
+	{
+		return 1;
+	}
+
 	uint64_t h = rapidhash( bytes, n );
 	return h == 0 ? 1 : h;
 }

@@ -34,6 +34,7 @@ extern int CompoundTest( void );
 extern int ContainerTest( void );
 extern int DeterminismTest( void );
 extern int DistanceTest( void );
+extern int HashTest( void );
 extern int HeightFieldTest( void );
 extern int HullTest( void );
 extern int IdTest( void );
@@ -107,6 +108,7 @@ int main( int argc, char** argv )
 	MAYBE_RUN_TEST( ContainerTest );
 	MAYBE_RUN_TEST( DeterminismTest );
 	MAYBE_RUN_TEST( DistanceTest );
+	MAYBE_RUN_TEST( HashTest );
 	MAYBE_RUN_TEST( HeightFieldTest );
 	MAYBE_RUN_TEST( HullTest );
 	MAYBE_RUN_TEST( IdTest );
