@@ -1608,12 +1608,21 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	float minArea = 0.01f * B3_LINEAR_SLOP * B3_LINEAR_SLOP;
 	float surfaceArea = 0.0f;
 	int materialCount = 1;
+	bool clockWise = def->clockWise;
 
 	for ( int index = 0; index < triangleCount; ++index )
 	{
-		int index1 = indices.data[3 * index + 0];
-		int index2 = indices.data[3 * index + 1];
-		int index3 = indices.data[3 * index + 2];
+		int i1 = 3 * index + 0;
+		int i2 = 3 * index + 1;
+		int i3 = 3 * index + 2;
+		if ( clockWise )
+		{
+			B3_SWAP( i2, i3 );
+		}
+
+		int index1 = indices.data[i1];
+		int index2 = indices.data[i2];
+		int index3 = indices.data[i3];
 
 		b3Vec3 vertex1 = vertices.data[index1];
 		b3Vec3 vertex2 = vertices.data[index2];
@@ -1724,9 +1733,18 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	for ( int index = 0; index < triangleCount; ++index )
 	{
 		b3Primitive primitive = primitives.data[index];
-		triangles[index].index1 = indices.data[3 * primitive.triangleIndex + 0];
-		triangles[index].index2 = indices.data[3 * primitive.triangleIndex + 1];
-		triangles[index].index3 = indices.data[3 * primitive.triangleIndex + 2];
+
+		int i1 = 3 * primitive.triangleIndex + 0;
+		int i2 = 3 * primitive.triangleIndex + 1;
+		int i3 = 3 * primitive.triangleIndex + 2;
+		if ( clockWise )
+		{
+			B3_SWAP( i2, i3 );
+		}
+
+		triangles[index].index1 = indices.data[i1];
+		triangles[index].index2 = indices.data[i2];
+		triangles[index].index3 = indices.data[i3];
 		flags[index] = 0;
 
 		// Copy material indices if they exist. Otherwise the material indices are all zeroes.

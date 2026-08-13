@@ -2094,6 +2094,9 @@ typedef struct b3MeshDef
 
 	/// Compute triangle adjacency information using shared edges
 	bool identifyEdges;
+
+	/// Input indices have clockWise winding order.
+	bool clockWise;
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.

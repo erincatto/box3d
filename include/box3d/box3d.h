@@ -1076,6 +1076,9 @@ B3_API void* b3Joint_GetUserData( b3JointId jointId );
 /// Wake the bodies connect to this joint
 B3_API void b3Joint_WakeBodies( b3JointId jointId );
 
+/// Is the joint awake? If true then an attached body is awake.
+B3_API bool b3Joint_IsAwake( b3JointId jointId );
+
 /// Get the current constraint force for this joint
 B3_API b3Vec3 b3Joint_GetConstraintForce( b3JointId jointId );
 
