@@ -1075,6 +1075,25 @@ b3CastOutput b3ShapeCast( const b3ShapeCastPairInput* input )
 				{
 					target = distanceOutput.distance - linearSlop;
 				}
+				else if ( input->canEncroach && distanceOutput.distance > 0.0f )
+				{
+					// Near-target start without overlap: advance by first order while
+					// retaining a rest separation. Sweeps that cannot consume the free
+					// gap (receding, tangential, grazing) miss.
+					float retained = 0.5f * linearSlop;
+					float needed = distanceOutput.distance - retained;
+					float approach = -b3Dot( delta2, distanceOutput.normal );
+					if ( approach <= b3MaxFloat( needed, 0.0f ) )
+					{
+						return output;
+					}
+
+					output.fraction = needed > 0.0f ? needed / approach : 0.0f;
+					output.point = b3MulAdd( distanceOutput.pointA, input->proxyA.radius, distanceOutput.normal );
+					output.normal = distanceOutput.normal;
+					output.hit = true;
+					return output;
+				}
 				else
 				{
 					// Initial overlap
