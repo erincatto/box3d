@@ -1953,6 +1953,67 @@ public:
 
 static int sampleBridgeIndex = RegisterSample( "Joints", "Bridge", Bridge::Create );
 
+class FoldOut : public Sample
+{
+public:
+	explicit FoldOut( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 20.0f, 10.0f, 28.0f, { 0.0f, 7.0f, 0.0f } );
+		}
+
+		float halfLength = 2.0f;
+		float spacing = 1.0f;
+
+		b3BoxHull box = b3MakeBoxHull( halfLength, 0.1f, 0.25f );
+
+		b3Quat axisQuat = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, b3Vec3_axisY );
+
+		b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
+		jointDef.base.localFrameA.p = { -halfLength, 1.0f, 0.0f };
+		jointDef.base.localFrameA.q = axisQuat;
+		jointDef.base.localFrameB.q = axisQuat;
+		jointDef.base.drawScale = 0.5f;
+		jointDef.base.constraintHertz = 240.0f;
+		jointDef.enableMotor = true;
+		jointDef.maxMotorTorque = 1000.0f;
+
+		b3BodyId prevBodyId = AddGroundBox( 20.0f );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position.y = 0.5f * spacing;
+		bodyDef.type = b3_dynamicBody;
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.density *= 2.0f;
+
+		for ( int i = 0; i < 6; ++i )
+		{
+			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+			float x = ( i & 1 ) ? halfLength : -halfLength;
+
+			jointDef.base.bodyIdA = prevBodyId;
+			jointDef.base.bodyIdB = bodyId;
+			jointDef.base.localFrameB.p = { x, -0.5f * spacing, 0.0f };
+			b3CreateRevoluteJoint( m_worldId, &jointDef );
+
+			bodyDef.position.y += spacing;
+			jointDef.base.localFrameA.p = { -x, 0.5f * spacing, 0.0f };
+			prevBodyId = bodyId;
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new FoldOut( context );
+	}
+};
+
+static int sampleFoldOut = RegisterSample( "Joints", "Fold Out", FoldOut::Create );
+
 // This test ensures joints work correctly with bodies that have motion locks
 class MotionLocks : public Sample
 {
@@ -2000,6 +2061,8 @@ public:
 			assert( m_count < m_capacity );
 
 			bodyDef.position = position;
+			bodyDef.angularDamping = 0.5f;
+
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
@@ -2403,7 +2466,7 @@ public:
 
 	~Driving() override
 	{
-		if (m_camera->m_thirdPerson)
+		if ( m_camera->m_thirdPerson )
 		{
 			m_camera->m_thirdPerson = false;
 			sapp_lock_mouse( false );
