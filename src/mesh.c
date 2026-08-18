@@ -1305,7 +1305,6 @@ b3MeshData* b3CreateGridMesh( int xCount, int zCount, float cellWidth, int mater
 	def.materialIndices = materialCount > 0 ? materialIndices.data : NULL;
 	def.useMedianSplit = true;
 	def.identifyEdges = identifyEdges;
-	def.stride = sizeof( b3Vec3 );
 
 	b3MeshData* meshData = b3CreateMesh( &def, NULL, 0 );
 
@@ -1395,7 +1394,6 @@ b3MeshData* b3CreateWaveMesh( int xCount, int zCount, float cellWidth, float amp
 	def.indices = indices.data;
 	def.useMedianSplit = true;
 	def.identifyEdges = true;
-	def.stride = sizeof( b3Vec3 );
 
 	b3MeshData* meshData = b3CreateMesh( &def, NULL, 0 );
 
@@ -1456,7 +1454,6 @@ b3MeshData* b3CreateTorusMesh( int radialResolution, int tubularResolution, floa
 	def.indices = indices.data;
 	def.useMedianSplit = false;
 	def.identifyEdges = true;
-	def.stride = sizeof( b3Vec3 );
 
 	b3MeshData* meshData = b3CreateMesh( &def, NULL, 0 );
 
@@ -1495,7 +1492,6 @@ b3MeshData* b3CreateBoxMesh( b3Vec3 center, b3Vec3 extent, bool identifyEdges )
 	def.indices = indices;
 	def.useMedianSplit = false;
 	def.identifyEdges = identifyEdges;
-	def.stride = sizeof( b3Vec3 );
 
 	return b3CreateMesh( &def, NULL, 0 );
 }
@@ -1569,13 +1565,8 @@ b3MeshData* b3CreatePlatformMesh( b3Vec3 center, float height, float topWidth, f
 	return b3CreateMesh( &def, NULL, 0 );
 }
 
-// Stride larger than this likely indicates stride is unitialized memory.
-#define B3_MAX_STRIDE 4096
-
-static void b3CopyVerticesWithStride( b3Vec3* dst, b3Vec3* src, int count, size_t stride )
+static void b3CopyVerticesWithStride( b3Vec3* dst, const b3Vec3* src, int count, size_t stride )
 {
-	B3_ASSERT( sizeof( b3Vec3 ) <= stride && stride <= B3_MAX_STRIDE );
-
 	if ( stride == sizeof( b3Vec3 ) )
 	{
 		memcpy( dst, src, count * sizeof( b3Vec3 ) );
@@ -1584,13 +1575,18 @@ static void b3CopyVerticesWithStride( b3Vec3* dst, b3Vec3* src, int count, size_
 
 	for ( int i = 0; i < count; ++i )
 	{
-		dst[i] = *(b3Vec3*)( (uint8_t*)dst + i * stride );
+		dst[i] = *(b3Vec3*)( (uint8_t*)src + i * stride );
 	}
 }
+
+// Stride larger than this likely indicates stride is uninitialized memory.
+#define B3_MAX_STRIDE 4096
 
 // todo this should fail if the mesh has a height greater than B3_MESH_STACK_SIZE
 b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, int degenerateCapacity )
 {
+	B3_ASSERT( def->stride == 0 || ( sizeof( b3Vec3 ) <= def->stride && def->stride <= B3_MAX_STRIDE ) );
+
 	if ( def->vertexCount < 3 || def->vertices == NULL || def->triangleCount <= 0 || def->indices == NULL )
 	{
 		return NULL;
@@ -1603,7 +1599,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	}
 
 	int vertexCount = def->vertexCount;
-	size_t stride = def->stride;
+	size_t stride = def->stride == 0 ? sizeof( b3Vec3 ) : def->stride;
 
 	b3AABB meshBounds = B3_BOUNDS3_EMPTY;
 
@@ -1616,10 +1612,9 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 
 	if ( def->weldVertices && def->weldTolerance > 0.0f )
 	{
-		b3Array_CreateN( vertices, vertexCount );
 		b3Array_Resize( vertices, vertexCount );
-
 		b3Array_Resize( indices, 3 * triangleCount );
+
 		b3WeldData data = {
 			.srcVertices = def->vertices,
 			.srcIndices = def->indices,
@@ -1636,7 +1631,8 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	}
 	else
 	{
-		b3CopyVerticesWithStride( vertices.data, def->vertices, vertexCount, def->stride );
+		vertices.count = vertexCount;
+		b3CopyVerticesWithStride( vertices.data, def->vertices, vertexCount, stride );
 		b3Array_Append( indices, def->indices, 3 * triangleCount );
 	}
 
@@ -1646,7 +1642,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	float minArea = 0.01f * B3_LINEAR_SLOP * B3_LINEAR_SLOP;
 	float surfaceArea = 0.0f;
 	int materialCount = 1;
-	bool clockWise = def->clockWise;
+	bool clockWise = def->clockWiseWinding;
 
 	for ( int index = 0; index < triangleCount; ++index )
 	{

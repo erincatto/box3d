@@ -2076,7 +2076,7 @@ typedef struct b3MeshDef
 	/// Triangle vertices.
 	b3Vec3* vertices;
 
-	/// Stride between vertices. Use sizeof(b3Vec3) for dense data.
+	/// Stride between vertices. Use 0 for contiguous vertices.
 	size_t stride;
 
 	/// Triangle vertex indices. 3 for each triangle. CCW winding.
@@ -2107,7 +2107,7 @@ typedef struct b3MeshDef
 	bool identifyEdges;
 
 	/// Input indices have clockWise winding order.
-	bool clockWise;
+	bool clockWiseWinding;
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.
