@@ -779,6 +779,11 @@ B3_API bool b3Body_OverlapShape( b3BodyId bodyId, b3Pos origin, const b3ShapePro
 B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin,
 								const b3Capsule* mover, b3QueryFilter filter, b3WorldTransform bodyTransform );
 
+/// Perform a time of impact between a character mover and a body using specified sweep transforms.
+b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover, b3Vec3 moverTranslation,
+										  b3QueryFilter filter, b3WorldTransform bodyTransform1,
+										  b3WorldTransform bodyTransform2 );
+
 /** @} */ // body
 
 /**
@@ -786,7 +791,7 @@ B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, 
  * Functions to create, destroy, and access.
  * Shapes bind raw geometry to bodies and hold material properties including friction and restitution.
  * You may add multiple shapes to a single body. There are no hard limits on shape count per body.
- * 
+ *
  * When you create a shape on a body the center of mass moves. This can lead to the body linear velocity
  * changing if the angular velocity is non-zero.
  * @{

@@ -1857,6 +1857,13 @@ typedef struct b3BodyPlaneResult
 	b3PlaneResult result;
 } b3BodyPlaneResult;
 
+/// Body time of impact result for movers.
+typedef struct b3BodyTOIResult
+{
+	b3TOIOutput output;
+	b3ShapeId shapeId;
+} b3BodyTOIResult;
+
 /// Used to collect collision planes for character movers.
 /// Return true to continue gathering planes.
 typedef bool b3PlaneResultFcn( b3ShapeId shapeId, const b3PlaneResult* plane, int planeCount, void* context );
