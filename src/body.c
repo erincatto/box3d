@@ -782,7 +782,7 @@ int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int pla
 b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover, b3Vec3 moverTranslation,
 										  b3QueryFilter filter, b3WorldTransform bodyTransform1, b3WorldTransform bodyTransform2 )
 {
-	b3BodyTOIResult result = {};
+	b3BodyTOIResult result = { 0 };
 	result.output.fraction = 1.0f;
 	result.output.state = b3_toiStateSeparated;
 
@@ -843,8 +843,8 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 		{
 			return result;
 		}
-		
-		if (result.output.state == b3_toiStateHit)
+
+		if ( result.output.state == b3_toiStateHit )
 		{
 			input.maxFraction = result.output.fraction;
 		}
