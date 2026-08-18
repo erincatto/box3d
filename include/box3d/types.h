@@ -2068,6 +2068,9 @@ typedef struct b3MeshDef
 	/// Triangle vertices.
 	b3Vec3* vertices;
 
+	/// Stride between vertices. Use sizeof(b3Vec3) for dense data.
+	size_t stride;
+
 	/// Triangle vertex indices. 3 for each triangle. CCW winding.
 	int32_t* indices;
 
