@@ -331,7 +331,7 @@ bool b3IsValidMesh( const b3MeshData* meshData )
 
 static inline b3Vec3 b3GetStridedVertex( const b3Vec3* vertices, int index, size_t stride )
 {
-	return *(b3Vec3*)( (uint8_t*)vertices + index * stride );
+	return *(const b3Vec3*)( (const uint8_t*)vertices + index * stride );
 }
 
 // Node for a vertex linked list
@@ -527,7 +527,7 @@ static int b3WeldVertices( b3WeldData* data, float tolerance )
 	for ( int i = 0; i < indexCount; ++i )
 	{
 		int srcIndex = data->srcIndices[i];
-		B3_ASSERT( srcIndex < vertexCount );
+		B3_ASSERT(0 <= srcIndex && srcIndex < vertexCount );
 		data->dstIndices[i] = vertexMapping.data[srcIndex];
 	}
 
@@ -1585,7 +1585,15 @@ static void b3CopyVerticesWithStride( b3Vec3* dst, const b3Vec3* src, int count,
 // todo this should fail if the mesh has a height greater than B3_MESH_STACK_SIZE
 b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, int degenerateCapacity )
 {
-	B3_ASSERT( def->stride == 0 || ( sizeof( b3Vec3 ) <= def->stride && def->stride <= B3_MAX_STRIDE ) );
+	if ( def->stride != 0 && ( def->stride < ( sizeof( b3Vec3 ) <= def->stride || B3_MAX_STRIDE <= def->stride ) ) )
+	{
+		return NULL;
+	}
+
+	if ( ( def->stride & 3 ) != 0 )
+	{
+		return NULL;
+	}
 
 	if ( def->vertexCount < 3 || def->vertices == NULL || def->triangleCount <= 0 || def->indices == NULL )
 	{
@@ -1646,17 +1654,13 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 
 	for ( int index = 0; index < triangleCount; ++index )
 	{
-		int i1 = 3 * index + 0;
-		int i2 = 3 * index + 1;
-		int i3 = 3 * index + 2;
-		if ( clockWise )
-		{
-			B3_SWAP( i2, i3 );
-		}
+		int index1 = indices.data[3 * index + 0];
+		int index2 = indices.data[3 * index + 1];
+		int index3 = indices.data[3 * index + 2];
 
-		int index1 = indices.data[i1];
-		int index2 = indices.data[i2];
-		int index3 = indices.data[i3];
+		B3_VALIDATE( 0 <= index1 && index1 < vertexCount );
+		B3_VALIDATE( 0 <= index2 && index2 < vertexCount );
+		B3_VALIDATE( 0 <= index3 && index3 < vertexCount );
 
 		b3Vec3 vertex1 = vertices.data[index1];
 		b3Vec3 vertex2 = vertices.data[index2];
@@ -1671,11 +1675,12 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 
 			if ( index1 != index2 && index1 != index3 && index2 != index3 )
 			{
-				degenerateCount += 1;
 				if ( degenerateTriangleIndices != NULL && degenerateCount < degenerateCapacity )
 				{
-					degenerateTriangleIndices[degenerateCount - 1] = index;
+					degenerateTriangleIndices[degenerateCount] = index;
 				}
+
+				degenerateCount += 1;
 			}
 
 			continue;
@@ -1684,8 +1689,8 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 		surfaceArea += area;
 
 		b3AABB box = {
-			b3Min( vertex1, b3Min( vertex2, vertex3 ) ),
-			b3Max( vertex1, b3Max( vertex2, vertex3 ) ),
+			.lowerBound = b3Min( vertex1, b3Min( vertex2, vertex3 ) ),
+			.upperBound = b3Max( vertex1, b3Max( vertex2, vertex3 ) ),
 		};
 
 		b3Vec3 center = b3AABB_Center( box );
@@ -1711,6 +1716,8 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	if ( b3IsSaneAABB( meshBounds ) == false )
 	{
 		b3Array_Destroy( primitives );
+		b3Array_Destroy( indices );
+		b3Array_Destroy( vertices );
 		return NULL;
 	}
 
@@ -1797,6 +1804,8 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	{
 		b3Array_Destroy( tempNodes );
 		b3Array_Destroy( primitives );
+		b3Array_Destroy( indices );
+		b3Array_Destroy( vertices );
 		return NULL;
 	}
 

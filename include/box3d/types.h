@@ -2091,7 +2091,7 @@ typedef struct b3MeshDef
 	/// Stride between vertices. Use 0 for contiguous vertices.
 	size_t stride;
 
-	/// Triangle vertex indices. 3 for each triangle. CCW winding.
+	/// Triangle vertex indices. 3 for each triangle. CCW winding unless CW is indicated below.
 	int32_t* indices;
 
 	/// Triangle material index. 1 per triangle. Indexes into b3ShapeDef::materials.

@@ -840,22 +840,39 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 		input.proxyA = b3MakeShapeProxy( shape );
 
 		b3TOIOutput output = b3TimeOfImpact( &input );
-		if ( output.state == b3_toiStateOverlapped )
+		B3_VALIDATE( output.state != b3_toiStateUnknown );
+
+		if (output.state == b3_toiStateOverlapped)
 		{
-			result.state = b3_toiStateOverlapped;
-			result.fraction = 0.0f;
+			// Early return on overlap
+			result.state = output.state;
+			result.point = b3OffsetPos( origin, output.point );
+			result.normal = output.normal;
+			result.fraction = output.fraction;
 			result.shapeId = (b3ShapeId){
 				.index1 = shape->id + 1,
 				.world0 = world->worldId,
 				.generation = shape->generation,
 			};
 
-			// Early return on overlap
+			return result;
+		}
+
+		if ( output.state == b3_toiStateFailed )
+		{
+			// Give up on failure.
+			result.state = output.state;
+			result.point = b3Pos_zero;
+			result.normal = b3Vec3_zero;
+			result.fraction = 1.0f;
+			result.shapeId = b3_nullShapeId;
+
 			return result;
 		}
 
 		if ( output.state == b3_toiStateHit )
 		{
+			// Got a hit. Shrink the range.
 			input.maxFraction = output.fraction;
 
 			result.state = output.state;

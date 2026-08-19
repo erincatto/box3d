@@ -425,6 +425,7 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			m_enemyShape.maxPush = 1.0f;
 			m_enemyShape.clipVelocity = true;
+			m_enemyShape.canMoverPush = false;
 
 			b3Capsule capsule = {
 				{ 0.0f, -0.5f, 0.0f },
@@ -446,6 +447,7 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			m_friendlyShape.maxPush = 0.01f;
 			m_friendlyShape.clipVelocity = false;
+			m_friendlyShape.canMoverPush = false;
 
 			b3Capsule capsule = {
 				{ 0.0f, -0.5f, 0.0f },
@@ -642,7 +644,7 @@ public:
 		CreateFallingTree();
 	}
 
-	// The normal runs from the mover to the body, so closing speed is positive on approach.
+	// The normal points from the body to the mover, so approach gives a positive speed.
 	MoverImpact MakeImpact( b3BodyId bodyId, const b3BodyTOIResult* toi )
 	{
 		b3Vec3 pointVelocity = b3Body_GetWorldPointVelocity( bodyId, toi->point );
