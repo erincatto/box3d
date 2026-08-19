@@ -11,6 +11,7 @@ struct MoverShapeUserData
 {
 	float maxPush;
 	bool clipVelocity;
+	bool canMoverPush;
 };
 
 struct PlaneExtra
