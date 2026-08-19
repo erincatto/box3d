@@ -1575,7 +1575,7 @@ static void b3CopyVerticesWithStride( b3Vec3* dst, const b3Vec3* src, int count,
 
 	for ( int i = 0; i < count; ++i )
 	{
-		dst[i] = *(b3Vec3*)( (uint8_t*)src + i * stride );
+		dst[i] = *(const b3Vec3*)( (const uint8_t*)src + i * stride );
 	}
 }
 
@@ -1585,7 +1585,7 @@ static void b3CopyVerticesWithStride( b3Vec3* dst, const b3Vec3* src, int count,
 // todo this should fail if the mesh has a height greater than B3_MESH_STACK_SIZE
 b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, int degenerateCapacity )
 {
-	if ( def->stride != 0 && ( def->stride < ( sizeof( b3Vec3 ) <= def->stride || B3_MAX_STRIDE <= def->stride ) ) )
+	if ( def->stride != 0 && ( def->stride < sizeof( b3Vec3 ) || B3_MAX_STRIDE < def->stride ) )
 	{
 		return NULL;
 	}

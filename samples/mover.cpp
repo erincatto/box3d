@@ -221,7 +221,7 @@ void CharacterMover::SolveMove( float timeStep, b3Vec3 forward, b3Vec3 right, b3
 			continue;
 		}
 
-		MoverShapeUserData* userData = (MoverShapeUserData*)b3Shape_GetUserData( m_planeExtras[i].shapeId );
+		MoverShapeUserData* userData = static_cast<MoverShapeUserData*>( b3Shape_GetUserData( m_planeExtras[i].shapeId ) );
 		if ( userData != nullptr && userData->canMoverPush == false )
 		{
 			continue;
