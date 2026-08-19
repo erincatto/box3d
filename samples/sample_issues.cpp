@@ -1302,3 +1302,43 @@ public:
 
 static int sampleSlideTwistOffCenterShape =
 	RegisterSample( "Issues", "Slide Twist Off Center Shape", SlideTwistOffCenterShape::Create );
+
+// Very large dynamic bodies have overflow when computing the inertia tensor.
+class HugeBox : public Sample
+{
+public:
+	explicit HugeBox( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 25.0f, 10.0f, b3Pos_zero );
+		}
+
+		AddGroundBox( 400.0f );
+
+		{
+			float a = 100.0f;
+
+			b3BoxHull cube = b3MakeCubeHull( a );
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.name = "cube";
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { 0.0f, a, 0.0f };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( { 0.0f, 0.0f, 1.0f }, 0.2f );
+			m_bodyId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateHullShape( m_bodyId, &shapeDef, &cube.base );
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new HugeBox( context );
+	}
+
+	b3BodyId m_bodyId;
+};
+
+static int sampleHugeBox = RegisterSample( "Issues", "Huge Box", HugeBox::Create );

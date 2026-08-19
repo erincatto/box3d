@@ -244,12 +244,12 @@ static bool b3IsConsistent( const b3MeshData* mesh )
 			const b3MeshNode* child2 = b3GetRightChild( node );
 			b3AABB bounds2 = b3GetNodeAABB( child2 );
 
-			if ( !b3AABB_Contains( nodeBounds, bounds1 ) )
+			if ( b3AABB_Contains( nodeBounds, bounds1 ) == false )
 			{
 				return false;
 			}
 
-			if ( !b3AABB_Contains( nodeBounds, bounds2 ) )
+			if ( b3AABB_Contains( nodeBounds, bounds2 ) == false )
 			{
 				return false;
 			}
@@ -329,6 +329,11 @@ bool b3IsValidMesh( const b3MeshData* meshData )
 
 #endif
 
+static inline b3Vec3 b3GetStridedVertex( const b3Vec3* vertices, int index, size_t stride )
+{
+	return *(const b3Vec3*)( (const uint8_t*)vertices + index * stride );
+}
+
 // Node for a vertex linked list
 typedef struct b3VertexNode
 {
@@ -350,15 +355,17 @@ typedef struct b3SpatialHash
 	b3Array( b3VertexNode ) nodes;
 	const b3Vec3* vertices;
 	int vertexCount;
+	size_t stride;
 	b3VertexMap vertexMap;
 	float cellSize;
 	float tolerance;
 } b3SpatialHash;
 
-static void b3SpatialHash_Create( b3SpatialHash* h, const b3Vec3* vertices, int vertexCount, float tolerance )
+static void b3CreateSpatialHash( b3SpatialHash* h, const b3Vec3* vertices, int vertexCount, size_t stride, float tolerance )
 {
 	h->vertices = vertices;
 	h->vertexCount = vertexCount;
+	h->stride = stride;
 	h->tolerance = tolerance;
 	h->cellSize = 2.0f * tolerance;
 	b3Array_CreateN( h->nodes, vertexCount );
@@ -369,7 +376,7 @@ static void b3SpatialHash_Create( b3SpatialHash* h, const b3Vec3* vertices, int 
 	B3_ASSERT( h->cellSize > 0.0f );
 }
 
-static void b3SpatialHash_Destroy( b3SpatialHash* h )
+static void b3DestroySpatialHash( b3SpatialHash* h )
 {
 	b3VertexMap_cleanup( &h->vertexMap );
 	b3Array_Destroy( h->nodes );
@@ -380,7 +387,8 @@ static void b3SpatialHash_Destroy( b3SpatialHash* h )
 static int32_t b3SpatialHash_FindDuplicate( b3SpatialHash* h, int32_t currentIndex )
 {
 	B3_ASSERT( currentIndex < h->vertexCount );
-	b3Vec3 vertex = h->vertices[currentIndex];
+	size_t stride = h->stride;
+	b3Vec3 vertex = b3GetStridedVertex( h->vertices, currentIndex, stride );
 	float cellSize = h->cellSize;
 	float tolerance = h->tolerance;
 
@@ -420,7 +428,7 @@ static int32_t b3SpatialHash_FindDuplicate( b3SpatialHash* h, int32_t currentInd
 						B3_ASSERT( existingIndex < currentIndex );
 						B3_ASSERT( existingIndex < h->vertexCount );
 
-						b3Vec3 other = h->vertices[existingIndex];
+						b3Vec3 other = b3GetStridedVertex( h->vertices, existingIndex, stride );
 
 						// IsEqual inlined: check if vertices are within tolerance
 						if ( fabsf( vertex.x - other.x ) <= tolerance && fabsf( vertex.y - other.y ) <= tolerance &&
@@ -481,16 +489,18 @@ typedef struct b3WeldData
 
 	int vertexCount;
 	int indexCount;
+	size_t stride;
 } b3WeldData;
 
 static int b3WeldVertices( b3WeldData* data, float tolerance )
 {
 	int vertexCount = data->vertexCount;
 	int uniqueCount = 0;
+	size_t stride = data->stride;
 
 	// Create spatial hash and find duplicates
 	b3SpatialHash spatialHash;
-	b3SpatialHash_Create( &spatialHash, data->srcVertices, vertexCount, tolerance );
+	b3CreateSpatialHash( &spatialHash, data->srcVertices, vertexCount, stride, tolerance );
 	b3Array( int ) vertexMapping = { 0 };
 	b3Array_Resize( vertexMapping, vertexCount );
 
@@ -502,7 +512,7 @@ static int b3WeldVertices( b3WeldData* data, float tolerance )
 		{
 			// New unique vertex
 			vertexMapping.data[i] = uniqueCount;
-			data->dstVertices[uniqueCount] = data->srcVertices[i];
+			data->dstVertices[uniqueCount] = b3GetStridedVertex( data->srcVertices, i, stride );
 			uniqueCount += 1;
 		}
 		else
@@ -517,11 +527,11 @@ static int b3WeldVertices( b3WeldData* data, float tolerance )
 	for ( int i = 0; i < indexCount; ++i )
 	{
 		int srcIndex = data->srcIndices[i];
-		B3_ASSERT( srcIndex < vertexCount );
+		B3_ASSERT(0 <= srcIndex && srcIndex < vertexCount );
 		data->dstIndices[i] = vertexMapping.data[srcIndex];
 	}
 
-	b3SpatialHash_Destroy( &spatialHash );
+	b3DestroySpatialHash( &spatialHash );
 	b3Array_Destroy( vertexMapping );
 
 	return uniqueCount;
@@ -1555,9 +1565,36 @@ b3MeshData* b3CreatePlatformMesh( b3Vec3 center, float height, float topWidth, f
 	return b3CreateMesh( &def, NULL, 0 );
 }
 
+static void b3CopyVerticesWithStride( b3Vec3* dst, const b3Vec3* src, int count, size_t stride )
+{
+	if ( stride == sizeof( b3Vec3 ) )
+	{
+		memcpy( dst, src, count * sizeof( b3Vec3 ) );
+		return;
+	}
+
+	for ( int i = 0; i < count; ++i )
+	{
+		dst[i] = *(const b3Vec3*)( (const uint8_t*)src + i * stride );
+	}
+}
+
+// Stride larger than this likely indicates stride is uninitialized memory.
+#define B3_MAX_STRIDE 4096
+
 // todo this should fail if the mesh has a height greater than B3_MESH_STACK_SIZE
 b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, int degenerateCapacity )
 {
+	if ( def->stride != 0 && ( def->stride < sizeof( b3Vec3 ) || B3_MAX_STRIDE < def->stride ) )
+	{
+		return NULL;
+	}
+
+	if ( ( def->stride & 3 ) != 0 )
+	{
+		return NULL;
+	}
+
 	if ( def->vertexCount < 3 || def->vertices == NULL || def->triangleCount <= 0 || def->indices == NULL )
 	{
 		return NULL;
@@ -1570,6 +1607,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	}
 
 	int vertexCount = def->vertexCount;
+	size_t stride = def->stride == 0 ? sizeof( b3Vec3 ) : def->stride;
 
 	b3AABB meshBounds = B3_BOUNDS3_EMPTY;
 
@@ -1584,6 +1622,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	{
 		b3Array_Resize( vertices, vertexCount );
 		b3Array_Resize( indices, 3 * triangleCount );
+
 		b3WeldData data = {
 			.srcVertices = def->vertices,
 			.srcIndices = def->indices,
@@ -1591,14 +1630,17 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 			.dstIndices = indices.data,
 			.vertexCount = vertexCount,
 			.indexCount = 3 * triangleCount,
+			.stride = stride,
 		};
+
 		vertices.count = b3WeldVertices( &data, def->weldTolerance );
 		vertexCount = vertices.count;
 		B3_ASSERT( vertexCount <= def->vertexCount );
 	}
 	else
 	{
-		b3Array_Append( vertices, def->vertices, vertexCount );
+		vertices.count = vertexCount;
+		b3CopyVerticesWithStride( vertices.data, def->vertices, vertexCount, stride );
 		b3Array_Append( indices, def->indices, 3 * triangleCount );
 	}
 
@@ -1608,12 +1650,17 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	float minArea = 0.01f * B3_LINEAR_SLOP * B3_LINEAR_SLOP;
 	float surfaceArea = 0.0f;
 	int materialCount = 1;
+	bool clockWise = def->clockWiseWinding;
 
 	for ( int index = 0; index < triangleCount; ++index )
 	{
 		int index1 = indices.data[3 * index + 0];
 		int index2 = indices.data[3 * index + 1];
 		int index3 = indices.data[3 * index + 2];
+
+		B3_VALIDATE( 0 <= index1 && index1 < vertexCount );
+		B3_VALIDATE( 0 <= index2 && index2 < vertexCount );
+		B3_VALIDATE( 0 <= index3 && index3 < vertexCount );
 
 		b3Vec3 vertex1 = vertices.data[index1];
 		b3Vec3 vertex2 = vertices.data[index2];
@@ -1628,11 +1675,12 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 
 			if ( index1 != index2 && index1 != index3 && index2 != index3 )
 			{
-				degenerateCount += 1;
 				if ( degenerateTriangleIndices != NULL && degenerateCount < degenerateCapacity )
 				{
-					degenerateTriangleIndices[degenerateCount - 1] = index;
+					degenerateTriangleIndices[degenerateCount] = index;
 				}
+
+				degenerateCount += 1;
 			}
 
 			continue;
@@ -1641,8 +1689,8 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 		surfaceArea += area;
 
 		b3AABB box = {
-			b3Min( vertex1, b3Min( vertex2, vertex3 ) ),
-			b3Max( vertex1, b3Max( vertex2, vertex3 ) ),
+			.lowerBound = b3Min( vertex1, b3Min( vertex2, vertex3 ) ),
+			.upperBound = b3Max( vertex1, b3Max( vertex2, vertex3 ) ),
 		};
 
 		b3Vec3 center = b3AABB_Center( box );
@@ -1668,6 +1716,8 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	if ( b3IsSaneAABB( meshBounds ) == false )
 	{
 		b3Array_Destroy( primitives );
+		b3Array_Destroy( indices );
+		b3Array_Destroy( vertices );
 		return NULL;
 	}
 
@@ -1724,9 +1774,18 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	for ( int index = 0; index < triangleCount; ++index )
 	{
 		b3Primitive primitive = primitives.data[index];
-		triangles[index].index1 = indices.data[3 * primitive.triangleIndex + 0];
-		triangles[index].index2 = indices.data[3 * primitive.triangleIndex + 1];
-		triangles[index].index3 = indices.data[3 * primitive.triangleIndex + 2];
+
+		int i1 = 3 * primitive.triangleIndex + 0;
+		int i2 = 3 * primitive.triangleIndex + 1;
+		int i3 = 3 * primitive.triangleIndex + 2;
+		if ( clockWise )
+		{
+			B3_SWAP( i2, i3 );
+		}
+
+		triangles[index].index1 = indices.data[i1];
+		triangles[index].index2 = indices.data[i2];
+		triangles[index].index3 = indices.data[i3];
 		flags[index] = 0;
 
 		// Copy material indices if they exist. Otherwise the material indices are all zeroes.
@@ -1745,6 +1804,8 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	{
 		b3Array_Destroy( tempNodes );
 		b3Array_Destroy( primitives );
+		b3Array_Destroy( indices );
+		b3Array_Destroy( vertices );
 		return NULL;
 	}
 
@@ -1762,7 +1823,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	b3Array_Destroy( vertices );
 
 	mesh->hash = 0;
-	mesh->hash = b3Hash64NonZero((uint8_t*)mesh, mesh->byteCount );
+	mesh->hash = b3Hash64NonZero( (uint8_t*)mesh, mesh->byteCount );
 
 	return mesh;
 }

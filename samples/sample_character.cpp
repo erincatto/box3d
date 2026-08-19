@@ -312,10 +312,19 @@ public:
 
 static int sampleMoverOverlap = RegisterSample( "Character", "MoverOverlap", MoverOverlap::Create );
 
-class BasicMover : public Sample
+// What the mover was last struck with. Stays on screen until the next hit.
+struct MoverImpact
+{
+	b3Pos point;
+	b3Vec3 normal;
+	float speed;
+	bool valid;
+};
+
+class GeometricMover : public Sample
 {
 public:
-	explicit BasicMover( SampleContext* context )
+	explicit GeometricMover( SampleContext* context )
 		: Sample( context )
 	{
 		b3Pos moverPosition = { 7.5f, 0.75f, 9.0f };
@@ -396,6 +405,19 @@ public:
 			b3CreateHeightFieldShape( body, &shapeDef, m_heightField );
 		}
 
+		// The tree is longer than the height field is wide, so topple it along the diagonal.
+		{
+			b3Vec3 axis = { 1.0f, 0.0f, -1.0f };
+			m_treeSpin = 0.5f * b3Normalize( axis );
+			m_treeSpawn = { 22.0f, 1.5f, 2.0f };
+			m_treeTimer = 0.0f;
+			m_treeShapeUserData.maxPush = 10.0f;
+			m_treeShapeUserData.clipVelocity = true;
+			m_treeShapeUserData.canMoverPush = false;
+			m_treeImpact = {};
+			CreateFallingTree();
+		}
+
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.position = { 0.0f, 1.4f, 6.0f };
@@ -403,6 +425,7 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			m_enemyShape.maxPush = 1.0f;
 			m_enemyShape.clipVelocity = true;
+			m_enemyShape.canMoverPush = false;
 
 			b3Capsule capsule = {
 				{ 0.0f, -0.5f, 0.0f },
@@ -424,6 +447,7 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			m_friendlyShape.maxPush = 0.01f;
 			m_friendlyShape.clipVelocity = false;
+			m_friendlyShape.canMoverPush = false;
 
 			b3Capsule capsule = {
 				{ 0.0f, -0.5f, 0.0f },
@@ -447,6 +471,28 @@ public:
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			b3Sphere sphere = { b3Vec3_zero, 0.5f };
 			b3CreateSphereShape( body, &shapeDef, &sphere );
+		}
+
+		// Falls through the mover start position on a loop to feed the mover time of impact.
+		{
+			m_fallingExtent = { 1.0f, 0.1, 1.0f };
+			m_fallingSpawn = { 10.5f, 30.0f, 0.0f };
+			m_fallingSpin = { 0.0f, 0.0f, 0.0f };
+
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = m_fallingSpawn;
+			bodyDef.angularVelocity = m_fallingSpin;
+			m_fallingBoxId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.baseMaterial.customColor = b3_colorGold;
+			b3BoxHull box = b3MakeBoxHull( m_fallingExtent.x, m_fallingExtent.y, m_fallingExtent.z );
+			b3CreateHullShape( m_fallingBoxId, &shapeDef, &box.base );
+
+			m_respawnTimer = 0.0f;
+			m_impactTransform = { b3Pos_zero, b3Quat_identity };
+			m_boxImpact = {};
 		}
 
 		{
@@ -519,7 +565,7 @@ public:
 		// m_mouseDelta = { 0.0f, 0.0f };
 	}
 
-	~BasicMover() override
+	~GeometricMover() override
 	{
 		m_camera->m_thirdPerson = false;
 		sapp_lock_mouse( false );
@@ -556,32 +602,201 @@ public:
 		}
 	}
 
+	// One tree from the falling trees benchmark: a stack of shrinking cylinders sharing a body.
+	void CreateFallingTree()
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = m_treeSpawn;
+		bodyDef.sleepThreshold = 0.2f;
+		m_treeId = b3CreateBody( m_worldId, &bodyDef );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.9f;
+		shapeDef.baseMaterial.rollingResistance = 0.05f;
+		shapeDef.updateBodyMass = false;
+		shapeDef.userData = &m_treeShapeUserData;
+
+		float y = 1.0f;
+		float r = 0.75f;
+		float l = 1.5f;
+		for ( int i = 0; i < 22; ++i )
+		{
+			b3HullData* hull = b3CreateCylinder( l + 2.0f * r, r, y - r, 6 );
+			b3CreateHullShape( m_treeId, &shapeDef, hull );
+			b3DestroyHull( hull );
+
+			y += l + 2.0f * r;
+			r = 0.95f * r;
+		}
+
+		b3Body_ApplyMassFromShapes( m_treeId );
+
+		b3Pos center = b3Body_GetWorldCenter( m_treeId );
+		b3Body_SetAngularVelocity( m_treeId, m_treeSpin );
+		b3Body_SetLinearVelocity( m_treeId, b3Cross( m_treeSpin, b3SubPos( center, m_treeSpawn ) ) );
+	}
+
+	// Spin about the base so the trunk sweeps down through anything standing in the fall line.
+	void ResetFallingTree()
+	{
+		b3DestroyBody( m_treeId );
+		CreateFallingTree();
+	}
+
+	// The normal points from the body to the mover, so approach gives a positive speed.
+	MoverImpact MakeImpact( b3BodyId bodyId, const b3BodyTOIResult* toi )
+	{
+		b3Vec3 pointVelocity = b3Body_GetWorldPointVelocity( bodyId, toi->point );
+		float speed = b3Dot( toi->normal, b3Sub( pointVelocity, m_mover.m_velocity ) );
+
+		return { toi->point, toi->normal, speed, true };
+	}
+
+	void DrawImpact( const MoverImpact* impact, b3HexColor hexColor )
+	{
+		if ( impact->valid == false )
+		{
+			return;
+		}
+
+		Vec4 color = MakeColor( hexColor );
+		b3Pos tip = impact->point + 0.5f * impact->normal;
+
+		DrawPoint( impact->point, 6.0f, color );
+		DrawArrow( impact->point, tip, color );
+		DrawString3D( tip, color, " %.1f m/s", impact->speed );
+	}
+
+	// True once the body has held still for a second.
+	bool SettledForOneSecond( b3BodyId bodyId, float* timer )
+	{
+		if ( b3Body_IsAwake( bodyId ) )
+		{
+			*timer = 0.0f;
+			return false;
+		}
+
+		*timer += m_context->hertz > 0.0f ? 1.0f / m_context->hertz : 0.0f;
+		if ( *timer < 1.0f )
+		{
+			return false;
+		}
+
+		*timer = 0.0f;
+		return true;
+	}
+
+	// Same sweep as the box, but the tree reports what the character was struck with.
+	void UpdateFallingTree( b3Pos moverStart, b3WorldTransform treeStart )
+	{
+		b3WorldTransform treeEnd = b3Body_GetTransform( m_treeId );
+		b3Vec3 moverTranslation = b3SubPos( m_mover.m_transform.p, moverStart );
+
+		b3BodyTOIResult toi = b3Body_TimeOfImpactMover( m_treeId, moverStart, &m_mover.m_capsule, moverTranslation,
+													   b3DefaultQueryFilter(), treeStart, treeEnd );
+
+		if ( toi.state == b3_toiStateHit && toi.fraction > 0.0f )
+		{
+			m_treeImpact = MakeImpact( m_treeId, &toi );
+		}
+
+		if ( SettledForOneSecond( m_treeId, &m_treeTimer ) )
+		{
+			ResetFallingTree();
+		}
+	}
+
+	// Sweep the mover capsule against the box motion from this step and keep the box pose at first
+	// touch. Both sweeps cover the same interval, so the mover translation comes from this step too.
+	void UpdateFallingBox( b3Pos moverStart, b3WorldTransform boxStart )
+	{
+		b3WorldTransform boxEnd = b3Body_GetTransform( m_fallingBoxId );
+		b3Vec3 moverTranslation = b3SubPos( m_mover.m_transform.p, moverStart );
+
+		b3BodyTOIResult toi = b3Body_TimeOfImpactMover( m_fallingBoxId, moverStart, &m_mover.m_capsule, moverTranslation,
+													   b3DefaultQueryFilter(), boxStart, boxEnd );
+
+		// A zero fraction means the box was already resting against the mover, so keep the pose from
+		// the step that first reached it.
+		if ( toi.state == b3_toiStateHit && toi.fraction > 0.0f )
+		{
+			m_impactTransform.p = boxStart.p + toi.fraction * b3SubPos( boxEnd.p, boxStart.p );
+			m_impactTransform.q = b3NLerp( boxStart.q, boxEnd.q, toi.fraction );
+			m_boxImpact = MakeImpact( m_fallingBoxId, &toi );
+		}
+
+		if ( SettledForOneSecond( m_fallingBoxId, &m_respawnTimer ) )
+		{
+			RespawnFallingBox();
+		}
+	}
+
+	void RespawnFallingBox()
+	{
+		b3Body_SetTransform( m_fallingBoxId, m_fallingSpawn, b3Quat_identity );
+		b3Body_SetLinearVelocity( m_fallingBoxId, b3Vec3_zero );
+		b3Body_SetAngularVelocity( m_fallingBoxId, m_fallingSpin );
+		b3Body_SetAwake( m_fallingBoxId, true );
+	}
+
 	void Step() override
 	{
+		b3Pos moverStart = m_mover.m_transform.p;
+		b3WorldTransform boxStart = b3Body_GetTransform( m_fallingBoxId );
+		b3WorldTransform treeStart = b3Body_GetTransform( m_treeId );
+
 		m_mover.Step( &m_ignoreShapeId, 1, m_clipVelocity );
 		DrawTextLine( "third person (T) = %d", m_camera->m_thirdPerson );
 		DrawTextLine( "deltaX = %g, deltaY = %g", m_mouseDelta.x, m_mouseDelta.y );
 
 		Sample::Step();
+
+		if ( m_didStep )
+		{
+			UpdateFallingBox( moverStart, boxStart );
+			UpdateFallingTree( moverStart, treeStart );
+		}
+
+		if ( m_boxImpact.valid )
+		{
+			DrawCube( m_impactTransform, 2.0f * m_fallingExtent, MakeColorAlpha( b3_colorYellow, 0.4f ) );
+		}
+
+		DrawImpact( &m_boxImpact, b3_colorYellow );
+		DrawImpact( &m_treeImpact, b3_colorCyan );
 	}
 
 	static Sample* Create( SampleContext* context )
 	{
-		return new BasicMover( context );
+		return new GeometricMover( context );
 	}
 
 	CharacterMover m_mover;
 	MoverShapeUserData m_enemyShape;
 	MoverShapeUserData m_friendlyShape;
+	MoverShapeUserData m_treeShapeUserData;
 	b3MeshData* m_levelMesh;
 	b3MeshData* m_stairs;
 	b3MeshData* m_torus;
 	b3HeightFieldData* m_heightField;
 	b3ShapeId m_ignoreShapeId;
+	b3BodyId m_fallingBoxId;
+	b3BodyId m_treeId;
+	b3WorldTransform m_impactTransform;
+	MoverImpact m_boxImpact;
+	MoverImpact m_treeImpact;
+	b3Pos m_treeSpawn;
+	b3Vec3 m_treeSpin;
+	float m_treeTimer;
+	b3Pos m_fallingSpawn;
+	b3Vec3 m_fallingExtent;
+	b3Vec3 m_fallingSpin;
+	float m_respawnTimer;
 	bool m_clipVelocity;
 };
 
-static int sampleMover = RegisterSample( "Character", "Mover", BasicMover::Create );
+static int sampleMover = RegisterSample( "Character", "Geometric Mover", GeometricMover::Create );
 
 struct ClosestShapeCastContext
 {

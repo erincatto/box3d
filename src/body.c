@@ -779,6 +779,117 @@ int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int pla
 	return resultCount;
 }
 
+b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover, b3Vec3 moverTranslation,
+										  b3QueryFilter filter, b3WorldTransform bodyTransform1, b3WorldTransform bodyTransform2 )
+{
+	b3BodyTOIResult result = { 0 };
+	result.fraction = 1.0f;
+	result.state = b3_toiStateSeparated;
+
+	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
+	if ( world == NULL )
+	{
+		return result;
+	}
+
+	b3Transform xf1 = b3ToRelativeTransform( bodyTransform1, origin );
+	b3Transform xf2 = b3ToRelativeTransform( bodyTransform2, origin );
+
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	b3BodySim* bodySim = b3GetBodySim( world, body );
+	b3Vec3 localCenter = bodySim->localCenter;
+
+	b3Vec3 capsulePoints[2] = { mover->center1, mover->center2 };
+	b3TOIInput input = { 0 };
+	input.proxyB = (b3ShapeProxy){
+		.points = capsulePoints,
+		.count = 2,
+		.radius = mover->radius,
+	};
+	input.sweepA.c1 = b3TransformPoint( xf1, localCenter );
+	input.sweepA.c2 = b3TransformPoint( xf2, localCenter );
+	input.sweepA.q1 = bodyTransform1.q;
+	input.sweepA.q2 = bodyTransform2.q;
+	input.sweepA.localCenter = localCenter;
+
+	input.sweepB.c1 = b3Vec3_zero;
+	input.sweepB.c2 = moverTranslation;
+	input.sweepB.q1 = b3Quat_identity;
+	input.sweepB.q2 = b3Quat_identity;
+	input.sweepB.localCenter = b3Vec3_zero;
+
+	input.maxFraction = 1.0f;
+
+	int shapeId = body->headShapeId;
+	while ( shapeId != B3_NULL_INDEX )
+	{
+		b3Shape* shape = b3Array_Get( world->shapes, shapeId );
+		shapeId = shape->nextShapeId;
+
+		if ( b3ShouldQueryCollide( &shape->filter, &filter ) == false )
+		{
+			continue;
+		}
+
+		b3ShapeType type = shape->type;
+		if ( type != b3_sphereShape && type != b3_capsuleShape && type != b3_hullShape )
+		{
+			continue;
+		}
+
+		input.proxyA = b3MakeShapeProxy( shape );
+
+		b3TOIOutput output = b3TimeOfImpact( &input );
+		B3_VALIDATE( output.state != b3_toiStateUnknown );
+
+		if (output.state == b3_toiStateOverlapped)
+		{
+			// Early return on overlap
+			result.state = output.state;
+			result.point = b3OffsetPos( origin, output.point );
+			result.normal = output.normal;
+			result.fraction = output.fraction;
+			result.shapeId = (b3ShapeId){
+				.index1 = shape->id + 1,
+				.world0 = world->worldId,
+				.generation = shape->generation,
+			};
+
+			return result;
+		}
+
+		if ( output.state == b3_toiStateFailed )
+		{
+			// Give up on failure.
+			result.state = output.state;
+			result.point = b3Pos_zero;
+			result.normal = b3Vec3_zero;
+			result.fraction = 1.0f;
+			result.shapeId = b3_nullShapeId;
+
+			return result;
+		}
+
+		if ( output.state == b3_toiStateHit )
+		{
+			// Got a hit. Shrink the range.
+			input.maxFraction = output.fraction;
+
+			result.state = output.state;
+			result.point = b3OffsetPos( origin, output.point );
+			result.normal = output.normal;
+			result.fraction = output.fraction;
+			result.shapeId = (b3ShapeId){
+				.index1 = shape->id + 1,
+				.world0 = world->worldId,
+				.generation = shape->generation,
+			};
+		}
+	}
+
+	return result;
+}
+
 void b3UpdateBodyMassData( b3World* world, b3Body* body )
 {
 	b3BodySim* bodySim = b3GetBodySim( world, body );
@@ -2303,7 +2414,7 @@ bool b3Body_IsBullet( b3BodyId bodyId )
 	return ( body->flags & b3_isBullet ) != 0;
 }
 
-void b3Body_AllowFastRotation(b3BodyId bodyId, bool flag)
+void b3Body_AllowFastRotation( b3BodyId bodyId, bool flag )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2327,7 +2438,7 @@ void b3Body_AllowFastRotation(b3BodyId bodyId, bool flag)
 	b3SyncBodyFlags( world, body );
 }
 
-bool b3Body_IsFastRotationAllowed(b3BodyId bodyId)
+bool b3Body_IsFastRotationAllowed( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
