@@ -1627,7 +1627,7 @@ typedef struct b3TOIOutput
 	/// The type of result
 	b3TOIState state;
 
-	/// The hit point
+	/// The hit point in local space.
 	b3Vec3 point;
 
 	/// The hit normal
@@ -1861,7 +1861,19 @@ typedef struct b3BodyPlaneResult
 /// Body time of impact result for movers.
 typedef struct b3BodyTOIResult
 {
-	b3TOIOutput output;
+	/// The type of result.
+	b3TOIState state;
+
+	/// The hit point in world space.
+	b3Pos point;
+
+	/// The hit normal.
+	b3Vec3 normal;
+
+	/// The sweep time of the collision.
+	float fraction;
+
+	/// The hit shape.
 	b3ShapeId shapeId;
 } b3BodyTOIResult;
 

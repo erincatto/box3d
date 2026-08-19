@@ -780,7 +780,7 @@ B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, 
 								const b3Capsule* mover, b3QueryFilter filter, b3WorldTransform bodyTransform );
 
 /// Perform a time of impact between a character mover and a body using specified sweep transforms.
-b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover, b3Vec3 moverTranslation,
+B3_API b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover, b3Vec3 moverTranslation,
 										  b3QueryFilter filter, b3WorldTransform bodyTransform1,
 										  b3WorldTransform bodyTransform2 );
 

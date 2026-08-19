@@ -783,8 +783,8 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 										  b3QueryFilter filter, b3WorldTransform bodyTransform1, b3WorldTransform bodyTransform2 )
 {
 	b3BodyTOIResult result = { 0 };
-	result.output.fraction = 1.0f;
-	result.output.state = b3_toiStateSeparated;
+	result.fraction = 1.0f;
+	result.state = b3_toiStateSeparated;
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -806,8 +806,8 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 		.count = 2,
 		.radius = mover->radius,
 	};
-	input.sweepA.c1 = mover->center1;
-	input.sweepA.c2 = b3Add( mover->center1, moverTranslation );
+	input.sweepA.c1 = b3Vec3_zero;
+	input.sweepA.c2 = moverTranslation;
 	input.sweepA.q1 = b3Quat_identity;
 	input.sweepA.q2 = b3Quat_identity;
 	input.sweepA.localCenter = b3Vec3_zero;
@@ -838,15 +838,34 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 
 		input.proxyB = b3MakeShapeProxy( shape );
 
-		result.output = b3TimeOfImpact( &input );
-		if ( result.output.state == b3_toiStateOverlapped )
+		b3TOIOutput output = b3TimeOfImpact( &input );
+		if ( output.state == b3_toiStateOverlapped )
 		{
+			result.state = b3_toiStateOverlapped;
+			result.fraction = 0.0f;
+			result.shapeId = (b3ShapeId){
+				.index1 = shape->id + 1,
+				.world0 = world->worldId,
+				.generation = shape->generation,
+			};
+
+			// Early return on overlap
 			return result;
 		}
 
-		if ( result.output.state == b3_toiStateHit )
+		if ( output.state == b3_toiStateHit )
 		{
-			input.maxFraction = result.output.fraction;
+			input.maxFraction = output.fraction;
+
+			result.state = output.state;
+			result.point = b3OffsetPos( origin, output.point );
+			result.normal = output.normal;
+			result.fraction = output.fraction;
+			result.shapeId = (b3ShapeId){
+				.index1 = shape->id + 1,
+				.world0 = world->worldId,
+				.generation = shape->generation,
+			};
 		}
 	}
 
