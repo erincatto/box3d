@@ -592,7 +592,7 @@ static int MoverTOIHitsBox( void )
 	ENSURE( result.state == b3_toiStateHit );
 	ENSURE_SMALL( result.fraction - 0.425f, 1e-2f );
 	ENSURE( b3IsNormalized( result.normal ) );
-	ENSURE_SMALL( result.normal.x - 1.0f, 1e-3f );
+	ENSURE_SMALL( result.normal.x + 1.0f, 1e-3f );
 
 	// The result carries a shape id, so the hit shape must come back identified.
 	ENSURE( b3Shape_IsValid( result.shapeId ) );
@@ -804,7 +804,7 @@ static int MoverTOIFarFromOrigin( void )
 
 	ENSURE( result.state == b3_toiStateHit );
 	ENSURE_SMALL( result.fraction - 0.425f, 1e-2f );
-	ENSURE_SMALL( result.normal.x - 1.0f, 1e-3f );
+	ENSURE_SMALL( result.normal.x + 1.0f, 1e-3f );
 	ENSURE_SMALL( (result.point.x - origin.x) - 4.4f, 0.5f );
 
 	b3DestroyWorld( worldId );

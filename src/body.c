@@ -801,22 +801,23 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 
 	b3Vec3 capsulePoints[2] = { mover->center1, mover->center2 };
 	b3TOIInput input = { 0 };
-	input.proxyA = (b3ShapeProxy){
+	input.proxyB = (b3ShapeProxy){
 		.points = capsulePoints,
 		.count = 2,
 		.radius = mover->radius,
 	};
-	input.sweepA.c1 = b3Vec3_zero;
-	input.sweepA.c2 = moverTranslation;
-	input.sweepA.q1 = b3Quat_identity;
-	input.sweepA.q2 = b3Quat_identity;
-	input.sweepA.localCenter = b3Vec3_zero;
+	input.sweepA.c1 = b3TransformPoint( xf1, localCenter );
+	input.sweepA.c2 = b3TransformPoint( xf2, localCenter );
+	input.sweepA.q1 = bodyTransform1.q;
+	input.sweepA.q2 = bodyTransform2.q;
+	input.sweepA.localCenter = localCenter;
 
-	input.sweepB.c1 = b3TransformPoint( xf1, localCenter );
-	input.sweepB.c2 = b3TransformPoint( xf2, localCenter );
-	input.sweepB.q1 = bodyTransform1.q;
-	input.sweepB.q2 = bodyTransform2.q;
-	input.sweepB.localCenter = localCenter;
+	input.sweepB.c1 = b3Vec3_zero;
+	input.sweepB.c2 = moverTranslation;
+	input.sweepB.q1 = b3Quat_identity;
+	input.sweepB.q2 = b3Quat_identity;
+	input.sweepB.localCenter = b3Vec3_zero;
+
 	input.maxFraction = 1.0f;
 
 	int shapeId = body->headShapeId;
@@ -836,7 +837,7 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 			continue;
 		}
 
-		input.proxyB = b3MakeShapeProxy( shape );
+		input.proxyA = b3MakeShapeProxy( shape );
 
 		b3TOIOutput output = b3TimeOfImpact( &input );
 		if ( output.state == b3_toiStateOverlapped )

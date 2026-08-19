@@ -312,6 +312,15 @@ public:
 
 static int sampleMoverOverlap = RegisterSample( "Character", "MoverOverlap", MoverOverlap::Create );
 
+// What the mover was last struck with. Stays on screen until the next hit.
+struct MoverImpact
+{
+	b3Pos point;
+	b3Vec3 normal;
+	float speed;
+	bool valid;
+};
+
 class GeometricMover : public Sample
 {
 public:
@@ -405,6 +414,7 @@ public:
 			m_treeShapeUserData.maxPush = 10.0f;
 			m_treeShapeUserData.clipVelocity = true;
 			m_treeShapeUserData.canMoverPush = false;
+			m_treeImpact = {};
 			CreateFallingTree();
 		}
 
@@ -480,7 +490,7 @@ public:
 
 			m_respawnTimer = 0.0f;
 			m_impactTransform = { b3Pos_zero, b3Quat_identity };
-			m_hasImpact = false;
+			m_boxImpact = {};
 		}
 
 		{
@@ -630,7 +640,30 @@ public:
 	{
 		b3DestroyBody( m_treeId );
 		CreateFallingTree();
-		m_hasTreeHit = false;
+	}
+
+	// The normal runs from the mover to the body, so closing speed is positive on approach.
+	MoverImpact MakeImpact( b3BodyId bodyId, const b3BodyTOIResult* toi )
+	{
+		b3Vec3 pointVelocity = b3Body_GetWorldPointVelocity( bodyId, toi->point );
+		float speed = b3Dot( toi->normal, b3Sub( pointVelocity, m_mover.m_velocity ) );
+
+		return { toi->point, toi->normal, speed, true };
+	}
+
+	void DrawImpact( const MoverImpact* impact, b3HexColor hexColor )
+	{
+		if ( impact->valid == false )
+		{
+			return;
+		}
+
+		Vec4 color = MakeColor( hexColor );
+		b3Pos tip = impact->point + 0.5f * impact->normal;
+
+		DrawPoint( impact->point, 6.0f, color );
+		DrawArrow( impact->point, tip, color );
+		DrawString3D( tip, color, " %.1f m/s", impact->speed );
 	}
 
 	// True once the body has held still for a second.
@@ -663,13 +696,7 @@ public:
 
 		if ( toi.state == b3_toiStateHit && toi.fraction > 0.0f )
 		{
-			m_treeHitPoint = toi.point;
-			m_treeHitNormal = toi.normal;
-
-			// The normal runs from the mover to the tree, so closing speed is positive on approach.
-			b3Vec3 pointVelocity = b3Body_GetWorldPointVelocity( m_treeId, toi.point );
-			m_treeHitSpeed = b3Dot( toi.normal, b3Sub( m_mover.m_velocity, pointVelocity ) );
-			m_hasTreeHit = true;
+			m_treeImpact = MakeImpact( m_treeId, &toi );
 		}
 
 		if ( SettledForOneSecond( m_treeId, &m_treeTimer ) )
@@ -694,7 +721,7 @@ public:
 		{
 			m_impactTransform.p = boxStart.p + toi.fraction * b3SubPos( boxEnd.p, boxStart.p );
 			m_impactTransform.q = b3NLerp( boxStart.q, boxEnd.q, toi.fraction );
-			m_hasImpact = true;
+			m_boxImpact = MakeImpact( m_fallingBoxId, &toi );
 		}
 
 		if ( SettledForOneSecond( m_fallingBoxId, &m_respawnTimer ) )
@@ -709,8 +736,6 @@ public:
 		b3Body_SetLinearVelocity( m_fallingBoxId, b3Vec3_zero );
 		b3Body_SetAngularVelocity( m_fallingBoxId, m_fallingSpin );
 		b3Body_SetAwake( m_fallingBoxId, true );
-
-		m_hasImpact = false;
 	}
 
 	void Step() override
@@ -731,18 +756,13 @@ public:
 			UpdateFallingTree( moverStart, treeStart );
 		}
 
-		if ( m_hasImpact )
+		if ( m_boxImpact.valid )
 		{
 			DrawCube( m_impactTransform, 2.0f * m_fallingExtent, MakeColorAlpha( b3_colorYellow, 0.4f ) );
 		}
 
-		if ( m_hasTreeHit )
-		{
-			DrawTextLine( "tree hit point (%.2f, %.2f, %.2f) normal (%.2f, %.2f, %.2f)", m_treeHitPoint.x,
-						  m_treeHitPoint.y, m_treeHitPoint.z, m_treeHitNormal.x, m_treeHitNormal.y,
-						  m_treeHitNormal.z );
-			DrawTextLine( "tree hit speed %.2f", m_treeHitSpeed );
-		}
+		DrawImpact( &m_boxImpact, b3_colorYellow );
+		DrawImpact( &m_treeImpact, b3_colorCyan );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -762,18 +782,15 @@ public:
 	b3BodyId m_fallingBoxId;
 	b3BodyId m_treeId;
 	b3WorldTransform m_impactTransform;
+	MoverImpact m_boxImpact;
+	MoverImpact m_treeImpact;
 	b3Pos m_treeSpawn;
-	b3Pos m_treeHitPoint;
 	b3Vec3 m_treeSpin;
-	b3Vec3 m_treeHitNormal;
-	float m_treeHitSpeed;
 	float m_treeTimer;
-	bool m_hasTreeHit;
 	b3Pos m_fallingSpawn;
 	b3Vec3 m_fallingExtent;
 	b3Vec3 m_fallingSpin;
 	float m_respawnTimer;
-	bool m_hasImpact;
 	bool m_clipVelocity;
 };
 

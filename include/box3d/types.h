@@ -1867,7 +1867,7 @@ typedef struct b3BodyTOIResult
 	/// The hit point in world space.
 	b3Pos point;
 
-	/// The hit normal.
+	/// The hit normal. Points from the body to the mover.
 	b3Vec3 normal;
 
 	/// The sweep time of the collision.
