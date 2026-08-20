@@ -1806,6 +1806,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 		b3Array_Destroy( primitives );
 		b3Array_Destroy( indices );
 		b3Array_Destroy( vertices );
+		b3Free( mesh, byteCount );
 		return NULL;
 	}
 

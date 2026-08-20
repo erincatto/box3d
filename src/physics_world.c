@@ -609,9 +609,7 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 			continue;
 		}
 
-		// Update contact respecting shape/body order (A,B). Bodies behind awake-set
-		// contacts are always either awake or static - inline b3GetBodySim with that
-		// invariant to skip the cross-TU call and per-call solverSets indirection.
+		// Update contact respecting shape/body order (A,B)
 		b3Body* bodyA = bodies + shapeA->bodyId;
 		b3Body* bodyB = bodies + shapeB->bodyId;
 		bool isStaticA = bodyA->type == b3_staticBody;
