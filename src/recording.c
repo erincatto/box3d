@@ -217,6 +217,9 @@ void b3RecW_PLANERESULT( b3RecBuffer* buf, b3PlaneResult v )
 	b3RecW_VEC3( buf, v.plane.normal );
 	b3RecW_F32( buf, v.plane.offset );
 	b3RecW_VEC3( buf, v.point );
+	b3RecW_I32( buf, v.triangleIndex );
+	b3RecW_I32( buf, v.childIndex );
+	b3RecW_I32( buf, v.materialIndex );
 }
 
 void b3RecW_WORLDID( b3RecBuffer* buf, b3WorldId v )

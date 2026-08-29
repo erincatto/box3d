@@ -1623,31 +1623,31 @@ typedef enum b3TOIState
 	b3_toiStateSeparated
 } b3TOIState;
 
-/// Time of impact output
+/// Time of impact output.
 typedef struct b3TOIOutput
 {
-	/// The type of result
+	/// The type of result.
 	b3TOIState state;
 
-	/// The hit point in local space.
+	/// The hit point. A shared point if overlapped.
 	b3Vec3 point;
 
-	/// The hit normal
+	/// The hit normal. Zero if overlapped.
 	b3Vec3 normal;
 
-	/// The sweep time of the collision
+	/// The sweep time of the collision. 0 if overlapped.
 	float fraction;
 
-	/// The final distance
+	/// The final distance. 0 if overlapped.
 	float distance;
 
-	/// Number of outer iterations
+	/// Number of outer iterations.
 	int distanceIterations;
 
-	/// Total number of push back iterations
+	/// Total number of push back iterations.
 	int pushBackIterations;
 
-	/// Total number of root iterations
+	/// Total number of root iterations.
 	int rootIterations;
 
 	/// Indicates that the time of impact detected initial

@@ -763,10 +763,10 @@ B3_API b3AABB b3Body_ComputeAABB( b3BodyId bodyId );
 B3_API float b3Body_GetMinExtent( b3BodyId bodyId );
 
 /// The maximum distance from any point on the body shapes to the center of mass.
-B3_API float b3Body_GetMaxExtent( b3BodyId bodyId );
+B3_API b3Vec3 b3Body_GetMaxExtent( b3BodyId bodyId );
 
 /// The maximum distance from any point on the body shapes to the body origin. Conservative.
-B3_API float b3Body_GetMaxExtentOrigin( b3BodyId bodyId );
+B3_API b3Vec3 b3Body_GetMaxExtentOrigin( b3BodyId bodyId );
 
 /// Get the closest point on a body to a world target.
 B3_API float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target );

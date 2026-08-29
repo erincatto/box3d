@@ -990,6 +990,7 @@ int b3CollideMover( b3PlaneResult* planes, int planeCapacity, const b3Shape* sha
 	{
 		planes[i].plane.normal = b3RotateVector( transform.q, planes[i].plane.normal );
 		planes[i].point = b3TransformPoint( transform, planes[i].point );
+		planes[i].materialIndex = b3ClampInt( planes[i].materialIndex, 0, shape->materialCount );
 	}
 
 	return planeCount;

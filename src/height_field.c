@@ -773,6 +773,8 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 	b3V32 rayOrigin = b3LoadV( &shapeStart.x );
 	b3V32 rayTranslation = b3LoadV( &shapeTranslation.x );
 
+	bool clockwise = heightField->clockwise;
+
 	while ( true )
 	{
 		int column1, column2;
@@ -829,6 +831,11 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 				b3Vec3 point21 = corners[2];
 				b3Vec3 point22 = corners[3];
 
+				if ( clockwise )
+				{
+					B3_SWAP( point12, point21 );
+				}
+
 				// I know the min/max x and z values, but not the min/max heights.
 				b3AABB bounds;
 				bounds.lowerBound = b3Min( b3Min( point11, point12 ), b3Min( point21, point22 ) );
@@ -848,18 +855,8 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 					// Ray cast
 					{
 						b3V32 vertex1 = b3LoadV( &point11.x );
-						b3V32 vertex2, vertex3;
-
-						if ( heightField->clockwise )
-						{
-							vertex2 = b3LoadV( &point12.x );
-							vertex3 = b3LoadV( &point21.x );
-						}
-						else
-						{
-							vertex2 = b3LoadV( &point21.x );
-							vertex3 = b3LoadV( &point12.x );
-						}
+						b3V32 vertex2 = b3LoadV( &point21.x );
+						b3V32 vertex3 = b3LoadV( &point12.x );
 
 						float alpha = b3IntersectRayTriangle( rayOrigin, rayTranslation, vertex1, vertex2, vertex3 );
 						B3_ASSERT( 0 <= alpha && alpha <= 1.0f );
@@ -882,18 +879,8 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 
 					{
 						b3V32 vertex1 = b3LoadV( &point22.x );
-						b3V32 vertex2, vertex3;
-
-						if ( heightField->clockwise )
-						{
-							vertex2 = b3LoadV( &point21.x );
-							vertex3 = b3LoadV( &point12.x );
-						}
-						else
-						{
-							vertex2 = b3LoadV( &point12.x );
-							vertex3 = b3LoadV( &point21.x );
-						}
+						b3V32 vertex2 = b3LoadV( &point12.x );
+						b3V32 vertex3 = b3LoadV( &point21.x );
 
 						float alpha = b3IntersectRayTriangle( rayOrigin, rayTranslation, vertex1, vertex2, vertex3 );
 						B3_ASSERT( 0 <= alpha && alpha <= 1.0f );
@@ -923,6 +910,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 						b3Vec3 e2 = b3Sub( point12, point11 );
 						b3Vec3 v = b3Sub( shapeStart, point11 );
 						float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+
 						if ( signedVolume >= 0.0f )
 						{
 							// Shift origin to first vertex
@@ -951,6 +939,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 						b3Vec3 e2 = b3Sub( point12, point21 );
 						b3Vec3 v = b3Sub( shapeStart, point21 );
 						float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+
 						if ( signedVolume >= 0.0f )
 						{
 							// Shift origin to first vertex
@@ -1246,6 +1235,8 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 	int minCol = (int)floorf( localMinX / scale.x );
 	int maxCol = (int)floorf( localMaxX / scale.x );
 
+	bool clockWise = shape->clockwise;
+
 	int planeCount = 0;
 
 	// Outer loop on rows and inner loop on columns so that triangle indices
@@ -1279,12 +1270,18 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 			b3Vec3 point21 = corners[2];
 			b3Vec3 point22 = corners[3];
 
+			if ( clockWise )
+			{
+				B3_SWAP( point12, point21 );
+			}
+
 			b3V32 v11 = b3LoadV( &point11.x );
 			b3V32 v12 = b3LoadV( &point12.x );
 			b3V32 v21 = b3LoadV( &point21.x );
 			b3V32 v22 = b3LoadV( &point22.x );
 
-			if ( b3TestBoundsTriangleOverlap( boundsCenter, boundsExtent, v11, v21, v12 ) )
+			bool overlap1 = b3TestBoundsTriangleOverlap( boundsCenter, boundsExtent, v11, v21, v12 );
+			if ( overlap1 )
 			{
 				b3Vec3 e1 = b3Sub( point21, point11 );
 				b3Vec3 e2 = b3Sub( point12, point11 );
@@ -1322,7 +1319,8 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 				}
 			}
 
-			if ( b3TestBoundsTriangleOverlap( boundsCenter, boundsExtent, v21, v22, v12 ) )
+			bool overlap2 = b3TestBoundsTriangleOverlap( boundsCenter, boundsExtent, v21, v22, v12 );
+			if ( overlap2 )
 			{
 				b3Vec3 e1 = b3Sub( point12, point22 );
 				b3Vec3 e2 = b3Sub( point21, point22 );
@@ -1330,7 +1328,7 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 				float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
 
 				// Front side?
-				if (signedVolume >= 0.0f)
+				if ( signedVolume >= 0.0f )
 				{
 					b3Vec3 triangleVertices[] = { point22, point12, point21 };
 					distanceInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };

@@ -272,6 +272,24 @@ static b3MeshData* MakeTwoMaterialMesh( void )
 	return b3CreateMesh( &def, NULL, 0 );
 }
 
+// Flat 3x3 vertex field at y = 0, one cell material per entry. Caller destroys.
+static b3HeightFieldData* MakeFlatField( uint8_t* materials, bool clockwise )
+{
+	float heights[9] = { 0 };
+
+	b3HeightFieldDef def = { 0 };
+	def.heights = heights;
+	def.materialIndices = materials;
+	def.scale = (b3Vec3){ 1.0f, 1.0f, 1.0f };
+	def.countX = 3;
+	def.countZ = 3;
+	def.globalMinimumHeight = -1.0f;
+	def.globalMaximumHeight = 1.0f;
+	def.clockwiseWinding = clockwise;
+
+	return b3CreateHeightField( &def );
+}
+
 typedef struct PlaneCapture
 {
 	b3PlaneResult planes[16];
@@ -520,6 +538,136 @@ static int MoverBodySkipsMeshAndCompound( void )
 	return 0;
 }
 
+// ---------------------------------------------------------------------------
+// One sided mover collision
+//
+// Mover queries keep only triangles facing the mover. The front side follows the
+// baked winding: up for a default mesh or height field, down when the height
+// field carries clockwiseWinding. A mirror in the mesh scale must not flip it.
+// ---------------------------------------------------------------------------
+
+static int MoverMeshBackside( void )
+{
+	b3MeshData* mesh = MakeTwoMaterialMesh();
+	b3Mesh shape = { .data = mesh, .scale = { 1.0f, 1.0f, 1.0f } };
+
+	b3PlaneResult planes[4];
+
+	// On the front of the left triangle, so a plane comes back
+	b3Capsule above = { { -2.0f, 0.15f, 0.0f }, { -2.0f, 0.35f, 0.0f }, 0.2f };
+	int count = b3CollideMoverAndMesh( planes, 4, &shape, &above );
+	ENSURE( count == 1 );
+	ENSURE( planes[0].plane.normal.y > 0.99f );
+	ENSURE( planes[0].childIndex == 0 );
+	ENSURE( planes[0].triangleIndex >= 0 && planes[0].triangleIndex < mesh->triangleCount );
+
+	// The same spot seen from behind the face is culled
+	b3Capsule below = { { -2.0f, -0.35f, 0.0f }, { -2.0f, -0.15f, 0.0f }, 0.2f };
+	count = b3CollideMoverAndMesh( planes, 4, &shape, &below );
+	ENSURE( count == 0 );
+
+	b3DestroyMesh( mesh );
+	return 0;
+}
+
+static int MoverMeshMirroredScale( void )
+{
+	b3MeshData* mesh = MakeTwoMaterialMesh();
+
+	// Reflecting the scale flips the triangle winding, the collision swaps it back,
+	// so the front stays up. Local x = -2 maps onto the source right triangle, material 1.
+	b3Mesh shape = { .data = mesh, .scale = { -1.0f, 1.0f, 1.0f } };
+
+	b3PlaneResult planes[4];
+
+	b3Capsule above = { { -2.0f, 0.15f, 0.0f }, { -2.0f, 0.35f, 0.0f }, 0.2f };
+	int count = b3CollideMoverAndMesh( planes, 4, &shape, &above );
+	ENSURE( count == 1 );
+	ENSURE( planes[0].plane.normal.y > 0.99f );
+	ENSURE( planes[0].materialIndex == 1 );
+	ENSURE( b3GetMeshMaterialIndices( mesh )[planes[0].triangleIndex] == 1 );
+
+	b3Capsule below = { { -2.0f, -0.35f, 0.0f }, { -2.0f, -0.15f, 0.0f }, 0.2f };
+	count = b3CollideMoverAndMesh( planes, 4, &shape, &below );
+	ENSURE( count == 0 );
+
+	b3DestroyMesh( mesh );
+	return 0;
+}
+
+static int MoverHeightFieldBackside( void )
+{
+	uint8_t materials[4] = { 0, 0, 0, 0 };
+	b3HeightFieldData* hf = MakeFlatField( materials, false );
+
+	b3PlaneResult planes[4];
+
+	// Standing on the front (upper) face of the default winding
+	b3Capsule above = { { 0.3f, 0.15f, 0.25f }, { 0.3f, 0.35f, 0.25f }, 0.2f };
+	int count = b3CollideMoverAndHeightField( planes, 4, hf, &above );
+	ENSURE( count == 1 );
+	ENSURE( planes[0].plane.normal.y > 0.99f );
+	ENSURE_SMALL( planes[0].plane.offset - 0.05f, 1e-4f );
+
+	// Under the surface is the back side and gets culled
+	b3Capsule below = { { 0.3f, -0.35f, 0.25f }, { 0.3f, -0.15f, 0.25f }, 0.2f };
+	count = b3CollideMoverAndHeightField( planes, 4, hf, &below );
+	ENSURE( count == 0 );
+
+	b3DestroyHeightField( hf );
+	return 0;
+}
+
+static int MoverHeightFieldReport( void )
+{
+	uint8_t materials[4] = { 1, 2, 0, 0 };
+	b3HeightFieldData* hf = MakeFlatField( materials, false );
+
+	b3PlaneResult planes[4];
+
+	// (0.3, 0.25) sits on the x + z <= 1 side of cell (0,0), which holds triangle 0
+	b3Capsule first = { { 0.3f, 0.15f, 0.25f }, { 0.3f, 0.35f, 0.25f }, 0.2f };
+	int count = b3CollideMoverAndHeightField( planes, 4, hf, &first );
+	ENSURE( count == 1 );
+	ENSURE( planes[0].triangleIndex == 0 );
+	ENSURE( planes[0].childIndex == 0 );
+	ENSURE( planes[0].materialIndex == 1 );
+
+	// (1.3, 0.3) sits on the x + z <= 2 side of cell (0,1), which holds triangle 2
+	b3Capsule second = { { 1.3f, 0.15f, 0.3f }, { 1.3f, 0.35f, 0.3f }, 0.2f };
+	count = b3CollideMoverAndHeightField( planes, 4, hf, &second );
+	ENSURE( count == 1 );
+	ENSURE( planes[0].triangleIndex == 2 );
+	ENSURE( planes[0].materialIndex == 2 );
+
+	b3DestroyHeightField( hf );
+	return 0;
+}
+
+// A clockwise height field faces down, see HeightFieldWinding. Backside culling
+// must respect the flag: below the surface is the front side, above is the back.
+static int MoverHeightFieldClockwise( void )
+{
+	uint8_t materials[4] = { 0, 0, 0, 0 };
+	b3HeightFieldData* hf = MakeFlatField( materials, true );
+
+	b3PlaneResult planes[4];
+
+	b3Capsule below = { { 0.3f, -0.35f, 0.25f }, { 0.3f, -0.15f, 0.25f }, 0.2f };
+	int count = b3CollideMoverAndHeightField( planes, 4, hf, &below );
+	ENSURE( count == 1 );
+	ENSURE( planes[0].plane.normal.y < -0.99f );
+	ENSURE_SMALL( planes[0].plane.offset - 0.05f, 1e-4f );
+	ENSURE( planes[0].triangleIndex == 0 || planes[0].triangleIndex == 1 );
+
+	b3Capsule above = { { 0.3f, 0.15f, 0.25f }, { 0.3f, 0.35f, 0.25f }, 0.2f };
+	count = b3CollideMoverAndHeightField( planes, 4, hf, &above );
+	ENSURE( count == 0 );
+
+	b3DestroyHeightField( hf );
+	return 0;
+}
+
 int MoverTest( void )
 {
 	RUN_SUBTEST( GamePlanes );
@@ -542,6 +690,11 @@ int MoverTest( void )
 	RUN_SUBTEST( MoverWorldCompoundMeshMaterials );
 	RUN_SUBTEST( MoverBodyMaterialIndices );
 	RUN_SUBTEST( MoverBodySkipsMeshAndCompound );
+	RUN_SUBTEST( MoverMeshBackside );
+	RUN_SUBTEST( MoverMeshMirroredScale );
+	RUN_SUBTEST( MoverHeightFieldBackside );
+	RUN_SUBTEST( MoverHeightFieldReport );
+	RUN_SUBTEST( MoverHeightFieldClockwise );
 
 	return 0;
 }

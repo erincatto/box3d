@@ -1658,9 +1658,9 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 		int index2 = indices.data[3 * index + 1];
 		int index3 = indices.data[3 * index + 2];
 
-		B3_VALIDATE( 0 <= index1 && index1 < vertexCount );
-		B3_VALIDATE( 0 <= index2 && index2 < vertexCount );
-		B3_VALIDATE( 0 <= index3 && index3 < vertexCount );
+		B3_ASSERT( 0 <= index1 && index1 < vertexCount );
+		B3_ASSERT( 0 <= index2 && index2 < vertexCount );
+		B3_ASSERT( 0 <= index3 && index3 < vertexCount );
 
 		b3Vec3 vertex1 = vertices.data[index1];
 		b3Vec3 vertex2 = vertices.data[index2];
@@ -2145,6 +2145,20 @@ b3CastOutput b3ShapeCastMesh( const b3Mesh* mesh, const b3ShapeCastInput* input 
 						vertex3 = b3Mul( meshScale, vertices[triangle.index2] );
 					}
 
+					b3V32 v1 = b3LoadV( &vertex1.x );
+					b3V32 v2 = b3LoadV( &vertex2.x );
+					b3V32 v3 = b3LoadV( &vertex3.x );
+
+					b3V32 triangleMin = b3SubV( b3MinV( v1, b3MinV( v2, v3 ) ), shapeExtent );
+					b3V32 triangleMax = b3AddV( b3MaxV( v1, b3MaxV( v2, v3 ) ), shapeExtent );
+
+					// Test extended triangle vs ray bounds overlap in scaled space. Skip edge tests.
+					bool overlap = b3TestBoundsOverlap( triangleMin, triangleMax, rayMin, rayMax );
+					if (overlap == false)
+					{
+						continue;
+					}
+
 					// This test is in scaled space. vertices and center are scaled.
 					b3Vec3 e1 = b3Sub( vertex2, vertex1 );
 					b3Vec3 e2 = b3Sub( vertex3, vertex1 );
@@ -2156,50 +2170,39 @@ b3CastOutput b3ShapeCastMesh( const b3Mesh* mesh, const b3ShapeCastInput* input 
 						continue;
 					}
 
-					b3V32 v1 = b3LoadV( &vertex1.x );
-					b3V32 v2 = b3LoadV( &vertex2.x );
-					b3V32 v3 = b3LoadV( &vertex3.x );
+					// Collide shape with triangle in scaled space.
+					b3Vec3 origin = vertex1;
+					b3Vec3 triangleVertices[] = { b3Vec3_zero, b3Sub( vertex2, origin ), b3Sub( vertex3, origin ) };
+					b3Transform shiftedOrigin = { b3Neg( origin ), b3Quat_identity };
 
-					b3V32 triangleMin = b3SubV( b3MinV( v1, b3MinV( v2, v3 ) ), shapeExtent );
-					b3V32 triangleMax = b3AddV( b3MaxV( v1, b3MaxV( v2, v3 ) ), shapeExtent );
+					b3ShapeCastPairInput pairInput;
+					pairInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
+					pairInput.proxyB = input->proxy;
+					pairInput.transform = shiftedOrigin;
+					pairInput.maxFraction = bestOutput.fraction;
+					pairInput.translationB = input->translation;
+					pairInput.canEncroach = input->canEncroach;
 
-					// Test triangle-ray overlap in scaled space
-					if ( b3TestBoundsOverlap( triangleMin, triangleMax, rayMin, rayMax ) )
+					b3CastOutput pairOutput = b3ShapeCast( &pairInput );
+
+					if ( pairOutput.hit )
 					{
-						// Collide shape with triangle in scaled space
-						b3Vec3 origin = vertex1;
-						b3Vec3 triangleVertices[] = { b3Vec3_zero, b3Sub( vertex2, origin ), b3Sub( vertex3, origin ) };
-						b3Transform shiftedOrigin = { b3Neg( origin ), b3Quat_identity };
+						pairOutput.point = b3Add( pairOutput.point, origin );
 
-						b3ShapeCastPairInput pairInput;
-						pairInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
-						pairInput.proxyB = input->proxy;
-						pairInput.transform = shiftedOrigin;
-						pairInput.maxFraction = bestOutput.fraction;
-						pairInput.translationB = input->translation;
-						pairInput.canEncroach = input->canEncroach;
+						bestOutput = pairOutput;
+						bestOutput.triangleIndex = triangleIndex;
+						bestOutput.materialIndex = materialIndices[triangleIndex];
 
-						b3CastOutput pairOutput = b3ShapeCast( &pairInput );
+						// Update ray bounds in scaled space
+						lambda = b3SplatV( pairOutput.fraction );
+						rayEnd = b3AddV( rayStart, b3MulV( lambda, rayDelta ) );
+						rayMin = b3MinV( rayStart, rayEnd );
+						rayMax = b3MaxV( rayStart, rayEnd );
 
-						if ( pairOutput.hit )
-						{
-							pairOutput.point = b3Add( pairOutput.point, origin );
-
-							bestOutput = pairOutput;
-							bestOutput.triangleIndex = triangleIndex;
-							bestOutput.materialIndex = materialIndices[triangleIndex];
-
-							// Update ray bounds in scaled space
-							lambda = b3SplatV( pairOutput.fraction );
-							rayEnd = b3AddV( rayStart, b3MulV( lambda, rayDelta ) );
-							rayMin = b3MinV( rayStart, rayEnd );
-							rayMax = b3MaxV( rayStart, rayEnd );
-
-							// Ray bounds in unscaled space
-							invScaledRayEnd = b3AddV( invScaledRayStart, b3MulV( lambda, invScaledRayDelta ) );
-							invScaledRayMin = b3MinV( invScaledRayStart, invScaledRayEnd );
-							invScaledRayMax = b3MaxV( invScaledRayStart, invScaledRayEnd );
-						}
+						// Ray bounds in unscaled space
+						invScaledRayEnd = b3AddV( invScaledRayStart, b3MulV( lambda, invScaledRayDelta ) );
+						invScaledRayMin = b3MinV( invScaledRayStart, invScaledRayEnd );
+						invScaledRayMax = b3MaxV( invScaledRayStart, invScaledRayEnd );
 					}
 				}
 			}
@@ -2352,7 +2355,7 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 					// Test triangle bounds overlap in unscaled space
 					if ( b3TestBoundsTriangleOverlap( invScaledBoundsCenter, invScaledBoundsExtent, v1, v2, v3 ) )
 					{
-						// Compute shape distance in scaled space. Winding order doesn't matter.
+						// Compute shape distance in scaled space.
 						b3Vec3 triangleVertices[] = { b3Mul( meshScale, vertex1 ), b3Mul( meshScale, vertex2 ),
 													  b3Mul( meshScale, vertex3 ) };
 
@@ -2377,7 +2380,7 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 
 						if ( distanceOutput.distance == 0.0f )
 						{
-							// todo SAT
+							// deep overlap
 						}
 						else if ( distanceOutput.distance <= mover->radius )
 						{

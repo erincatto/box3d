@@ -288,6 +288,9 @@ b3PlaneResult b3RecR_PLANERESULT( b3RecReader* rdr )
 	v.plane.normal = b3RecR_VEC3( rdr );
 	v.plane.offset = b3RecR_F32( rdr );
 	v.point = b3RecR_VEC3( rdr );
+	v.triangleIndex = b3RecR_I32( rdr );
+	v.childIndex = b3RecR_I32( rdr );
+	v.materialIndex = b3RecR_I32( rdr );
 	return v;
 }
 

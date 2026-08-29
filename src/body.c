@@ -846,7 +846,7 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 		{
 			// Early return on overlap
 			result.state = output.state;
-			result.point = b3OffsetPos( origin, output.point );
+			result.point = output.point;
 			result.normal = output.normal;
 			result.fraction = output.fraction;
 			result.shapeId = (b3ShapeId){
@@ -854,18 +854,6 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 				.world0 = world->worldId,
 				.generation = shape->generation,
 			};
-
-			return result;
-		}
-
-		if ( output.state == b3_toiStateFailed )
-		{
-			// Give up on failure.
-			result.state = output.state;
-			result.point = b3Pos_zero;
-			result.normal = b3Vec3_zero;
-			result.fraction = 1.0f;
-			result.shapeId = b3_nullShapeId;
 
 			return result;
 		}
@@ -2601,18 +2589,18 @@ float b3Body_GetMinExtent( b3BodyId bodyId )
 	return bodySim->minExtent;
 }
 
-float b3Body_GetMaxExtent( b3BodyId bodyId )
+b3Vec3 b3Body_GetMaxExtent( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3BodySim* bodySim = b3GetBodySim( world, body );
-	return b3Length( bodySim->maxExtent );
+	return bodySim->maxExtent;
 }
 
-float b3Body_GetMaxExtentOrigin( b3BodyId bodyId )
+b3Vec3 b3Body_GetMaxExtentOrigin( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	b3BodySim* bodySim = b3GetBodySim( world, body );
-	return b3Length( bodySim->maxExtent ) + b3Length( bodySim->localCenter );
+	return b3Add( bodySim->maxExtent, b3Abs( bodySim->localCenter ) );
 }
