@@ -1826,7 +1826,7 @@ typedef struct b3PlaneResult
 	/// The index of the compound child shape.
 	int childIndex;
 
-	/// The material index. May be -1 for null.
+	/// The material index.
 	int materialIndex;
 
 } b3PlaneResult;
@@ -1876,15 +1876,19 @@ typedef struct b3BodyTOIResult
 	b3TOIState state;
 
 	/// The hit point in world space.
+	/// Only valid if state == b3_toiStateHit.
 	b3Pos point;
 
 	/// The hit normal. Points from the body to the mover.
+	/// Only valid if state == b3_toiStateHit.
 	b3Vec3 normal;
 
 	/// The sweep time of the collision.
+	/// Only valid if state == b3_toiStateHit.
 	float fraction;
 
 	/// The hit shape.
+	/// Only valid if state == b3_toiStateHit.
 	b3ShapeId shapeId;
 } b3BodyTOIResult;
 
