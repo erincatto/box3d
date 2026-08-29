@@ -527,7 +527,7 @@ static int b3WeldVertices( b3WeldData* data, float tolerance )
 	for ( int i = 0; i < indexCount; ++i )
 	{
 		int srcIndex = data->srcIndices[i];
-		B3_ASSERT(0 <= srcIndex && srcIndex < vertexCount );
+		B3_ASSERT( 0 <= srcIndex && srcIndex < vertexCount );
 		data->dstIndices[i] = vertexMapping.data[srcIndex];
 	}
 
@@ -1958,7 +1958,7 @@ b3CastOutput b3RayCastMesh( const b3Mesh* mesh, const b3RayCastInput* input )
 
 	b3V32 scale = b3LoadV( &meshScale.x );
 	b3V32 invScale = b3DivV( b3_oneV, scale );
-	bool clockwise = meshScale.x * meshScale.y * meshScale.z < 0.0f;
+	bool ccw = meshScale.x * meshScale.y * meshScale.z > 0.0f;
 
 	// Use the inverse scaled ray for traversal of the BVH
 	b3V32 invScaledRayStart = b3MulV( invScale, rayStart );
@@ -1998,15 +1998,15 @@ b3CastOutput b3RayCastMesh( const b3Mesh* mesh, const b3RayCastInput* input )
 					b3Vec3 vertex2, vertex3;
 
 					// The CPU should predict this branch
-					if ( clockwise )
-					{
-						vertex2 = b3Mul( meshScale, vertices[triangle.index3] );
-						vertex3 = b3Mul( meshScale, vertices[triangle.index2] );
-					}
-					else
+					if ( ccw )
 					{
 						vertex2 = b3Mul( meshScale, vertices[triangle.index2] );
 						vertex3 = b3Mul( meshScale, vertices[triangle.index3] );
+					}
+					else
+					{
+						vertex2 = b3Mul( meshScale, vertices[triangle.index3] );
+						vertex3 = b3Mul( meshScale, vertices[triangle.index2] );
 					}
 
 					// Collide ray with triangle in scaled space
@@ -2092,7 +2092,7 @@ b3CastOutput b3ShapeCastMesh( const b3Mesh* mesh, const b3ShapeCastInput* input 
 	b3V32 scale = b3LoadV( &meshScale.x );
 	b3V32 invScale = b3DivV( b3_oneV, scale );
 	b3V32 absInvScale = b3AbsV( invScale );
-	bool clockwise = meshScale.x * meshScale.y * meshScale.z < 0.0f;
+	bool ccw = meshScale.x * meshScale.y * meshScale.z > 0.0f;
 
 	// Use the inverse scaled shape cast for traversal of the BVH
 	b3V32 invScaledRayStart = b3MulV( invScale, rayStart );
@@ -2134,15 +2134,25 @@ b3CastOutput b3ShapeCastMesh( const b3Mesh* mesh, const b3ShapeCastInput* input 
 					b3Vec3 vertex2, vertex3;
 
 					// The CPU should predict this branch
-					if ( clockwise )
+					if ( ccw )
+					{
+						vertex2 = b3Mul( meshScale, vertices[triangle.index2] );
+						vertex3 = b3Mul( meshScale, vertices[triangle.index3] );
+					}
+					else
 					{
 						vertex2 = b3Mul( meshScale, vertices[triangle.index3] );
 						vertex3 = b3Mul( meshScale, vertices[triangle.index2] );
 					}
-					else
+
+					b3Vec3 e1 = b3Sub( vertex2, vertex1 );
+					b3Vec3 e2 = b3Sub( vertex3, vertex1 );
+					b3Vec3 v = b3Sub( center, vertex1 );
+					float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+					if ( signedVolume < 0.0f )
 					{
-						vertex2 = b3Mul( meshScale, vertices[triangle.index2] );
-						vertex3 = b3Mul( meshScale, vertices[triangle.index3] );
+						// Backside
+						continue;
 					}
 
 					b3V32 v1 = b3LoadV( &vertex1.x );
@@ -2281,7 +2291,7 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 
 	b3SimplexCache cache = { 0 };
 	float radius = mover->radius;
-
+	b3Vec3 center = b3Lerp( mover->center1, mover->center2, 0.5f );
 	b3V32 center1 = b3LoadV( &mover->center1.x );
 	b3V32 center2 = b3LoadV( &mover->center2.x );
 	b3V32 r = b3SplatV( radius );
@@ -2290,6 +2300,7 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 
 	// Scale may have reflection so min/max may become invalid when unscaled
 	b3Vec3 meshScale = shape->scale;
+	bool ccw = meshScale.x * meshScale.y * meshScale.z > 0.0f;
 	b3V32 scale = b3LoadV( &meshScale.x );
 	b3V32 invScale = b3DivV( b3_oneV, scale );
 	b3V32 temp1 = b3MulV( invScale, boundsMin );
@@ -2327,6 +2338,12 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 					b3Vec3 vertex1 = vertices[triangle.index1];
 					b3Vec3 vertex2 = vertices[triangle.index2];
 					b3Vec3 vertex3 = vertices[triangle.index3];
+
+					if (ccw == false)
+					{
+						B3_SWAP( vertex2, vertex3 );
+					}
+
 					b3V32 v1 = b3LoadV( &vertex1.x );
 					b3V32 v2 = b3LoadV( &vertex2.x );
 					b3V32 v3 = b3LoadV( &vertex3.x );
@@ -2335,9 +2352,19 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 					if ( b3TestBoundsTriangleOverlap( invScaledBoundsCenter, invScaledBoundsExtent, v1, v2, v3 ) )
 					{
 						// Compute shape distance in scaled space. Winding order doesn't matter.
-						// todo implement one-sided collision?
 						b3Vec3 triangleVertices[] = { b3Mul( meshScale, vertex1 ), b3Mul( meshScale, vertex2 ),
 													  b3Mul( meshScale, vertex3 ) };
+
+						b3Vec3 e1 = b3Sub( triangleVertices[1], triangleVertices[0] );
+						b3Vec3 e2 = b3Sub( triangleVertices[2], triangleVertices[0] );
+						b3Vec3 v = b3Sub( center, triangleVertices[0] );
+						float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+						if ( signedVolume < 0.0f )
+						{
+							// Backside
+							continue;
+						}
+
 						distanceInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
 
 						// reset the cache
@@ -2389,7 +2416,7 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 void b3QueryMesh( const b3Mesh* mesh, b3AABB bounds, b3MeshQueryFcn* fcn, void* context )
 {
 	b3Vec3 meshScale = mesh->scale;
-	bool clockwise = meshScale.x * meshScale.y * meshScale.z > 0.0f;
+	bool ccw = meshScale.x * meshScale.y * meshScale.z > 0.0f;
 
 	// Scale may have reflection so min/max may become invalid when unscaled
 	b3V32 scale = b3LoadV( &meshScale.x );
@@ -2440,7 +2467,7 @@ void b3QueryMesh( const b3Mesh* mesh, b3AABB bounds, b3MeshQueryFcn* fcn, void* 
 					{
 						b3Vec3 a = b3Mul( meshScale, vertex1 );
 						b3Vec3 b, c;
-						if ( clockwise )
+						if ( ccw )
 						{
 							b = b3Mul( meshScale, vertex2 );
 							c = b3Mul( meshScale, vertex3 );
