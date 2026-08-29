@@ -55,15 +55,11 @@ static int GamePlanes( void )
 	return 0;
 }
 
-// ---------------------------------------------------------------------------
 // Mover-collide overlap handling
-//
 // b3CollideMoverAndSphere / Capsule / Hull must never emit a plane with a
 // degenerate (zero) normal, even when the mover deeply penetrates the shape.
 // On deep overlap the GJK path returns a {0,0,0} normal; these tests guard the
 // fix that replaces it with an analytic (sphere/capsule) or dropped (hull) result.
-// ---------------------------------------------------------------------------
-
 static int MoverSphereSeparated( void )
 {
 	b3Sphere shape = { { 0.0f, 0.0f, 0.0f }, 0.5f };
@@ -234,14 +230,10 @@ static int MoverHullDeepOverlap( void )
 	return 0;
 }
 
-// ---------------------------------------------------------------------------
 // Mover queries report which material a contact plane came from
-//
 // b3PlaneResult::materialIndex follows different paths per shape type. Meshes
 // report the per triangle material index. Compounds remap the child result
 // through the child material table. Convex shapes report index 0.
-// ---------------------------------------------------------------------------
-
 static b3SurfaceMaterial MakeMaterial( float friction, uint64_t userId )
 {
 	b3SurfaceMaterial m = b3DefaultSurfaceMaterial();
@@ -538,14 +530,10 @@ static int MoverBodySkipsMeshAndCompound( void )
 	return 0;
 }
 
-// ---------------------------------------------------------------------------
-// One sided mover collision
-//
+// One sided mover collision.
 // Mover queries keep only triangles facing the mover. The front side follows the
 // baked winding: up for a default mesh or height field, down when the height
 // field carries clockwiseWinding. A mirror in the mesh scale must not flip it.
-// ---------------------------------------------------------------------------
-
 static int MoverMeshBackside( void )
 {
 	b3MeshData* mesh = MakeTwoMaterialMesh();

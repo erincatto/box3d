@@ -399,7 +399,9 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 			// No effort to share mesh materials. It would be easier to do if the number of materials was limited.
 			B3_ASSERT( meshData->materialCount == meshDef->materialCount );
 
-			for ( int j = 0; j < meshDef->materialCount; ++j )
+			int meshMaterialCount = b3MinInt( meshDef->materialCount, B3_MAX_COMPOUND_MESH_MATERIALS );
+
+			for ( int j = 0; j < meshMaterialCount; ++j )
 			{
 				// Look for an existing material.
 				b3MaterialMap_itr materialItr =

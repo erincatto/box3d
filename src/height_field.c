@@ -865,7 +865,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 						{
 							b3Vec3 edge1 = b3Sub( point21, point11 );
 							b3Vec3 edge2 = b3Sub( point12, point11 );
-							b3Vec3 normal = heightField->clockwise ? b3Cross( edge2, edge1 ) : b3Cross( edge1, edge2 );
+							b3Vec3 normal = b3Cross( edge1, edge2 );
 
 							result.point = b3MulAdd( shapeStart, alpha, shapeTranslation );
 							result.normal = b3Normalize( normal );
@@ -889,7 +889,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 						{
 							b3Vec3 edge1 = b3Sub( point22, point21 );
 							b3Vec3 edge2 = b3Sub( point12, point21 );
-							b3Vec3 normal = heightField->clockwise ? b3Cross( edge2, edge1 ) : b3Cross( edge1, edge2 );
+							b3Vec3 normal = b3Cross( edge1, edge2 );
 
 							result.point = b3MulAdd( shapeStart, alpha, shapeTranslation );
 							result.normal = b3Normalize( normal );
@@ -906,10 +906,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 					// Shape cast
 					{
 						// shapeStart is the center of the proxy.
-						b3Vec3 e1 = b3Sub( point21, point11 );
-						b3Vec3 e2 = b3Sub( point12, point11 );
-						b3Vec3 v = b3Sub( shapeStart, point11 );
-						float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+						float signedVolume = b3SignedVolume( point11, point21, point12, shapeStart );
 
 						if ( signedVolume >= 0.0f )
 						{
@@ -935,10 +932,7 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 
 					{
 						// shapeStart is the center of the proxy.
-						b3Vec3 e1 = b3Sub( point22, point21 );
-						b3Vec3 e2 = b3Sub( point12, point21 );
-						b3Vec3 v = b3Sub( shapeStart, point21 );
-						float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+						float signedVolume = b3SignedVolume( point21, point22, point12, shapeStart );
 
 						if ( signedVolume >= 0.0f )
 						{
@@ -1283,10 +1277,7 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 			bool overlap1 = b3TestBoundsTriangleOverlap( boundsCenter, boundsExtent, v11, v21, v12 );
 			if ( overlap1 )
 			{
-				b3Vec3 e1 = b3Sub( point21, point11 );
-				b3Vec3 e2 = b3Sub( point12, point11 );
-				b3Vec3 v = b3Sub( center, point11 );
-				float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+				float signedVolume = b3SignedVolume( point11, point21, point12, center );
 
 				// Front side?
 				if ( signedVolume >= 0.0f )
@@ -1322,10 +1313,7 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 			bool overlap2 = b3TestBoundsTriangleOverlap( boundsCenter, boundsExtent, v21, v22, v12 );
 			if ( overlap2 )
 			{
-				b3Vec3 e1 = b3Sub( point12, point22 );
-				b3Vec3 e2 = b3Sub( point21, point22 );
-				b3Vec3 v = b3Sub( center, point22 );
-				float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+				float signedVolume = b3SignedVolume( point22, point12, point21, center );
 
 				// Front side?
 				if ( signedVolume >= 0.0f )

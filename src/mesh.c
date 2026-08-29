@@ -2160,10 +2160,7 @@ b3CastOutput b3ShapeCastMesh( const b3Mesh* mesh, const b3ShapeCastInput* input 
 					}
 
 					// This test is in scaled space. vertices and center are scaled.
-					b3Vec3 e1 = b3Sub( vertex2, vertex1 );
-					b3Vec3 e2 = b3Sub( vertex3, vertex1 );
-					b3Vec3 v = b3Sub( center, vertex1 );
-					float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+					float signedVolume = b3SignedVolume( vertex1, vertex2, vertex3, center );
 					if ( signedVolume < 0.0f )
 					{
 						// Backside
@@ -2360,10 +2357,8 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 													  b3Mul( meshScale, vertex3 ) };
 
 						// Vertices and center are in scaled space.
-						b3Vec3 e1 = b3Sub( triangleVertices[1], triangleVertices[0] );
-						b3Vec3 e2 = b3Sub( triangleVertices[2], triangleVertices[0] );
-						b3Vec3 v = b3Sub( center, triangleVertices[0] );
-						float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+						float signedVolume =
+							b3SignedVolume( triangleVertices[0], triangleVertices[1], triangleVertices[2], center );
 						if ( signedVolume < 0.0f )
 						{
 							// Backside
@@ -2466,7 +2461,7 @@ void b3QueryMesh( const b3Mesh* mesh, b3AABB bounds, b3MeshQueryFcn* fcn, void* 
 					b3V32 v2 = b3LoadV( &vertex2.x );
 					b3V32 v3 = b3LoadV( &vertex3.x );
 
-					// Perform triangle overlap test in unscaled space. Winding order doesn't matter.
+					// Perform triangle overlap test in unscaled space.
 					// todo it is possible that some margins are getting scaled
 					if ( b3TestBoundsTriangleOverlap( invScaledBoundsCenter, invScaledBoundsExtent, v1, v2, v3 ) )
 					{

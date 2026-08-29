@@ -1872,23 +1872,16 @@ typedef struct b3BodyPlaneResult
 /// Body time of impact result for movers.
 typedef struct b3BodyTOIResult
 {
-	/// The type of result.
-	b3TOIState state;
-
 	/// The hit point in world space.
-	/// Only valid if state == b3_toiStateHit.
 	b3Pos point;
 
 	/// The hit normal. Points from the body to the mover.
-	/// Only valid if state == b3_toiStateHit.
 	b3Vec3 normal;
 
 	/// The sweep time of the collision.
-	/// Only valid if state == b3_toiStateHit.
 	float fraction;
 
 	/// The hit shape.
-	/// Only valid if state == b3_toiStateHit.
 	b3ShapeId shapeId;
 } b3BodyTOIResult;
 

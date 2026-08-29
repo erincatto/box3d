@@ -1804,7 +1804,8 @@ static bool b3RecReplayPlaneTrampoline( b3ShapeId id, const b3PlaneResult* plane
 		const b3RecRecordedHit* h = &rc->hits[rc->cursor + i];
 		if ( b3RecVec3Differs( h->plane.plane.normal, planes[i].plane.normal ) ||
 			 b3RecF32Differs( h->plane.plane.offset, planes[i].plane.offset ) ||
-			 b3RecVec3Differs( h->plane.point, planes[i].point ) )
+			 b3RecVec3Differs( h->plane.point, planes[i].point ) || h->plane.triangleIndex != planes[i].triangleIndex ||
+			 h->plane.childIndex != planes[i].childIndex || h->plane.materialIndex != planes[i].materialIndex )
 		{
 			rc->rdr->diverged = true;
 		}

@@ -784,7 +784,6 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 {
 	b3BodyTOIResult result = { 0 };
 	result.fraction = 1.0f;
-	result.state = b3_toiStateSeparated;
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -842,28 +841,9 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 		b3TOIOutput output = b3TimeOfImpact( &input );
 		B3_VALIDATE( output.state != b3_toiStateUnknown );
 
-		if ( output.state == b3_toiStateOverlapped )
+		// Mimic behavior in b3ContinuousQueryCallback. Ignore shapes that initially overlap.
+		if (0.0f < output.fraction && output.fraction < result.fraction)
 		{
-			// Early return on overlap
-			result.state = output.state;
-			result.point = output.point;
-			result.normal = output.normal;
-			result.fraction = output.fraction;
-			result.shapeId = (b3ShapeId){
-				.index1 = shape->id + 1,
-				.world0 = world->worldId,
-				.generation = shape->generation,
-			};
-
-			return result;
-		}
-
-		if ( output.state == b3_toiStateHit )
-		{
-			// Got a hit. Shrink the range.
-			input.maxFraction = output.fraction;
-
-			result.state = output.state;
 			result.point = b3OffsetPos( origin, output.point );
 			result.normal = output.normal;
 			result.fraction = output.fraction;

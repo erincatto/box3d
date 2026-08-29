@@ -589,7 +589,6 @@ static int MoverTOIHitsBox( void )
 	b3BodyTOIResult result = b3Body_TimeOfImpactMover( bodyId, b3Pos_zero, &mover, (b3Vec3){ 10.0f, 0.0f, 0.0f },
 													  b3DefaultQueryFilter(), bodyTransform, bodyTransform );
 
-	ENSURE( result.state == b3_toiStateHit );
 	ENSURE_SMALL( result.fraction - 0.425f, 1e-2f );
 	ENSURE( b3IsNormalized( result.normal ) );
 	ENSURE_SMALL( result.normal.x + 1.0f, 1e-3f );
@@ -618,7 +617,6 @@ static int MoverTOISeparated( void )
 	b3BodyTOIResult result = b3Body_TimeOfImpactMover( bodyId, b3Pos_zero, &mover, (b3Vec3){ 0.0f, 10.0f, 0.0f },
 													  b3DefaultQueryFilter(), bodyTransform, bodyTransform );
 
-	ENSURE( result.state == b3_toiStateSeparated );
 	ENSURE_SMALL( result.fraction - 1.0f, 1e-6f );
 	ENSURE( b3Shape_IsValid( result.shapeId ) == false );
 
@@ -633,7 +631,7 @@ static int MoverTOIOverlapped( void )
 
 	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	b3ShapeId shapeId = b3CreateHullShape( bodyId, &shapeDef, &box.base );
+	b3CreateHullShape( bodyId, &shapeDef, &box.base );
 
 	// Mover starts buried in the box, so there is no free interval to search.
 	b3Capsule mover = MakeStandingMover();
@@ -641,9 +639,9 @@ static int MoverTOIOverlapped( void )
 	b3BodyTOIResult result = b3Body_TimeOfImpactMover( bodyId, b3Pos_zero, &mover, (b3Vec3){ 10.0f, 0.0f, 0.0f },
 													  b3DefaultQueryFilter(), bodyTransform, bodyTransform );
 
-	ENSURE( result.state == b3_toiStateOverlapped );
-	ENSURE_SMALL( result.fraction, 1e-6f );
-	ENSURE( result.shapeId.index1 == shapeId.index1 );
+	// Overlap should be ignored.
+	ENSURE_SMALL( result.fraction - 1.0f, 1e-6f );
+	ENSURE( B3_IS_NULL(result.shapeId) );
 
 	b3DestroyWorld( worldId );
 	return 0;
@@ -679,11 +677,9 @@ static int MoverTOIClosestShape( void )
 	b3BodyTOIResult nearLast = b3Body_TimeOfImpactMover( nearLastId, b3Pos_zero, &mover, translation, b3DefaultQueryFilter(),
 														bodyTransform, bodyTransform );
 
-	ENSURE( nearFirst.state == b3_toiStateHit );
 	ENSURE_SMALL( nearFirst.fraction - 0.425f, 1e-2f );
 	ENSURE( nearFirst.shapeId.index1 == nearFirstHit.index1 );
 
-	ENSURE( nearLast.state == b3_toiStateHit );
 	ENSURE_SMALL( nearLast.fraction - nearFirst.fraction, 1e-4f );
 	ENSURE( nearLast.shapeId.index1 == nearLastHit.index1 );
 
@@ -709,7 +705,6 @@ static int MoverTOIKeepsHitAfterMiss( void )
 	b3BodyTOIResult result = b3Body_TimeOfImpactMover( bodyId, b3Pos_zero, &mover, (b3Vec3){ 10.0f, 0.0f, 0.0f },
 													  b3DefaultQueryFilter(), bodyTransform, bodyTransform );
 
-	ENSURE( result.state == b3_toiStateHit );
 	ENSURE_SMALL( result.fraction - 0.425f, 1e-2f );
 	ENSURE( result.shapeId.index1 == onPathId.index1 );
 
@@ -740,8 +735,6 @@ static int MoverTOIMoverOffset( void )
 	b3WorldTransform transformB = IdentityAt( 7.0f, 0.0f, 0.0f );
 	b3BodyTOIResult resultB = b3Body_TimeOfImpactMover( bodyId, b3Pos_zero, &offset, translation, filter, transformB, transformB );
 
-	ENSURE( resultA.state == b3_toiStateHit );
-	ENSURE( resultB.state == b3_toiStateHit );
 	ENSURE_SMALL( resultB.fraction - resultA.fraction, 1e-4f );
 	ENSURE_SMALL( resultB.point.x - resultA.point.x - 2.0f, 1e-3f );
 
@@ -772,14 +765,11 @@ static int MoverTOIRotatingBody( void )
 	b3BodyTOIResult spinning =
 		b3Body_TimeOfImpactMover( bodyId, origin, &mover, b3Vec3_zero, b3DefaultQueryFilter(), transform1, transform2 );
 
-	ENSURE( spinning.state == b3_toiStateHit );
 	ENSURE( 0.0f < spinning.fraction && spinning.fraction < 1.0f );
 
 	// Holding the start pose leaves the bar along X and well clear.
 	b3BodyTOIResult still =
 		b3Body_TimeOfImpactMover( bodyId, origin, &mover, b3Vec3_zero, b3DefaultQueryFilter(), transform1, transform1 );
-
-	ENSURE( still.state == b3_toiStateSeparated );
 
 	b3DestroyWorld( worldId );
 	return 0;
@@ -802,7 +792,6 @@ static int MoverTOIFarFromOrigin( void )
 	b3BodyTOIResult result = b3Body_TimeOfImpactMover( bodyId, origin, &mover, (b3Vec3){ 10.0f, 0.0f, 0.0f },
 													  b3DefaultQueryFilter(), bodyTransform, bodyTransform );
 
-	ENSURE( result.state == b3_toiStateHit );
 	ENSURE_SMALL( result.fraction - 0.425f, 1e-2f );
 	ENSURE_SMALL( result.normal.x + 1.0f, 1e-3f );
 	ENSURE_SMALL( (result.point.x - origin.x) - 4.4f, 0.5f );
@@ -828,7 +817,6 @@ static int MoverTOIFilter( void )
 	b3BodyTOIResult result = b3Body_TimeOfImpactMover( bodyId, b3Pos_zero, &mover, (b3Vec3){ 10.0f, 0.0f, 0.0f }, filter,
 													  bodyTransform, bodyTransform );
 
-	ENSURE( result.state == b3_toiStateSeparated );
 	ENSURE_SMALL( result.fraction - 1.0f, 1e-6f );
 
 	b3DestroyWorld( worldId );
