@@ -915,44 +915,57 @@ b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* heightField, const
 				else
 				{
 					// Shape cast
-					// todo back-side culling
 					{
-						// Shift origin to first vertex
-						b3Vec3 origin = point11;
-						b3Vec3 triangleVertices[] = { b3Vec3_zero, b3Sub( point21, origin ), b3Sub( point12, origin ) };
-						pairInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
-						pairInput.maxFraction = bestFraction;
-						pairInput.transform.p = b3Neg( origin );
-
-						b3CastOutput pairOutput = b3ShapeCast( &pairInput );
-
-						if ( pairOutput.hit )
+						b3Vec3 e1 = b3Sub( point21, point11 );
+						b3Vec3 e2 = b3Sub( point12, point11 );
+						b3Vec3 v = b3Sub( shapeStart, point11 );
+						float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+						if ( signedVolume >= 0.0f )
 						{
-							bestFraction = pairOutput.fraction;
-							result = pairOutput;
-							result.point = b3Add( result.point, origin );
-							result.triangleIndex = triangleIndex1;
-							result.materialIndex = materialIndex;
+							// Shift origin to first vertex
+							b3Vec3 origin = point11;
+							b3Vec3 triangleVertices[] = { b3Vec3_zero, b3Sub( point21, origin ), b3Sub( point12, origin ) };
+							pairInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
+							pairInput.maxFraction = bestFraction;
+							pairInput.transform.p = b3Neg( origin );
+
+							b3CastOutput pairOutput = b3ShapeCast( &pairInput );
+
+							if ( pairOutput.hit )
+							{
+								bestFraction = pairOutput.fraction;
+								result = pairOutput;
+								result.point = b3Add( result.point, origin );
+								result.triangleIndex = triangleIndex1;
+								result.materialIndex = materialIndex;
+							}
 						}
 					}
 
 					{
-						// Shift origin to first vertex
-						b3Vec3 origin = point21;
-						b3Vec3 triangleVertices[] = { b3Vec3_zero, b3Sub( point22, origin ), b3Sub( point12, origin ) };
-						pairInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
-						pairInput.maxFraction = bestFraction;
-						pairInput.transform.p = b3Neg( origin );
-
-						b3CastOutput pairOutput = b3ShapeCast( &pairInput );
-
-						if ( pairOutput.hit )
+						b3Vec3 e1 = b3Sub( point22, point21 );
+						b3Vec3 e2 = b3Sub( point12, point21 );
+						b3Vec3 v = b3Sub( shapeStart, point21 );
+						float signedVolume = b3ScalarTripleProduct( v, e1, e2 );
+						if ( signedVolume >= 0.0f )
 						{
-							bestFraction = pairOutput.fraction;
-							result = pairOutput;
-							result.point = b3Add( result.point, origin );
-							result.triangleIndex = triangleIndex2;
-							result.materialIndex = materialIndex;
+							// Shift origin to first vertex
+							b3Vec3 origin = point21;
+							b3Vec3 triangleVertices[] = { b3Vec3_zero, b3Sub( point22, origin ), b3Sub( point12, origin ) };
+							pairInput.proxyA = (b3ShapeProxy){ triangleVertices, 3, 0.0f };
+							pairInput.maxFraction = bestFraction;
+							pairInput.transform.p = b3Neg( origin );
+
+							b3CastOutput pairOutput = b3ShapeCast( &pairInput );
+
+							if ( pairOutput.hit )
+							{
+								bestFraction = pairOutput.fraction;
+								result = pairOutput;
+								result.point = b3Add( result.point, origin );
+								result.triangleIndex = triangleIndex2;
+								result.materialIndex = materialIndex;
+							}
 						}
 					}
 				}

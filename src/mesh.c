@@ -2339,7 +2339,7 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 					b3Vec3 vertex2 = vertices[triangle.index2];
 					b3Vec3 vertex3 = vertices[triangle.index3];
 
-					if (ccw == false)
+					if ( ccw == false )
 					{
 						B3_SWAP( vertex2, vertex3 );
 					}
