@@ -380,6 +380,6 @@ int b3CollideMoverAndCapsule( b3PlaneResult* result, const b3Capsule* shape, con
 	}
 
 	b3Plane plane = { normal, totalRadius - distance };
-	*result = (b3PlaneResult){ plane, approach.point1 };
+	*result = (b3PlaneResult){ plane, approach.point1, 0, 0, 0 };
 	return 1;
 }

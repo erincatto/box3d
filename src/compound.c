@@ -1168,6 +1168,10 @@ static bool b3CompoundMoverCallback( int proxyId, uint64_t userData, void* conte
 	{
 		planes[i].plane.normal = b3RotateVector( child.transform.q, planes[i].plane.normal );
 		planes[i].point = b3TransformPoint( child.transform, planes[i].point );
+
+		planes[i].childIndex = childIndex;
+		int childMaterialIndex = b3MinInt( planes[i].materialIndex, B3_MAX_COMPOUND_MESH_MATERIALS - 1 );
+		planes[i].materialIndex = child.materialIndices[childMaterialIndex];
 	}
 
 	moverContext->planeCount += planeCount;

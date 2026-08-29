@@ -759,6 +759,15 @@ B3_API int b3Body_GetContactData( b3BodyId bodyId, b3ContactData* contactData, i
 /// If there are no shapes attached then the returned AABB is empty and centered on the body origin.
 B3_API b3AABB b3Body_ComputeAABB( b3BodyId bodyId );
 
+/// The minimum distance from any point on the body shapes to the center of mass.
+B3_API float b3Body_GetMinExtent( b3BodyId bodyId );
+
+/// The maximum distance from any point on the body shapes to the center of mass.
+B3_API float b3Body_GetMaxExtent( b3BodyId bodyId );
+
+/// The maximum distance from any point on the body shapes to the body origin. Conservative.
+B3_API float b3Body_GetMaxExtentOrigin( b3BodyId bodyId );
+
 /// Get the closest point on a body to a world target.
 B3_API float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target );
 
@@ -1561,7 +1570,9 @@ B3_API void b3SphericalJoint_EnableMotor( b3JointId jointId, bool enableMotor );
 /// Is the spherical joint motor enabled?
 B3_API bool b3SphericalJoint_IsMotorEnabled( b3JointId jointId );
 
-/// Set the spherical joint motor velocity in radians per second
+/// Set the spherical joint motor velocity in radians per second. This is the relative angular
+/// velocity between the two bodies in world space.
+/// motorVelocity = angularVelocityB - angularVelocityA
 B3_API void b3SphericalJoint_SetMotorVelocity( b3JointId jointId, b3Vec3 motorVelocity );
 
 /// Get the spherical joint motor velocity in radians per second

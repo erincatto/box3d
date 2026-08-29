@@ -2304,6 +2304,7 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 	const b3MeshNode* node = b3GetRoot( shape->data );
 	const b3MeshTriangle* triangles = b3GetMeshTriangles( shape->data );
 	const b3Vec3* vertices = b3GetMeshVertices( shape->data );
+	const uint8_t* materialIndices = b3GetMeshMaterialIndices( shape->data );
 
 	int planeCount = 0;
 	while ( planeCount < capacity )
@@ -2352,7 +2353,8 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 						else if ( distanceOutput.distance <= mover->radius )
 						{
 							b3Plane plane = { distanceOutput.normal, mover->radius - distanceOutput.distance };
-							planes[planeCount] = (b3PlaneResult){ plane, distanceOutput.pointA };
+							planes[planeCount] =
+								(b3PlaneResult){ plane, distanceOutput.pointA, triangleIndex, 0, materialIndices[triangleIndex] };
 							planeCount += 1;
 
 							if ( planeCount == capacity )

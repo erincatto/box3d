@@ -842,7 +842,7 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 		b3TOIOutput output = b3TimeOfImpact( &input );
 		B3_VALIDATE( output.state != b3_toiStateUnknown );
 
-		if (output.state == b3_toiStateOverlapped)
+		if ( output.state == b3_toiStateOverlapped )
 		{
 			// Early return on overlap
 			result.state = output.state;
@@ -2591,4 +2591,28 @@ bool b3ShouldBodiesCollide( b3World* world, b3Body* bodyA, b3Body* bodyB )
 	}
 
 	return true;
+}
+
+float b3Body_GetMinExtent( b3BodyId bodyId )
+{
+	b3World* world = b3GetWorld( bodyId.world0 );
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	b3BodySim* bodySim = b3GetBodySim( world, body );
+	return bodySim->minExtent;
+}
+
+float b3Body_GetMaxExtent( b3BodyId bodyId )
+{
+	b3World* world = b3GetWorld( bodyId.world0 );
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	b3BodySim* bodySim = b3GetBodySim( world, body );
+	return b3Length( bodySim->maxExtent );
+}
+
+float b3Body_GetMaxExtentOrigin( b3BodyId bodyId )
+{
+	b3World* world = b3GetWorld( bodyId.world0 );
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	b3BodySim* bodySim = b3GetBodySim( world, body );
+	return b3Length( bodySim->maxExtent ) + b3Length( bodySim->localCenter );
 }

@@ -137,3 +137,10 @@ B3_API float b3GetStallThreshold( void );
 #ifndef B3_RESTITUTION_ITERATIONS
 #define B3_RESTITUTION_ITERATIONS 1
 #endif
+
+/// This is the limit on how many mesh or heightfield triangles a single convex shape can collide with.
+/// Increasing this will increase stack usage, so be careful. I recommend to simplify your collision data
+/// before increasing this. For example, using render mesh for collision often leads to poor performance.
+#ifndef B3_MAX_MESH_CONTACT_TRIANGLES
+#define B3_MAX_MESH_CONTACT_TRIANGLES 256
+#endif

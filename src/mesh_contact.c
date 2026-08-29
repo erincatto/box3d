@@ -11,8 +11,6 @@
 
 #include <stdio.h>
 
-// This guards against excessive memory usage and complex collision
-#define B3_MAX_MESH_CONTACT_TRIANGLES 256
 #define B3_MAX_POINTS_PER_TRIANGLE 32
 
 #if B3_ENABLE_VALIDATION

@@ -913,7 +913,9 @@ typedef struct b3SphericalJointDef
 	/// The maximum motor torque, typically in newton-meters. Non-negative number.
 	float maxMotorTorque;
 
-	/// The desired motor angular velocity in radians per second.
+	/// The desired motor angular velocity in radians per second. This is the relative angular
+	/// velocity between the two bodies in world space.
+	/// motorVelocity = angularVelocityB - angularVelocityA
 	b3Vec3 motorVelocity;
 } b3SphericalJointDef;
 
@@ -1817,6 +1819,15 @@ typedef struct b3PlaneResult
 
 	/// Closest point on the shape. May not be unique.
 	b3Vec3 point;
+
+	/// The index of the mesh or height field triangle hit.
+	int triangleIndex;
+
+	/// The index of the compound child shape.
+	int childIndex;
+
+	/// The material index. May be -1 for null.
+	int materialIndex;
 
 } b3PlaneResult;
 

@@ -939,32 +939,6 @@ bool b3OverlapShape( const b3Shape* shape, b3Transform transform, const b3ShapeP
 			B3_ASSERT( false );
 			return false;
 	}
-
-#if 0
-	b3Vec3 localPoints[B3_MAX_SHAPE_CAST_POINTS];
-	b3ShapeProxy localProxy;
-
-	b3Transform invTransform = b3InvertTransform( transform );
-	b3Matrix3 R = b3MakeMatrixFromQuat( invTransform.q );
-
-	localProxy.count = b3MinInt( proxy->count, B3_MAX_SHAPE_CAST_POINTS );
-	for ( int i = 0; i < localProxy.count; ++i )
-	{
-		localPoints[i] = b3Add( b3MulMV( R, proxy->points[i] ), invTransform.p );
-	}
-
-	localProxy.points = localPoints;
-	localProxy.radius = proxy->radius;
-
-	if ( type == b3_meshShape )
-	{
-		return b3OverlapMesh( &localProxy, shape->mesh.data, shape->mesh.scale );
-	}
-
-	B3_ASSERT( type == b3_heightShape );
-
-	return b3OverlapHeightField( &localProxy, shape->heightField );
-#endif
 }
 
 int b3CollideMover( b3PlaneResult* planes, int planeCapacity, const b3Shape* shape, b3Transform transform,

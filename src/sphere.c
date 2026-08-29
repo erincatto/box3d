@@ -242,6 +242,6 @@ int b3CollideMoverAndSphere( b3PlaneResult* result, const b3Sphere* shape, const
 	}
 
 	b3Plane plane = { normal, totalRadius - distance };
-	*result = ( b3PlaneResult ){ plane, shape->center };
+	*result = (b3PlaneResult){ plane, shape->center, 0, 0, 0 };
 	return 1;
 }

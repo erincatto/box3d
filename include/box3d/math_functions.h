@@ -756,9 +756,10 @@ B3_INLINE b3WorldTransform b3MakeWorldTransform( b3Transform t )
 	return w;
 }
 
-/// Translate a local AABB by a world origin, rounding outward so the float box always contains
-/// the double box. Far from the origin a plain conversion could clip a shape out of its own box.
-/// In float mode the origin is float and the rounding is a no-op.
+/// Translate a local AABB by a world position, rounding outward so the single precision box 
+/// encloses the double precision box. Far from the origin a plain conversion could clip a
+/// shape out of its own box.
+/// In single precision mode the the rounding is a no-op.
 B3_INLINE b3AABB b3OffsetAABB( b3AABB localBox, b3Pos origin )
 {
 	b3AABB out;

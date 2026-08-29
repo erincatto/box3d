@@ -1055,8 +1055,7 @@ bool b3OverlapHeightField( const b3HeightFieldData* shape, b3Transform shapeTran
 
 	b3SimplexCache cache = { 0 };
 
-	// Outer loop on rows and inner loop on columns so that triangle indices
-	// increase monotonically.
+	// Outer loop on rows and inner loop on columns so that triangle indices increase monotonically.
 	for ( int row = minRow; row <= maxRow; ++row )
 	{
 		if ( row < 0 || shape->rowCount - 1 <= row )
@@ -1284,8 +1283,9 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 				}
 				else if ( distanceOutput.distance <= mover->radius )
 				{
+					int triangleIndex = 2 * cellIndex;
 					b3Plane plane = { distanceOutput.normal, mover->radius - distanceOutput.distance };
-					planes[planeCount] = (b3PlaneResult){ plane, distanceOutput.pointA };
+					planes[planeCount] = (b3PlaneResult){ plane, distanceOutput.pointA, triangleIndex, 0, material };
 					planeCount += 1;
 
 					if ( planeCount == capacity )
@@ -1312,8 +1312,9 @@ int b3CollideMoverAndHeightField( b3PlaneResult* planes, int capacity, const b3H
 				}
 				else if ( distanceOutput.distance <= mover->radius )
 				{
+					int triangleIndex = 2 * cellIndex + 1;
 					b3Plane plane = { distanceOutput.normal, mover->radius - distanceOutput.distance };
-					planes[planeCount] = (b3PlaneResult){ plane, distanceOutput.pointA };
+					planes[planeCount] = (b3PlaneResult){ plane, distanceOutput.pointA, triangleIndex, 0, material };
 					planeCount += 1;
 
 					if ( planeCount == capacity )

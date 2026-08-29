@@ -2655,7 +2655,7 @@ int b3CollideMoverAndHull( b3PlaneResult* result, const b3HullData* shape, const
 	if ( distanceOutput.distance <= totalRadius )
 	{
 		b3Plane plane = { distanceOutput.normal, totalRadius - distanceOutput.distance };
-		*result = (b3PlaneResult){ plane, distanceOutput.pointA };
+		*result = (b3PlaneResult){ plane, distanceOutput.pointA, 0, 0, 0 };
 		return 1;
 	}
 

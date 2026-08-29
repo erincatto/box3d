@@ -2809,7 +2809,6 @@ void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mov
 
 	b3Vec3 r = { mover->radius, mover->radius, mover->radius };
 
-	// Relative box lifted to world float with outward rounding, conservative for the tree
 	b3AABB relBox;
 	relBox.lowerBound = b3Sub( b3Min( mover->center1, mover->center2 ), r );
 	relBox.upperBound = b3Add( b3Max( mover->center1, mover->center2 ), r );
@@ -2826,7 +2825,6 @@ void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mov
 
 	if ( world->recording != NULL )
 	{
-		// CollideMover returns void: no treestats tail, just the per-shape plane batches.
 		b3RecPatchU32( &recWriter.buf, recWriter.countOffset, recWriter.hitCount );
 		b3RecQueryCommit( world->recording, b3_recOpQueryCollideMover, &recWriter );
 	}
