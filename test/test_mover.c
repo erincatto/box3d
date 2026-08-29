@@ -356,8 +356,8 @@ static int MoverWorldMeshMaterials( void )
 	ENSURE( capture2.planes[0].materialIndex == 1 );
 	ENSURE( bakedMaterialIndices[capture2.planes[0].triangleIndex] == 1 );
 
-	b3DestroyMesh( mesh );
 	b3DestroyWorld( worldId );
+	b3DestroyMesh( mesh );
 	return 0;
 }
 
@@ -437,9 +437,9 @@ static int MoverWorldCompoundMeshMaterials( void )
 	ENSURE( meshCapture.planes[0].materialIndex == 2 );
 	ENSURE( bakedMaterials[meshCapture.planes[0].materialIndex].userMaterialId == 202 );
 
+	b3DestroyWorld( worldId );
 	b3DestroyCompound( compound );
 	b3DestroyMesh( mesh );
-	b3DestroyWorld( worldId );
 	return 0;
 }
 
@@ -532,9 +532,9 @@ static int MoverBodySkipsMeshAndCompound( void )
 		ENSURE( count == 0 );
 	}
 
+	b3DestroyWorld( worldId );
 	b3DestroyCompound( compound );
 	b3DestroyMesh( mesh );
-	b3DestroyWorld( worldId );
 	return 0;
 }
 
