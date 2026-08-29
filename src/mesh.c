@@ -2129,7 +2129,7 @@ b3CastOutput b3ShapeCastMesh( const b3Mesh* mesh, const b3ShapeCastInput* input 
 					int triangleIndex = triangleOffset + index;
 					b3MeshTriangle triangle = triangles[triangleIndex];
 
-					// Collide ray with triangle in scaled space
+					// Collide shape with triangle in scaled space
 					b3Vec3 vertex1 = b3Mul( meshScale, vertices[triangle.index1] );
 					b3Vec3 vertex2, vertex3;
 
@@ -2145,6 +2145,7 @@ b3CastOutput b3ShapeCastMesh( const b3Mesh* mesh, const b3ShapeCastInput* input 
 						vertex3 = b3Mul( meshScale, vertices[triangle.index2] );
 					}
 
+					// This test is in scaled space. vertices and center are scaled.
 					b3Vec3 e1 = b3Sub( vertex2, vertex1 );
 					b3Vec3 e2 = b3Sub( vertex3, vertex1 );
 					b3Vec3 v = b3Sub( center, vertex1 );
@@ -2355,6 +2356,7 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 						b3Vec3 triangleVertices[] = { b3Mul( meshScale, vertex1 ), b3Mul( meshScale, vertex2 ),
 													  b3Mul( meshScale, vertex3 ) };
 
+						// Vertices and center are in scaled space.
 						b3Vec3 e1 = b3Sub( triangleVertices[1], triangleVertices[0] );
 						b3Vec3 e2 = b3Sub( triangleVertices[2], triangleVertices[0] );
 						b3Vec3 v = b3Sub( center, triangleVertices[0] );
