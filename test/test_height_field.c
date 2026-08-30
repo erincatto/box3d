@@ -611,6 +611,68 @@ static int ShapeCastClockwiseWinding( void )
 	return 0;
 }
 
+// Ray casts run through the shape cast. The default winding faces up, so a ray from below is the
+// back side and gets culled.
+static int RayCastBackside( void )
+{
+	uint8_t materials[4] = { 1, 0, 0, 0 };
+	b3HeightFieldData* hf = MakeFlatField( materials, false );
+
+	b3RayCastInput down = { 0 };
+	down.origin = (b3Vec3){ 0.3f, 5.0f, 0.25f };
+	down.translation = (b3Vec3){ 0.0f, -10.0f, 0.0f };
+	down.maxFraction = 1.0f;
+
+	b3CastOutput out = b3RayCastHeightField( hf, &down );
+	ENSURE( out.hit == true );
+	ENSURE_SMALL( out.fraction - 0.5f, 1e-3f );
+	ENSURE( out.normal.y > 0.99f );
+	ENSURE( out.triangleIndex == 0 || out.triangleIndex == 1 );
+	ENSURE( out.materialIndex == 1 );
+
+	b3RayCastInput up = { 0 };
+	up.origin = (b3Vec3){ 0.3f, -5.0f, 0.25f };
+	up.translation = (b3Vec3){ 0.0f, 10.0f, 0.0f };
+	up.maxFraction = 1.0f;
+
+	b3CastOutput missed = b3RayCastHeightField( hf, &up );
+	ENSURE( missed.hit == false );
+
+	b3DestroyHeightField( hf );
+	return 0;
+}
+
+// A clockwise field faces down. The winding swap already flips the triangle, so the ray normal
+// must not be flipped a second time.
+static int RayCastClockwiseWinding( void )
+{
+	uint8_t materials[4] = { 1, 0, 0, 0 };
+	b3HeightFieldData* hf = MakeFlatField( materials, true );
+
+	b3RayCastInput up = { 0 };
+	up.origin = (b3Vec3){ 0.3f, -5.0f, 0.25f };
+	up.translation = (b3Vec3){ 0.0f, 10.0f, 0.0f };
+	up.maxFraction = 1.0f;
+
+	b3CastOutput out = b3RayCastHeightField( hf, &up );
+	ENSURE( out.hit == true );
+	ENSURE_SMALL( out.fraction - 0.5f, 1e-3f );
+	ENSURE( out.normal.y < -0.99f );
+	ENSURE( out.triangleIndex == 0 || out.triangleIndex == 1 );
+	ENSURE( out.materialIndex == 1 );
+
+	b3RayCastInput down = { 0 };
+	down.origin = (b3Vec3){ 0.3f, 5.0f, 0.25f };
+	down.translation = (b3Vec3){ 0.0f, -10.0f, 0.0f };
+	down.maxFraction = 1.0f;
+
+	b3CastOutput missed = b3RayCastHeightField( hf, &down );
+	ENSURE( missed.hit == false );
+
+	b3DestroyHeightField( hf );
+	return 0;
+}
+
 int HeightFieldTest( void )
 {
 	RUN_SUBTEST( HeightFieldCreate );
@@ -624,6 +686,8 @@ int HeightFieldTest( void )
 	RUN_SUBTEST( RayCastBruteForce );
 	RUN_SUBTEST( ShapeCastBackside );
 	RUN_SUBTEST( ShapeCastClockwiseWinding );
+	RUN_SUBTEST( RayCastBackside );
+	RUN_SUBTEST( RayCastClockwiseWinding );
 
 	return 0;
 }

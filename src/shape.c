@@ -777,11 +777,8 @@ b3ShapeExtent b3ComputeShapeExtent( const b3Shape* shape, b3Vec3 localCenter )
 			extent.minExtent = radius;
 			b3Vec3 c1 = b3Sub( shape->capsule.center1, localCenter );
 			b3Vec3 c2 = b3Sub( shape->capsule.center2, localCenter );
-			b3Vec3 lower = b3Min( c1, c2 );
-			b3Vec3 upper = b3Max( c1, c2 );
 			b3Vec3 r = { radius, radius, radius };
-			b3Vec3 h = b3MulSV( 0.5f, b3Sub( upper, lower ) );
-			extent.maxExtent = b3Add( h, r );
+			extent.maxExtent = b3Add( b3Max( b3Abs( c1 ), b3Abs( c2 ) ), r );
 		}
 		break;
 

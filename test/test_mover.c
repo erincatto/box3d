@@ -656,6 +656,41 @@ static int MoverHeightFieldClockwise( void )
 	return 0;
 }
 
+// A mesh can be baked with more materials than the shape carries. The reported index must stay
+// inside the shape's material array.
+static int MoverWorldMeshMaterialClamp( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_staticBody;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3MeshData* mesh = MakeTwoMaterialMesh();
+	ENSURE( mesh->materialCount == 2 );
+
+	// Base material only
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3ShapeId shapeId = b3CreateMeshShape( bodyId, &shapeDef, mesh, (b3Vec3){ 1.0f, 1.0f, 1.0f } );
+	int shapeMaterialCount = b3Shape_GetMeshMaterialCount( shapeId );
+	ENSURE( shapeMaterialCount == 1 );
+
+	b3World_Step( worldId, 1.0f / 60.0f, 1 );
+
+	// Over the triangle baked with material 1
+	b3Capsule mover = { { 2.0f, 0.15f, 0.0f }, { 2.0f, 0.35f, 0.0f }, 0.2f };
+	PlaneCapture capture = { 0 };
+	b3World_CollideMover( worldId, b3Pos_zero, &mover, b3DefaultQueryFilter(), CapturePlaneFcn, &capture );
+
+	ENSURE( capture.count == 1 );
+	ENSURE( capture.planes[0].materialIndex == shapeMaterialCount - 1 );
+
+	b3DestroyWorld( worldId );
+	b3DestroyMesh( mesh );
+	return 0;
+}
+
 int MoverTest( void )
 {
 	RUN_SUBTEST( GamePlanes );
@@ -683,6 +718,7 @@ int MoverTest( void )
 	RUN_SUBTEST( MoverHeightFieldBackside );
 	RUN_SUBTEST( MoverHeightFieldReport );
 	RUN_SUBTEST( MoverHeightFieldClockwise );
+	RUN_SUBTEST( MoverWorldMeshMaterialClamp );
 
 	return 0;
 }

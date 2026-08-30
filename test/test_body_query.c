@@ -771,6 +771,9 @@ static int MoverTOIRotatingBody( void )
 	b3BodyTOIResult still =
 		b3Body_TimeOfImpactMover( bodyId, origin, &mover, b3Vec3_zero, b3DefaultQueryFilter(), transform1, transform1 );
 
+	ENSURE_SMALL( still.fraction - 1.0f, 1e-6f );
+	ENSURE( B3_IS_NULL( still.shapeId ) );
+
 	b3DestroyWorld( worldId );
 	return 0;
 }
@@ -823,6 +826,151 @@ static int MoverTOIFilter( void )
 	return 0;
 }
 
+// A shape the mover starts inside is skipped, but the sweep still runs against the other shapes
+// on the body.
+static int MoverTOIOverlapSkipsShape( void )
+{
+	b3BodyId bodyId;
+	b3WorldId worldId = CreateQueryWorld( &bodyId );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+	b3BoxHull buried = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3CreateHullShape( bodyId, &shapeDef, &buried.base );
+
+	// Face at x = 4.5 like MoverTOIHitsBox
+	b3BoxHull onPath = b3MakeOffsetBoxHull( 0.5f, 0.5f, 0.5f, (b3Vec3){ 5.0f, 0.0f, 0.0f } );
+	b3ShapeId onPathId = b3CreateHullShape( bodyId, &shapeDef, &onPath.base );
+
+	b3Capsule mover = MakeStandingMover();
+	b3WorldTransform bodyTransform = IdentityAt( 0.0f, 0.0f, 0.0f );
+	b3BodyTOIResult result = b3Body_TimeOfImpactMover( bodyId, b3Pos_zero, &mover, (b3Vec3){ 10.0f, 0.0f, 0.0f },
+													  b3DefaultQueryFilter(), bodyTransform, bodyTransform );
+
+	ENSURE_SMALL( result.fraction - 0.425f, 1e-2f );
+	ENSURE( result.shapeId.index1 == onPathId.index1 );
+	ENSURE_SMALL( result.normal.x + 1.0f, 1e-3f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+static float RandomFloat( uint32_t* seed, float lower, float upper )
+{
+	uint32_t x = *seed;
+	x ^= x << 13;
+	x ^= x >> 17;
+	x ^= x << 5;
+	*seed = x;
+	float unit = (float)( x >> 8 ) / 16777216.0f;
+	return lower + ( upper - lower ) * unit;
+}
+
+static b3Vec3 RandomVector( uint32_t* seed, float lower, float upper )
+{
+	b3Vec3 v;
+	v.x = RandomFloat( seed, lower, upper );
+	v.y = RandomFloat( seed, lower, upper );
+	v.z = RandomFloat( seed, lower, upper );
+	return v;
+}
+
+static b3Vec3 RandomDirection( uint32_t* seed )
+{
+	for ( ;; )
+	{
+		b3Vec3 v = RandomVector( seed, -1.0f, 1.0f );
+		float length = b3Length( v );
+		if ( 0.1f < length && length < 1.0f )
+		{
+			return b3MulSV( 1.0f / length, v );
+		}
+	}
+}
+
+// The mover sweep follows the solver's continuous rule: any time of impact strictly inside the
+// sweep counts, whatever the root finder reports. A capsule pivoting around a hull vertex can
+// exhaust the iteration cap, and that must not read as a clean miss. Compare against the raw
+// sweep built from the same inputs.
+static int MoverTOIMatchesSweep( void )
+{
+	b3BodyId bodyId;
+	b3WorldId worldId = CreateQueryWorld( &bodyId );
+
+	b3BoxHull bar = b3MakeBoxHull( 2.0f, 0.25f, 0.25f );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3ShapeId shapeId = b3CreateHullShape( bodyId, &shapeDef, &bar.base );
+
+	uint32_t seed = 0x9E3779B9u;
+	int hitCount = 0;
+	for ( int i = 0; i < 2000; ++i )
+	{
+		b3Capsule mover;
+		mover.center1 = RandomVector( &seed, -0.2f, 0.2f );
+		mover.center2 = b3MulAdd( mover.center1, RandomFloat( &seed, 0.05f, 1.5f ), RandomDirection( &seed ) );
+		mover.radius = RandomFloat( &seed, 0.05f, 0.5f );
+		b3Vec3 capsulePoints[2] = { mover.center1, mover.center2 };
+
+		b3Vec3 o = RandomVector( &seed, -3.5f, 3.5f );
+		b3Pos origin = { o.x, o.y, o.z };
+		b3Vec3 translation = b3MulSV( RandomFloat( &seed, 0.0f, 3.0f ), RandomDirection( &seed ) );
+
+		b3WorldTransform transform1 = {
+			.p = b3Pos_zero,
+			.q = b3MakeQuatFromAxisAngle( RandomDirection( &seed ), RandomFloat( &seed, 0.0f, B3_PI ) ),
+		};
+		b3Quat spin = b3MakeQuatFromAxisAngle( RandomDirection( &seed ), RandomFloat( &seed, 0.001f, B3_PI ) );
+		b3Vec3 shift = RandomVector( &seed, -1.0f, 1.0f );
+		b3WorldTransform transform2 = {
+			.p = (b3Pos){ shift.x, shift.y, shift.z },
+			.q = b3MulQuat( spin, transform1.q ),
+		};
+
+		b3BodyTOIResult result = b3Body_TimeOfImpactMover( bodyId, origin, &mover, translation, b3DefaultQueryFilter(),
+														  transform1, transform2 );
+
+		// Same sweep the body query builds. The static body keeps its center at the body origin.
+		b3Transform xf1 = b3ToRelativeTransform( transform1, origin );
+		b3Transform xf2 = b3ToRelativeTransform( transform2, origin );
+
+		b3TOIInput input = { 0 };
+		input.proxyA = (b3ShapeProxy){ b3GetHullPoints( &bar.base ), bar.base.vertexCount, 0.0f };
+		input.proxyB = (b3ShapeProxy){ capsulePoints, 2, mover.radius };
+		input.sweepA.c1 = xf1.p;
+		input.sweepA.c2 = xf2.p;
+		input.sweepA.q1 = transform1.q;
+		input.sweepA.q2 = transform2.q;
+		input.sweepA.localCenter = b3Vec3_zero;
+		input.sweepB.c1 = b3Vec3_zero;
+		input.sweepB.c2 = translation;
+		input.sweepB.q1 = b3Quat_identity;
+		input.sweepB.q2 = b3Quat_identity;
+		input.sweepB.localCenter = b3Vec3_zero;
+		input.maxFraction = 1.0f;
+
+		b3TOIOutput raw = b3TimeOfImpact( &input );
+
+		if ( 0.0f < raw.fraction && raw.fraction < 1.0f )
+		{
+			ENSURE_SMALL( result.fraction - raw.fraction, 1e-6f );
+			ENSURE( result.shapeId.index1 == shapeId.index1 );
+			ENSURE( b3IsNormalized( result.normal ) );
+			ENSURE_SMALL( b3Distance( b3SubPos( result.point, origin ), raw.point ), 1e-4f );
+			hitCount += 1;
+		}
+		else
+		{
+			ENSURE_SMALL( result.fraction - 1.0f, 1e-6f );
+			ENSURE( B3_IS_NULL( result.shapeId ) );
+		}
+	}
+
+	ENSURE( hitCount > 0 );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int BodyQueryTest( void )
 {
 	RUN_SUBTEST( CastRayHitsSphere );
@@ -856,6 +1004,8 @@ int BodyQueryTest( void )
 	RUN_SUBTEST( MoverTOIRotatingBody );
 	RUN_SUBTEST( MoverTOIFarFromOrigin );
 	RUN_SUBTEST( MoverTOIFilter );
+	RUN_SUBTEST( MoverTOIOverlapSkipsShape );
+	RUN_SUBTEST( MoverTOIMatchesSweep );
 
 	return 0;
 }

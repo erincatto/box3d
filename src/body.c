@@ -844,6 +844,8 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 		// Mimic behavior in b3ContinuousQueryCallback. Ignore shapes that initially overlap.
 		if (0.0f < output.fraction && output.fraction < result.fraction)
 		{
+			input.maxFraction = output.fraction;
+
 			result.point = b3OffsetPos( origin, output.point );
 			result.normal = output.normal;
 			result.fraction = output.fraction;
