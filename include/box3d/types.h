@@ -1940,8 +1940,7 @@ typedef struct b3Sphere
  * @{
  */
 
-/// A solid capsule can be viewed as two hemispheres connected
-/// by a rectangle.
+/// A solid capsule can be viewed as two hemispheres connected by a cylinder.
 typedef struct b3Capsule
 {
 	/// Local center of the first hemisphere
