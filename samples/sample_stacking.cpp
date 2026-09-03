@@ -250,7 +250,7 @@ public:
 		AddGroundBox( 10.0f );
 
 		{
-			m_hull = b3CreateCylinder( 1.0f, 0.25f, 0.0f, 12 );
+			m_hull = b3CreateCylinder( 2.5f, 0.25f, 0.0f, 32 );
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.name = "cylinder";
 			bodyDef.type = b3_dynamicBody;

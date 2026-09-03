@@ -221,7 +221,8 @@ B3_API b3HullData* b3CreateCone( float height, float radius1, float radius2, int
 /// Create a rock shaped hull.
 B3_API b3HullData* b3CreateRock( float radius );
 
-/// Create a generic convex hull.
+/// Create a generic convex hull. This can fail if B3_MAX_HULL_VERTICES, B3_MAX_HULL_FACES,
+/// or B3_MAX_HULL_EDGES is exceeded.
 B3_API b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount );
 
 /// Deep clone a hull.
@@ -646,6 +647,16 @@ B3_API void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b
 /// Collide a triangle and sphere. Normal points from triangle to sphere.
 B3_API void b3CollideTriangleAndSphere( b3LocalManifold* manifold, int capacity, const b3Vec3* triangleA,
 										const b3Sphere* sphereB );
+
+typedef struct b3Point2D
+{
+	b3Vec2 p;
+	float separation;
+	int originalIndex;
+} b3Point2D;
+
+B3_API int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull );
+B3_API int b3SimplifyHull2D( b3Point2D* hull, int count, int target );
 
 /**@}*/ // collision
 

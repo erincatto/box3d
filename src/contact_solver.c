@@ -630,7 +630,7 @@ void b3ApplyRestitution_Mesh( b3SolverBlock block, b3StepContext* context )
 
 			b3Vec3 normal = cm->normal;
 			int pointCount = cm->pointCount;
-			B3_ASSERT( 0 < pointCount && pointCount <= B3_MAX_MANIFOLD_POINTS );
+			B3_VALIDATE( 0 < pointCount && pointCount <= B3_MAX_MANIFOLD_POINTS );
 
 			for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 			{

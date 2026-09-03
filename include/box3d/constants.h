@@ -104,7 +104,12 @@ B3_API float b3GetStallThreshold( void );
 #define B3_TIME_TO_SLEEP 0.5f
 
 /// The maximum number of contact points between two touching shapes.
+/// The default is 4 and this case will use an approximate convex hull to
+/// reduce the point count. Any other value will fill the manifold with points
+/// in an arbitray order until it is full.
+#ifndef B3_MAX_MANIFOLD_POINTS
 #define B3_MAX_MANIFOLD_POINTS 4
+#endif
 
 /// The number of iterations for gyroscopic torques.
 #ifndef B3_GYROSCOPIC_ITERATIONS

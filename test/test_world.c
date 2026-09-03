@@ -3,6 +3,7 @@
 
 #include "benchmarks.h"
 #include "overflow_color.h"
+#include "physics_world.h"
 #include "test_macros.h"
 
 #include "box3d/box3d.h"
@@ -970,6 +971,71 @@ static int EnableContactRecyclingTest( void )
 	return 0;
 }
 
+static int CountEnlargedNodes( const b3DynamicTree* tree )
+{
+	int count = 0;
+	for ( int i = 0; i < tree->nodeCapacity; ++i )
+	{
+		const b3TreeNode* node = tree->nodes + i;
+		if ( ( node->flags & b3_allocatedNode ) != 0 && ( node->flags & b3_enlargedNode ) != 0 )
+		{
+			count += 1;
+		}
+	}
+
+	return count;
+}
+
+// A proxy can be enlarged in one step and destroyed before the next, emptying the move buffer.
+// The trees must still be rebuilt or the enlarged nodes survive into the next step. Issue #149.
+static int TestEnlargedProxyDestroyed( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3World* world = b3GetWorldFromId( worldId );
+	const b3DynamicTree* tree = world->broadPhase.trees + b3_dynamicBody;
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3Sphere sphere = { b3Vec3_zero, 0.25f };
+
+	// Resting bodies keep the tree deep enough that the mover has an ancestor that outlives it
+	for ( int i = 0; i < 8; ++i )
+	{
+		bodyDef.position = (b3Pos){ 2.0f * i, 0.0f, 0.0f };
+		b3BodyId restingId = b3CreateBody( worldId, &bodyDef );
+		b3CreateSphereShape( restingId, &shapeDef, &sphere );
+	}
+
+	// This body outruns its AABB margin every step
+	bodyDef.position = (b3Pos){ 7.0f, 1.0f, 0.0f };
+	bodyDef.linearVelocity = (b3Vec3){ 6.0f, 0.0f, 0.0f };
+	b3BodyId moverId = b3CreateBody( worldId, &bodyDef );
+	b3CreateSphereShape( moverId, &shapeDef, &sphere );
+
+	float timeStep = 1.0f / 60.0f;
+	b3World_Step( worldId, timeStep, 4 );
+
+	ENSURE( CountEnlargedNodes( tree ) > 0 );
+
+	b3DestroyBody( moverId );
+
+	// The mover was the only proxy in the move buffer
+	ENSURE( world->broadPhase.moveArray.count == 0 );
+	ENSURE( CountEnlargedNodes( tree ) > 0 );
+
+	b3World_Step( worldId, timeStep, 4 );
+
+	ENSURE( CountEnlargedNodes( tree ) == 0 );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 // Identical hull data is shared through a reference counted world database.
 static int TestHullDatabase( void )
 {
@@ -1180,6 +1246,7 @@ int WorldTest( void )
 	RUN_SUBTEST( EnableContactRecyclingTest );
 	RUN_SUBTEST( TestSetWorkerCount );
 	RUN_SUBTEST( TestHullDatabase );
+	RUN_SUBTEST( TestEnlargedProxyDestroyed );
 
 	return 0;
 }

@@ -1444,7 +1444,6 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 	int awakeBodyCount = awakeSet->bodySims.count;
 	if ( awakeBodyCount == 0 )
 	{
-		b3ValidateNoEnlarged( &world->broadPhase );
 		return;
 	}
 

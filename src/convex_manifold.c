@@ -203,6 +203,8 @@ static b3SeparatingAxis b3QueryEdgeDirectionHullAndCapsule( const b3HullData* hu
 	};
 }
 
+#if B3_MAX_MANIFOLD_POINTS == 4
+
 // Reduce the manifold points to a maximum of 4 points.
 // Note: this modifies the input point array to improve performance
 static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3LocalManifoldPoint* points, int count )
@@ -366,6 +368,74 @@ static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3L
 		manifold->pointCount += 1;
 	}
 }
+
+#elif 1
+
+// Reduce the manifold points to a maximum of B3_MAX_MANIFOLD_POINTS points.
+static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3LocalManifoldPoint* points, int count )
+{
+	B3_ASSERT( count <= B3_MAX_MANIFOLD_POINTS );
+
+	int count1 = b3MinInt( capacity, count );
+	if (count1 <= 3)
+	{
+		for ( int i = 0; i < count1; ++i )
+		{
+			manifold->points[i] = points[i];
+		}
+
+		manifold->pointCount = count1;
+		return;
+	}
+	
+	b3Point2D pts[2 * B3_MAX_MANIFOLD_POINTS];
+	b3Vec3 u = b3Perp( manifold->normal );
+	b3Vec3 v = b3Cross( manifold->normal, u );
+	b3Vec3 origin = points[0].point;
+
+	for ( int i = 0; i < count1; ++i )
+	{
+		b3Vec3 d = b3Sub( points[i].point, origin );
+		pts[i].p = (b3Vec2){ b3Dot( d, u ), b3Dot( d, v ) };
+		pts[i].separation = points[i].separation;
+		pts[i].originalIndex = i;
+	}
+
+	int count2 = b3Hull2D(pts, )
+	int count2 = b3SimplifyHull2D( pts, count1 );
+	B3_ASSERT( count2 <= B3_MAX_MANIFOLD_POINTS );
+
+	b3LocalManifoldPoint finalPoints[B3_MAX_MANIFOLD_POINTS];
+	for ( int i = 0; i < count2; ++i )
+	{
+		int index = pts[i].originalIndex;
+		B3_ASSERT( 0 <= index && index < count1 );
+		finalPoints[i] = points[index];
+	}
+
+	memcpy( points, finalPoints, count2 * sizeof( b3LocalManifoldPoint ) );
+	return count2;
+}
+
+
+
+#else
+
+// Reduce the manifold points to a maximum of B3_MAX_MANIFOLD_POINTS points.
+static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3LocalManifoldPoint* points, int count )
+{
+	int finalCount = b3MinInt( capacity, count );
+	finalCount = b3MinInt( finalCount, B3_MAX_MANIFOLD_POINTS );
+
+	for ( int i = 0; i < finalCount; ++i )
+	{
+		manifold->points[i] = points[i];
+	}
+
+	manifold->pointCount = finalCount;
+}
+
+#endif
 
 void b3CollideSpheres( b3LocalManifold* manifold, int capacity, const b3Sphere* sphereA, const b3Sphere* sphereB,
 					   b3Transform transformBtoA )
@@ -984,6 +1054,7 @@ static int b3BuildPolygon( b3ClipVertex* out, b3Transform transform, const b3Hul
 static bool b3BuildFaceAContact( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
 								 b3Transform transformBtoA, b3SeparatingAxis query, b3SATCache* cache )
 {
+	B3_ASSERT( capacity > 0 );
 	B3_VALIDATE( query.type == b3_faceAxisA );
 	B3_VALIDATE( 0 <= query.indexA && query.indexA < hullA->faceCount );
 	B3_VALIDATE( 0 <= query.indexB && query.indexB < hullB->vertexCount );
