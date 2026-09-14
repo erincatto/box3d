@@ -1,12 +1,11 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "gfx/draw.h"
+#include "gfx/keycodes.h"
 #include "imgui.h"
 #include "sample.h"
-#include "gfx/draw.h"
 #include "utils.h"
-
-#include "gfx/keycodes.h"
 
 #include "box3d/box3d.h"
 
@@ -254,7 +253,6 @@ public:
 		if ( context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 40.0f, { 0.0f, 5.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 40.0f );
@@ -343,7 +341,6 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 40.0f, { 0.0f, 5.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 20.0f );
@@ -594,7 +591,7 @@ public:
 		}
 
 		m_groundExtent = 80.0f;
-		AddGroundBox( m_groundExtent );
+		b3BodyId groundId = AddGroundBox( m_groundExtent );
 
 		// The walls live on their own body so a contact can be told apart from the floor. The player
 		// rides on the floor at all times, so treating every non-debris body as a wall would strip
@@ -610,8 +607,7 @@ public:
 			float height = 5.0f;
 			float thickness = 0.5f;
 
-			b3BoxHull wall =
-				b3MakeTransformedBoxHull( thickness, height, extent, { { extent, height, 0.0f }, b3Quat_identity } );
+			b3BoxHull wall = b3MakeTransformedBoxHull( thickness, height, extent, { { extent, height, 0.0f }, b3Quat_identity } );
 			b3CreateHullShape( m_wallsId, &shapeDef, &wall.base );
 
 			wall = b3MakeTransformedBoxHull( thickness, height, extent, { { -extent, height, 0.0f }, b3Quat_identity } );
@@ -631,6 +627,7 @@ public:
 			bodyDef.name = "player";
 			bodyDef.position = { 0.0f, 1.0f, 0.0f };
 			bodyDef.angularDamping = 0.1f;
+			bodyDef.enableSleep = false;
 			m_playerId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -646,6 +643,15 @@ public:
 
 			b3Sphere sphere = { b3Vec3_zero, 1.0f };
 			m_coreShapeId = b3CreateSphereShape( m_playerId, &shapeDef, &sphere );
+
+			m_torque = 30000.0f;
+
+			b3MotorJointDef jointDef = b3DefaultMotorJointDef();
+			jointDef.base.bodyIdA = groundId;
+			jointDef.base.bodyIdB = m_playerId;
+			jointDef.base.collideConnected = true;
+			jointDef.maxVelocityTorque = m_torque;
+			m_motorId = b3CreateMotorJoint( m_worldId, &jointDef );
 		}
 
 		for ( int i = 0; i < e_count; ++i )
@@ -658,7 +664,6 @@ public:
 		b3Vec3 extents = b3AABB_Extents( bounds );
 		float mass = b3Body_GetMass( m_playerId );
 		m_massExtent = ( mass / 3.0f ) * ( extents.x + extents.y + extents.z );
-		m_torque = 30000.0f;
 		m_wait = 0.5f;
 	}
 
@@ -825,7 +830,14 @@ public:
 
 			// Rolling without slipping spins about up cross velocity
 			b3Vec3 axis = b3Cross( b3Vec3_axisY, b3Normalize( direction ) );
-			b3Body_ApplyTorque( m_playerId, (scale * m_torque) * axis, true );
+			float speed = 5.0f;
+			b3MotorJoint_SetMaxVelocityTorque( m_motorId, scale * m_torque );
+			b3MotorJoint_SetAngularVelocity( m_motorId, speed * axis );
+		}
+		else
+		{
+			b3MotorJoint_SetAngularVelocity( m_motorId, b3Vec3_zero );
+			
 		}
 
 		Sample::Step();
@@ -921,6 +933,7 @@ public:
 
 	static constexpr int m_capacity = 200;
 	b3BodyId m_playerId;
+	b3JointId m_motorId;
 	b3BodyId m_wallsId;
 	b3ShapeId m_coreShapeId;
 	b3BodyId m_debrisIds[m_capacity];
@@ -1042,7 +1055,6 @@ public:
 		if ( m_context->restart == false )
 		{
 			m_camera->SetView( 0.0f, 30.0f, 40.0f, { 0.0f, 5.0f, 0.0f } );
-			
 		}
 
 		AddGroundBox( 10.0f );

@@ -47,8 +47,8 @@ typedef struct b3World b3World;
 #define B3_REC_MAGIC 0x43523342u
 
 // Major recording version is bumped when writers change.
-// Major version 5 added b3PlaneResult fields.
-#define B3_REC_VERSION_MAJOR 5
+// Major version 6 widened the body def with the safety factor.
+#define B3_REC_VERSION_MAJOR 6
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.
 // Minor version 4 added b3Shape_SetMeshMaterial, b3Shape_SetHull, b3Shape_SetMesh

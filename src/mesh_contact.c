@@ -288,13 +288,6 @@ static inline bool b3IsBetterCullCandidate( float score, float separation, float
 	return separation < bestSeparation - separationTol;
 }
 
-typedef struct b3Point2D
-{
-	b3Vec2 p;
-	float separation;
-	int originalIndex;
-} b3Point2D;
-
 static int b3CullPoints( b3Point2D* points, int count )
 {
 	if ( count <= 1 )

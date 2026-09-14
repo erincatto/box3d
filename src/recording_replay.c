@@ -428,6 +428,7 @@ b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr )
 	def.angularDamping = b3RecR_F32( rdr );
 	def.gravityScale = b3RecR_F32( rdr );
 	def.sleepThreshold = b3RecR_F32( rdr );
+	def.safetyFactor = b3RecR_F32( rdr );
 	def.name = b3RecR_STR( rdr );
 	(void)b3RecR_U64( rdr ); // userData placeholder
 	def.motionLocks = b3RecR_LOCKS( rdr );
@@ -937,6 +938,11 @@ static void b3RecDispatch_BodyEnableSleep( const b3RecArgs_BodyEnableSleep* a, b
 static void b3RecDispatch_BodySetSleepThreshold( const b3RecArgs_BodySetSleepThreshold* a, b3RecReader* rdr )
 {
 	b3Body_SetSleepThreshold( b3RecMakeBodyId( rdr, a->body ), a->threshold );
+}
+
+static void b3RecDispatch_BodySetSafetyFactor( const b3RecArgs_BodySetSafetyFactor* a, b3RecReader* rdr )
+{
+	b3Body_SetSafetyFactor( b3RecMakeBodyId( rdr, a->body ), a->value );
 }
 
 static void b3RecDispatch_BodyDisable( const b3RecArgs_BodyDisable* a, b3RecReader* rdr )

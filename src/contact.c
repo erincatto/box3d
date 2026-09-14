@@ -485,7 +485,7 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 
 	b3ContactCache* cache = &contact->convexContact.cache;
 
-	int pointCapacity = 32;
+	int pointCapacity = B3_MAX_MANIFOLD_POINTS;
 	b3LocalManifoldPoint* pointBuffer = (b3LocalManifoldPoint*)b3Bump( &arena, pointCapacity * sizeof( b3LocalManifoldPoint ) );
 
 	b3LocalManifold geomManifold = { 0 };
@@ -560,6 +560,7 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 	}
 
 	b3Manifold* manifold = contact->manifolds;
+	B3_ASSERT( 0 < geomManifold.pointCount && geomManifold.pointCount <= B3_MAX_MANIFOLD_POINTS );
 	manifold->pointCount = geomManifold.pointCount;
 
 	b3Matrix3 matrixA = b3MakeMatrixFromQuat( xfA.q );

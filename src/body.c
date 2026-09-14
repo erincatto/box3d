@@ -161,6 +161,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	B3_ASSERT( b3IsValidFloat( def->linearDamping ) && def->linearDamping >= 0.0f );
 	B3_ASSERT( b3IsValidFloat( def->angularDamping ) && def->angularDamping >= 0.0f );
 	B3_ASSERT( b3IsValidFloat( def->sleepThreshold ) && def->sleepThreshold >= 0.0f );
+	B3_ASSERT( b3IsValidFloat( def->safetyFactor ) && def->safetyFactor >= 0.0f );
 	B3_ASSERT( b3IsValidFloat( def->gravityScale ) );
 
 	b3World* world = b3GetUnlockedWorldFromId( worldId );
@@ -283,6 +284,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	body->sleepThreshold = def->sleepThreshold;
 	body->sleepTime = 0.0f;
 	body->sleepVelocity = 0.0f;
+	body->safetyFactor = def->safetyFactor;
 	body->mass = 0.0f;
 	body->inertia = b3Mat3_zero;
 	body->nameId = b3AddName( &world->names, def->name );
@@ -998,6 +1000,19 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 		bodySim->maxExtent = b3Max( bodySim->maxExtent, extent.maxExtent );
 
 		shapeId = s->nextShapeId;
+	}
+
+	// When the center of mass changes, any cached contact manifold becomes invalid.
+	int edgeKey = body->headContactKey;
+	while ( edgeKey != B3_NULL_INDEX )
+	{
+		int contactId = edgeKey >> 1;
+		int edgeIndex = edgeKey & 1;
+
+		b3Contact* contact = b3Array_Get( world->contacts, contactId );
+		contact->flags &= ~b3_relativeTransformValid;
+
+		edgeKey = contact->edges[edgeIndex].nextKey;
 	}
 
 	// Apply fixed rotation
@@ -1890,6 +1905,19 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 		bodySim->maxExtent = b3Max( bodySim->maxExtent, extent.maxExtent );
 		shapeId = s->nextShapeId;
 	}
+
+	// When the center of mass changes, any cached contact manifold becomes invalid.
+	int edgeKey = body->headContactKey;
+	while ( edgeKey != B3_NULL_INDEX )
+	{
+		int contactId = edgeKey >> 1;
+		int edgeIndex = edgeKey & 1;
+
+		b3Contact* contact = b3Array_Get( world->contacts, contactId );
+		contact->flags &= ~b3_relativeTransformValid;
+
+		edgeKey = contact->edges[edgeIndex].nextKey;
+	}
 }
 
 b3MassData b3Body_GetMassData( b3BodyId bodyId )
@@ -2061,6 +2089,29 @@ float b3Body_GetSleepThreshold( b3BodyId bodyId )
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 	return body->sleepThreshold;
+}
+
+void b3Body_SetSafetyFactor( b3BodyId bodyId, float safetyFactor )
+{
+	B3_ASSERT( b3IsValidFloat( safetyFactor ) && safetyFactor >= 0.0f );
+
+	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
+	if ( world == NULL )
+	{
+		return;
+	}
+
+	B3_REC( world, BodySetSafetyFactor, bodyId, safetyFactor );
+
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	body->safetyFactor = safetyFactor;
+}
+
+float b3Body_GetSafetyFactor( b3BodyId bodyId )
+{
+	b3World* world = b3GetWorld( bodyId.world0 );
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	return body->safetyFactor;
 }
 
 void b3Body_EnableSleep( b3BodyId bodyId, bool enableSleep )

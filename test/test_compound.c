@@ -583,6 +583,140 @@ static int CompoundShapeCastClosest( void )
 	return 0;
 }
 
+static int CompoundShapeCastMiss( void )
+{
+	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
+	b3CompoundSphereDef sph = { .sphere = { { 5, 0, 0 }, 1.0f }, .material = mat };
+	b3CompoundDef def = { .spheres = &sph, .sphereCount = 1 };
+	b3CompoundData* c = b3CreateCompound( &def );
+
+	b3Vec3 point = { 0, 5, 0 };
+	b3ShapeCastInput input = {
+		.proxy = { .points = &point, .count = 1, .radius = 0.25f },
+		.translation = { 20, 0, 0 },
+		.maxFraction = 1.0f,
+		.canEncroach = false,
+	};
+	ENSURE( b3ShapeCastCompound( c, &input ).hit == false );
+
+	// An empty proxy has nothing to sweep
+	input.proxy.count = 0;
+	ENSURE( b3ShapeCastCompound( c, &input ).hit == false );
+
+	b3DestroyCompound( c );
+	return 0;
+}
+
+static int CompoundShapeCastHullNormalRotation( void )
+{
+	// Same setup as the ray cast rotation test. The result comes back in compound space, so the
+	// hull local face the sweep lands on says nothing about the reported normal and point.
+	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
+	b3BoxHull box = b3MakeBoxHull( 1, 1, 1 );
+
+	b3CompoundHullDef hull = {
+		.hull = &box.base,
+		.transform = { .p = { 5, 0, 0 }, .q = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.5f * B3_PI ) },
+		.material = mat,
+	};
+	b3CompoundDef def = { .hulls = &hull, .hullCount = 1 };
+	b3CompoundData* c = b3CreateCompound( &def );
+
+	b3Vec3 point = { 0, 0, 0 };
+	b3ShapeCastInput input = {
+		.proxy = { .points = &point, .count = 1, .radius = 0.25f },
+		.translation = { 20, 0, 0 },
+		.maxFraction = 1.0f,
+		.canEncroach = false,
+	};
+	b3CastOutput out = b3ShapeCastCompound( c, &input );
+	ENSURE( out.hit == true );
+
+	// Near face at x=4, caster radius 0.25 so contact at x=3.75
+	ENSURE_SMALL( out.fraction - 3.75f / 20.0f, 1e-3f );
+	ENSURE_SMALL( out.normal.x + 1.0f, 1e-3f );
+	ENSURE_SMALL( out.normal.y, 1e-3f );
+	ENSURE_SMALL( out.normal.z, 1e-3f );
+	ENSURE_SMALL( out.point.x - 4.0f, 1e-3f );
+	ENSURE_SMALL( out.point.y, 1e-3f );
+	ENSURE_SMALL( out.point.z, 1e-3f );
+	ENSURE( out.childIndex == 0 );
+
+	b3DestroyCompound( c );
+	return 0;
+}
+
+// Two separated upward facing triangles on the y = 0 plane, one per material. The bake may
+// reorder triangles but always keeps a triangle paired with its material index.
+static b3MeshData* MakeTwoMaterialMesh( void )
+{
+	b3Vec3 vertices[6] = {
+		{ -3.0f, 0.0f, -1.0f }, { -2.0f, 0.0f, 1.0f }, { -1.0f, 0.0f, -1.0f },
+		{ 1.0f, 0.0f, -1.0f },	{ 2.0f, 0.0f, 1.0f },	{ 3.0f, 0.0f, -1.0f },
+	};
+	int32_t indices[6] = { 0, 1, 2, 3, 4, 5 };
+	uint8_t materialIndices[2] = { 0, 1 };
+
+	b3MeshDef def = { 0 };
+	def.vertices = vertices;
+	def.stride = sizeof( b3Vec3 );
+	def.indices = indices;
+	def.materialIndices = materialIndices;
+	def.vertexCount = 6;
+	def.triangleCount = 2;
+
+	return b3CreateMesh( &def, NULL, 0 );
+}
+
+static int CompoundMeshMaterialRemap( void )
+{
+	// A mesh child carries its own small material table. Casts report the triangle material
+	// after it has been remapped into the compound material array.
+	b3SurfaceMaterial matA = MakeMaterial( 0.3f, 100 );
+	b3SurfaceMaterial matB = MakeMaterial( 0.7f, 200 );
+	b3SurfaceMaterial materials[2] = { matA, matB };
+
+	b3MeshData* md = MakeTwoMaterialMesh();
+	b3CompoundMeshDef mesh = {
+		.meshData = md,
+		.transform = b3Transform_identity,
+		.scale = { 1, 1, 1 },
+		.materials = materials,
+		.materialCount = 2,
+	};
+	b3CompoundDef def = { .meshes = &mesh, .meshCount = 1 };
+	b3CompoundData* c = b3CreateCompound( &def );
+
+	const b3SurfaceMaterial* table = b3GetCompoundMaterials( c );
+
+	// Straight down onto the material 0 triangle
+	b3RayCastInput rayA = { .origin = { -2, 5, 0 }, .translation = { 0, -10, 0 }, .maxFraction = 1.0f };
+	b3CastOutput outA = b3RayCastCompound( c, &rayA );
+	ENSURE( outA.hit == true );
+	ENSURE( table[outA.materialIndex].userMaterialId == 100 );
+
+	b3RayCastInput rayB = { .origin = { 2, 5, 0 }, .translation = { 0, -10, 0 }, .maxFraction = 1.0f };
+	b3CastOutput outB = b3RayCastCompound( c, &rayB );
+	ENSURE( outB.hit == true );
+	ENSURE( table[outB.materialIndex].userMaterialId == 200 );
+
+	// The shape cast path does the same remap
+	b3Vec3 point = { 2, 5, 0 };
+	b3ShapeCastInput castInput = {
+		.proxy = { .points = &point, .count = 1, .radius = 0.1f },
+		.translation = { 0, -10, 0 },
+		.maxFraction = 1.0f,
+		.canEncroach = false,
+	};
+	b3CastOutput outCast = b3ShapeCastCompound( c, &castInput );
+	ENSURE( outCast.hit == true );
+	ENSURE( table[outCast.materialIndex].userMaterialId == 200 );
+
+	b3DestroyCompound( c );
+	b3DestroyMesh( md );
+	return 0;
+}
+
 static int CompoundOverlap( void )
 {
 	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
@@ -602,6 +736,132 @@ static int CompoundOverlap( void )
 	b3Vec3 onSecond = { 3, 0, 0 };
 	b3ShapeProxy hit = { .points = &onSecond, .count = 1, .radius = 0.1f };
 	ENSURE( b3OverlapCompound( c, b3Transform_identity, &hit ) == true );
+
+	b3DestroyCompound( c );
+	return 0;
+}
+
+static int CompoundOverlapTransformed( void )
+{
+	// The tree and the child geometry live in the compound frame while the proxy arrives in world
+	// space, so a compound that is moved and turned has to pull the proxy back before querying.
+	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
+	b3CompoundSphereDef spheres[2] = {
+		{ .sphere = { { -3, 0, 0 }, 0.5f }, .material = mat },
+		{ .sphere = { { 3, 0, 0 }, 0.5f }, .material = mat },
+	};
+	b3CompoundDef def = { .spheres = spheres, .sphereCount = 2 };
+	b3CompoundData* c = b3CreateCompound( &def );
+
+	b3Transform transform = { .p = { 10, 20, 30 }, .q = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.5f * B3_PI ) };
+
+	b3Vec3 gapPoint = b3TransformPoint( transform, (b3Vec3){ 0, 0, 0 } );
+	b3ShapeProxy gap = { .points = &gapPoint, .count = 1, .radius = 0.25f };
+	ENSURE( b3OverlapCompound( c, transform, &gap ) == false );
+
+	b3Vec3 hitPoint = b3TransformPoint( transform, (b3Vec3){ 3, 0, 0 } );
+	b3ShapeProxy hit = { .points = &hitPoint, .count = 1, .radius = 0.1f };
+	ENSURE( b3OverlapCompound( c, transform, &hit ) == true );
+
+	// A proxy left in the compound frame must not register against the moved compound
+	b3Vec3 localPoint = { 3, 0, 0 };
+	b3ShapeProxy stale = { .points = &localPoint, .count = 1, .radius = 0.1f };
+	ENSURE( b3OverlapCompound( c, transform, &stale ) == false );
+
+	b3DestroyCompound( c );
+	return 0;
+}
+
+static int CompoundOverlapChildTypes( void )
+{
+	// One child of every type, spaced far enough apart that a hit names the type it came from.
+	// Hull and mesh children add a child transform underneath the compound transform.
+	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3MeshData* md = b3CreateBoxMesh( b3Vec3_zero, (b3Vec3){ 0.5f, 0.5f, 0.5f }, false );
+
+	b3CompoundCapsuleDef capsule = { .capsule = { { -10, 0, 0 }, { -9, 0, 0 }, 0.25f }, .material = mat };
+	b3CompoundHullDef hull = {
+		.hull = &box.base,
+		.transform = { .p = { 0, 0, 0 }, .q = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.25f * B3_PI ) },
+		.material = mat,
+	};
+	b3CompoundMeshDef mesh = {
+		.meshData = md,
+		.transform = { .p = { 10, 0, 0 }, .q = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 0.5f * B3_PI ) },
+		.scale = { 1, 1, 1 },
+		.materials = &mat,
+		.materialCount = 1,
+	};
+	b3CompoundSphereDef sphere = { .sphere = { { 20, 0, 0 }, 0.5f }, .material = mat };
+
+	b3CompoundDef def = {
+		.capsules = &capsule,
+		.capsuleCount = 1,
+		.hulls = &hull,
+		.hullCount = 1,
+		.meshes = &mesh,
+		.meshCount = 1,
+		.spheres = &sphere,
+		.sphereCount = 1,
+	};
+	b3CompoundData* c = b3CreateCompound( &def );
+
+	b3Transform transform = { .p = { 100, 200, 300 }, .q = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.5f * B3_PI ) };
+
+	// Points sitting on or inside each child, then carried out to world space
+	b3Vec3 localPoints[4] = {
+		{ -9.5f, 0, 0 },  // capsule axis
+		{ 0, 0, 0 },	  // hull center
+		{ 10, 0.45f, 0 }, // just under a mesh face
+		{ 20, 0, 0 },	  // sphere center
+	};
+
+	for ( int i = 0; i < 4; ++i )
+	{
+		b3Vec3 worldPoint = b3TransformPoint( transform, localPoints[i] );
+		b3ShapeProxy proxy = { .points = &worldPoint, .count = 1, .radius = 0.1f };
+		ENSURE( b3OverlapCompound( c, transform, &proxy ) == true );
+	}
+
+	// A gap between the hull and the mesh
+	b3Vec3 gapPoint = b3TransformPoint( transform, (b3Vec3){ 5, 0, 0 } );
+	b3ShapeProxy gap = { .points = &gapPoint, .count = 1, .radius = 0.1f };
+	ENSURE( b3OverlapCompound( c, transform, &gap ) == false );
+
+	b3DestroyCompound( c );
+	b3DestroyMesh( md );
+	return 0;
+}
+
+static int CompoundOverlapSegmentProxy( void )
+{
+	// A multi point proxy has to be carried into the compound frame point by point
+	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
+	b3CompoundSphereDef spheres[2] = {
+		{ .sphere = { { -3, 0, 0 }, 0.5f }, .material = mat },
+		{ .sphere = { { 3, 0, 0 }, 0.5f }, .material = mat },
+	};
+	b3CompoundDef def = { .spheres = spheres, .sphereCount = 2 };
+	b3CompoundData* c = b3CreateCompound( &def );
+
+	b3Transform transform = { .p = { -40, 15, 7 }, .q = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 0.5f * B3_PI ) };
+
+	// Segment that stays inside the gap
+	b3Vec3 inGap[2] = {
+		b3TransformPoint( transform, (b3Vec3){ -1, 0, 0 } ),
+		b3TransformPoint( transform, (b3Vec3){ 1, 0, 0 } ),
+	};
+	b3ShapeProxy gap = { .points = inGap, .count = 2, .radius = 0.25f };
+	ENSURE( b3OverlapCompound( c, transform, &gap ) == false );
+
+	// Same segment stretched until one end reaches the second sphere
+	b3Vec3 reaching[2] = {
+		b3TransformPoint( transform, (b3Vec3){ -1, 0, 0 } ),
+		b3TransformPoint( transform, (b3Vec3){ 2.9f, 0, 0 } ),
+	};
+	b3ShapeProxy hit = { .points = reaching, .count = 2, .radius = 0.25f };
+	ENSURE( b3OverlapCompound( c, transform, &hit ) == true );
 
 	b3DestroyCompound( c );
 	return 0;
@@ -699,6 +959,41 @@ static int CompoundMover( void )
 	b3PlaneResult one[1] = { 0 };
 	int capped = b3CollideMoverAndCompound( one, 1, c, &mover );
 	ENSURE( capped <= 1 );
+
+	b3DestroyCompound( c );
+	return 0;
+}
+
+static int CompoundMoverRotatedChild( void )
+{
+	// The child solves the mover in its own frame, so the plane it returns has to be carried
+	// back into the compound frame before the caller sees it.
+	b3SurfaceMaterial mat = MakeMaterial( 0.25f, 77 );
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+	// Quarter turn about z, so the compound space top face is a side face of the hull
+	b3CompoundHullDef hull = {
+		.hull = &box.base,
+		.transform = { .p = { 0, 0, 0 }, .q = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.5f * B3_PI ) },
+		.material = mat,
+	};
+	b3CompoundDef def = { .hulls = &hull, .hullCount = 1 };
+	b3CompoundData* c = b3CreateCompound( &def );
+
+	b3Capsule mover = { { -0.1f, 0.6f, 0 }, { 0.1f, 0.6f, 0 }, 0.2f };
+
+	b3PlaneResult planes[8] = { 0 };
+	int planeCount = b3CollideMoverAndCompound( planes, 8, c, &mover );
+	ENSURE( planeCount >= 1 );
+
+	ENSURE_SMALL( planes[0].plane.normal.x, 1e-3f );
+	ENSURE_SMALL( planes[0].plane.normal.y - 1.0f, 1e-3f );
+	ENSURE_SMALL( planes[0].plane.normal.z, 1e-3f );
+	ENSURE_SMALL( planes[0].point.y - 0.5f, 1e-3f );
+
+	ENSURE( planes[0].childIndex == 0 );
+	const b3SurfaceMaterial* table = b3GetCompoundMaterials( c );
+	ENSURE( table[planes[0].materialIndex].userMaterialId == 77 );
 
 	b3DestroyCompound( c );
 	return 0;
@@ -841,11 +1136,18 @@ int CompoundTest( void )
 	RUN_SUBTEST( CompoundRayCastClosest );
 	RUN_SUBTEST( CompoundRayCastHullNormalRotation );
 	RUN_SUBTEST( CompoundShapeCastClosest );
+	RUN_SUBTEST( CompoundShapeCastMiss );
+	RUN_SUBTEST( CompoundShapeCastHullNormalRotation );
+	RUN_SUBTEST( CompoundMeshMaterialRemap );
 
 	RUN_SUBTEST( CompoundOverlap );
+	RUN_SUBTEST( CompoundOverlapTransformed );
+	RUN_SUBTEST( CompoundOverlapChildTypes );
+	RUN_SUBTEST( CompoundOverlapSegmentProxy );
 	RUN_SUBTEST( CompoundQuery );
 
 	RUN_SUBTEST( CompoundMover );
+	RUN_SUBTEST( CompoundMoverRotatedChild );
 
 	RUN_SUBTEST( CompoundSerializeRoundtrip );
 	RUN_SUBTEST( CompoundSerializeBadVersion );

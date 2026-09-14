@@ -149,6 +149,46 @@ b3JointSim* b3GetJointSimCheckType( b3JointId jointId, b3JointType type )
 	return jointSim;
 }
 
+static void b3DestroyContactsBetweenBodies( b3World* world, b3Body* bodyA, b3Body* bodyB )
+{
+	int contactKey;
+	int otherBodyId;
+
+	// use the smaller of the two contact lists
+	if ( bodyA->contactCount < bodyB->contactCount )
+	{
+		contactKey = bodyA->headContactKey;
+		otherBodyId = bodyB->id;
+	}
+	else
+	{
+		contactKey = bodyB->headContactKey;
+		otherBodyId = bodyA->id;
+	}
+
+	// no need to wake bodies when a joint removes collision between them
+	bool wakeBodies = false;
+
+	// destroy the contacts
+	while ( contactKey != B3_NULL_INDEX )
+	{
+		int contactId = contactKey >> 1;
+		int edgeIndex = contactKey & 1;
+
+		b3Contact* contact = b3Array_Get( world->contacts, contactId );
+		contactKey = contact->edges[edgeIndex].nextKey;
+
+		int otherEdgeIndex = edgeIndex ^ 1;
+		if ( contact->edges[otherEdgeIndex].bodyId == otherBodyId )
+		{
+			// Careful, this removes the contact from the current doubly linked list
+			b3DestroyContact( world, contact, wakeBodies );
+		}
+	}
+
+	b3ValidateSolverSets( world );
+}
+
 typedef struct b3JointPair
 {
 	b3Joint* joint;
@@ -159,9 +199,19 @@ static b3JointPair b3CreateJoint( b3World* world, const b3JointDef* def, b3Joint
 {
 	B3_ASSERT( b3IsValidTransform( def->localFrameA ) );
 	B3_ASSERT( b3IsValidTransform( def->localFrameB ) );
+	B3_ASSERT( world->worldId == def->bodyIdA.world0 );
+	B3_ASSERT( world->worldId == def->bodyIdB.world0 );
+	B3_ASSERT( B3_ID_EQUALS( def->bodyIdA, def->bodyIdB ) == false );
 
 	b3Body* bodyA = b3GetBodyFullId( world, def->bodyIdA );
 	b3Body* bodyB = b3GetBodyFullId( world, def->bodyIdB );
+
+	// If the joint prevents collisions, then destroy all contacts between attached bodies.
+	// Do this first so world arrays are not disturbed in the following code.
+	if ( def->collideConnected == false )
+	{
+		b3DestroyContactsBetweenBodies( world, bodyA, bodyB );
+	}
 
 	int bodyIdA = bodyA->id;
 	int bodyIdB = bodyB->id;
@@ -331,46 +381,6 @@ static b3JointPair b3CreateJoint( b3World* world, const b3JointDef* def, b3Joint
 	b3ValidateSolverSets( world );
 
 	return (b3JointPair){ joint, jointSim };
-}
-
-static void b3DestroyContactsBetweenBodies( b3World* world, b3Body* bodyA, b3Body* bodyB )
-{
-	int contactKey;
-	int otherBodyId;
-
-	// use the smaller of the two contact lists
-	if ( bodyA->contactCount < bodyB->contactCount )
-	{
-		contactKey = bodyA->headContactKey;
-		otherBodyId = bodyB->id;
-	}
-	else
-	{
-		contactKey = bodyB->headContactKey;
-		otherBodyId = bodyA->id;
-	}
-
-	// no need to wake bodies when a joint removes collision between them
-	bool wakeBodies = false;
-
-	// destroy the contacts
-	while ( contactKey != B3_NULL_INDEX )
-	{
-		int contactId = contactKey >> 1;
-		int edgeIndex = contactKey & 1;
-
-		b3Contact* contact = b3Array_Get( world->contacts, contactId );
-		contactKey = contact->edges[edgeIndex].nextKey;
-
-		int otherEdgeIndex = edgeIndex ^ 1;
-		if ( contact->edges[otherEdgeIndex].bodyId == otherBodyId )
-		{
-			// Careful, this removes the contact from the current doubly linked list
-			b3DestroyContact( world, contact, wakeBodies );
-		}
-	}
-
-	b3ValidateSolverSets( world );
 }
 
 void b3Joint_SetConstraintTuning( b3JointId jointId, float hertz, float dampingRatio )

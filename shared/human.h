@@ -9,10 +9,8 @@ typedef enum BoneId
 {
 	bone_pelvis,
 	bone_spine_01,
-	bone_spine_02,
 	bone_spine_03,
 	bone_neck,
-	bone_head,
 	bone_thigh_l,
 	bone_calf_l,
 	bone_thigh_r,
@@ -40,7 +38,7 @@ typedef struct Bone
 	int parentIndex;
 } Bone;
 
-#define FILTER_JOINT_COUNT 8
+#define FILTER_JOINT_COUNT 9
 
 // This must be zero initialized
 typedef struct Human

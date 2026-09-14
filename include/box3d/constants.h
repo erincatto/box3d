@@ -76,7 +76,9 @@ B3_API float b3GetStallThreshold( void );
 #define B3_MAX_ROTATION ( 0.25f * B3_PI )
 
 /// @warning modifying this can have a significant impact on performance and stability
+#ifndef B3_SPECULATIVE_DISTANCE
 #define B3_SPECULATIVE_DISTANCE ( 4.0f * B3_LINEAR_SLOP )
+#endif
 
 /// The rest offset is used for mesh contact to reduce ghost collisions and assist with CCD.
 /// The rest offset adjusts the contact point separation value, making the solver push the shapes
@@ -104,7 +106,13 @@ B3_API float b3GetStallThreshold( void );
 #define B3_TIME_TO_SLEEP 0.5f
 
 /// The maximum number of contact points between two touching shapes.
+/// The default and minimum is 4 and this case will use an approximate convex hull to
+/// reduce the point count. Any other value will fill the manifold with points
+/// in an arbitray order until it is full. Useful for testing, but I don't recommend
+/// shipping with it adjusted.
+#ifndef B3_MAX_MANIFOLD_POINTS
 #define B3_MAX_MANIFOLD_POINTS 4
+#endif
 
 /// The number of iterations for gyroscopic torques.
 #ifndef B3_GYROSCOPIC_ITERATIONS

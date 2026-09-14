@@ -362,6 +362,61 @@ static bool CountOverlapCallback( b3ShapeId shapeId, void* context )
 	return true;
 }
 
+// A baked compound keeps its tree and its child placements in the compound frame while the query
+// proxy is in world space, so a compound on a turned body only answers correctly if the proxy is
+// brought back into that frame first.
+static int OverlapCompoundRotatedBody( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
+	b3CompoundSphereDef spheres[2] = {
+		{ .sphere = { { -3.0f, 0.0f, 0.0f }, 0.5f }, .material = mat },
+		{ .sphere = { { 3.0f, 0.0f, 0.0f }, 0.5f }, .material = mat },
+	};
+	b3CompoundDef compoundDef = { .spheres = spheres, .sphereCount = 2 };
+	b3CompoundData* compound = b3CreateCompound( &compoundDef );
+	ENSURE( compound != NULL );
+
+	b3Transform pose = { .p = { 10.0f, 20.0f, 30.0f }, .q = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.5f * B3_PI ) };
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_staticBody;
+	bodyDef.position = (b3Pos){ pose.p.x, pose.p.y, pose.p.z };
+	bodyDef.rotation = pose.q;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3CreateBakedCompoundShape( bodyId, &shapeDef, compound );
+
+	b3QueryFilter filter = b3DefaultQueryFilter();
+
+	// Sitting on the second child, which the body pose has swung onto the +Y side
+	b3Vec3 onChild = b3TransformPoint( pose, (b3Vec3){ 3.0f, 0.0f, 0.0f } );
+	b3ShapeProxy hitProxy = { &onChild, 1, 0.1f };
+
+	int hits = 0;
+	b3World_OverlapShape( worldId, b3Pos_zero, &hitProxy, filter, CountOverlapCallback, &hits );
+	ENSURE( hits == 1 );
+
+	b3WorldTransform bodyTransform = { .p = bodyDef.position, .q = bodyDef.rotation };
+	ENSURE( b3Body_OverlapShape( bodyId, b3Pos_zero, &hitProxy, filter, bodyTransform ) );
+
+	// The gap between the two children stays empty
+	b3Vec3 inGap = b3TransformPoint( pose, (b3Vec3){ 0.0f, 0.0f, 0.0f } );
+	b3ShapeProxy gapProxy = { &inGap, 1, 0.25f };
+
+	hits = 0;
+	b3World_OverlapShape( worldId, b3Pos_zero, &gapProxy, filter, CountOverlapCallback, &hits );
+	ENSURE( hits == 0 );
+	ENSURE( b3Body_OverlapShape( bodyId, b3Pos_zero, &gapProxy, filter, bodyTransform ) == false );
+
+	b3DestroyWorld( worldId );
+	b3DestroyCompound( compound );
+	return 0;
+}
+
 // A box hull proxy built around a world target with a zero origin must hit the same shapes as the
 // same box built at the local origin and queried with the target as origin. This is the origin
 // relative equivalence the world query promises, and the pattern users reach for when they bake a
@@ -990,6 +1045,7 @@ int BodyQueryTest( void )
 	RUN_SUBTEST( OverlapFilter );
 	RUN_SUBTEST( OverlapHullProxyEquivalence );
 	RUN_SUBTEST( OverlapHullProxyRotation );
+	RUN_SUBTEST( OverlapCompoundRotatedBody );
 
 	RUN_SUBTEST( MoverTouchesBox );
 	RUN_SUBTEST( MoverSeparated );

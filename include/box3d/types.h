@@ -303,6 +303,13 @@ typedef struct b3BodyDef
 	/// Sleep speed threshold, default is 0.05 meters per second
 	float sleepThreshold;
 
+	/// Continuous collision safety factor. The solver only uses continuous collision if there is a
+	/// risk of tunneling. If the body is moving fast enough to risk tunneling then it is considered a "fast body".
+	/// This improves performance and prevents movement hitches. If a body moving N meter risks tunneling, then the
+	/// body will be considered fast if it moves more than a safetyFactor times N meters over one full time step.
+	/// Non-dimensional. Recommended range [0.01, 0.5]. Default is 0.5 for high performance with low tunneling risk.
+	float safetyFactor;
+
 	/// Optional body name for debugging.
 	const char* name;
 
@@ -1940,8 +1947,7 @@ typedef struct b3Sphere
  * @{
  */
 
-/// A solid capsule can be viewed as two hemispheres connected
-/// by a rectangle.
+/// A solid capsule can be viewed as two hemispheres connected by a cylinder.
 typedef struct b3Capsule
 {
 	/// Local center of the first hemisphere

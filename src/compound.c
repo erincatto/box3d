@@ -237,7 +237,7 @@ static inline uint64_t b3HashMaterial( const b3SurfaceMaterial* material )
 
 static bool b3CompareMaterials( const b3SurfaceMaterial* mat1, const b3SurfaceMaterial* mat2 )
 {
-	B3_ASSERT( mat1->padding == 0 && mat2->padding == 0);
+	B3_ASSERT( mat1->padding == 0 && mat2->padding == 0 );
 
 	if ( mat1 == mat2 )
 	{
@@ -684,8 +684,7 @@ b3AABB b3ComputeCompoundAABB( const b3CompoundData* shape, b3Transform transform
 struct b3CompoundOverlapContext
 {
 	const b3CompoundData* compound;
-	// transform of the compound
-	b3Transform transform;
+	// proxy in the compound frame
 	b3ShapeProxy proxy;
 	bool overlap;
 };
@@ -698,25 +697,23 @@ static bool b3CompoundOverlapCallback( int proxyId, uint64_t userData, void* con
 	struct b3CompoundOverlapContext* overlapContext = context;
 	b3ChildShape child = b3GetCompoundChild( overlapContext->compound, childIndex );
 
-	b3Transform transform = b3MulTransforms( overlapContext->transform, child.transform );
-
 	bool overlap = false;
 	switch ( child.type )
 	{
 		case b3_capsuleShape:
-			overlap = b3OverlapCapsule( &child.capsule, transform, &overlapContext->proxy );
+			overlap = b3OverlapCapsule( &child.capsule, child.transform, &overlapContext->proxy );
 			break;
 
 		case b3_hullShape:
-			overlap = b3OverlapHull( child.hull, transform, &overlapContext->proxy );
+			overlap = b3OverlapHull( child.hull, child.transform, &overlapContext->proxy );
 			break;
 
 		case b3_meshShape:
-			overlap = b3OverlapMesh( &child.mesh, transform, &overlapContext->proxy );
+			overlap = b3OverlapMesh( &child.mesh, child.transform, &overlapContext->proxy );
 			break;
 
 		case b3_sphereShape:
-			overlap = b3OverlapSphere( &child.sphere, transform, &overlapContext->proxy );
+			overlap = b3OverlapSphere( &child.sphere, child.transform, &overlapContext->proxy );
 			break;
 
 		default:
@@ -735,26 +732,24 @@ static bool b3CompoundOverlapCallback( int proxyId, uint64_t userData, void* con
 	return true;
 }
 
+// This is dealing with multiple transforms:
+// - the compound shape transform
+// - the compound child shape transforms
 bool b3OverlapCompound( const b3CompoundData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
 {
+	B3_ASSERT( proxy->count > 0 );
+
+	// Use local proxy.
+	b3Vec3 buffer[B3_MAX_SHAPE_CAST_POINTS];
 	struct b3CompoundOverlapContext context = {
 		.compound = shape,
-		.transform = shapeTransform,
-		.proxy = *proxy,
+		.proxy = b3MakeLocalProxy( proxy, shapeTransform, buffer ),
 		.overlap = false,
 	};
 
-	b3AABB aabb = { proxy->points[0], proxy->points[0] };
-	for ( int i = 1; i < proxy->count; ++i )
-	{
-		aabb.lowerBound = b3Min( aabb.lowerBound, proxy->points[i] );
-		aabb.upperBound = b3Max( aabb.upperBound, proxy->points[i] );
-	}
+	b3AABB aabb = b3ComputeProxyAABB( &context.proxy );
 
-	b3Vec3 r = { proxy->radius, proxy->radius, proxy->radius };
-	aabb.lowerBound = b3Sub( aabb.lowerBound, r );
-	aabb.upperBound = b3Add( aabb.upperBound, r );
-
+	// This query must be in the compound frame.
 	(void)b3DynamicTree_Query( &shape->tree, aabb, ~0ull, false, b3CompoundOverlapCallback, &context );
 
 	return context.overlap;
@@ -779,6 +774,7 @@ static float b3CompoundRayCastCallback( const b3RayCastInput* input, int proxyId
 
 	b3ChildShape child = b3GetCompoundChild( compound, childIndex );
 
+	// Get the input in child local space.
 	b3RayCastInput localInput = *input;
 	localInput.origin = b3InvTransformPoint( child.transform, input->origin );
 	localInput.translation = b3InvRotateVector( child.transform.q, input->translation );
@@ -852,23 +848,13 @@ static float b3CompoundShapeCastCallback( const b3BoxCastInput* input, int proxy
 
 	b3ChildShape child = b3GetCompoundChild( compound, childIndex );
 
-	// Rebuild from the carried shape cast input, taking only the advancing fraction from the tree
-	b3ShapeCastInput localInput = *shapeInput;
-	localInput.maxFraction = input->maxFraction;
+	// Get the input in the child local space.
+	b3ShapeCastInput localInput = { 0 };
 	b3Vec3 localPoints[B3_MAX_SHAPE_CAST_POINTS];
-
-	localInput.proxy.count = b3MinInt( shapeInput->proxy.count, B3_MAX_SHAPE_CAST_POINTS );
-
-	b3Transform invTransform = b3InvertTransform( child.transform );
-	b3Matrix3 R = b3MakeMatrixFromQuat( invTransform.q );
-
-	for ( int i = 0; i < localInput.proxy.count; ++i )
-	{
-		localPoints[i] = b3Add( b3MulMV( R, shapeInput->proxy.points[i] ), invTransform.p );
-	}
-
-	localInput.proxy.points = localPoints;
-	localInput.translation = b3MulMV( R, shapeInput->translation );
+	localInput.proxy = b3MakeLocalProxy( &shapeInput->proxy, child.transform, localPoints );
+	localInput.translation = b3InvRotateVector( child.transform.q, shapeInput->translation );
+	localInput.maxFraction = input->maxFraction;
+	localInput.canEncroach = shapeInput->canEncroach;
 
 	b3CastOutput output = { 0 };
 

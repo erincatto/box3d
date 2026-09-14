@@ -8,17 +8,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// Software prefetch hint. T0 brings the line into all cache levels.
-// On x86 MSVC exposes _mm_prefetch, ARM MSVC uses __prefetch instead.
-// clang/gcc provide __builtin_prefetch on every target.
-#if defined( B3_COMPILER_MSVC )
+#if defined( _MSC_VER )
 #include <intrin.h>
-#if defined( B3_CPU_X86_X64 )
+#if defined( _M_X64 ) || defined( __x86_64__ ) || defined( _M_IX86 ) || defined( __i386__ )
 #define b3Prefetch( addr ) _mm_prefetch( (const char*)( addr ), _MM_HINT_T0 )
 #else
 #define b3Prefetch( addr ) __prefetch( (const void*)( addr ) )
 #endif
-#elif defined( B3_COMPILER_CLANG ) || defined( B3_COMPILER_GCC )
+#elif defined( __GNUC__ ) || defined( __clang__ )
 #define b3Prefetch( addr ) __builtin_prefetch( (const void*)( addr ), 0, 3 )
 #else
 #define b3Prefetch( addr ) ( (void)( addr ) )

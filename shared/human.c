@@ -36,8 +36,7 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Pos position, float frictio
 	bodyDef.userData = userData;
 
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	// shapeDef.friction = 0.2f;
-	shapeDef.baseMaterial.rollingResistance = 0.2f;
+	float defaultDensity = shapeDef.density;
 
 	b3HexColor shirtColor = b3_colorMediumTurquoise;
 	b3HexColor pantColor = b3_colorDodgerBlue;
@@ -46,19 +45,20 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Pos position, float frictio
 
 	{
 		Bone* bone = human->bones + bone_pelvis;
-
 		bone->parentIndex = -1;
 
 		bodyDef.name = "pelvis";
-		bone->referenceFrame = (b3Transform){ { 0.0f, 0.932087f, -0.051708f }, { { 0.739169f, 0.0f, 0.0f }, 0.673520f } };
+		bone->referenceFrame = (b3Transform){ { 0.000000f, 0.996219f, -0.023868f }, { { 1.000000f, 0.000000f, 0.000000f }, 0.000000f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { 0.07f, 0.0f, -0.08f }, { -0.07f, 0.0f, -0.08f }, 0.13f };
 		shapeDef.filter.groupIndex = 0;
 		shapeDef.baseMaterial.customColor = colorize ? pantColor : 0;
 
+		shapeDef.baseMaterial.friction = 0.6f;
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		b3Capsule capsule = { { 0.040000f, 0.000001f, 0.000000f }, { -0.040000f, -0.000001f, 0.000000f }, 0.150000f };
 		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
 	}
 
@@ -67,117 +67,74 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Pos position, float frictio
 		bone->parentIndex = bone_pelvis;
 
 		bodyDef.name = "spine_01";
-		bone->referenceFrame = (b3Transform){ { 0.0f, 1.113505f, -0.03481f }, { { 0.739973f, 0.0f, 0.0f }, 0.672637f } };
+		bone->referenceFrame = (b3Transform){ { 0.000000f, 1.017288f, -0.024882f }, { { 1.000000f, 0.000000f, 0.000000f }, 0.000000f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
-		// bodyDef.type = b3_staticBody;
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
-		bodyDef.type = b3_dynamicBody;
 
-		b3Capsule capsule = { { 0.06f, -0.0f, -0.052264f }, { -0.06f, 0.0f, -0.052264f }, 0.12f };
 		shapeDef.filter.groupIndex = -groupIndex;
 		shapeDef.baseMaterial.customColor = colorize ? shirtColor : 0;
+
+		shapeDef.baseMaterial.friction = 0.5f;
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		b3Capsule capsule = { { 0.029876f, -0.146581f, 0.006260f }, { -0.029876f, -0.146574f, 0.006260f }, 0.145663f };
 		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
 
 		bone->jointType = b3_sphericalJoint;
-		bone->localFrameA = (b3Transform){ { 0.000000, 0.000000, -0.182204 }, { { -0.999999, 0.000000, -0.000000 }, 0.001194 } };
-		bone->localFrameB = (b3Transform){ { 0.000000, 0.000000, -0.007736 }, { { -1.000000, 0.000000, -0.000000 }, 0.000000 } };
-		bone->swingLimit = 25.0f * B3_DEG_TO_RAD;
-		bone->twistLimit = (b3Vec2){ -15.0f * B3_DEG_TO_RAD, 15.0f * B3_DEG_TO_RAD };
-	}
-
-	{
-		Bone* bone = human->bones + bone_spine_02;
-		bone->parentIndex = bone_spine_01;
-
-		// bodyDef.name = "spine_02";
-		bone->referenceFrame = (b3Transform){ { 0.0f, 1.194336f, -0.027087f }, { { 0.703611f, 0.0f, 0.0f }, 0.710586f } };
-		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
-		bone->bodyId = b3CreateBody( worldId, &bodyDef );
-
-		b3Capsule capsule = { { 0.08f, -0.015133f, -0.091801f }, { -0.08f, -0.015133f, -0.091801f }, 0.10f };
-		shapeDef.filter.groupIndex = 0;
-		shapeDef.baseMaterial.customColor = colorize ? shirtColor : 0;
-		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
-
-		bone->jointType = b3_sphericalJoint;
-		bone->localFrameA =
-			(b3Transform){ { 0.000000, -0.000000, -0.088935 }, { { -0.998619, -0.000000, 0.000000 }, -0.052540 } };
-		bone->localFrameB = (b3Transform){ { -0.000000, 0.000000, -0.008199 }, { { -1.000000, 0.000000, -0.000000 }, 0.000000 } };
-		bone->swingLimit = 25.0f * B3_DEG_TO_RAD;
-		bone->twistLimit = (b3Vec2){ -15.0f * B3_DEG_TO_RAD, 15.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { 0.000000f, -0.021069f, 0.001014f }, { { -0.642737f, 0.000000f, 0.000000f }, -0.766087f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.707107f, 0.000000f, 0.000000f }, -0.707107f } };
+		bone->swingLimit = 35.0f * B3_DEG_TO_RAD;
+		bone->twistLimit = (b3Vec2){ -17.5f * B3_DEG_TO_RAD, 17.5f * B3_DEG_TO_RAD };
 	}
 
 	{
 		Bone* bone = human->bones + bone_spine_03;
-		bone->parentIndex = bone_spine_02;
+		bone->parentIndex = bone_spine_01;
 
 		bodyDef.name = "spine_03";
-		bone->referenceFrame =
-			(b3Transform){ { -0.0f, 1.31043f, -0.028232f }, { { 0.669856f, 0.000001f, -0.000001f }, 0.742491f } };
+		bone->referenceFrame = (b3Transform){ { 0.000000f, 1.267766f, -0.022320f }, { { 1.000000f, 0.000000f, 0.000000f }, 0.000000f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { 0.11f, -0.039753f, -0.13f }, { -0.11f, -0.039753f, -0.13f }, 0.145f };
 		shapeDef.filter.groupIndex = 0;
 		shapeDef.baseMaterial.customColor = colorize ? shirtColor : 0;
+
+		shapeDef.baseMaterial.friction = 0.5f;
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		b3Capsule capsule = { { 0.063996f, -0.117434f, -0.040199f }, { -0.063996f, -0.117432f, -0.040199f }, 0.165004f };
 		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
 
 		bone->jointType = b3_sphericalJoint;
-		bone->localFrameA =
-			(b3Transform){ { -0.000000, 0.000000, -0.124298 }, { { -0.998921, 0.000001, -0.000001 }, -0.046434 } };
-		bone->localFrameB = (b3Transform){ { 0.000000, 0.000000, 0.000000 }, { { -1.000000, 0.000000, -0.000001 }, 0.000000 } };
-		bone->swingLimit = 15.0f * B3_DEG_TO_RAD;
-		bone->twistLimit = (b3Vec2){ -10.0f * B3_DEG_TO_RAD, 10.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { 0.000000f, -0.250478f, -0.002562f }, { { -0.642766f, 0.000000f, 0.000000f }, -0.766063f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.707107f, 0.000000f, 0.000000f }, -0.707107f } };
+		bone->swingLimit = 35.0f * B3_DEG_TO_RAD;
+		bone->twistLimit = (b3Vec2){ -17.5f * B3_DEG_TO_RAD, 17.5f * B3_DEG_TO_RAD };
 	}
 
 	{
 		Bone* bone = human->bones + bone_neck;
 		bone->parentIndex = bone_spine_03;
 
-		bodyDef.name = "neck";
-		bone->referenceFrame = (b3Transform){ { 0.0f, 1.575582f, -0.055837f }, { { 0.879922f, 0.0f, 0.0f }, 0.475118f } };
+		bodyDef.name = "neck_01";
+		bone->referenceFrame = (b3Transform){ { 0.000000f, 1.498783f, 0.024462f }, { { 0.987879f, 0.000000f, 0.000000f }, 0.155228f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { -0.000001f, -0.0f, -0.02f }, { 0.0f, -0.005f, -0.08f }, 0.07f };
 		shapeDef.filter.groupIndex = 0;
 		shapeDef.baseMaterial.customColor = colorize ? skinColor : 0;
-		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
+
+		shapeDef.baseMaterial.friction = 0.2f;
+		shapeDef.baseMaterial.rollingResistance = 0.05f;
+		b3Capsule head = { { 0.000000f, -0.212340f, 0.000000f }, { 0.000000f, -0.087340f, 0.000000f }, 0.110000f };
+		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &head );
 
 		bone->jointType = b3_sphericalJoint;
-		bone->localFrameA = (b3Transform){ { 0.000001, -0.000259, -0.266585 }, { { -0.942192, -0.000001, 0.000000 }, 0.335074 } };
-		bone->localFrameB = (b3Transform){ { 0.000000, 0.000000, 0.000000 }, { { -1.000000, 0.000000, -0.000001 }, 0.000000 } };
-		bone->swingLimit = 45.0f * B3_DEG_TO_RAD;
-		bone->twistLimit = (b3Vec2){ -15.0f * B3_DEG_TO_RAD, 15.0f * B3_DEG_TO_RAD };
-		bone->jointFriction = 0.8f;
-	}
-
-	{
-		Bone* bone = human->bones + bone_head;
-		bone->parentIndex = bone_neck;
-
-		bodyDef.name = "head";
-		bone->referenceFrame = (b3Transform){ { 0.0f, 1.653348f, -0.003241f }, { { 0.750288f, 0.0f, 0.0f }, 0.661111f } };
-		bodyDef.rotation = bone->referenceFrame.q;
-		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
-		bone->bodyId = b3CreateBody( worldId, &bodyDef );
-
-		b3Capsule capsule = { { -0.000001f, 0.016892f, -0.05869f }, { 0.0f, -0.003629f, -0.115072f }, 0.0975f };
-		shapeDef.filter.groupIndex = 0;
-		shapeDef.baseMaterial.customColor = colorize ? skinColor : 0;
-		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
-
-		bone->jointType = b3_sphericalJoint;
-		bone->localFrameA =
-			(b3Transform){ { 0.000000, 0.001321, -0.093873 }, { { -0.974301, -0.000000, -0.000000 }, -0.225251 } };
-		bone->localFrameB = (b3Transform){ { 0.000000, 0.001268, -0.005104 }, { { -1.000000, 0.000000, -0.00000 }, 0.000000 } };
-		bone->swingLimit = 15.0f * B3_DEG_TO_RAD;
-		bone->twistLimit = (b3Vec2){ -15.0f * B3_DEG_TO_RAD, 15.0f * B3_DEG_TO_RAD };
-		bone->jointFriction = 0.4f;
+		bone->localFrameA = (b3Transform){ { 0.000000f, -0.231017f, -0.046781f }, { { -0.516157f, -0.000002f, 0.000003f }, -0.856494f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.707108f, -0.000002f, 0.000002f }, -0.707106f } };
+		bone->swingLimit = 30.0f * B3_DEG_TO_RAD;
+		bone->twistLimit = (b3Vec2){ -17.5f * B3_DEG_TO_RAD, 17.5f * B3_DEG_TO_RAD };
 	}
 
 	{
@@ -185,22 +142,24 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Pos position, float frictio
 		bone->parentIndex = bone_pelvis;
 
 		bodyDef.name = "thigh_l";
-		bone->referenceFrame =
-			(b3Transform){ { 0.090416f, 0.986104f, -0.035090f }, { { -0.703287f, -0.070715f, 0.053866f }, 0.705327f } };
+		bone->referenceFrame = (b3Transform){ { 0.092175f, 0.971562f, -0.011177f }, { { 0.471412f, 0.529510f, -0.499888f }, -0.497495f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { 0.023719f, 0.006008f, -0.039068f }, { -0.064492f, -0.004664f, -0.424718f }, 0.09f };
 		shapeDef.filter.groupIndex = -groupIndex;
 		shapeDef.baseMaterial.customColor = colorize ? pantColor : 0;
+
+		shapeDef.baseMaterial.friction = 0.6f;
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		b3Capsule capsule = { { -0.047269f, 0.000001f, 0.000000f }, { -0.379769f, 0.000005f, 0.000000f }, 0.091539f };
 		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
 
 		bone->jointType = b3_sphericalJoint;
-		bone->localFrameA = (b3Transform){ { 0.05f, 0.011537f, -0.055325f }, { { -0.714896, -0.022305, -0.698361 }, -0.026790 } };
-		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.002064, 0.758987, 0.017046 }, 0.650880 } };
-		bone->swingLimit = 10.0f * B3_DEG_TO_RAD;
-		bone->twistLimit = (b3Vec2){ -60.0f * B3_DEG_TO_RAD, 40.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { 0.092175f, 0.024656f, -0.012691f }, { { -0.460186f, -0.365368f, -0.637662f }, 0.498118f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.499997f, -0.500003f, 0.500002f }, 0.499998f } };
+		bone->swingLimit = 30.0f * B3_DEG_TO_RAD;
+		bone->twistLimit = (b3Vec2){ -10.0f * B3_DEG_TO_RAD, 10.0f * B3_DEG_TO_RAD };
 	}
 
 	{
@@ -208,21 +167,28 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Pos position, float frictio
 		bone->parentIndex = bone_thigh_l;
 
 		bodyDef.name = "calf_l";
-		bone->referenceFrame =
-			(b3Transform){ { 0.101198f, 0.527027f, -0.037374f }, { { -0.653328f, -0.066860f, 0.058582f }, 0.751838f } };
+		bone->referenceFrame = (b3Transform){ { 0.118720f, 0.534541f, -0.035362f }, { { 0.521188f, 0.480597f, -0.546380f }, -0.445935f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { 0.001778f, 0.0f, 0.009841f }, { -0.078577f, 0.014707f, -0.41816f }, 0.075f };
 		shapeDef.filter.groupIndex = 0;
 		shapeDef.baseMaterial.customColor = colorize ? pantColor : 0;
-		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
+
+		shapeDef.baseMaterial.friction = 0.1f;
+		shapeDef.baseMaterial.rollingResistance = 0.0f;
+		b3Capsule shin = { { -0.445000f, 0.000001f, 0.000000f }, { 0.005000f, -0.000001f, 0.000000f }, 0.080000f };
+		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &shin );
+
+		shapeDef.density = 0.5f * defaultDensity;
+		b3Capsule foot = { { -0.456371f, 0.129321f, 0.000013f }, { -0.359977f, 0.014394f, 0.000013f }, 0.070000f };
+		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &foot );
+		shapeDef.density = defaultDensity;
 
 		bone->jointType = b3_revoluteJoint;
-		bone->localFrameA = (b3Transform){ { -0.069989, 0.000253, -0.453844 }, { { -0.000677, 0.760087, 0.105674 }, 0.641171 } };
-		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.044589, 0.765540, 0.053368 }, 0.639619 } };
-		bone->twistLimit = (b3Vec2){ -5.0f * B3_DEG_TO_RAD, 45.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { -0.438494f, -0.000175f, 0.000000f }, { { 0.344866f, -0.938652f, 0.000002f }, -0.000008f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.008182f, -0.999967f, 0.000001f }, -0.000007f } };
+		bone->twistLimit = (b3Vec2){ -30.0f * B3_DEG_TO_RAD, 30.0f * B3_DEG_TO_RAD };
 	}
 
 	{
@@ -230,22 +196,24 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Pos position, float frictio
 		bone->parentIndex = bone_pelvis;
 
 		bodyDef.name = "thigh_r";
-		bone->referenceFrame =
-			(b3Transform){ { -0.090416f, 0.986104f, -0.03509f }, { { -0.703287f, 0.070715f, -0.053865f }, 0.705326f } };
+		bone->referenceFrame = (b3Transform){ { -0.092175f, 0.971562f, -0.011177f }, { { -0.497495f, 0.499888f, 0.529510f }, -0.471412f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { -0.023719f, 0.006008f, -0.039068f }, { 0.064492f, -0.004664f, -0.424718f }, 0.09f };
 		shapeDef.filter.groupIndex = -groupIndex;
 		shapeDef.baseMaterial.customColor = colorize ? pantColor : 0;
+
+		shapeDef.baseMaterial.friction = 0.6f;
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		b3Capsule capsule = { { 0.047269f, -0.000001f, 0.000000f }, { 0.379769f, -0.000005f, 0.000000f }, 0.092587f };
 		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
 
 		bone->jointType = b3_sphericalJoint;
-		bone->localFrameA = (b3Transform){ { -0.05, 0.011537, -0.055326 }, { { -0.039089, -0.714094, 0.043177 }, 0.697623 } };
-		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { 0.758805, -0.019886, -0.651012 }, -0.001759 } };
-		bone->swingLimit = 10.0f * B3_DEG_TO_RAD;
-		bone->twistLimit = (b3Vec2){ -30.0f * B3_DEG_TO_RAD, 60.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { -0.092175f, 0.024656f, -0.012691f }, { { 0.380666f, 0.491846f, 0.488644f }, -0.611889f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.500002f, 0.499998f, -0.499998f }, 0.500002f } };
+		bone->swingLimit = 30.0f * B3_DEG_TO_RAD;
+		bone->twistLimit = (b3Vec2){ -10.0f * B3_DEG_TO_RAD, 10.0f * B3_DEG_TO_RAD };
 	}
 
 	{
@@ -253,115 +221,132 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Pos position, float frictio
 		bone->parentIndex = bone_thigh_r;
 
 		bodyDef.name = "calf_r";
-		bone->referenceFrame =
-			(b3Transform){ { -0.101198f, 0.527027f, -0.037373f }, { { -0.653327f, 0.06686f, -0.058582f }, 0.751839f } };
+		bone->referenceFrame = (b3Transform){ { -0.118720f, 0.534541f, -0.035362f }, { { -0.445935f, 0.546380f, 0.480597f }, -0.521188f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { -0.001820f, 0.0f, 0.010071f }, { 0.077883f, 0.014825f, -0.418047f }, 0.075f };
 		shapeDef.filter.groupIndex = 0;
 		shapeDef.baseMaterial.customColor = colorize ? pantColor : 0;
-		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
+
+		shapeDef.baseMaterial.friction = 0.1f;
+		shapeDef.baseMaterial.rollingResistance = 0.0f;
+		b3Capsule shin = { { 0.445000f, -0.000002f, 0.000003f }, { -0.005000f, 0.000000f, 0.000003f }, 0.080000f };
+		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &shin );
+
+		shapeDef.density = 0.5f * defaultDensity;
+		b3Capsule foot = { { 0.369113f, -0.006830f, 0.000017f }, { 0.465507f, -0.121757f, 0.000017f }, 0.070000f };
+		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &foot );
+		shapeDef.density = defaultDensity;
 
 		bone->jointType = b3_revoluteJoint;
-		bone->localFrameA = (b3Transform){ { 0.069988, 0.000253, -0.453844 }, { { 0.760086, -0.000675, -0.641171 }, -0.105676 } };
-		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { 0.765540, -0.044589, -0.639619 }, -0.053368 } };
-		bone->twistLimit = (b3Vec2){ -45.0f * B3_DEG_TO_RAD, 5.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { 0.438494f, 0.000175f, 0.000000f }, { { 0.000007f, 0.000005f, -0.344860f }, -0.938654f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { 0.000006f, 0.000005f, 0.008188f }, -0.999966f } };
+		bone->twistLimit = (b3Vec2){ -30.0f * B3_DEG_TO_RAD, 30.0f * B3_DEG_TO_RAD };
 	}
 
 	{
 		Bone* bone = human->bones + bone_upper_arm_l;
 		bone->parentIndex = bone_spine_03;
 
-		bodyDef.name = "upper_arm_l";
-		bone->referenceFrame =
-			(b3Transform){ { 0.20378f, 1.484275f, -0.115897f }, { { 0.143082f, 0.695980f, -0.690130f }, 0.13733f } };
+		bodyDef.name = "upperarm_l";
+		bone->referenceFrame = (b3Transform){ { 0.185817f, 1.443630f, 0.031306f }, { { 0.560220f, -0.307179f, 0.366233f }, -0.676512f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { -0.091118f, 0.037775f, 0.229719f }, 0.075f };
 		shapeDef.filter.groupIndex = 0;
 		shapeDef.baseMaterial.customColor = colorize ? shirtColor : 0;
+
+		shapeDef.baseMaterial.friction = 0.6f;
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		b3Capsule capsule = { { 0.296038f, 0.004386f, -0.000794f }, { -0.016086f, 0.004384f, -0.016127f }, 0.065000f };
 		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
 
 		bone->jointType = b3_sphericalJoint;
-		bone->localFrameA = (b3Transform){ { 0.203780, -0.069369, -0.181921 }, { { -0.278486, 0.445600, -0.097014 }, 0.845266 } };
-		bone->localFrameB = (b3Transform){ { 0.000000, 0.000000, 0.000000 }, { { -0.201396, -0.001586, 0.901850 }, 0.382234 } };
-		bone->swingLimit = 60.0f * B3_DEG_TO_RAD;
-		bone->twistLimit = (b3Vec2){ -5.0f * B3_DEG_TO_RAD, 5.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { 0.185817f, -0.175865f, -0.053625f }, { { -0.559466f, -0.213784f, -0.670199f }, 0.438323f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.500953f, -0.502617f, -0.509318f }, -0.486844f } };
+		bone->swingLimit = 45.0f * B3_DEG_TO_RAD;
+		bone->twistLimit = (b3Vec2){ -20.0f * B3_DEG_TO_RAD, 20.0f * B3_DEG_TO_RAD };
+		bone->jointFriction = 0.8f;
 	}
 
 	{
 		Bone* bone = human->bones + bone_lower_arm_l;
 		bone->parentIndex = bone_upper_arm_l;
 
-		bodyDef.name = "lower_arm_l";
-		bone->referenceFrame =
-			(b3Transform){ { 0.305614f, 1.242908f, -0.117599f }, { { 0.165048f, 0.563437f, -0.802002f }, 0.109959f } };
+		bodyDef.name = "lowerarm_l";
+		bone->referenceFrame = (b3Transform){ { 0.347683f, 1.193455f, 0.029378f }, { { 0.406736f, -0.493012f, 0.089135f }, -0.763911f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { -0.142406f, 0.039392f, 0.261092f }, 0.05f };
 		shapeDef.filter.groupIndex = 0;
 		shapeDef.baseMaterial.customColor = colorize ? skinColor : 0;
+
+		shapeDef.baseMaterial.friction = 0.3f;
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		b3Capsule capsule = { { 0.312329f, -0.008256f, -0.016454f }, { 0.033153f, 0.008259f, -0.002741f }, 0.060000f };
 		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
 
 		bone->jointType = b3_revoluteJoint;
-		bone->localFrameA = (b3Transform){ { -0.095482, 0.039584, 0.240723 }, { { 0.512487, -0.180629, 0.839474 }, 0.003742 } };
-		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { 0.503803, -0.029831, 0.858168 }, 0.094017 } };
-		bone->twistLimit = (b3Vec2){ -5.0f * B3_DEG_TO_RAD, 60.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { 0.297979f, 0.000361f, 0.000000f }, { { 0.916726f, 0.399352f, 0.000839f }, -0.011456f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { 0.999922f, -0.003857f, 0.004659f }, -0.010908f } };
+		bone->twistLimit = (b3Vec2){ -35.0f * B3_DEG_TO_RAD, 35.0f * B3_DEG_TO_RAD };
+		bone->jointFriction = 0.06f;
 	}
 
 	{
 		Bone* bone = human->bones + bone_upper_arm_r;
 		bone->parentIndex = bone_spine_03;
 
-		bodyDef.name = "upper_arm_r";
-		bone->referenceFrame =
-			(b3Transform){ { -0.20378f, 1.484276f, -0.115899f }, { { 0.143083f, -0.695978f, 0.690132f }, 0.137329f } };
+		bodyDef.name = "upperarm_r";
+		bone->referenceFrame = (b3Transform){ { -0.185817f, 1.443630f, 0.031306f }, { { 0.676512f, 0.366233f, 0.307179f }, 0.560220f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { 0.091118f, 0.037775f, 0.229718f }, 0.075f };
 		shapeDef.filter.groupIndex = 0;
 		shapeDef.baseMaterial.customColor = colorize ? shirtColor : 0;
+
+		shapeDef.baseMaterial.friction = 0.6f;
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		b3Capsule capsule = { { -0.300237f, -0.000001f, -0.000319f }, { 0.011887f, 0.000001f, 0.015013f }, 0.065000f };
 		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
 
 		bone->jointType = b3_sphericalJoint;
-		bone->localFrameA =
-			(b3Transform){ { -0.203779, -0.069371, -0.181922 }, { { -0.253621, -0.414842, 0.106962 }, 0.867261 } };
-		bone->localFrameB = (b3Transform){ { 0.000000, 0.000000, 0.000000 }, { { -0.201397, 0.001587, -0.901850 }, 0.382233 } };
-		bone->swingLimit = 60.0f * B3_DEG_TO_RAD;
-		bone->twistLimit = (b3Vec2){ -5.0f * B3_DEG_TO_RAD, 5.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { -0.185817f, -0.175865f, -0.053625f }, { { 0.213793f, 0.559449f, 0.438334f }, -0.670204f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.509319f, 0.486843f, 0.500954f }, -0.502617f } };
+		bone->swingLimit = 45.0f * B3_DEG_TO_RAD;
+		bone->twistLimit = (b3Vec2){ -20.0f * B3_DEG_TO_RAD, 20.0f * B3_DEG_TO_RAD };
+		bone->jointFriction = 0.8f;
 	}
 
 	{
 		Bone* bone = human->bones + bone_lower_arm_r;
 		bone->parentIndex = bone_upper_arm_r;
 
-		bodyDef.name = "lower_arm_r";
-		bone->referenceFrame =
-			(b3Transform){ { -0.305614f, 1.242907f, -0.117599f }, { { 0.165048f, -0.563437f, 0.802002f }, 0.109959f } };
+		bodyDef.name = "lowerarm_r";
+		bone->referenceFrame = (b3Transform){ { -0.347683f, 1.193455f, 0.029378f }, { { 0.763911f, 0.089135f, 0.493012f }, 0.406736f } };
 		bodyDef.rotation = bone->referenceFrame.q;
 		bodyDef.position = b3OffsetPos( position, bone->referenceFrame.p );
 		bone->bodyId = b3CreateBody( worldId, &bodyDef );
 
-		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { 0.142406f, 0.039392f, 0.261092f }, 0.05f };
 		shapeDef.filter.groupIndex = 0;
 		shapeDef.baseMaterial.customColor = colorize ? skinColor : 0;
+
+		shapeDef.baseMaterial.friction = 0.3f;
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+		b3Capsule capsule = { { -0.312649f, -0.000003f, 0.016471f }, { -0.032986f, 0.000000f, 0.002732f }, 0.060000f };
 		b3CreateCapsuleShape( bone->bodyId, &shapeDef, &capsule );
 
 		bone->jointType = b3_revoluteJoint;
-		bone->localFrameA = (b3Transform){ { 0.095484, 0.039585, 0.240723 }, { { -0.180627, 0.512487, -0.003744 }, -0.839474 } };
-		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.029831, 0.503803, -0.094017 }, -0.858169 } };
-		bone->twistLimit = (b3Vec2){ -60.0f * B3_DEG_TO_RAD, 5.0f * B3_DEG_TO_RAD };
+		bone->localFrameA = (b3Transform){ { -0.297979f, -0.000361f, 0.000000f }, { { -0.405444f, 0.914059f, 0.010541f }, 0.000852f } };
+		bone->localFrameB = (b3Transform){ { 0.0f, 0.0f, 0.0f }, { { -0.002794f, 0.999936f, 0.010042f }, 0.004364f } };
+		bone->twistLimit = (b3Vec2){ -35.0f * B3_DEG_TO_RAD, 35.0f * B3_DEG_TO_RAD };
+		bone->jointFriction = 0.06f;
 	}
 
-	// float dampingRatio = 0.9f;
 	for ( int i = 1; i < bone_count; ++i )
 	{
 		Bone* bone = human->bones + i;
@@ -412,11 +397,17 @@ void CreateHuman( Human* human, b3WorldId worldId, b3Pos position, float frictio
 	}
 
 	// Disable some collisions
+	human->filterJointCount = 0;
 	b3FilterJointDef filterDef = b3DefaultFilterJointDef();
 	filterDef.base.bodyIdA = human->bones[bone_thigh_l].bodyId;
 	filterDef.base.bodyIdB = human->bones[bone_thigh_r].bodyId;
-	human->filterJoints[0] = b3CreateFilterJoint( worldId, &filterDef );
-	human->filterJointCount = 1;
+	human->filterJoints[human->filterJointCount++] = b3CreateFilterJoint( worldId, &filterDef );
+	filterDef.base.bodyIdA = human->bones[bone_neck].bodyId;
+	filterDef.base.bodyIdB = human->bones[bone_upper_arm_l].bodyId;
+	human->filterJoints[human->filterJointCount++] = b3CreateFilterJoint( worldId, &filterDef );
+	filterDef.base.bodyIdA = human->bones[bone_neck].bodyId;
+	filterDef.base.bodyIdB = human->bones[bone_upper_arm_r].bodyId;
+	human->filterJoints[human->filterJointCount++] = b3CreateFilterJoint( worldId, &filterDef );
 
 	human->isSpawned = true;
 }
