@@ -19,7 +19,7 @@ typedef struct b3ManifoldConstraintPoint
 
 typedef struct b3ManifoldConstraint
 {
-	b3ManifoldConstraintPoint points[4];
+	b3ManifoldConstraintPoint points[B3_MAX_MANIFOLD_POINTS];
 	int pointCount;
 	b3Vec3 normal;
 	b3Vec3 tangent1;

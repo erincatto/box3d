@@ -4,10 +4,12 @@
 #include "test_macros.h"
 
 #include "box3d/collision.h"
+#include "box3d/constants.h"
 #include "box3d/math_functions.h"
 
 #include <float.h>
 #include <math.h>
+#include <stdbool.h>
 #include <string.h>
 
 static const b3Vec3 s_cubeCorners[8] = {
@@ -544,6 +546,201 @@ static int CreateHullDegenerateTest( void )
 	return 0;
 }
 
+static void FillPoints2D( b3Point2D* pts, const b3Vec2* input, int count )
+{
+	for ( int i = 0; i < count; ++i )
+	{
+		pts[i].p = input[i];
+		pts[i].separation = 0.0f;
+		pts[i].originalIndex = i;
+	}
+}
+
+static float Hull2DArea( const b3Point2D* hull, int count )
+{
+	float sum = 0.0f;
+	for ( int i = 0; i < count; ++i )
+	{
+		int next = ( i + 1 ) % count;
+		sum += hull[i].p.x * hull[next].p.y - hull[i].p.y * hull[next].p.x;
+	}
+
+	return 0.5f * sum;
+}
+
+// Interior points contribute no area, so they must not survive the hull.
+static int Hull2DSquareTest( void )
+{
+	b3Vec2 input[8] = {
+		{ -1.0f, -1.0f }, { 1.0f, -1.0f }, { 1.0f, 1.0f },	{ -1.0f, 1.0f },
+		{ 0.0f, 0.0f },	  { 0.5f, 0.25f }, { -0.3f, 0.6f }, { 0.1f, -0.4f },
+	};
+
+	b3Point2D pts[8];
+	b3Point2D hull[16];
+	FillPoints2D( pts, input, 8 );
+
+	int count = b3Hull2D( pts, 8, hull );
+	ENSURE( count == 4 );
+
+	// The reduction code assumes counter clockwise winding
+	ENSURE( Hull2DArea( hull, count ) > 0.0f );
+
+	bool onHull[8] = { false };
+	for ( int i = 0; i < count; ++i )
+	{
+		ENSURE( 0 <= hull[i].originalIndex && hull[i].originalIndex < 8 );
+		onHull[hull[i].originalIndex] = true;
+	}
+
+	for ( int i = 0; i < 4; ++i )
+	{
+		ENSURE( onHull[i] == true );
+	}
+
+	for ( int i = 4; i < 8; ++i )
+	{
+		ENSURE( onHull[i] == false );
+	}
+
+	return 0;
+}
+
+static int Hull2DCollinearTest( void )
+{
+	b3Vec2 input[5] = {
+		{ 0.0f, 0.0f }, { 1.0f, 0.0f }, { 2.0f, 0.0f }, { 3.0f, 0.0f }, { 4.0f, 0.0f },
+	};
+
+	b3Point2D pts[5];
+	b3Point2D hull[10];
+	FillPoints2D( pts, input, 5 );
+
+	ENSURE( b3Hull2D( pts, 5, hull ) == 2 );
+
+	return 0;
+}
+
+// Coincident points weld and the lower input index wins, so a sort order change cannot
+// swap which of the two survives.
+static int Hull2DWeldTest( void )
+{
+	float offset = 0.1f * B3_LINEAR_SLOP;
+
+	b3Vec2 input[5] = {
+		{ -1.0f, -1.0f }, { 1.0f, -1.0f }, { 1.0f, 1.0f }, { -1.0f, 1.0f }, { -1.0f + offset, -1.0f + offset },
+	};
+
+	b3Point2D pts[5];
+	b3Point2D hull[10];
+	FillPoints2D( pts, input, 5 );
+
+	int count = b3Hull2D( pts, 5, hull );
+	ENSURE( count == 4 );
+
+	for ( int i = 0; i < count; ++i )
+	{
+		ENSURE( hull[i].originalIndex != 4 );
+	}
+
+	return 0;
+}
+
+static int SimplifyHull2DTargetTest( void )
+{
+	b3Point2D pts[20];
+	b3Point2D hull[40];
+
+	for ( int i = 0; i < 20; ++i )
+	{
+		float angle = 2.0f * B3_PI * (float)i / 20.0f;
+		pts[i].p = (b3Vec2){ cosf( angle ), sinf( angle ) };
+		pts[i].separation = 0.0f;
+		pts[i].originalIndex = i;
+	}
+
+	int hullCount = b3Hull2D( pts, 20, hull );
+	ENSURE( hullCount == 20 );
+
+	int count = b3SimplifyHull2D( hull, hullCount, 6 );
+	ENSURE( count == 6 );
+	ENSURE( Hull2DArea( hull, count ) > 0.0f );
+
+	return 0;
+}
+
+static int SimplifyHull2DNoopTest( void )
+{
+	b3Vec2 input[4] = {
+		{ -1.0f, -1.0f },
+		{ 1.0f, -1.0f },
+		{ 1.0f, 1.0f },
+		{ -1.0f, 1.0f },
+	};
+
+	b3Point2D pts[4];
+	b3Point2D hull[8];
+	FillPoints2D( pts, input, 4 );
+
+	int hullCount = b3Hull2D( pts, 4, hull );
+	ENSURE( hullCount == 4 );
+
+	ENSURE( b3SimplifyHull2D( hull, hullCount, 8 ) == 4 );
+	ENSURE( b3SimplifyHull2D( hull, hullCount, 4 ) == 4 );
+
+	return 0;
+}
+
+// The surviving point set must not depend on the order the points arrive in. The reduction
+// runs inside the solver, so an input order dependence would show up as a determinism bug.
+static int Hull2DOrderTest( void )
+{
+	b3Vec2 input[8] = {
+		{ -2.0f, -1.0f }, { 0.0f, -1.5f }, { 2.0f, -1.0f }, { 2.5f, 0.5f },
+		{ 1.0f, 2.0f },	  { -1.0f, 1.8f }, { -2.5f, 0.4f }, { 0.2f, 0.1f },
+	};
+
+	int permutation[8] = { 5, 2, 7, 0, 4, 6, 1, 3 };
+
+	b3Point2D pts[8];
+	b3Point2D hull[16];
+	FillPoints2D( pts, input, 8 );
+
+	int count1 = b3Hull2D( pts, 8, hull );
+	ENSURE( count1 == 7 );
+
+	bool onHull1[8] = { false };
+	for ( int i = 0; i < count1; ++i )
+	{
+		onHull1[hull[i].originalIndex] = true;
+	}
+
+	b3Point2D shuffled[8];
+	b3Point2D shuffledHull[16];
+	for ( int i = 0; i < 8; ++i )
+	{
+		shuffled[i].p = input[permutation[i]];
+		shuffled[i].separation = 0.0f;
+		shuffled[i].originalIndex = i;
+	}
+
+	int count2 = b3Hull2D( shuffled, 8, shuffledHull );
+	ENSURE( count2 == count1 );
+
+	bool onHull2[8] = { false };
+	for ( int i = 0; i < count2; ++i )
+	{
+		onHull2[permutation[shuffledHull[i].originalIndex]] = true;
+	}
+
+	for ( int i = 0; i < 8; ++i )
+	{
+		ENSURE( onHull1[i] == onHull2[i] );
+	}
+
+	return 0;
+}
+
 int HullTest( void )
 {
 	RUN_SUBTEST( CreateHullCubeTest );
@@ -558,6 +755,12 @@ int HullTest( void )
 	RUN_SUBTEST( CreateHullMergeChurnStressTest );
 	RUN_SUBTEST( CreateHullDegenerateTest );
 	RUN_SUBTEST( TransformedBoxHullTest );
+	RUN_SUBTEST( Hull2DSquareTest );
+	RUN_SUBTEST( Hull2DCollinearTest );
+	RUN_SUBTEST( Hull2DWeldTest );
+	RUN_SUBTEST( Hull2DOrderTest );
+	RUN_SUBTEST( SimplifyHull2DTargetTest );
+	RUN_SUBTEST( SimplifyHull2DNoopTest );
 
 	return 0;
 }

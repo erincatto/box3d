@@ -2796,3 +2796,228 @@ public:
 };
 
 static int sampleCapsuleCastRay = RegisterSample( "Collision", "Capsule Cast Ray", CapsuleCastRay::Create );
+
+// The 2D manifold point reduction that runs when B3_MAX_MANIFOLD_POINTS is more than 4.
+// Cyan is the convex hull and yellow the simplified version.
+class Hull2D : public Sample
+{
+public:
+	enum SourceMode
+	{
+		e_random = 0,
+		e_circle = 1,
+		e_sliver = 2,
+	};
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new Hull2D( context );
+	}
+
+	explicit Hull2D( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 0.0f, 20.0f, b3Pos_zero );
+		}
+
+		m_sourceMode = e_random;
+		m_inputCount = 0;
+		m_hullCount = 0;
+		m_simplifiedCount = 0;
+		m_targetCount = 6;
+		m_pointCount = 20;
+		m_drawScale = 1.0f;
+		m_drawLabels = true;
+
+		Generate();
+	}
+
+	void Generate()
+	{
+		if ( m_sourceMode == e_random )
+		{
+			m_drawScale = 1.0f;
+			m_inputCount = m_pointCount;
+
+			for ( int i = 0; i < m_inputCount; ++i )
+			{
+				m_inputPoints[i].p = { RandomFloatRange( -5.0f, 5.0f ), RandomFloatRange( -5.0f, 5.0f ) };
+				m_inputPoints[i].separation = 0.0f;
+				m_inputPoints[i].originalIndex = i;
+			}
+		}
+		else if ( m_sourceMode == e_circle )
+		{
+			// Every vertex of a regular polygon contributes the same area, so this is the case
+			// where the simplification has nothing but its pecking order to break ties with.
+			// libm rather than b3ComputeCosSin, whose rational approximation is coarse enough
+			// to make the areas unequal and hide that.
+			m_drawScale = 1.0f;
+			m_inputCount = m_pointCount;
+
+			float radius = 5.0f;
+			float delta = 2.0f * B3_PI / (float)m_inputCount;
+
+			for ( int i = 0; i < m_inputCount; ++i )
+			{
+				float angle = delta * (float)i;
+				m_inputPoints[i].p = { radius * cosf( angle ), radius * sinf( angle ) };
+				m_inputPoints[i].separation = 0.0f;
+				m_inputPoints[i].originalIndex = i;
+			}
+		}
+		else
+		{
+			// A near degenerate sliver with a duplicate pair. Welding and collinear removal have
+			// to survive this without producing a zero area hull.
+			b3Vec2 points[] = {
+				{ 0.0f, 0.0f },
+				{ -0.00305632968f, 0.0000554900616f },
+				{ -0.00305632968f, 0.0246563386f },
+				{ -0.00305632968f, 0.0246562902f },
+				{ -0.00305632968f, 0.0800221488f },
+			};
+
+			m_drawScale = 50.0f;
+			m_inputCount = int( sizeof( points ) / sizeof( points[0] ) );
+
+			for ( int i = 0; i < m_inputCount; ++i )
+			{
+				m_inputPoints[i].p = points[i];
+				m_inputPoints[i].separation = 0.0f;
+				m_inputPoints[i].originalIndex = i;
+			}
+		}
+
+		m_targetCount = b3ClampInt( m_targetCount, 3, m_inputCount );
+	}
+
+	void Step() override
+	{
+		m_targetCount = b3ClampInt( m_targetCount, 3, m_inputCount );
+
+		// b3Hull2D sorts and welds in place, so it needs a scratch copy of the input
+		b3Point2D scratch[m_pointCapacity];
+		for ( int i = 0; i < m_inputCount; ++i )
+		{
+			scratch[i] = m_inputPoints[i];
+		}
+
+		m_hullCount = b3Hull2D( scratch, m_inputCount, m_hullPoints );
+
+		for ( int i = 0; i < m_hullCount; ++i )
+		{
+			m_simplifiedPoints[i] = m_hullPoints[i];
+		}
+
+		m_simplifiedCount = b3SimplifyHull2D( m_simplifiedPoints, m_hullCount, m_targetCount );
+	}
+
+	bool DrawControls() override
+	{
+		const char* modes[] = { "Random", "Circle", "Sliver" };
+		if ( ImGui::Combo( "Source", &m_sourceMode, modes, IM_ARRAYSIZE( modes ) ) )
+		{
+			Generate();
+		}
+
+		if ( m_sourceMode != e_sliver )
+		{
+			if ( ImGui::SliderInt( "Point Count", &m_pointCount, 4, m_pointCapacity ) )
+			{
+				Generate();
+			}
+		}
+
+		if ( m_sourceMode == e_random )
+		{
+			if ( ImGui::Button( "Regenerate" ) )
+			{
+				Generate();
+			}
+		}
+
+		ImGui::SliderInt( "Target Count", &m_targetCount, 3, m_inputCount );
+		ImGui::Checkbox( "Draw Labels", &m_drawLabels );
+
+		return true;
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+
+		DrawTextLine( "input = %d, hull = %d, simplified = %d", m_inputCount, m_hullCount, m_simplifiedCount );
+
+		DrawAxes( b3WorldTransform_identity, 0.4f );
+
+		bool onHull[m_pointCapacity] = {};
+		for ( int i = 0; i < m_hullCount; ++i )
+		{
+			onHull[m_hullPoints[i].originalIndex] = true;
+		}
+
+		for ( int i = 0; i < m_inputCount; ++i )
+		{
+			if ( onHull[i] )
+			{
+				continue;
+			}
+
+			b3Pos p = ToWorld( m_inputPoints[i].p, 0.0f );
+			DrawPoint( p, 4.0f, MakeColor( b3_colorGray ) );
+
+			if ( m_drawLabels )
+			{
+				DrawString3D( p, MakeColor( b3_colorGray ), "  %d", i );
+			}
+		}
+
+		for ( int i = 0; i < m_hullCount; ++i )
+		{
+			int next = ( i + 1 ) % m_hullCount;
+			b3Pos p1 = ToWorld( m_hullPoints[i].p, 0.0f );
+			b3Pos p2 = ToWorld( m_hullPoints[next].p, 0.0f );
+			DrawLine( p1, p2, MakeColor( b3_colorCyan ) );
+			DrawPoint( p1, 6.0f, MakeColor( b3_colorCyan ) );
+
+			if ( m_drawLabels )
+			{
+				DrawString3D( p1, MakeColor( b3_colorCyan ), "  %d", m_hullPoints[i].originalIndex );
+			}
+		}
+
+		// Lifted so the survivors read on top of the hull they came from
+		for ( int i = 0; i < m_simplifiedCount; ++i )
+		{
+			int next = ( i + 1 ) % m_simplifiedCount;
+			b3Pos p1 = ToWorld( m_simplifiedPoints[i].p, 0.01f );
+			b3Pos p2 = ToWorld( m_simplifiedPoints[next].p, 0.01f );
+			DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
+			DrawPoint( p1, 10.0f, MakeColor( b3_colorYellow ) );
+		}
+	}
+
+	b3Pos ToWorld( b3Vec2 p, float z ) const
+	{
+		return b3Pos{ m_drawScale * p.x, m_drawScale * p.y, z };
+	}
+
+	static constexpr int m_pointCapacity = 64;
+
+	b3Point2D m_inputPoints[m_pointCapacity];
+	b3Point2D m_hullPoints[2 * m_pointCapacity];
+	b3Point2D m_simplifiedPoints[2 * m_pointCapacity];
+	float m_drawScale;
+	int m_sourceMode;
+	int m_inputCount;
+	int m_hullCount;
+	int m_simplifiedCount;
+	int m_targetCount;
+	int m_pointCount;
+	bool m_drawLabels;
+};
+
+static int sampleHull2D = RegisterSample( "Collision", "Hull 2D", Hull2D::Create );

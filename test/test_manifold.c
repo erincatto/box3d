@@ -10,6 +10,11 @@
 #include <float.h>
 #include <math.h>
 
+// A face contact keeps the whole clipped polygon when the manifold has room for it, so a build
+// with a larger B3_MAX_MANIFOLD_POINTS legitimately reports more than four points. At the default
+// this is still an exact count.
+#define ENSURE_FACE_POINTS( count ) ENSURE( 4 <= ( count ) && ( count ) <= B3_MAX_MANIFOLD_POINTS )
+
 static const float kRoot2 = 1.41421356f;
 static const float kHalfRoot2 = 0.70710678f;
 
@@ -270,7 +275,7 @@ static int ParallelEdgeTest( void )
 			b3SATCache cache = { 0 };
 			b3CollideHulls( &manifold, 8, &hullA.base, &hullB.base, transform, &cache );
 
-			ENSURE( manifold.pointCount == 4 );
+			ENSURE_FACE_POINTS( manifold.pointCount );
 			ENSURE( cache.type == b3_faceAxisA || cache.type == b3_faceAxisB );
 			ENSURE( b3Dot( manifold.normal, kAxisY ) > 0.998f );
 
@@ -488,7 +493,7 @@ static int TriangleParallelEdgeTest( void )
 			b3SATCache cache = { 0 };
 			b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, 0, &hull.base, &cache, true );
 
-			ENSURE( manifold.pointCount == 4 );
+			ENSURE_FACE_POINTS( manifold.pointCount );
 			ENSURE( cache.type == b3_faceAxisA );
 			ENSURE( b3Dot( manifold.normal, kAxisY ) > 0.99f );
 
@@ -505,7 +510,7 @@ static int TriangleParallelEdgeTest( void )
 // separation can be no deeper than root2 times the vertical overlap.
 static int CheckRoofFaceContact( const b3LocalManifold* manifold, const b3SATCache* cache, float overlap )
 {
-	ENSURE( manifold->pointCount == 4 );
+	ENSURE_FACE_POINTS( manifold->pointCount );
 	ENSURE( cache->type == b3_faceAxisA || cache->type == b3_faceAxisB );
 
 	// A roof face of one hull, so 45 degrees off the vertical

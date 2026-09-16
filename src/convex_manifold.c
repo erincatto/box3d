@@ -371,32 +371,37 @@ static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3L
 	}
 }
 
-#elif 0
+#else
 
-// todo hook up the 2D hull
-// Reduce the manifold points to a maximum of B3_MAX_MANIFOLD_POINTS points.
 static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3LocalManifoldPoint* points, int count )
 {
-	B3_ASSERT( count <= B3_MAX_MANIFOLD_POINTS );
-
-	int count1 = b3MinInt( capacity, count );
-	if (count1 <= 3)
+	if ( capacity < 4 )
 	{
-		for ( int i = 0; i < count1; ++i )
+		return;
+	}
+
+	B3_ASSERT( count <= B3_MAX_CLIP_POINTS );
+
+	int target = b3MinInt( capacity, B3_MAX_MANIFOLD_POINTS );
+
+	if ( count <= target )
+	{
+		for ( int i = 0; i < count; ++i )
 		{
 			manifold->points[i] = points[i];
 		}
 
-		manifold->pointCount = count1;
+		manifold->pointCount = count;
 		return;
 	}
-	
-	b3Point2D pts[2 * B3_MAX_MANIFOLD_POINTS];
-	b3Vec3 u = b3Perp( manifold->normal );
-	b3Vec3 v = b3Cross( manifold->normal, u );
+
+	b3Vec3 normal = manifold->normal;
+	b3Vec3 u = b3Perp( normal );
+	b3Vec3 v = b3Cross( normal, u );
 	b3Vec3 origin = points[0].point;
 
-	for ( int i = 0; i < count1; ++i )
+	b3Point2D pts[B3_MAX_CLIP_POINTS];
+	for ( int i = 0; i < count; ++i )
 	{
 		b3Vec3 d = b3Sub( points[i].point, origin );
 		pts[i].p = (b3Vec2){ b3Dot( d, u ), b3Dot( d, v ) };
@@ -404,35 +409,16 @@ static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3L
 		pts[i].originalIndex = i;
 	}
 
-	int count2 = b3Hull2D(pts, )
-	int count2 = b3SimplifyHull2D( pts, count1 );
-	B3_ASSERT( count2 <= B3_MAX_MANIFOLD_POINTS );
-
-	b3LocalManifoldPoint finalPoints[B3_MAX_MANIFOLD_POINTS];
-	for ( int i = 0; i < count2; ++i )
-	{
-		int index = pts[i].originalIndex;
-		B3_ASSERT( 0 <= index && index < count1 );
-		finalPoints[i] = points[index];
-	}
-
-	memcpy( points, finalPoints, count2 * sizeof( b3LocalManifoldPoint ) );
-	return count2;
-}
-
-
-
-#else
-
-// Reduce the manifold points to a maximum of B3_MAX_MANIFOLD_POINTS points.
-static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3LocalManifoldPoint* points, int count )
-{
-	int finalCount = b3MinInt( capacity, count );
-	finalCount = b3MinInt( finalCount, B3_MAX_MANIFOLD_POINTS );
+	b3Point2D hull[2 * B3_MAX_CLIP_POINTS];
+	int hullCount = b3Hull2D( pts, count, hull );
+	int finalCount = b3SimplifyHull2D( hull, hullCount, target );
+	B3_ASSERT( 0 < finalCount && finalCount <= target );
 
 	for ( int i = 0; i < finalCount; ++i )
 	{
-		manifold->points[i] = points[i];
+		int index = hull[i].originalIndex;
+		B3_ASSERT( 0 <= index && index < count );
+		manifold->points[i] = points[index];
 	}
 
 	manifold->pointCount = finalCount;
