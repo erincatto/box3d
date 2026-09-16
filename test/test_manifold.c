@@ -1244,8 +1244,19 @@ static int HullCapsuleFaceDeepTest( void )
 	return 0;
 }
 
+// The library reports the point count it was built with. A mismatch against the manifold
+// this translation unit sees means the app and the library disagree on b3Manifold.
+static int MaxPointCountTest( void )
+{
+	b3Manifold manifold;
+	ENSURE( b3GetMaxManifoldPoints() == (int)( sizeof( manifold.points ) / sizeof( manifold.points[0] ) ) );
+
+	return 0;
+}
+
 int ManifoldTest( void )
 {
+	RUN_SUBTEST( MaxPointCountTest );
 	RUN_SUBTEST( CrossedEdgeTest );
 	RUN_SUBTEST( EdgeAxisScaleTest );
 	RUN_SUBTEST( EdgeCacheTest );

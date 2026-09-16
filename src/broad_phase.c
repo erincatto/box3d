@@ -397,7 +397,7 @@ static void b3UpdateTreesTask( void* context )
 
 // Task that can be done in parallel with the narrow-phase
 // - rebuild the collision tree for dynamic and kinematic bodies to keep their query performance good
-static void b3EnqueueTreeUpdate(b3World* world)
+static void b3EnqueueTreeUpdate( b3World* world )
 {
 	if ( world->taskCount < B3_MAX_TASKS )
 	{

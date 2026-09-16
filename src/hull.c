@@ -2971,7 +2971,7 @@ int b3SimplifyHull2D( b3Point2D* hull, int count1, int target )
 	for ( ;; )
 	{
 		float minArea = FLT_MAX;
-		int minIndex = B3_NULL_INDEX;
+		int minIndex = 0;
 
 		for ( int i = 0; i < count2; i++ )
 		{
@@ -2991,8 +2991,6 @@ int b3SimplifyHull2D( b3Point2D* hull, int count1, int target )
 		{
 			break;
 		}
-
-		B3_ASSERT( minIndex != B3_NULL_INDEX );
 
 		count2 -= 1;
 		if ( minIndex < count2 )

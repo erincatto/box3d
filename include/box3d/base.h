@@ -171,6 +171,10 @@ B3_API b3Version b3GetVersion( void );
 /// @return true if the library was built with BOX3D_DOUBLE_PRECISION (large world mode)
 B3_API bool b3IsDoublePrecision( void );
 
+/// @return the value of B3_MAX_MANIFOLD_POINTS the library was compiled with. Useful for
+/// an ABI test.
+B3_API int b3GetMaxManifoldPoints( void );
+
 /**@}*/
 
 //! @cond

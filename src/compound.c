@@ -737,7 +737,7 @@ static bool b3CompoundOverlapCallback( int proxyId, uint64_t userData, void* con
 // - the compound child shape transforms
 bool b3OverlapCompound( const b3CompoundData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy )
 {
-	B3_ASSERT( proxy->count > 0 );
+	B3_ASSERT( 0 < proxy->count && proxy->count <= B3_MAX_SHAPE_CAST_POINTS );
 
 	// Use local proxy.
 	b3Vec3 buffer[B3_MAX_SHAPE_CAST_POINTS];

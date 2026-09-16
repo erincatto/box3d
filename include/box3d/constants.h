@@ -110,6 +110,7 @@ B3_API float b3GetStallThreshold( void );
 /// reduce the point count. Any other value will fill the manifold with points
 /// in an arbitray order until it is full. Useful for testing, but I don't recommend
 /// shipping with it adjusted.
+/// WARNING: if you change this you risk breaking ABI and a corrupted runtime.
 #ifndef B3_MAX_MANIFOLD_POINTS
 #define B3_MAX_MANIFOLD_POINTS 4
 #endif

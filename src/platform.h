@@ -8,8 +8,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#if defined( _MSC_VER )
+#if defined( _MSC_VER ) && ( defined( _M_ARM ) || defined( _M_ARM64 ) || defined( _M_ARM64EC ) )
 #include <intrin.h>
+#elif defined( _MSC_VER )
+#include <intrin0.h>
+#endif
+
+#if defined( _MSC_VER )
 #if defined( _M_X64 ) || defined( __x86_64__ ) || defined( _M_IX86 ) || defined( __i386__ )
 #define b3Prefetch( addr ) _mm_prefetch( (const char*)( addr ), _MM_HINT_T0 )
 #else
