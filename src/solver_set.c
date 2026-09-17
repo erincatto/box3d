@@ -62,6 +62,8 @@ void b3WakeSolverSet( b3World* world, int setIndex )
 		*state = b3_identityBodyState;
 		state->flags = body->flags;
 
+		b3RefreshBodyContactIndices( world, body );
+
 		// move non-touching contacts from disabled set to awake set
 		int contactKey = body->headContactKey;
 		while ( contactKey != B3_NULL_INDEX )
@@ -227,6 +229,11 @@ void b3TrySleepIsland( b3World* world, int islandId )
 				b3Body* movedBody = b3Array_Get( world->bodies, movedId );
 				B3_ASSERT( movedBody->localIndex == movedIndex );
 				movedBody->localIndex = awakeBodyIndex;
+
+				if ( movedBody->islandId != islandId )
+				{
+					b3RefreshBodyContactIndices( world, movedBody );
+				}
 			}
 
 			// destroy state, no need to clone
@@ -234,6 +241,8 @@ void b3TrySleepIsland( b3World* world, int islandId )
 
 			body->setIndex = sleepSetId;
 			body->localIndex = sleepBodyIndex;
+
+			b3RefreshBodyContactIndices( world, body );
 
 			// Move non-touching contacts to the disabled set.
 			// Non-touching contacts may exist between sleeping islands and there is no clear ownership.
@@ -555,6 +564,7 @@ void b3TransferBody( b3World* world, b3SolverSet* targetSet, b3SolverSet* source
 		b3Body* movedBody = b3Array_Get( world->bodies, movedId );
 		B3_ASSERT( movedBody->localIndex == movedIndex );
 		movedBody->localIndex = sourceIndex;
+		b3RefreshBodyContactIndices( world, movedBody );
 	}
 
 	if ( sourceSet->setIndex == b3_awakeSet )

@@ -51,8 +51,8 @@ typedef struct b3World b3World;
 #define B3_REC_VERSION_MAJOR 6
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.
-// Minor version 6 moved the broad phase to the tree against tree pair traversal
-#define B3_REC_VERSION_MINOR 6
+// Minor version 7 made the contact body sim locators persistent
+#define B3_REC_VERSION_MINOR 7
 
 // File header, fixed 48 bytes. Contains the registry locator so the player
 // can load geometry before replaying any ops.

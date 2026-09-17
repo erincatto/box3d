@@ -583,19 +583,22 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 			b3AABB aabb = b3ComputeFatShapeAABB( shape, transform, speculativeScalar );
 			shape->aabb = aabb;
 
-			if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
+			b3AABB* shapeFatAABB = world->fatAABBs.data + shapeId;
+			if ( b3AABB_Contains( *shapeFatAABB, aabb ) == false )
 			{
 				float marginScalar = shape->aabbMargin;
 				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
-				shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
-
-				fastBodySim->flags |= b3_enlargeBounds;
+				*shapeFatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
 
 				// Regular bodies mark the hierarchy as moved using atomic operations.
 				// Bullets are handled separately at a later stage.
 				if ( isBullet == false )
 				{
-					b3BroadPhase_MarkProxyMoved( &world->broadPhase, shape->proxyKey, shape->fatAABB );
+					b3BroadPhase_MarkProxyMoved( &world->broadPhase, shape->proxyKey, *shapeFatAABB );
+				}
+				else
+				{
+					fastBodySim->flags |= b3_enlargeBulletBounds;
 				}
 			}
 
@@ -618,20 +621,23 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 
 			// shape->aabb is still valid from above
 
-			if ( b3AABB_Contains( shape->fatAABB, shape->aabb ) == false )
+			b3AABB* shapeFatAABB = world->fatAABBs.data + shapeId;
+			if ( b3AABB_Contains( *shapeFatAABB, shape->aabb ) == false )
 			{
 				float marginScalar = shape->aabbMargin;
 				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
-				shape->fatAABB = (b3AABB){
+				*shapeFatAABB = (b3AABB){
 					.lowerBound = b3Sub( shape->aabb.lowerBound, aabbMargin ),
 					.upperBound = b3Add( shape->aabb.upperBound, aabbMargin ),
 				};
 
-				fastBodySim->flags |= b3_enlargeBounds;
-
 				if ( isBullet == false )
 				{
-					b3BroadPhase_MarkProxyMoved( &world->broadPhase, shape->proxyKey, shape->fatAABB );
+					b3BroadPhase_MarkProxyMoved( &world->broadPhase, shape->proxyKey, *shapeFatAABB );
+				}
+				else
+				{
+					fastBodySim->flags |= b3_enlargeBulletBounds;
 				}
 			}
 
@@ -839,14 +845,15 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 				b3AABB aabb = b3ComputeFatShapeAABB( shape, transform, speculativeScalar );
 				shape->aabb = aabb;
 
-				if ( b3AABB_Contains( shape->fatAABB, aabb ) == false )
+				b3AABB* shapeFatAABB = world->fatAABBs.data + shapeId;
+				if ( b3AABB_Contains( *shapeFatAABB, aabb ) == false )
 				{
 					float marginScalar = shape->aabbMargin;
 					b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
-					shape->fatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
+					*shapeFatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
 
 					// Mark the hierarchy as moved using atomic operations.
-					b3BroadPhase_MarkProxyMoved( &world->broadPhase, shape->proxyKey, shape->fatAABB );
+					b3BroadPhase_MarkProxyMoved( &world->broadPhase, shape->proxyKey, *shapeFatAABB );
 				}
 
 				shapeId = shape->nextShapeId;
@@ -2117,13 +2124,13 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		for ( int i = 0; i < bulletBodyCount; ++i )
 		{
 			b3BodySim* bulletBodySim = bodySimArray + bulletBodySimIndices[i];
-			if ( ( bulletBodySim->flags & b3_enlargeBounds ) == 0 )
+			if ( ( bulletBodySim->flags & b3_enlargeBulletBounds ) == 0 )
 			{
 				continue;
 			}
 
 			// Clear flag
-			bulletBodySim->flags &= ~b3_enlargeBounds;
+			bulletBodySim->flags &= ~b3_enlargeBulletBounds;
 
 			int bodyId = bulletBodySim->bodyId;
 			B3_ASSERT( 0 <= bodyId && bodyId < world->bodies.count );
@@ -2139,10 +2146,11 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 				B3_VALIDATE( B3_PROXY_TYPE( proxyKey ) == b3_dynamicBody );
 
 				b3AABB treeAABB = b3DynamicTree_GetAABB( dynamicTree, proxyId );
+				b3AABB shapeFatAABB = world->fatAABBs.data[shapeId];
 
-				if ( b3AABB_Contains( treeAABB, shape->fatAABB ) == false )
+				if ( b3AABB_Contains( treeAABB, shapeFatAABB ) == false )
 				{
-					b3DynamicTree_EnlargeProxy( dynamicTree, proxyId, shape->fatAABB );
+					b3DynamicTree_EnlargeProxy( dynamicTree, proxyId, shapeFatAABB );
 				}
 
 				shapeId = shape->nextShapeId;

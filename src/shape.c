@@ -75,7 +75,7 @@ static float b3ComputeShapeMargin( b3Shape* shape )
 	return b3MinFloat( B3_MAX_AABB_MARGIN, B3_AABB_MARGIN_FRACTION * margin );
 }
 
-static void b3UpdateShapeAABBs( b3Shape* shape, b3WorldTransform transform, b3BodyType proxyType )
+static void b3UpdateShapeAABBs( b3Shape* shape, b3AABB* fatAABB, b3WorldTransform transform, b3BodyType proxyType )
 {
 	// Compute a bounding box with a speculative margin
 	const float speculativeDistance = B3_SPECULATIVE_DISTANCE;
@@ -86,14 +86,12 @@ static void b3UpdateShapeAABBs( b3Shape* shape, b3WorldTransform transform, b3Bo
 
 	// Smaller margin for static bodies. Cannot be zero due to TOI tolerance.
 	float margin = proxyType == b3_staticBody ? speculativeDistance : aabbMargin;
-	b3AABB fatAABB;
-	fatAABB.lowerBound.x = aabb.lowerBound.x - margin;
-	fatAABB.lowerBound.y = aabb.lowerBound.y - margin;
-	fatAABB.lowerBound.z = aabb.lowerBound.z - margin;
-	fatAABB.upperBound.x = aabb.upperBound.x + margin;
-	fatAABB.upperBound.y = aabb.upperBound.y + margin;
-	fatAABB.upperBound.z = aabb.upperBound.z + margin;
-	shape->fatAABB = fatAABB;
+	fatAABB->lowerBound.x = aabb.lowerBound.x - margin;
+	fatAABB->lowerBound.y = aabb.lowerBound.y - margin;
+	fatAABB->lowerBound.z = aabb.lowerBound.z - margin;
+	fatAABB->upperBound.x = aabb.upperBound.x + margin;
+	fatAABB->upperBound.y = aabb.upperBound.y + margin;
+	fatAABB->upperBound.z = aabb.upperBound.z + margin;
 }
 
 static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTransform bodyTransform, const b3ShapeDef* def,
@@ -105,11 +103,14 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 	if ( shapeId == world->shapes.count )
 	{
 		b3Array_Push( world->shapes, (b3Shape){ 0 } );
+		b3Array_Push( world->fatAABBs, (b3AABB){ 0 } );
 	}
 	else
 	{
 		B3_ASSERT( world->shapes.data[shapeId].id == B3_NULL_INDEX );
 	}
+
+	B3_ASSERT( world->fatAABBs.count == world->shapes.count );
 
 	b3Shape* shape = b3Array_Get( world->shapes, shapeId );
 
@@ -186,7 +187,7 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 	shape->localCentroid = b3GetShapeCentroid( shape );
 	shape->aabbMargin = b3ComputeShapeMargin( shape );
 	shape->aabb = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
-	shape->fatAABB = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
+	world->fatAABBs.data[shapeId] = (b3AABB){ b3Vec3_zero, b3Vec3_zero };
 	shape->nameId = b3AddName( &world->names, def->name );
 	shape->generation += 1;
 
@@ -220,7 +221,7 @@ static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTran
 	{
 		b3BodyType proxyType = body->type;
 		bool forcePairCreation = def->invokeContactCreation && shape->type != b3_compoundShape;
-		b3CreateShapeProxy( shape, &world->broadPhase, proxyType, bodyTransform, forcePairCreation );
+		b3CreateShapeProxy( world, shape, proxyType, bodyTransform, forcePairCreation );
 	}
 
 	// Add to shape doubly linked list
@@ -1004,15 +1005,16 @@ int b3CollideMover( b3PlaneResult* planes, int planeCapacity, const b3Shape* sha
 	return planeCount;
 }
 
-void b3CreateShapeProxy( b3Shape* shape, b3BroadPhase* bp, b3BodyType type, b3WorldTransform transform, bool forcePairCreation )
+void b3CreateShapeProxy( b3World* world, b3Shape* shape, b3BodyType type, b3WorldTransform transform, bool forcePairCreation )
 {
 	B3_ASSERT( shape->proxyKey == B3_NULL_INDEX );
 
-	b3UpdateShapeAABBs( shape, transform, type );
+	b3AABB* fatAABB = world->fatAABBs.data + shape->id;
+	b3UpdateShapeAABBs( shape, fatAABB, transform, type );
 
 	// Create proxies in the broad-phase.
-	shape->proxyKey =
-		b3BroadPhase_CreateProxy( bp, type, shape->fatAABB, shape->filter.categoryBits, shape->id, forcePairCreation );
+	shape->proxyKey = b3BroadPhase_CreateProxy( &world->broadPhase, type, *fatAABB, shape->filter.categoryBits, shape->id,
+												forcePairCreation );
 	B3_ASSERT( B3_PROXY_TYPE( shape->proxyKey ) < b3_bodyTypeCount );
 }
 
@@ -1360,25 +1362,26 @@ static void b3ResetProxy( b3World* world, b3Shape* shape, bool wakeBodies, bool 
 	if ( shape->proxyKey != B3_NULL_INDEX )
 	{
 		b3BodyType proxyType = B3_PROXY_TYPE( shape->proxyKey );
-		b3UpdateShapeAABBs( shape, transform, proxyType );
+		b3AABB* fatAABB = world->fatAABBs.data + shapeId;
+		b3UpdateShapeAABBs( shape, fatAABB, transform, proxyType );
 
 		if ( destroyProxy )
 		{
 			b3BroadPhase_DestroyProxy( &world->broadPhase, shape->proxyKey );
 
 			bool forcePairCreation = true;
-			shape->proxyKey = b3BroadPhase_CreateProxy( &world->broadPhase, proxyType, shape->fatAABB, shape->filter.categoryBits,
+			shape->proxyKey = b3BroadPhase_CreateProxy( &world->broadPhase, proxyType, *fatAABB, shape->filter.categoryBits,
 														shapeId, forcePairCreation );
 		}
 		else
 		{
-			b3BroadPhase_MoveProxy( &world->broadPhase, shape->proxyKey, shape->fatAABB );
+			b3BroadPhase_MoveProxy( &world->broadPhase, shape->proxyKey, *fatAABB );
 		}
 	}
 	else
 	{
 		b3BodyType proxyType = body->type;
-		b3UpdateShapeAABBs( shape, transform, proxyType );
+		b3UpdateShapeAABBs( shape, world->fatAABBs.data + shapeId, transform, proxyType );
 	}
 
 	b3ValidateSolverSets( world );

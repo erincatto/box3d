@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "physics_world.h"
+
 #include "box3d/constants.h"
 #include "box3d/math_functions.h"
 #include "box3d/types.h"
@@ -44,8 +46,9 @@ enum b3BodyFlags
 	// This body has no limit on angular velocity
 	b3_allowFastRotation = 0x00000400,
 
-	// This body need's to have its AABB increased
-	b3_enlargeBounds = 0x00000800,
+	// This bullet body needs to have its AABB increased. Needed because bullets don't follow
+	// the standard broad-phase update.
+	b3_enlargeBulletBounds = 0x00000800,
 
 	// This body is dynamic so the solver should write to it.
 	// This prevents writing to kinematic bodies that causes a multithreaded sharing
@@ -241,6 +244,33 @@ bool b3WakeBodyWithLock( b3World* world, b3Body* body );
 
 void b3UpdateBodyMassData( b3World* world, b3Body* body );
 void b3SyncBodyFlags( b3World* world, b3Body* body );
+void b3RefreshBodyContactIndices( b3World* world, b3Body* body );
+
+// Encode the body sim index for storage in the contact.
+static inline int b3EncodeBodySimIndex( const b3Body* body )
+{
+	if ( body->setIndex == b3_awakeSet )
+	{
+		return body->localIndex;
+	}
+
+	if ( body->setIndex == b3_staticSet )
+	{
+		return -( body->localIndex + 2 );
+	}
+
+	return B3_NULL_INDEX;
+}
+
+static inline bool b3IsStaticSimIndex( int encodedBodySimIndex )
+{
+	return encodedBodySimIndex < B3_NULL_INDEX;
+}
+
+static inline int b3DecodeAwakeIndex( int encodedBodySimIndex )
+{
+	return encodedBodySimIndex >= 0 ? encodedBodySimIndex : B3_NULL_INDEX;
+}
 
 // Make a sweep relative to a base position to keep TOI in float precision far from the origin.
 static inline b3Sweep b3MakeRelativeSweep( const b3BodySim* bodySim, b3Pos base )

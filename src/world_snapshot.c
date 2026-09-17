@@ -33,7 +33,7 @@
 
 // Snapshot image magic 'BNS3' and version
 #define B3_SNAP_MAGIC 0x33534E42u
-#define B3_SNAP_VERSION 5u // broad-phase pair traversal, move buffer removed
+#define B3_SNAP_VERSION 6u // persistent body sim locators
 
 #define B3_SNAP_FLAG_VALIDATION 0x1u
 #define B3_SNAP_FLAG_DOUBLE_PRECISION 0x2u
@@ -831,8 +831,6 @@ static void b3SerContacts( b3RecBuffer* buf, b3World* world )
 		// Write raw struct with pointer fields zeroed
 		b3Contact copy = *c;
 		copy.manifolds = NULL;
-		copy.bodySimIndexA = B3_NULL_INDEX;
-		copy.bodySimIndexB = B3_NULL_INDEX;
 		if ( copy.flags & b3_simMeshContact )
 		{
 			copy.meshContact.triangleCache.data = NULL;
@@ -889,8 +887,6 @@ static void b3DesContacts( b3SnapReader* r, b3World* world )
 		b3Contact* dst = world->contacts.data + i;
 		b3SnapR_Bytes( r, dst, sizeof( b3Contact ) );
 		dst->manifolds = NULL;
-		dst->bodySimIndexA = B3_NULL_INDEX;
-		dst->bodySimIndexB = B3_NULL_INDEX;
 		if ( dst->flags & b3_simMeshContact )
 		{
 			dst->meshContact.triangleCache.data = NULL;
@@ -1061,6 +1057,8 @@ int b3SerializeWorld( b3World* world, b3RecBuffer* buf, b3Recording* rec )
 
 	// Shape sparse array with geometry interning
 	b3SerShapes( buf, world, rec );
+
+	b3SerPodArray( buf, world->fatAABBs );
 
 	// Contact sparse array with manifold and mesh triangleCache
 	b3SerContacts( buf, world );
@@ -1237,6 +1235,13 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 
 	// 5. Shape sparse array
 	b3DesShapes( r, world, rdr );
+
+	if ( !r->ok )
+	{
+		return false;
+	}
+
+	b3DesPodArray( r, world->fatAABBs );
 
 	if ( !r->ok )
 	{

@@ -126,9 +126,9 @@ typedef struct b3Contact
 	// Back index into b3World::contacts
 	int contactId;
 
-	// These are transient and cached for improved performance. B3_NULL_INDEX for static bodies.
-	int bodySimIndexA;
-	int bodySimIndexB;
+	// Encoded body sim indices to avoid a cache miss accessing the body in the narrow phase.
+	int encodedBodySimA;
+	int encodedBodySimB;
 
 	// b3ContactFlags
 	uint32_t flags;
