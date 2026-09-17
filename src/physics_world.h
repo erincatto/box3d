@@ -91,10 +91,6 @@ typedef struct b3TaskContext
 	// Fast-path flag: true when this worker set at least one bit in hitEventBitSet this step.
 	bool hasHitEvents;
 
-	// Used to track bodies with shapes that have enlarged AABBs. This avoids having a bit array
-	// that is very large when there are many static shapes.
-	b3BitSet enlargedSimBitSet;
-
 	// Used to put islands to sleep
 	b3BitSet awakeIslandBitSet;
 

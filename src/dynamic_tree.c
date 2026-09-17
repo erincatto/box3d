@@ -79,8 +79,8 @@ b3DynamicTree b3DynamicTree_Create( int proxyCapacity )
 
 	// A tree of n proxies has 2n - 1 nodes plus the empty node beside the root
 	tree.nodeCapacity = 2 * capacity;
-	tree.nodes = (b3TreeNode*)b3AllocZeroed( tree.nodeCapacity * sizeof( b3TreeNode ) );
-	tree.parents = (int32_t*)b3AllocZeroed( tree.nodeCapacity * sizeof( int32_t ) );
+	tree.nodes = (b3TreeNode*)b3AllocZero( tree.nodeCapacity * sizeof( b3TreeNode ) );
+	tree.parents = (int32_t*)b3AllocZero( tree.nodeCapacity * sizeof( int32_t ) );
 	tree.pairFreeList = B3_NULL_INDEX;
 
 	// The root and the empty node always exist
@@ -95,7 +95,7 @@ b3DynamicTree b3DynamicTree_Create( int proxyCapacity )
 
 	tree.proxyCapacity = capacity;
 	tree.proxyCount = 0;
-	tree.proxies = (b3TreeProxy*)b3AllocZeroed( tree.proxyCapacity * sizeof( b3TreeProxy ) );
+	tree.proxies = (b3TreeProxy*)b3AllocZero( tree.proxyCapacity * sizeof( b3TreeProxy ) );
 
 	// Build a linked list for the free list.
 	for ( int i = 0; i < tree.proxyCapacity - 1; ++i )
@@ -193,7 +193,7 @@ static inline b3TreeNode b3MakeInternalNode( const b3TreeNode* nodes, int pair )
 	const b3TreeNode* c2 = nodes + pair + 1;
 
 	b3TreeNode node = { 0 };
-	node.aabb = b3AABB_Union( c1->aabb, c2->aabb );
+	b3StoreAABBV( &node.aabb, b3UnionPairV( nodes + pair ), true );
 	node.flagIndex = (uint32_t)pair | ( ( c1->flagIndex | c2->flagIndex ) & B3_MOVED_NODE );
 	node.height = 1 + b3MaxInt( b3GetNodeHeight( c1 ), b3GetNodeHeight( c2 ) );
 	return node;
@@ -1721,9 +1721,16 @@ static void b3CopySubtree( b3DynamicTree* tree, b3TreeNode node, int newIndex )
 		else
 		{
 			// Push the left child of the right sibling.
-			B3_ASSERT( stackCount < B3_TREE_STACK_SIZE );
-			int leftChild = b3GetLeftChild( pair + 1 );
-			stack[stackCount++] = B3_LITERAL( b3CopyItem ){ leftChild, newPair + 1 };
+			if ( stackCount < B3_TREE_STACK_SIZE )
+			{
+				int leftChild = b3GetLeftChild( pair + 1 );
+				stack[stackCount++] = B3_LITERAL( b3CopyItem ){ leftChild, newPair + 1 };
+			}
+			else
+			{
+				// todo fail gracefully if the stack runs out in release
+				B3_ASSERT( stackCount < B3_TREE_STACK_SIZE );
+			}
 		}
 
 		if ( b3IsLeaf( pair ) == false )
@@ -1875,7 +1882,7 @@ int b3DynamicTree_Rebuild( b3DynamicTree* tree, bool fullBuild )
 
 	if ( tree->swapNodes == NULL )
 	{
-		tree->swapNodes = b3Alloc( tree->nodeCapacity * sizeof( b3TreeNode ) );
+		tree->swapNodes = b3AllocZero( tree->nodeCapacity * sizeof( b3TreeNode ) );
 	}
 
 	if ( proxyCount > tree->rebuildCapacity )
@@ -1883,13 +1890,20 @@ int b3DynamicTree_Rebuild( b3DynamicTree* tree, bool fullBuild )
 		int oldCapacity = tree->rebuildCapacity;
 		int newCapacity = proxyCount + proxyCount / 2;
 
-		tree->leafIndices = B3_GROW( tree->leafIndices, oldCapacity, newCapacity );
-		tree->leafNodes = B3_GROW( tree->leafNodes, oldCapacity, newCapacity );
+		b3Free( tree->leafIndices, oldCapacity * sizeof( int32_t ) );
+		tree->leafIndices = (int32_t*)b3Alloc( newCapacity * sizeof( int32_t ) );
+
+		b3Free( tree->leafNodes, oldCapacity * sizeof( b3TreeNode ) );
+		tree->leafNodes = (b3TreeNode*)b3Alloc( newCapacity * sizeof( b3TreeNode ) );
+
 #if B3_TREE_HEURISTIC == 0
-		tree->leafCenters = B3_GROW( tree->leafCenters, oldCapacity, newCapacity );
+		b3Free( tree->leafCenters, oldCapacity * sizeof( b3Vec3 ) );
+		tree->leafCenters = (b3Vec3*)b3Alloc( newCapacity * sizeof( b3Vec3 ) );
 #else
-		tree->leafBoxes = B3_GROW( tree->leafBoxes, oldCapacity, newCapacity );
-		tree->binIndices = B3_GROW( tree->binIndices, oldCapacity, newCapacity );
+		b3Free( tree->leafBoxes, oldCapacity * sizeof( b3AABB ) );
+		tree->leafBoxes = (b3AABB*)b3Alloc( newCapacity * sizeof( b3AABB ) );
+		b3Free( tree->binIndices, oldCapacity * sizeof( int32_t ) );
+		tree->binIndices = (int32_t*)b3Alloc( newCapacity * sizeof( int32_t ) );
 #endif
 		tree->rebuildCapacity = newCapacity;
 	}
@@ -2243,6 +2257,11 @@ static FILE* b3OpenTreeFile( const char* fileName, const char* mode )
 
 void b3DynamicTree_Save( const b3DynamicTree* tree, const char* fileName )
 {
+	if ( tree->nodes == NULL || tree->parents == NULL || tree->proxies == NULL )
+	{
+		return;
+	}
+
 	FILE* file = b3OpenTreeFile( fileName, "wb" );
 	if ( file == NULL )
 	{
@@ -2264,12 +2283,14 @@ void b3DynamicTree_Save( const b3DynamicTree* tree, const char* fileName )
 	temp.binIndices = NULL;
 	temp.rebuildCapacity = 0;
 
+	temp.nodeCapacity = tree->nodeEnd;
+
 	fwrite( &temp, sizeof( b3DynamicTree ), 1, file );
 
-	if ( tree->nodeCapacity > 0 )
+	if ( tree->nodeEnd > 0 )
 	{
-		fwrite( tree->nodes, sizeof( b3TreeNode ), tree->nodeCapacity, file );
-		fwrite( tree->parents, sizeof( int32_t ), tree->nodeCapacity, file );
+		fwrite( tree->nodes, sizeof( b3TreeNode ), tree->nodeEnd, file );
+		fwrite( tree->parents, sizeof( int32_t ), tree->nodeEnd, file );
 	}
 
 	if ( tree->proxyCapacity > 0 )

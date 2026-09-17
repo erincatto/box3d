@@ -938,7 +938,7 @@ B3_FORCE_INLINE b3AABBV b3LoadAABBV( const b3AABB* aabb )
 	const float* base = &aabb->lowerBound.x;
 
 	// Offset to avoid reading off the end (avoid UB).
-	// [lx ux uy uz]
+	// [lz ux uy uz]
 	float32x4_t v1 = vld1q_f32( base + 2 );
 	b3AABBV result;
 	// [lx ly lz -]

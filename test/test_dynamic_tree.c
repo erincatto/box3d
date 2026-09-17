@@ -625,6 +625,79 @@ static int TreeQueryClosest( void )
 	return 0;
 }
 
+// A saved tree carries only its live node range. A baked compound tree has no parent array, so
+// saving one has to bail out rather than write from a null pointer.
+static int TreeSaveLoadRoundtrip( void )
+{
+	s_seed = 4242;
+
+	b3DynamicTree tree = b3DynamicTree_Create( 16 );
+
+	b3AABB boxes[PROXY_COUNT];
+	int proxies[PROXY_COUNT];
+
+	for ( int i = 0; i < PROXY_COUNT; ++i )
+	{
+		boxes[i] = RandomBox( 6.0f, 1.0f );
+		proxies[i] = b3DynamicTree_CreateProxy( &tree, boxes[i], B3_DEFAULT_CATEGORY_BITS, (uint64_t)i );
+	}
+
+	// Destroy a few so the pair free list is populated and the node tail is stale
+	for ( int i = 0; i < PROXY_COUNT; i += 37 )
+	{
+		b3DynamicTree_DestroyProxy( &tree, proxies[i] );
+	}
+
+	b3DynamicTree_Rebuild( &tree, true );
+	b3DynamicTree_Validate( &tree );
+
+	const char* treePath = "test_dynamic_tree_roundtrip.dat";
+	b3DynamicTree_Save( &tree, treePath );
+
+	b3DynamicTree loaded = b3DynamicTree_Load( treePath, 1.0f );
+	remove( treePath );
+
+	ENSURE( loaded.nodes != NULL );
+	ENSURE( loaded.nodeEnd == tree.nodeEnd );
+	ENSURE( loaded.nodeCapacity == tree.nodeEnd );
+	ENSURE( b3DynamicTree_GetProxyCount( &loaded ) == b3DynamicTree_GetProxyCount( &tree ) );
+	ENSURE( memcmp( loaded.nodes, tree.nodes, (size_t)tree.nodeEnd * sizeof( b3TreeNode ) ) == 0 );
+	ENSURE( memcmp( loaded.parents, tree.parents, (size_t)tree.nodeEnd * sizeof( int32_t ) ) == 0 );
+	b3DynamicTree_Validate( &loaded );
+
+	b3DynamicTree_Destroy( &loaded );
+	b3DynamicTree_Destroy( &tree );
+
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+	b3CompoundHullDef hulls[2];
+	hulls[0].hull = &box.base;
+	hulls[0].transform = (b3Transform){ { -1.0f, 0.0f, 0.0f }, b3Quat_identity };
+	hulls[0].material = b3DefaultSurfaceMaterial();
+	hulls[1].hull = &box.base;
+	hulls[1].transform = (b3Transform){ { 1.0f, 0.0f, 0.0f }, b3Quat_identity };
+	hulls[1].material = b3DefaultSurfaceMaterial();
+
+	b3CompoundDef compoundDef = { 0 };
+	compoundDef.hulls = hulls;
+	compoundDef.hullCount = 2;
+	b3CompoundData* compound = b3CreateCompound( &compoundDef );
+	ENSURE( compound != NULL );
+	ENSURE( compound->tree.parents == NULL );
+	ENSURE( compound->tree.proxyCapacity == compound->tree.proxyCount );
+
+	const char* compoundPath = "test_dynamic_tree_compound.dat";
+	remove( compoundPath );
+	b3DynamicTree_Save( &compound->tree, compoundPath );
+
+	b3DynamicTree noTree = b3DynamicTree_Load( compoundPath, 1.0f );
+	remove( compoundPath );
+	ENSURE( noTree.nodes == NULL );
+
+	b3DestroyCompound( compound );
+	return 0;
+}
+
 int DynamicTreeTest( void )
 {
 	RUN_SUBTEST( TreeLeafRoot );
@@ -634,6 +707,7 @@ int DynamicTreeTest( void )
 	RUN_SUBTEST( TreeDestroyScrambled );
 	RUN_SUBTEST( TreeCastBruteForce );
 	RUN_SUBTEST( TreeQueryClosest );
+	RUN_SUBTEST( TreeSaveLoadRoundtrip );
 
 	return 0;
 }

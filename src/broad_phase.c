@@ -140,7 +140,7 @@ static inline void b3PrefetchHash( b3HashSet* set, uint32_t hash )
 }
 
 // The shape pair gauntlet. Everything here is a property of the pair, not of a compound child,
-// so a compound runs it once and then expands.
+// so a compound runs it once for the whole pair.
 static bool b3ShouldCreatePair( b3World* world, int shapeIdA, int shapeIdB )
 {
 	b3Shape* shapeA = b3Array_Get( world->shapes, shapeIdA );
@@ -223,11 +223,6 @@ static void b3EmitCompoundPairs( b3PairContext* context, int compoundShapeId, in
 {
 	b3World* world = context->world;
 
-	if ( b3ShouldCreatePair( world, compoundShapeId, otherShapeId ) == false )
-	{
-		return;
-	}
-
 	b3Shape* compoundShape = b3Array_Get( world->shapes, compoundShapeId );
 	b3Shape* otherShape = b3Array_Get( world->shapes, otherShapeId );
 
@@ -247,8 +242,15 @@ static void b3EmitCompoundPairs( b3PairContext* context, int compoundShapeId, in
 		.otherShapeId = otherShapeId,
 	};
 
+	int startCount = context->pairKeys->count;
+
 	b3DynamicTree_Query( &compoundShape->compound->tree, localAABB, B3_DEFAULT_MASK_BITS, false, b3CompoundChildCallback,
 						 &compoundContext );
+
+	if ( context->pairKeys->count > startCount && b3ShouldCreatePair( world, compoundShapeId, otherShapeId ) == false )
+	{
+		b3Array_Resize( *context->pairKeys, startCount );
+	}
 }
 
 static void b3FlushCandidatePairs( b3PairContext* context )
@@ -807,7 +809,7 @@ void b3ValidateBroadPhase( const b3BroadPhase* bp )
 	// todo validate every shape AABB is contained in tree AABB
 }
 
-void b3ValidateNoEnlarged( const b3BroadPhase* bp )
+void b3ValidateNoMoved( const b3BroadPhase* bp )
 {
 #if B3_ENABLE_VALIDATION == 1
 	for ( int j = 0; j < b3_bodyTypeCount; ++j )

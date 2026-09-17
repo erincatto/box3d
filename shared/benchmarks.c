@@ -1138,9 +1138,7 @@ void CreateSpinner( b3WorldId worldId )
 		g_spinnerData.spinnerId = b3CreateRevoluteJoint( worldId, &jointDef );
 	}
 
-	b3Capsule capsule = { { -0.15f, 0.0f, 0.0f }, { 0.15f, 0.0f, 0.0f }, 0.15f };
 	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.2f };
-	b3BoxHull cube = b3MakeBoxHull( 0.2f, 0.2f, 0.2f );
 
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
@@ -1157,7 +1155,7 @@ void CreateSpinner( b3WorldId worldId )
 	float yStart = 2.0f;
 	float chordHalfWidth = sqrtf( radius * radius - ( yCenter - yStart ) * ( yCenter - yStart ) );
 	float xLimit = chordHalfWidth - 2.0f * spacing;
-	float zLimit = halfDepth - 2.0f * spacing;
+	float zLimit = halfDepth - 2.0f * sphere.radius;
 
 	float x = -xLimit;
 	float y = yStart;
@@ -1168,20 +1166,7 @@ void CreateSpinner( b3WorldId worldId )
 		bodyDef.position = (b3Pos){ x, y, z };
 		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
-		int remainder = i % 3;
-		remainder = 1;
-		if ( remainder == 0 )
-		{
-			b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
-		}
-		else if ( remainder == 1 )
-		{
-			b3CreateSphereShape( bodyId, &shapeDef, &sphere );
-		}
-		else
-		{
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
-		}
+		b3CreateSphereShape( bodyId, &shapeDef, &sphere );
 
 		z += spacing;
 

@@ -1040,6 +1040,54 @@ static int TestEnlargedProxyDestroyed( void )
 	return 0;
 }
 
+// b3DestroyBody tears shapes down inline instead of going through the shape destroy path, so it
+// needs its own compound census decrement. A leaked count pins the broad-phase on the slow
+// per-candidate compound path for the life of the world and rides along into snapshots.
+static int TestCompoundShapeCount( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3World* world = b3GetWorldFromId( worldId );
+	ENSURE( world->compoundShapeCount == 0 );
+
+	b3BoxHull box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
+
+	b3CompoundHullDef hull;
+	hull.hull = &box.base;
+	hull.transform = (b3Transform){ b3Vec3_zero, b3Quat_identity };
+	hull.material = b3DefaultSurfaceMaterial();
+
+	b3CompoundDef compoundDef = { 0 };
+	compoundDef.hulls = &hull;
+	compoundDef.hullCount = 1;
+	b3CompoundData* compound = b3CreateCompound( &compoundDef );
+	ENSURE( compound != NULL );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_staticBody;
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+	// Shape destroyed on its own
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+	b3ShapeId shapeId = b3CreateBakedCompoundShape( bodyId, &shapeDef, compound );
+	ENSURE( world->compoundShapeCount == 1 );
+	b3DestroyShape( shapeId, true );
+	ENSURE( world->compoundShapeCount == 0 );
+	b3DestroyBody( bodyId );
+
+	// Shape carried away by its body
+	bodyId = b3CreateBody( worldId, &bodyDef );
+	b3CreateBakedCompoundShape( bodyId, &shapeDef, compound );
+	ENSURE( world->compoundShapeCount == 1 );
+	b3DestroyBody( bodyId );
+	ENSURE( world->compoundShapeCount == 0 );
+
+	b3DestroyWorld( worldId );
+	b3DestroyCompound( compound );
+	return 0;
+}
+
 // Identical hull data is shared through a reference counted world database.
 static int TestHullDatabase( void )
 {
@@ -1251,6 +1299,7 @@ int WorldTest( void )
 	RUN_SUBTEST( TestSetWorkerCount );
 	RUN_SUBTEST( TestHullDatabase );
 	RUN_SUBTEST( TestEnlargedProxyDestroyed );
+	RUN_SUBTEST( TestCompoundShapeCount );
 
 	return 0;
 }

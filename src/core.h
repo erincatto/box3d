@@ -133,7 +133,7 @@ typedef struct b3AtomicU32
 #define B3_FREE( M, T, N ) b3Free( M, N * sizeof( T ) );
 
 void* b3Alloc( size_t size );
-void* b3AllocZeroed( size_t size );
+void* b3AllocZero( size_t size );
 void b3Free( void* mem, size_t size );
 void* b3GrowAlloc( void* oldMem, int oldSize, int newSize );
 void* b3GrowAllocZeroed( void* oldMem, int oldSize, int newSize );

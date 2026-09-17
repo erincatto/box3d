@@ -1439,7 +1439,7 @@ public:
 
 	void Step() override
 	{
-		if ( m_context->pause == false || m_context->singleStep == 0 )
+		if ( m_context->pause == false || m_context->singleStep > 0 )
 		{
 			StepJunkyard( m_worldId, m_stepCount );
 		}
@@ -1546,7 +1546,7 @@ public:
 
 	void Step() override
 	{
-		if ( m_context->pause == false || m_context->singleStep == 0 )
+		if ( m_context->pause == false || m_context->singleStep > 0 )
 		{
 			StepSleep( m_worldId, m_stepCount );
 		}

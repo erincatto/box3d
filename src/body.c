@@ -375,6 +375,12 @@ void b3DestroyBody( b3BodyId bodyId )
 	{
 		b3Shape* shape = b3Array_Get( world->shapes, shapeId );
 
+		if ( shape->type == b3_compoundShape )
+		{
+			B3_ASSERT( world->compoundShapeCount > 0 );
+			world->compoundShapeCount -= 1;
+		}
+
 		if ( shape->sensorIndex != B3_NULL_INDEX )
 		{
 			b3DestroySensor( world, shape );

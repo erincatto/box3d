@@ -49,7 +49,7 @@ void b3UpdateBroadPhasePairs( b3World* world );
 bool b3BroadPhase_TestOverlap( const b3BroadPhase* bp, int proxyKeyA, int proxyKeyB );
 
 void b3ValidateBroadPhase( const b3BroadPhase* bp );
-void b3ValidateNoEnlarged( const b3BroadPhase* bp );
+void b3ValidateNoMoved( const b3BroadPhase* bp );
 
 static inline void b3BroadPhase_MarkProxyMovedSerial( b3BroadPhase* bp, int proxyKey )
 {

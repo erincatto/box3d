@@ -242,7 +242,7 @@ int b3GetByteCount( void )
 	return b3AtomicLoadInt( &b3_byteCount );
 }
 
-void* b3AllocZeroed( size_t size )
+void* b3AllocZero( size_t size )
 {
 	void* mem = b3Alloc( size );
 	memset( mem, 0, size );

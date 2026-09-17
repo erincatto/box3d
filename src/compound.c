@@ -285,13 +285,13 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 
 	// Instances
 	int capsuleCount = def->capsuleCount;
-	b3CompoundCapsule* capsuleInstances = b3AllocZeroed( capsuleCount * sizeof( b3CompoundCapsule ) );
+	b3CompoundCapsule* capsuleInstances = b3AllocZero( capsuleCount * sizeof( b3CompoundCapsule ) );
 	int hullCount = def->hullCount;
-	b3HullInstance* hullInstances = b3AllocZeroed( hullCount * sizeof( b3HullInstance ) );
+	b3HullInstance* hullInstances = b3AllocZero( hullCount * sizeof( b3HullInstance ) );
 	int meshCount = def->meshCount;
-	b3MeshInstance* meshInstances = b3AllocZeroed( meshCount * sizeof( b3MeshInstance ) );
+	b3MeshInstance* meshInstances = b3AllocZero( meshCount * sizeof( b3MeshInstance ) );
 	int sphereCount = def->sphereCount;
-	b3CompoundSphere* sphereInstances = b3AllocZeroed( sphereCount * sizeof( b3CompoundSphere ) );
+	b3CompoundSphere* sphereInstances = b3AllocZero( sphereCount * sizeof( b3CompoundSphere ) );
 
 	// Determine material capacity.
 	int materialCapacity = convexCount;
@@ -305,7 +305,7 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 	b3MaterialMap materialMap;
 	b3MaterialMap_init( &materialMap );
 	b3MaterialMap_reserve( &materialMap, materialCapacity );
-	b3SurfaceMaterial* materials = b3AllocZeroed( materialCapacity * sizeof( b3SurfaceMaterial ) );
+	b3SurfaceMaterial* materials = b3AllocZero( materialCapacity * sizeof( b3SurfaceMaterial ) );
 	int materialCount = 0;
 
 	for ( int i = 0; i < def->capsuleCount; ++i )
@@ -333,7 +333,7 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 	}
 
 	// Hulls
-	b3SharedHull* sharedHulls = b3AllocZeroed( hullCount * sizeof( b3SharedHull ) );
+	b3SharedHull* sharedHulls = b3AllocZero( hullCount * sizeof( b3SharedHull ) );
 	int sharedHullCount = 0;
 
 	if ( hullCount > 0 )
@@ -389,7 +389,7 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 	}
 
 	// Meshes
-	b3SharedMesh* sharedMeshes = b3AllocZeroed( meshCount * sizeof( b3SharedMesh ) );
+	b3SharedMesh* sharedMeshes = b3AllocZero( meshCount * sizeof( b3SharedMesh ) );
 	int sharedMeshCount = 0;
 
 	if ( meshCount > 0 )
@@ -491,7 +491,7 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 	int nodeOffset = (int)byteCount;
 	byteCount += b3AlignUp8( tree.nodeEnd * sizeof( b3TreeNode ) );
 	int proxyOffset = (int)byteCount;
-	byteCount += b3AlignUp8( tree.proxyCapacity * sizeof( b3TreeProxy ) );
+	byteCount += b3AlignUp8( tree.proxyCount * sizeof( b3TreeProxy ) );
 	int materialOffset = (int)byteCount;
 	byteCount += b3AlignUp8( materialCount * sizeof( b3SurfaceMaterial ) );
 	int capsuleOffset = (int)byteCount;
@@ -544,6 +544,8 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 	// todo clean up this mess
 	compound->tree.nodeCapacity = tree.nodeEnd;
 	compound->tree.pairFreeList = B3_NULL_INDEX;
+	compound->tree.proxyCapacity = tree.proxyCount;
+	compound->tree.proxyFreeList = B3_NULL_INDEX;
 	compound->tree.swapNodes = NULL;
 	compound->tree.leafIndices = NULL;
 	compound->tree.leafNodes = NULL;
@@ -572,7 +574,7 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 	compound->tree.nodes = nodes;
 
 	b3TreeProxy* proxies = b3GetCompoundProxies( compound );
-	memcpy( proxies, tree.proxies, tree.proxyCapacity * sizeof( b3TreeProxy ) );
+	memcpy( proxies, tree.proxies, tree.proxyCount * sizeof( b3TreeProxy ) );
 	compound->tree.proxies = proxies;
 
 	// Materials

@@ -180,7 +180,6 @@ static void b3CreateWorkerContexts( b3World* world )
 		world->taskContexts.data[i].hitEventBitSet = b3CreateBitSet( 1024 );
 		world->taskContexts.data[i].hasHitEvents = false;
 		world->taskContexts.data[i].jointStateBitSet = b3CreateBitSet( 1024 );
-		world->taskContexts.data[i].enlargedSimBitSet = b3CreateBitSet( 256 );
 		world->taskContexts.data[i].awakeIslandBitSet = b3CreateBitSet( 256 );
 		world->taskContexts.data[i].splitIslandId = B3_NULL_INDEX;
 
@@ -198,7 +197,6 @@ static void b3DestroyWorkerContexts( b3World* world )
 		b3DestroyBitSet( &world->taskContexts.data[i].contactStateBitSet );
 		b3DestroyBitSet( &world->taskContexts.data[i].hitEventBitSet );
 		b3DestroyBitSet( &world->taskContexts.data[i].jointStateBitSet );
-		b3DestroyBitSet( &world->taskContexts.data[i].enlargedSimBitSet );
 		b3DestroyBitSet( &world->taskContexts.data[i].awakeIslandBitSet );
 
 		b3DestroyBitSet( &world->sensorTaskContexts.data[i].eventBits );
@@ -1150,7 +1148,7 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 		world->finishTaskFcn( world->userTreeTask, world->userTaskContext );
 		world->userTreeTask = NULL;
 		world->activeTaskCount -= 1;
-		b3ValidateNoEnlarged( &world->broadPhase );
+		b3ValidateNoMoved( &world->broadPhase );
 	}
 
 	// Update sensors
@@ -2510,7 +2508,6 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 		taskContextBytes += b3GetBitSetBytes( &taskContext->contactStateBitSet );
 		taskContextBytes += b3GetBitSetBytes( &taskContext->jointStateBitSet );
 		taskContextBytes += b3GetBitSetBytes( &taskContext->hitEventBitSet );
-		taskContextBytes += b3GetBitSetBytes( &taskContext->enlargedSimBitSet );
 		taskContextBytes += b3GetBitSetBytes( &taskContext->awakeIslandBitSet );
 	}
 

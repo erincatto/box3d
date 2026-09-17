@@ -690,7 +690,6 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 	b3BodyMoveEvent* moveEvents = world->bodyMoveEvents.data;
 
 	b3TaskContext* taskContext = world->taskContexts.data + workerIndex;
-	b3BitSet* enlargedSimBitSet = &taskContext->enlargedSimBitSet;
 	b3BitSet* awakeIslandBitSet = &taskContext->awakeIslandBitSet;
 
 	const float speculativeScalar = B3_SPECULATIVE_DISTANCE;
@@ -827,24 +826,16 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		}
 
 		// Update shapes AABBs
-		b3WorldTransform transform = sim->transform;
-		bool isFast = ( sim->flags & b3_isFast ) != 0;
-		int shapeId = body->headShapeId;
-		while ( shapeId != B3_NULL_INDEX )
+		// For fast non-bullet bodies the AABB has already been updated in b3SolveContinuous
+		// For fast bullet bodies the AABB will be updated at a later stage
+		if ( ( sim->flags & b3_isFast ) == 0 )
 		{
-			b3Shape* shape = b3Array_Get( world->shapes, shapeId );
-
-			if ( isFast )
+			b3WorldTransform transform = sim->transform;
+			int shapeId = body->headShapeId;
+			while ( shapeId != B3_NULL_INDEX )
 			{
-				// For fast non-bullet bodies the AABB has already been updated in b3SolveContinuous
-				// For fast bullet bodies the AABB will be updated at a later stage
+				b3Shape* shape = b3Array_Get( world->shapes, shapeId );
 
-				// Add to enlarged shapes regardless of AABB changes.
-				// Bit-set to keep the move array sorted
-				b3SetBit( enlargedSimBitSet, simIndex );
-			}
-			else
-			{
 				b3AABB aabb = b3ComputeFatShapeAABB( shape, transform, speculativeScalar );
 				shape->aabb = aabb;
 
@@ -856,12 +847,10 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 
 					// Mark the hierarchy as moved using atomic operations.
 					b3BroadPhase_MarkProxyMoved( &world->broadPhase, shape->proxyKey, shape->fatAABB );
-
-					b3SetBit( enlargedSimBitSet, simIndex );
 				}
-			}
 
-			shapeId = shape->nextShapeId;
+				shapeId = shape->nextShapeId;
+			}
 		}
 	}
 
@@ -1879,13 +1868,12 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		b3TracyCZoneNC( update_transforms, "Update Transforms", b3_colorMediumSeaGreen, true );
 		uint64_t transformTicks = b3GetTicks();
 
-		// Prepare contact, enlarged body, and island bit sets used in body finalization.
+		// Prepare the island bit set used in body finalization.
 		int awakeIslandCount = awakeSet->islandSims.count;
 		for ( int i = 0; i < world->workerCount; ++i )
 		{
 			b3TaskContext* taskContext = world->taskContexts.data + i;
 			b3Array_Clear( taskContext->sensorHits );
-			b3SetBitCountAndClear( &taskContext->enlargedSimBitSet, awakeBodyCount );
 			b3SetBitCountAndClear( &taskContext->awakeIslandBitSet, awakeIslandCount );
 			taskContext->splitIslandId = B3_NULL_INDEX;
 			taskContext->splitSleepTime = 0.0f;
@@ -1900,7 +1888,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			world->activeTaskCount -= 1;
 		}
 
-		b3ValidateNoEnlarged( &world->broadPhase );
+		b3ValidateNoMoved( &world->broadPhase );
 
 		// Finalize bodies. Must happen after the constraint solver and after island splitting.
 		b3ParallelFor( world, &b3FinalizeBodiesTask, awakeBodyCount, 16, stepContext, "ccd" );
