@@ -3,10 +3,30 @@
 
 #pragma once
 
+#include "box3d/base.h"
 #include "box3d/constants.h"
 
 #include <stdbool.h>
 #include <stdint.h>
+
+// I need a good hash because the keys are built from pairs of increasing integers.
+// A simple hash like hash = (integer1 XOR integer2) has many collisions.
+// https://lemire.me/blog/2018/08/15/fast-strongly-universal-64-bit-hashing-everywhere/
+// https://preshing.com/20130107/this-hash-set-is-faster-than-a-judy-array/
+// todo try: https://www.jandrewrogers.com/2019/02/12/fast-perfect-hashing/
+// todo try:
+// https://probablydance.com/2018/06/16/fibonacci-hashing-the-optimization-that-the-world-forgot-or-a-better-alternative-to-integer-modulo/
+B3_FORCE_INLINE uint32_t b3KeyHash( uint64_t key )
+{
+	uint64_t h = key;
+	h ^= h >> 33;
+	h *= 0xff51afd7ed558ccdL;
+	h ^= h >> 33;
+	h *= 0xc4ceb9fe1a85ec53L;
+	h ^= h >> 33;
+
+	return (uint32_t)h;
+}
 
 typedef struct b3SetItem
 {
@@ -49,5 +69,6 @@ bool b3AddKey( b3HashSet* set, uint64_t key );
 bool b3RemoveKey( b3HashSet* set, uint64_t key );
 
 bool b3ContainsKey( const b3HashSet* set, uint64_t key );
+bool b3ContainsHashedKey( const b3HashSet* set, uint64_t key, uint32_t hash );
 
 int b3GetHashSetBytes( b3HashSet* set );

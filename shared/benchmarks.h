@@ -42,9 +42,14 @@ void GetWasherCapacity( b3Capacity* capacity );
 void CreateWasher( b3WorldId worldId );
 void CreateConvexPile( b3WorldId worldId );
 void GetConvexPileCapacity( b3Capacity* capacity );
+void GetSpinnerCapacity( b3Capacity* capacity );
+void CreateSpinner( b3WorldId worldId );
+void DestroySpinner( void );
+float GetSpinnerAngle( void );
+void GetSleepCapacity( b3Capacity* capacity );
+void CreateSleep( b3WorldId worldId );
+void StepSleep( b3WorldId worldId, int stepCount );
 
-// void CreateSpinner( b3WorldId worldId );
-// float StepSpinner( b3WorldId worldId, int stepCount );
 // void CreateSmash( b3WorldId worldId );
 // void CreateTumbler( b3WorldId worldId );
 

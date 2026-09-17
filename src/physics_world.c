@@ -175,6 +175,7 @@ static void b3CreateWorkerContexts( b3World* world )
 	{
 		world->taskContexts.data[i].arena = b3CreateArena( 128 * 1024 );
 		b3Array_Reserve( world->taskContexts.data[i].sensorHits, 8 );
+		b3Array_Reserve( world->taskContexts.data[i].pairKeys, 64 );
 		world->taskContexts.data[i].contactStateBitSet = b3CreateBitSet( 1024 );
 		world->taskContexts.data[i].hitEventBitSet = b3CreateBitSet( 1024 );
 		world->taskContexts.data[i].hasHitEvents = false;
@@ -193,6 +194,7 @@ static void b3DestroyWorkerContexts( b3World* world )
 	{
 		b3DestroyArena( &world->taskContexts.data[i].arena );
 		b3Array_Destroy( world->taskContexts.data[i].sensorHits );
+		b3Array_Destroy( world->taskContexts.data[i].pairKeys );
 		b3DestroyBitSet( &world->taskContexts.data[i].contactStateBitSet );
 		b3DestroyBitSet( &world->taskContexts.data[i].hitEventBitSet );
 		b3DestroyBitSet( &world->taskContexts.data[i].jointStateBitSet );
@@ -2419,22 +2421,14 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	int staticTreeBytes = b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_staticBody );
 	int kinematicTreeBytes = b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_kinematicBody );
 	int dynamicTreeBytes = b3DynamicTree_GetByteCount( world->broadPhase.trees + b3_dynamicBody );
-	int movedBytes = 0;
-	for ( int i = 0; i < b3_bodyTypeCount; ++i )
-	{
-		movedBytes += b3GetBitSetBytes( &world->broadPhase.movedProxies[i] );
-	}
-	int moveArrayBytes = b3Array_ByteCount( world->broadPhase.moveArray );
 	b3HashSet* pairSet = &world->broadPhase.pairSet;
 	int pairSetBytes = b3GetHashSetBytes( pairSet );
-	total += (uint64_t)staticTreeBytes + kinematicTreeBytes + dynamicTreeBytes + movedBytes + moveArrayBytes + pairSetBytes;
+	total += (uint64_t)staticTreeBytes + kinematicTreeBytes + dynamicTreeBytes + pairSetBytes;
 
 	b3Log( "broad-phase" );
 	b3Log( "static tree: %d", staticTreeBytes );
 	b3Log( "kinematic tree: %d", kinematicTreeBytes );
 	b3Log( "dynamic tree: %d", dynamicTreeBytes );
-	b3Log( "movedProxies: %d", movedBytes );
-	b3Log( "moveArray: %d", moveArrayBytes );
 	b3Log( "pairSet: %d (%d, %d)", pairSetBytes, pairSet->count, pairSet->capacity );
 
 	// Manifold block allocators, one per manifold point count
@@ -2512,6 +2506,7 @@ void b3World_DumpMemoryStats( b3WorldId worldId )
 	{
 		b3TaskContext* taskContext = world->taskContexts.data + i;
 		taskContextBytes += b3Array_ByteCount( taskContext->sensorHits );
+		taskContextBytes += b3Array_ByteCount( taskContext->pairKeys );
 		taskContextBytes += b3GetBitSetBytes( &taskContext->contactStateBitSet );
 		taskContextBytes += b3GetBitSetBytes( &taskContext->jointStateBitSet );
 		taskContextBytes += b3GetBitSetBytes( &taskContext->hitEventBitSet );

@@ -1486,3 +1486,78 @@ public:
 };
 
 static int sampleConvexPile = RegisterSample( "Benchmark", "Convex Pile", BenchmarkConvexPile::Create );
+
+class BenchmarkSpinner : public Sample
+{
+public:
+	explicit BenchmarkSpinner( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 12.0f, 45.0f, { 0.0f, 12.0f, 0.0f } );
+		}
+
+		b3Capacity capacity = {};
+		GetSpinnerCapacity( &capacity );
+		CreateWorld( &capacity );
+
+		CreateSpinner( m_worldId );
+	}
+
+	~BenchmarkSpinner() override
+	{
+		DestroySpinner();
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		DrawTextLine( "spinner angle = %.2f", GetSpinnerAngle() );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new BenchmarkSpinner( context );
+	}
+};
+
+static int benchmarkSpinner = RegisterSample( "Benchmark", "Spinner", BenchmarkSpinner::Create );
+
+class BenchmarkSleep : public Sample
+{
+public:
+	explicit BenchmarkSleep( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( -10.0f, 25.0f, 100.0f, { 0.0f, 3.0f, 0.0f } );
+		}
+
+		b3Capacity capacity = {};
+		GetSleepCapacity( &capacity );
+		CreateWorld( &capacity );
+
+		CreateSleep( m_worldId );
+		SetGroundShape( GetGroundShapeId() );
+	}
+
+	void Step() override
+	{
+		if ( m_context->pause == false || m_context->singleStep == 0 )
+		{
+			StepSleep( m_worldId, m_stepCount );
+		}
+
+		Sample::Step();
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new BenchmarkSleep( context );
+	}
+};
+
+static int benchmarkSleep = RegisterSample( "Benchmark", "Sleep", BenchmarkSleep::Create );

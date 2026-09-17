@@ -194,10 +194,12 @@ endif()
 
 # Include root is the samples dir so "gfx/..." and "host/..." prefixes resolve.
 # The data dir is on the path too so samples can #include recorded dumps
-# (sample_issues pulls dumps/.../box3d_dump.inl at compile time).
+# (sample_issues pulls dumps/.../box3d_dump.inl at compile time). src is on the
+# path so sample_tree.cpp can reach dynamic_tree.h for the node layout helpers.
 target_include_directories(samples PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../data")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    "${CMAKE_SOURCE_DIR}/src")
 
 # gfx: the renderer + Draw*/adapter. shared: human, utils (Random*), the
 # benchmark/determinism helpers the samples lean on.

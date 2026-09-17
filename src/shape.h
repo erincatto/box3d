@@ -19,7 +19,7 @@ typedef enum b3ShapeFlags
 	b3_enableCustomFiltering = 0x04,
 	b3_enableHitEvents = 0x08,
 	b3_enablePreSolveEvents = 0x10,
-	b3_enlargedAABB = 0x20,
+	// 0x20 is free, it was the enlarged AABB flag before the broad-phase marked the tree
 	b3_enableSpeculative = 0x40,
 } b3ShapeFlags;
 

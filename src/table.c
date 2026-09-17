@@ -52,25 +52,6 @@ void b3ClearSet( b3HashSet* set )
 	memset( set->items, 0, set->capacity * sizeof( b3SetItem ) );
 }
 
-// I need a good hash because the keys are built from pairs of increasing integers.
-// A simple hash like hash = (integer1 XOR integer2) has many collisions.
-// https://lemire.me/blog/2018/08/15/fast-strongly-universal-64-bit-hashing-everywhere/
-// https://preshing.com/20130107/this-hash-set-is-faster-than-a-judy-array/
-// todo try: https://www.jandrewrogers.com/2019/02/12/fast-perfect-hashing/
-// todo try:
-// https://probablydance.com/2018/06/16/fibonacci-hashing-the-optimization-that-the-world-forgot-or-a-better-alternative-to-integer-modulo/
-static inline uint32_t b3KeyHash( uint64_t key )
-{
-	uint64_t h = key;
-	h ^= h >> 33;
-	h *= 0xff51afd7ed558ccdL;
-	h ^= h >> 33;
-	h *= 0xc4ceb9fe1a85ec53L;
-	h ^= h >> 33;
-
-	return (uint32_t)h;
-}
-
 static int32_t b3FindSlot( const b3HashSet* set, uint64_t key, uint32_t hash )
 {
 	uint32_t capacity = set->capacity;
@@ -135,6 +116,15 @@ bool b3ContainsKey( const b3HashSet* set, uint64_t key )
 	// key of zero is a sentinel
 	B3_ASSERT( key != 0 );
 	uint32_t hash = b3KeyHash( key );
+	int32_t index = b3FindSlot( set, key, hash );
+	return set->items[index].key == key;
+}
+
+// The caller already has the hash, which lets a batch prefetch the slots before probing them.
+bool b3ContainsHashedKey( const b3HashSet* set, uint64_t key, uint32_t hash )
+{
+	B3_ASSERT( key != 0 );
+	B3_ASSERT( hash == b3KeyHash( key ) );
 	int32_t index = b3FindSlot( set, key, hash );
 	return set->items[index].key == key;
 }

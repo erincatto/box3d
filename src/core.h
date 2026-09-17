@@ -136,6 +136,10 @@ void* b3Alloc( size_t size );
 void* b3AllocZeroed( size_t size );
 void b3Free( void* mem, size_t size );
 void* b3GrowAlloc( void* oldMem, int oldSize, int newSize );
+void* b3GrowAllocZeroed( void* oldMem, int oldSize, int newSize );
+
+#define B3_GROW( A, N, M ) b3GrowAlloc( ( A ), (int)( ( N ) * sizeof( *( A ) ) ), (int)( ( M ) * sizeof( *( A ) ) ) )
+#define B3_GROW_ZERO( A, N, M ) b3GrowAllocZeroed( ( A ), (int)( ( N ) * sizeof( *( A ) ) ), (int)( ( M ) * sizeof( *( A ) ) ) )
 
 B3_PRINTF_FORMAT( 1, 2 )
 void b3Log( const char* format, ... );

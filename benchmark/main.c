@@ -157,12 +157,13 @@ int main( int argc, char** argv )
 		{ "large_world", GetLargeWorldCapacity, CreateLargeWorld, NULL, StepLargeWorld, 500 },
 		{ "many_pyramids", NULL, CreateManyPyramids, NULL, NULL, 100 },
 		{ "rain", GetRainCapacity, CreateRain, DestroyRain, StepRain, 400 },
+		{ "sleep", GetSleepCapacity, CreateSleep, NULL, StepSleep, 300 },
+		{ "spinner", GetSpinnerCapacity, CreateSpinner, DestroySpinner, NULL, 800 },
 		{ "trees100", NULL, CreateTrees100, DestroyTrees, NULL, 500 },
 		{ "trees50", NULL, CreateTrees50, DestroyTrees, NULL, 500 },
 		{ "trees25", NULL, CreateTrees25, DestroyTrees, NULL, 500 },
 		{ "washer", GetWasherCapacity, CreateWasher, NULL, NULL, 1000 },
 		//{ "smash", CreateSmash, NULL, 300 },
-		//{ "spinner", CreateSpinner, StepSpinner, 1400 },
 		//{ "tumbler", CreateTumbler, NULL, 750 },
 	};
 

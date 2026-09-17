@@ -6,28 +6,25 @@
 #include "aabb.h"
 #include "arena_allocator.h"
 #include "body.h"
+#include "compound.h"
 #include "contact.h"
 #include "core.h"
+#include "dynamic_tree.h"
 #include "parallel_for.h"
 #include "physics_world.h"
 #include "platform.h"
+#include "qsort.h"
 #include "shape.h"
+#include "simd.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 void b3CreateBroadPhase( b3BroadPhase* bp, const b3Capacity* capacity )
 {
 	_Static_assert( b3_bodyTypeCount == 3, "must be three body types" );
 
-	bp->movedProxies[b3_staticBody] = b3CreateBitSet( b3MaxInt( 16, capacity->staticShapeCount ) );
-	bp->movedProxies[b3_kinematicBody] = b3CreateBitSet( 16 );
-	bp->movedProxies[b3_dynamicBody] = b3CreateBitSet( b3MaxInt( 16, capacity->dynamicShapeCount ) );
-	b3Array_Reserve( bp->moveArray, capacity->dynamicShapeCount );
-	bp->moveResults = NULL;
-	bp->movePairs = NULL;
-	bp->movePairCapacity = 0;
-	b3AtomicStoreInt( &bp->movePairIndex, 0 );
-	bp->pairSet = b3CreateSet( 2 * capacity->contactCount );
+	bp->pairSet = b3CreateSet( b3MaxInt( 32, 2 * capacity->contactCount ) );
 
 	int staticCapacity = b3MaxInt( 16, capacity->staticShapeCount );
 	bp->trees[b3_staticBody] = b3DynamicTree_Create( staticCapacity );
@@ -37,6 +34,8 @@ void b3CreateBroadPhase( b3BroadPhase* bp, const b3Capacity* capacity )
 
 	int dynamicCapacity = b3MaxInt( 16, capacity->dynamicShapeCount );
 	bp->trees[b3_dynamicBody] = b3DynamicTree_Create( dynamicCapacity );
+
+	bp->movedSiblings = NULL;
 }
 
 void b3DestroyBroadPhase( b3BroadPhase* bp )
@@ -46,63 +45,29 @@ void b3DestroyBroadPhase( b3BroadPhase* bp )
 		b3DynamicTree_Destroy( bp->trees + i );
 	}
 
-	for ( int i = 0; i < b3_bodyTypeCount; ++i )
-	{
-		b3DestroyBitSet( &bp->movedProxies[i] );
-	}
-	b3Array_Destroy( bp->moveArray );
 	b3DestroySet( &bp->pairSet );
 
-	*bp = (b3BroadPhase){ 0 };
-
 	memset( bp, 0, sizeof( b3BroadPhase ) );
-}
-
-static void b3UnBufferMove( b3BroadPhase* bp, int proxyKey )
-{
-	b3BodyType proxyType = B3_PROXY_TYPE( proxyKey );
-	int proxyId = B3_PROXY_ID( proxyKey );
-	b3BitSet* set = &bp->movedProxies[proxyType];
-
-	if ( b3GetBit( set, proxyId ) )
-	{
-		b3ClearBit( set, proxyId );
-
-		// Purge from move buffer. Linear search.
-		// todo if I can iterate the move set then I don't need the moveArray
-		int count = bp->moveArray.count;
-		for ( int i = 0; i < count; ++i )
-		{
-			if ( bp->moveArray.data[i] == proxyKey )
-			{
-				b3Array_RemoveSwap( bp->moveArray, i );
-				break;
-			}
-		}
-	}
 }
 
 int b3BroadPhase_CreateProxy( b3BroadPhase* bp, b3BodyType proxyType, b3AABB aabb, uint64_t categoryBits, int shapeIndex,
 							  bool forcePairCreation )
 {
 	B3_ASSERT( 0 <= proxyType && proxyType < b3_bodyTypeCount );
-	int proxyId = b3DynamicTree_CreateProxy( bp->trees + proxyType, aabb, categoryBits, shapeIndex );
+
+	bool mark = ( proxyType != b3_staticBody || forcePairCreation );
+
+	int proxyId = b3CreateTreeProxyInternal( bp->trees + proxyType, aabb, categoryBits, shapeIndex, mark );
 	int proxyKey = B3_PROXY_KEY( proxyId, proxyType );
-	if ( proxyType != b3_staticBody || forcePairCreation )
-	{
-		b3BufferMove( bp, proxyKey );
-	}
 	return proxyKey;
 }
 
 void b3BroadPhase_DestroyProxy( b3BroadPhase* bp, int proxyKey )
 {
-	b3UnBufferMove( bp, proxyKey );
-
 	b3BodyType proxyType = B3_PROXY_TYPE( proxyKey );
 	int proxyId = B3_PROXY_ID( proxyKey );
 
-	B3_ASSERT( 0 <= proxyType && proxyType <= b3_bodyTypeCount );
+	B3_ASSERT( 0 <= proxyType && proxyType < b3_bodyTypeCount );
 	b3DynamicTree_DestroyProxy( bp->trees + proxyType, proxyId );
 }
 
@@ -111,165 +76,94 @@ void b3BroadPhase_MoveProxy( b3BroadPhase* bp, int proxyKey, b3AABB aabb )
 	b3BodyType proxyType = B3_PROXY_TYPE( proxyKey );
 	int proxyId = B3_PROXY_ID( proxyKey );
 
-	b3DynamicTree_MoveProxy( bp->trees + proxyType, proxyId, aabb );
-	b3BufferMove( bp, proxyKey );
+	bool mark = true;
+	b3DynamicTree_MoveProxyInternal( bp->trees + proxyType, proxyId, aabb, mark );
 }
 
-void b3BroadPhase_EnlargeProxy( b3BroadPhase* bp, int proxyKey, b3AABB aabb )
+// Gather the sibling pairs with a moved node. This is done serially, it is cache friendly.
+static int b3GatherMovedSiblings( const b3DynamicTree* tree, int* pairIndices )
 {
-	B3_ASSERT( proxyKey != B3_NULL_INDEX );
-	int typeIndex = B3_PROXY_TYPE( proxyKey );
-	int proxyId = B3_PROXY_ID( proxyKey );
+	const b3TreeNode* nodes = tree->nodes;
+	int nodeEnd = tree->nodeEnd;
 
-	B3_ASSERT( typeIndex != b3_staticBody );
+	int count = 0;
 
-	b3DynamicTree_EnlargeProxy( bp->trees + typeIndex, proxyId, aabb );
-	b3BufferMove( bp, proxyKey );
+	// Skip the root.
+	for ( int pair = 2; pair < nodeEnd; pair += 2 )
+	{
+		// Push when either sibling moved.
+		if ( ( nodes[pair].flagIndex | nodes[pair + 1].flagIndex ) & B3_MOVED_NODE )
+		{
+			pairIndices[count++] = pair;
+		}
+	}
+
+	return count;
 }
 
-typedef struct b3MovePair
-{
-	int shapeIndexA;
-	int shapeIndexB;
-	int childIndex;
-	b3MovePair* next;
-	bool heap;
-} b3MovePair;
+#define B3_CANDIDATE_BATCH 32
 
-typedef struct b3MoveResult
+typedef struct b3CandidatePair
 {
-	b3MovePair* pairList;
-} b3MoveResult;
+	int shapeIdA;
+	int shapeIdB;
+} b3CandidatePair;
 
-typedef struct b3QueryPairContext
+typedef struct b3PairContext
 {
 	b3World* world;
-	b3MoveResult* moveResult;
-	b3AABB aabb;
-	b3BodyType queryTreeType;
-	int queryProxyKey;
-	int queryShapeIndex;
+	b3Array( uint64_t ) * pairKeys;
+	b3CandidatePair batch[B3_CANDIDATE_BATCH];
+	int batchCount;
 
-	int compoundProxyId;
-	int compoundShapeIndex;
-} b3QueryPairContext;
+	// Compound shapes are static only, so only the static cross pass can meet one. Elsewhere
+	// this stays false and the batch never reads a shape type.
+	bool checkCompounds;
+} b3PairContext;
 
-// This is called from b3DynamicTree::Query when we are gathering pairs.
-static bool b3PairQueryCallback( int proxyId, uint64_t userData, void* context )
+typedef struct b3NodePair
 {
-	b3QueryPairContext* queryContext = (b3QueryPairContext*)context;
-	b3World* world = queryContext->world;
-	int shapeIndex;
-	int childIndex = 0;
+	b3TreeNode a;
+	b3TreeNode b;
+} b3NodePair;
 
-	if ( queryContext->compoundShapeIndex == B3_NULL_INDEX )
-	{
-		// Outer query: userData is a shape index.
-		shapeIndex = (int)userData;
+typedef struct b3IndexPair
+{
+	int a, b;
+} b3IndexPair;
 
-		// A proxy cannot form a pair with itself.
-		if ( shapeIndex == queryContext->queryShapeIndex )
-		{
-			return true;
-		}
+static inline void b3PrefetchHash( b3HashSet* set, uint32_t hash )
+{
+	uint32_t capacity = set->capacity;
+	uint32_t index = hash & ( capacity - 1 );
+	b3Prefetch( set->items + index );
+}
 
-		b3Shape* shape = b3Array_Get( world->shapes, shapeIndex );
-		if ( shape->type == b3_compoundShape )
-		{
-			// Query bounds are float world space, so the demoted transform is the matching float frame
-			b3Transform compoundTransform = b3ToRelativeTransform( b3GetBodyTransform( world, shape->bodyId ), b3Pos_zero );
-			b3AABB localAABB = b3AABB_Transform( b3InvertTransform( compoundTransform ), queryContext->aabb );
-
-			// recurse
-			queryContext->compoundShapeIndex = shapeIndex;
-			queryContext->compoundProxyId = proxyId;
-
-			b3DynamicTree_Query( &shape->compound->tree, localAABB, B3_DEFAULT_MASK_BITS, false, b3PairQueryCallback, context );
-			queryContext->compoundShapeIndex = B3_NULL_INDEX;
-			queryContext->compoundProxyId = B3_NULL_INDEX;
-			return true;
-		}
-	}
-	else
-	{
-		// Inner query into a compound shape: userData is the compound child index, not a shape
-		// index, so do not compare it against queryShapeIndex.
-		shapeIndex = queryContext->compoundShapeIndex;
-		proxyId = queryContext->compoundProxyId;
-		childIndex = (int)userData;
-	}
-
-	b3BroadPhase* broadPhase = &queryContext->world->broadPhase;
-
-	int proxyKey = B3_PROXY_KEY( proxyId, queryContext->queryTreeType );
-	int queryProxyKey = queryContext->queryProxyKey;
-
-	// A proxy cannot form a pair with itself.
-	B3_ASSERT( proxyKey != queryContext->queryProxyKey );
-
-	b3BodyType treeType = queryContext->queryTreeType;
-	b3BodyType queryProxyType = B3_PROXY_TYPE( queryProxyKey );
-
-	// De-duplication
-	// It is important to prevent duplicate contacts from being created. Ideally I can prevent duplicates
-	// early and in the worker. Most of the time the movedProxies bit sets contain dynamic and kinematic
-	// proxies, but sometimes static proxies are in there too (b3ShapeDef::invokeContactCreation or a
-	// modified static shape), so we always have to check.
-
-	// Is this proxy also moving?
-	if ( queryProxyType == b3_dynamicBody )
-	{
-		if ( treeType == b3_dynamicBody && proxyKey < queryProxyKey )
-		{
-			bool moved = b3GetBit( &broadPhase->movedProxies[treeType], proxyId );
-			if ( moved )
-			{
-				// Both proxies are moving. Avoid duplicate pairs.
-				return true;
-			}
-		}
-	}
-	else
-	{
-		B3_ASSERT( treeType == b3_dynamicBody );
-		bool moved = b3GetBit( &broadPhase->movedProxies[treeType], proxyId );
-		if ( moved )
-		{
-			// Both proxies are moving. Avoid duplicate pairs.
-			return true;
-		}
-	}
-
-	uint64_t pairKey = b3ShapePairKey( shapeIndex, queryContext->queryShapeIndex, childIndex );
-	if ( b3ContainsKey( &broadPhase->pairSet, pairKey ) )
-	{
-		// contact exists
-		return true;
-	}
-
-	// Order shapes so that B3_SHAPE_PAIR_KEY works correctly
-	int shapeIdA = shapeIndex;
-	int shapeIdB = queryContext->queryShapeIndex;
+// The shape pair gauntlet. Everything here is a property of the pair, not of a compound child,
+// so a compound runs it once and then expands.
+static bool b3ShouldCreatePair( b3World* world, int shapeIdA, int shapeIdB )
+{
 	b3Shape* shapeA = b3Array_Get( world->shapes, shapeIdA );
 	b3Shape* shapeB = b3Array_Get( world->shapes, shapeIdB );
+
 	int bodyIdA = shapeA->bodyId;
 	int bodyIdB = shapeB->bodyId;
 
 	// Are the shapes on the same body?
 	if ( bodyIdA == bodyIdB )
 	{
-		return true;
+		return false;
 	}
 
 	// Sensors are handled elsewhere
 	if ( shapeA->sensorIndex != B3_NULL_INDEX || shapeB->sensorIndex != B3_NULL_INDEX )
 	{
-		return true;
+		return false;
 	}
 
 	if ( b3ShouldShapesCollide( shapeA->filter, shapeB->filter ) == false )
 	{
-		return true;
+		return false;
 	}
 
 	// Does a joint override collision?
@@ -277,111 +171,449 @@ static bool b3PairQueryCallback( int proxyId, uint64_t userData, void* context )
 	b3Body* bodyB = b3Array_Get( world->bodies, bodyIdB );
 	if ( b3ShouldBodiesCollide( world, bodyA, bodyB ) == false )
 	{
-		return true;
+		return false;
 	}
 
 	// Custom user filter
 	if ( ( shapeA->flags & b3_enableCustomFiltering ) || ( shapeB->flags & b3_enableCustomFiltering ) )
 	{
-		b3CustomFilterFcn* customFilterFcn = queryContext->world->customFilterFcn;
+		b3CustomFilterFcn* customFilterFcn = world->customFilterFcn;
 		if ( customFilterFcn != NULL )
 		{
 			b3ShapeId idA = { shapeIdA + 1, world->worldId, shapeA->generation };
 			b3ShapeId idB = { shapeIdB + 1, world->worldId, shapeB->generation };
-			bool shouldCollide = customFilterFcn( idA, idB, queryContext->world->customFilterContext );
-			if ( shouldCollide == false )
+			if ( customFilterFcn( idA, idB, world->customFilterContext ) == false )
 			{
-				return true;
+				return false;
 			}
 		}
 	}
 
-	// todo per thread to eliminate atomic?
-	int pairIndex = b3AtomicFetchAddInt( &broadPhase->movePairIndex, 1 );
-
-	b3MovePair* pair;
-	if ( pairIndex < broadPhase->movePairCapacity )
-	{
-		pair = broadPhase->movePairs + pairIndex;
-		pair->heap = false;
-	}
-	else
-	{
-		// todo experimenting with ignoring this pair if we ran out of space
-		return true;
-		// pair = (b3MovePair*)b3Alloc( sizeof( b3MovePair ) );
-		// pair->heap = true;
-	}
-
-	pair->shapeIndexA = shapeIdA;
-	pair->shapeIndexB = shapeIdB;
-	pair->childIndex = childIndex;
-	pair->next = queryContext->moveResult->pairList;
-	queryContext->moveResult->pairList = pair;
-
-	// continue the query
 	return true;
 }
 
-static void b3FindPairsTask( int startIndex, int endIndex, int workerIndex, void* context )
+typedef struct b3CompoundPairContext
 {
-	b3TracyCZoneNC( pair_task, "Pair Task", b3_colorAquamarine, true );
+	b3PairContext* pairContext;
+	b3HashSet* pairSet;
+	int compoundShapeId;
+	int otherShapeId;
+} b3CompoundPairContext;
 
-	B3_UNUSED( workerIndex );
+static bool b3CompoundChildCallback( int proxyId, uint64_t userData, void* context )
+{
+	B3_UNUSED( proxyId );
 
-	b3World* world = (b3World*)context;
+	b3CompoundPairContext* compoundContext = context;
+	int childIndex = (int)userData;
+
+	uint64_t key = b3ShapePairKey( compoundContext->compoundShapeId, compoundContext->otherShapeId, childIndex );
+	if ( b3ContainsKey( compoundContext->pairSet, key ) == false )
+	{
+		b3Array_Push( *compoundContext->pairContext->pairKeys, key );
+	}
+
+	return true;
+}
+
+// One of the two shapes is a compound, so the pair becomes one pair per overlapping child. The
+// child boxes live in the compound frame, so the other shape's box has to be demoted and pulled
+// into that frame first.
+static void b3EmitCompoundPairs( b3PairContext* context, int compoundShapeId, int otherShapeId )
+{
+	b3World* world = context->world;
+
+	if ( b3ShouldCreatePair( world, compoundShapeId, otherShapeId ) == false )
+	{
+		return;
+	}
+
+	b3Shape* compoundShape = b3Array_Get( world->shapes, compoundShapeId );
+	b3Shape* otherShape = b3Array_Get( world->shapes, otherShapeId );
+
+	int otherProxyKey = otherShape->proxyKey;
+	B3_ASSERT( otherProxyKey != B3_NULL_INDEX );
+	b3AABB otherAABB =
+		b3DynamicTree_GetAABB( world->broadPhase.trees + B3_PROXY_TYPE( otherProxyKey ), B3_PROXY_ID( otherProxyKey ) );
+
+	// Query bounds are float world space, so the demoted transform is the matching float frame
+	b3Transform compoundTransform = b3ToRelativeTransform( b3GetBodyTransform( world, compoundShape->bodyId ), b3Pos_zero );
+	b3AABB localAABB = b3AABB_Transform( b3InvertTransform( compoundTransform ), otherAABB );
+
+	b3CompoundPairContext compoundContext = {
+		.pairContext = context,
+		.pairSet = &world->broadPhase.pairSet,
+		.compoundShapeId = compoundShapeId,
+		.otherShapeId = otherShapeId,
+	};
+
+	b3DynamicTree_Query( &compoundShape->compound->tree, localAABB, B3_DEFAULT_MASK_BITS, false, b3CompoundChildCallback,
+						 &compoundContext );
+}
+
+static void b3FlushCandidatePairs( b3PairContext* context )
+{
+	b3World* world = context->world;
 	b3BroadPhase* bp = &world->broadPhase;
 
-	b3QueryPairContext queryContext = { 0 };
-	queryContext.world = world;
-	queryContext.compoundShapeIndex = B3_NULL_INDEX;
+	int count1 = context->batchCount;
+	context->batchCount = 0;
+
+	b3CandidatePair plain[B3_CANDIDATE_BATCH];
+	int plainCount = 0;
+
+	if ( context->checkCompounds )
+	{
+		// A compound expands into one pair per child, so its key is not known yet and it cannot
+		// ride the batched cull below.
+		const b3Shape* shapes = world->shapes.data;
+		for ( int i = 0; i < count1; ++i )
+		{
+			b3CandidatePair candidate = context->batch[i];
+			bool compoundA = shapes[candidate.shapeIdA].type == b3_compoundShape;
+			bool compoundB = shapes[candidate.shapeIdB].type == b3_compoundShape;
+
+			if ( compoundA )
+			{
+				// Compound versus compound is not supported
+				B3_ASSERT( compoundB == false );
+				b3EmitCompoundPairs( context, candidate.shapeIdA, candidate.shapeIdB );
+			}
+			else if ( compoundB )
+			{
+				b3EmitCompoundPairs( context, candidate.shapeIdB, candidate.shapeIdA );
+			}
+			else
+			{
+				plain[plainCount] = candidate;
+				plainCount += 1;
+			}
+		}
+	}
+	else
+	{
+		memcpy( plain, context->batch, count1 * sizeof( b3CandidatePair ) );
+		plainCount = count1;
+	}
+
+	// Prefetch hash set entries. Less than 1% gain in Box2D but the 3D shape is fatter.
+	uint64_t keys[B3_CANDIDATE_BATCH];
+	uint32_t hashes[B3_CANDIDATE_BATCH];
+	for ( int i = 0; i < plainCount; ++i )
+	{
+		keys[i] = b3ShapePairKey( plain[i].shapeIdA, plain[i].shapeIdB, 0 );
+		hashes[i] = b3KeyHash( keys[i] );
+		b3PrefetchHash( &bp->pairSet, hashes[i] );
+	}
+
+	// Cull existing pairs.
+	b3CandidatePair candidates[B3_CANDIDATE_BATCH];
+	int count2 = 0;
+	for ( int i = 0; i < plainCount; ++i )
+	{
+		if ( b3ContainsHashedKey( &bp->pairSet, keys[i], hashes[i] ) == false )
+		{
+			candidates[count2] = plain[i];
+			keys[count2] = keys[i];
+			count2 += 1;
+		}
+	}
+
+	// Prefetch shapes.
+	const b3Shape* shapes = world->shapes.data;
+	for ( int i = 0; i < count2; ++i )
+	{
+		b3Prefetch( shapes + candidates[i].shapeIdA );
+		b3Prefetch( shapes + candidates[i].shapeIdB );
+	}
+
+	// Filter candidates.
+	for ( int i = 0; i < count2; ++i )
+	{
+		if ( b3ShouldCreatePair( world, candidates[i].shapeIdA, candidates[i].shapeIdB ) )
+		{
+			// The pair passed the gauntlet. A new contact will be created.
+			b3Array_Push( *context->pairKeys, keys[i] );
+		}
+	}
+}
+
+B3_FORCE_INLINE void b3AddCandidatePair( int shapeIdA, int shapeIdB, b3PairContext* context )
+{
+	// Follow shape index order.
+	b3CandidatePair* candidate = context->batch + context->batchCount;
+	candidate->shapeIdA = b3MinInt( shapeIdA, shapeIdB );
+	candidate->shapeIdB = b3MaxInt( shapeIdA, shapeIdB );
+	context->batchCount += 1;
+	if ( context->batchCount == B3_CANDIDATE_BATCH )
+	{
+		b3FlushCandidatePairs( context );
+	}
+}
+
+// Did either move and if so do they overlap?
+B3_FORCE_INLINE bool b3TestPair( const b3TreeNode* a, const b3TreeNode* b )
+{
+	if ( ( ( a->flagIndex | b->flagIndex ) & B3_MOVED_NODE ) == 0 )
+	{
+		return false;
+	}
+
+	return b3OverlapV( &a->aabb, &b->aabb );
+}
+
+static void b3CollideProxyAndSubtree( const b3TreeNode* proxy, const b3TreeNode* nodes, int pair, b3PairContext* context )
+{
+	uint32_t proxyMark = proxy->flagIndex & B3_MOVED_NODE;
+	b3AABBV boxv = b3LoadAABBV( &proxy->aabb );
+	int shapeId = proxy->shapeIndex;
+
+	int stack[B3_TREE_STACK_SIZE];
+	int stackCount = 0;
+	stack[stackCount++] = pair;
+
+	while ( stackCount > 0 )
+	{
+		pair = stack[--stackCount];
+		for ( int i = 0; i < 2; ++i )
+		{
+			const b3TreeNode* node = nodes + pair + i;
+			if ( ( ( node->flagIndex | proxyMark ) & B3_MOVED_NODE ) == 0 )
+			{
+				continue;
+			}
+
+			if ( b3OverlapNode( boxv, node ) == false )
+			{
+				continue;
+			}
+
+			if ( b3IsLeaf( node ) )
+			{
+				b3AddCandidatePair( shapeId, node->shapeIndex, context );
+			}
+			else
+			{
+				if ( stackCount < B3_TREE_STACK_SIZE )
+				{
+					stack[stackCount++] = b3GetLeftChild( node );
+				}
+				else
+				{
+					B3_ASSERT( stackCount < B3_TREE_STACK_SIZE );
+				}
+			}
+		}
+	}
+}
+
+// Helper for b3CollideCrossPairs to avoid code duplication.
+B3_FORCE_INLINE void b3VisitPair( const b3TreeNode* arrayA, const b3TreeNode* arrayB, const b3TreeNode* nodeA,
+								  const b3TreeNode* nodeB, b3IndexPair* stack, int* stackCount, b3PairContext* context )
+{
+	if ( b3TestPair( nodeA, nodeB ) == false )
+	{
+		return;
+	}
+
+	bool leafA = b3IsLeaf( nodeA );
+	bool leafB = b3IsLeaf( nodeB );
+	if ( leafA && leafB )
+	{
+		b3AddCandidatePair( nodeA->shapeIndex, nodeB->shapeIndex, context );
+	}
+	else if ( leafA )
+	{
+		b3CollideProxyAndSubtree( nodeA, arrayB, b3GetLeftChild( nodeB ), context );
+	}
+	else if ( leafB )
+	{
+		b3CollideProxyAndSubtree( nodeB, arrayA, b3GetLeftChild( nodeA ), context );
+	}
+	else
+	{
+		if ( *stackCount < B3_TREE_STACK_SIZE )
+		{
+			stack[*stackCount] = B3_LITERAL( b3IndexPair ){ .a = b3GetLeftChild( nodeA ), .b = b3GetLeftChild( nodeB ) };
+			*stackCount += 1;
+		}
+		else
+		{
+			B3_ASSERT( *stackCount < B3_TREE_STACK_SIZE );
+		}
+	}
+}
+
+// This collides two sub-trees against each other. They can live in the same dynamic tree.
+// This can only generate pairs cross sub-tree, but not within a sub-tree. This fact means
+// this does not generate duplicate pairs.
+// For example consider the full binary tree A (B (D  E) C (F G))
+// Colliding children of A (B and C) can give pairs (D,F) (D,G) (E,F) and (E,G).
+// Then colliding children of B can give the pair (D,E) and for C (F,G).
+// So no duplicates even when used for self-collision.
+// Whenever a proxy is moved, the flag is propagated up the hierarchy to the root. So
+// self collision gathers all those moved internal nodes and collides their subtrees together.
+// See Real-time collision detection section 6.3.2. This is faster than querying every moved
+// proxy against the whole tree. Scaling is linear instead of linear * log.
+// Many other physics engines do this (Bepu, Rapier, etc). So nothing new here.
+static void b3CollideCrossPairs( const b3TreeNode* arrayA, const b3TreeNode* arrayB, const b3TreeNode* subtreeA,
+								 const b3TreeNode* subtreeB, b3PairContext* context )
+{
+	b3IndexPair stack[B3_TREE_STACK_SIZE];
+	int stackCount = 0;
+
+	// Seed the stack.
+	b3VisitPair( arrayA, arrayB, subtreeA, subtreeB, stack, &stackCount, context );
+
+	while ( stackCount > 0 )
+	{
+		b3IndexPair pair = stack[--stackCount];
+		for ( int i = 0; i < 2; ++i )
+		{
+			for ( int j = 0; j < 2; ++j )
+			{
+				b3VisitPair( arrayA, arrayB, arrayA + pair.a + i, arrayB + pair.b + j, stack, &stackCount, context );
+			}
+		}
+	}
+}
+
+// This takes moved internal nodes and collides their sub-trees against each other.
+static void b3SelfPairsTask( int startIndex, int endIndex, int workerIndex, void* context )
+{
+	b3TracyCZoneNC( self_pairs, "Self", b3_colorCoral, true );
+
+	b3World* world = context;
+	b3BroadPhase* bp = &world->broadPhase;
+	const b3DynamicTree* tree = bp->trees + b3_dynamicBody;
+	const b3TreeNode* nodes = tree->nodes;
+	const int* siblingIndices = bp->movedSiblings;
+
+	b3PairContext pairContext = {
+		.world = world,
+		.pairKeys = &world->taskContexts.data[workerIndex].pairKeys,
+	};
 
 	for ( int i = startIndex; i < endIndex; ++i )
 	{
-		// Initialize move result for this moved proxy
-		queryContext.moveResult = bp->moveResults + i;
-		queryContext.moveResult->pairList = NULL;
-
-		int proxyKey = bp->moveArray.data[i];
-		b3BodyType proxyType = B3_PROXY_TYPE( proxyKey );
-
-		int proxyId = B3_PROXY_ID( proxyKey );
-		queryContext.queryProxyKey = proxyKey;
-
-		const b3DynamicTree* baseTree = bp->trees + proxyType;
-
-		// We have to query the tree with the fat AABB so that
-		// we don't fail to create a contact that may touch later.
-		b3AABB fatAABB = b3DynamicTree_GetAABB( baseTree, proxyId );
-		queryContext.queryShapeIndex = (int)b3DynamicTree_GetUserData( baseTree, proxyId );
-		queryContext.aabb = fatAABB;
-
-		// Compound shape collision invocation is not supported
-		B3_VALIDATE( world->shapes.data[queryContext.queryShapeIndex].type != b3_compoundShape );
-
-		// Query trees. Only dynamic proxies collide with kinematic and static proxies.
-		// Using B3_DEFAULT_MASK_BITS so that b3Filter::groupIndex works.
-		// consider using bits = groupIndex > 0 ? B3_DEFAULT_MASK_BITS : maskBits
-		bool requireAllBits = false;
-		if ( proxyType == b3_dynamicBody )
-		{
-			queryContext.queryTreeType = b3_kinematicBody;
-			b3DynamicTree_Query( bp->trees + b3_kinematicBody, fatAABB, B3_DEFAULT_MASK_BITS, requireAllBits, b3PairQueryCallback,
-								 &queryContext );
-
-			queryContext.queryTreeType = b3_staticBody;
-			b3DynamicTree_Query( bp->trees + b3_staticBody, fatAABB, B3_DEFAULT_MASK_BITS, requireAllBits, b3PairQueryCallback,
-								 &queryContext );
-		}
-
-		// All proxies collide with dynamic proxies
-		// Using B3_DEFAULT_MASK_BITS so that b3Filter::groupIndex works.
-		queryContext.queryTreeType = b3_dynamicBody;
-		b3DynamicTree_Query( bp->trees + b3_dynamicBody, fatAABB, B3_DEFAULT_MASK_BITS, requireAllBits, b3PairQueryCallback,
-							 &queryContext );
+		int nodeIndex = siblingIndices[i];
+		b3CollideCrossPairs( nodes, nodes, nodes + nodeIndex, nodes + nodeIndex + 1, &pairContext );
 	}
 
-	b3TracyCZoneEnd( pair_task );
+	b3FlushCandidatePairs( &pairContext );
+
+	b3TracyCZoneEnd( self_pairs );
+}
+
+#define B3_CROSS_SEED_COUNT 64
+_Static_assert( ( B3_CROSS_SEED_COUNT & ( B3_CROSS_SEED_COUNT - 1 ) ) == 0, "must be power of 2" );
+
+// This does a serial cross-tree breadth first search until the queue is full. Then it returns
+// the queue pairs as seeds for a parallel search.
+static int b3GatherCrossSeeds( const b3DynamicTree* treeA, const b3DynamicTree* treeB, b3NodePair* seeds )
+{
+	const b3TreeNode* nodesA = treeA->nodes;
+	const b3TreeNode* nodesB = treeB->nodes;
+
+	// Breadth-first search from the two roots as one pair. An empty tree has a sentinel root that
+	// survives nothing.
+	b3NodePair queue[2 * B3_CROSS_SEED_COUNT];
+	int mask = 2 * B3_CROSS_SEED_COUNT - 1;
+	int head = 0;
+	int tail = 0;
+
+	const b3TreeNode* rootA = nodesA + B3_ROOT_NODE;
+	const b3TreeNode* rootB = nodesB + B3_ROOT_NODE;
+	if ( b3TestPair( rootA, rootB ) )
+	{
+		queue[tail & mask] = B3_LITERAL( b3NodePair ){ .a = *rootA, .b = *rootB };
+		tail += 1;
+	}
+
+	int seedCount = 0;
+	while ( head < tail && seedCount + ( tail - head ) + 3 < B3_CROSS_SEED_COUNT )
+	{
+		b3NodePair pair = queue[head & mask];
+		head += 1;
+
+		if ( b3IsLeaf( &pair.a ) || b3IsLeaf( &pair.b ) )
+		{
+			seeds[seedCount++] = pair;
+			continue;
+		}
+
+		const b3TreeNode* a = nodesA + b3GetLeftChild( &pair.a );
+		const b3TreeNode* b = nodesB + b3GetLeftChild( &pair.b );
+
+		// Nodes have two children each, so four combinations.
+		for ( int i = 0; i < 2; ++i )
+		{
+			for ( int j = 0; j < 2; ++j )
+			{
+				if ( b3TestPair( a + i, b + j ) )
+				{
+					queue[tail & mask] = B3_LITERAL( b3NodePair ){ a[i], b[j] };
+					tail += 1;
+				}
+			}
+		}
+	}
+
+	while ( head < tail )
+	{
+		seeds[seedCount] = queue[head & mask];
+		seedCount += 1;
+		head += 1;
+	}
+
+	return seedCount;
+}
+
+typedef struct b3CrossContext
+{
+	b3World* world;
+	const b3NodePair* seeds;
+	int staticSeedCount;
+	bool checkCompounds;
+} b3CrossContext;
+
+static void b3CrossPairsTask( int startIndex, int endIndex, int workerIndex, void* context )
+{
+	b3TracyCZoneNC( cross_pairs, "Cross", b3_colorCoral, true );
+
+	b3CrossContext* crossContext = context;
+	b3World* world = crossContext->world;
+	b3BroadPhase* bp = &world->broadPhase;
+	const b3TreeNode* staticNodes = bp->trees[b3_staticBody].nodes;
+	const b3TreeNode* kinematicNodes = bp->trees[b3_kinematicBody].nodes;
+	const b3TreeNode* dynamicNodes = bp->trees[b3_dynamicBody].nodes;
+
+	b3PairContext pairContext = {
+		.world = world,
+		.pairKeys = &world->taskContexts.data[workerIndex].pairKeys,
+	};
+
+	// Static seeds come first, so the two passes are contiguous sub-ranges. The batch is drained
+	// between them because only the static pass can meet a compound.
+	int staticEnd = b3MinInt( endIndex, crossContext->staticSeedCount );
+
+	pairContext.checkCompounds = crossContext->checkCompounds;
+	for ( int i = startIndex; i < staticEnd; ++i )
+	{
+		b3NodePair seed = crossContext->seeds[i];
+		b3CollideCrossPairs( dynamicNodes, staticNodes, &seed.a, &seed.b, &pairContext );
+	}
+	b3FlushCandidatePairs( &pairContext );
+
+	pairContext.checkCompounds = false;
+	for ( int i = b3MaxInt( startIndex, crossContext->staticSeedCount ); i < endIndex; ++i )
+	{
+		b3NodePair seed = crossContext->seeds[i];
+		b3CollideCrossPairs( dynamicNodes, kinematicNodes, &seed.a, &seed.b, &pairContext );
+	}
+	b3FlushCandidatePairs( &pairContext );
+
+	b3TracyCZoneEnd( cross_pairs );
 }
 
 static void b3UpdateTreesTask( void* context )
@@ -416,89 +648,135 @@ void b3UpdateBroadPhasePairs( b3World* world )
 {
 	b3BroadPhase* bp = &world->broadPhase;
 
-	int moveCount = bp->moveArray.count;
+	bool needUpdate = b3HasTreeMoved( bp->trees + b3_staticBody );
+	needUpdate = needUpdate || b3NeedsRebuild( bp->trees + b3_kinematicBody );
+	needUpdate = needUpdate || b3NeedsRebuild( bp->trees + b3_dynamicBody );
 
-	if ( moveCount == 0 )
+	if ( needUpdate == false )
 	{
-		// A destroyed shape may lead to no moves, but the tree could still be enlarged.
-		b3EnqueueTreeUpdate( world );
 		return;
 	}
 
-	b3TracyCZoneNC( update_pairs, "Pairs", b3_colorMediumSlateBlue, true );
+	b3TracyCZoneNC( update_pairs, "Find Pairs", b3_colorMediumSlateBlue, true );
 
 	b3Stack* alloc = &world->stack;
 
-	// todo these could be in the step context
-	bp->moveResults = (b3MoveResult*)b3StackAlloc( alloc, moveCount * sizeof( b3MoveResult ), "move results" );
-	bp->movePairCapacity = 16 * moveCount;
-	bp->movePairs = (b3MovePair*)b3StackAlloc( alloc, bp->movePairCapacity * sizeof( b3MovePair ), "move pairs" );
+	for ( int i = 0; i < world->workerCount; ++i )
+	{
+		b3Array_Clear( world->taskContexts.data[i].pairKeys );
+	}
 
-	b3AtomicStoreInt( &bp->movePairIndex, 0 );
+	// Generate pairs by querying the dynamic body tree against itself and against
+	// the kinematic and static trees.
+	{
+		// Get the sibling pairs of the dynamic body tree that have moved.
+		const b3DynamicTree* dynamicTree = bp->trees + b3_dynamicBody;
+		int pairCapacity = b3MaxInt( dynamicTree->nodeEnd / 2, 1 );
+		bp->movedSiblings = b3StackAlloc( alloc, pairCapacity * sizeof( int ), "moved pairs" );
+		int dynamicMoveCount = b3GatherMovedSiblings( dynamicTree, bp->movedSiblings );
 
-#ifndef NDEBUG
-	extern b3AtomicInt b3_probeCount;
-	b3AtomicStoreInt( &b3_probeCount, 0 );
-#endif
+		// Get seeds for colliding against the static and kinematic trees.
+		b3NodePair crossSeeds[2 * B3_CROSS_SEED_COUNT];
+		int staticSeedCount = b3GatherCrossSeeds( dynamicTree, bp->trees + b3_staticBody, crossSeeds );
+		B3_ASSERT( staticSeedCount <= B3_CROSS_SEED_COUNT );
+		int kinematicSeedCount = b3GatherCrossSeeds( dynamicTree, bp->trees + b3_kinematicBody, crossSeeds + staticSeedCount );
+		B3_ASSERT( kinematicSeedCount <= B3_CROSS_SEED_COUNT );
+		int crossMoveCount = staticSeedCount + kinematicSeedCount;
 
-	int minRange = 64;
-	b3ParallelFor( world, b3FindPairsTask, moveCount, minRange, world, "pairs" );
+		// Collide the dynamic body tree against the static and kinematic trees.
+		b3CrossContext crossContext = {
+			.world = world,
+			.seeds = crossSeeds,
+			.staticSeedCount = staticSeedCount,
+			.checkCompounds = world->compoundShapeCount > 0,
+		};
+		b3ParallelFor( world, &b3CrossPairsTask, crossMoveCount, 1, &crossContext, "cross pairs" );
+
+		// Collide the dynamic body tree against itself.
+		b3ParallelFor( world, &b3SelfPairsTask, dynamicMoveCount, 64, world, "self pairs" );
+	}
+
+	b3DynamicTree_ClearMoved( bp->trees + b3_staticBody );
+
+	b3TracyCZoneEnd( update_pairs );
 
 	b3TracyCZoneNC( create_contacts, "Create Contacts", b3_colorCoral, true );
 
 	// Update stale trees.
 	b3EnqueueTreeUpdate( world );
 
-	// Single-threaded work
-	// - Clear move flags
-	// - Create contacts in deterministic order
-	for ( int i = 0; i < moveCount; ++i )
+	// Pairs arrive in deterministic order but scrambled relative to body and shape order.
+	// Sorting them here improves solver performance and makes contact order independent of
+	// tree structure.
+	int pairCount = 0;
+	for ( int i = 0; i < world->workerCount; ++i )
 	{
-		b3MoveResult* result = bp->moveResults + i;
-		b3MovePair* pair = result->pairList;
-		while ( pair != NULL )
+		pairCount += world->taskContexts.data[i].pairKeys.count;
+	}
+
+	uint64_t* pairKeys = b3StackAlloc( alloc, b3MaxInt( pairCount, 1 ) * sizeof( uint64_t ), "pair keys" );
+	int keyCount = 0;
+	for ( int i = 0; i < world->workerCount; ++i )
+	{
+		const b3Array( uint64_t )* workerKeys = &world->taskContexts.data[i].pairKeys;
+		if ( workerKeys->count > 0 )
 		{
-			int shapeIdA = pair->shapeIndexA;
-			int shapeIdB = pair->shapeIndexB;
-			int childIndex = pair->childIndex;
-
-			b3Shape* shapeA = b3Array_Get( world->shapes, shapeIdA );
-			b3Shape* shapeB = b3Array_Get( world->shapes, shapeIdB );
-
-			b3CreateContact( world, shapeA, shapeB, childIndex );
-
-			if ( pair->heap )
-			{
-				b3MovePair* temp = pair;
-				pair = pair->next;
-				b3Free( temp, sizeof( b3MovePair ) );
-			}
-			else
-			{
-				pair = pair->next;
-			}
+			memcpy( pairKeys + keyCount, workerKeys->data, workerKeys->count * sizeof( uint64_t ) );
+			keyCount += workerKeys->count;
 		}
 	}
 
-	// Reset move buffer: clear only the bits that were set this step.
-	// Invariant: bit set in movedProxies[type] iff proxyKey is present in moveArray.
-	for ( int i = 0; i < bp->moveArray.count; ++i )
-	{
-		int proxyKey = bp->moveArray.data[i];
-		b3ClearBit( &bp->movedProxies[B3_PROXY_TYPE( proxyKey )], B3_PROXY_ID( proxyKey ) );
-	}
-	b3Array_Clear( bp->moveArray );
+	B3_ASSERT( keyCount == pairCount );
 
-	b3StackFree( alloc, bp->movePairs );
-	bp->movePairs = NULL;
-	b3StackFree( alloc, bp->moveResults );
-	bp->moveResults = NULL;
+	{
+#define LESS( i, j ) ( pairKeys[(int)( i )] < pairKeys[(int)( j )] )
+#define SWAP( i, j )                                                                                                             \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		uint64_t tmp_ = pairKeys[(int)( i )];                                                                                    \
+		pairKeys[(int)( i )] = pairKeys[(int)( j )];                                                                             \
+		pairKeys[(int)( j )] = tmp_;                                                                                             \
+	}                                                                                                                            \
+	while ( 0 )
+
+		QSORT( pairCount, LESS, SWAP );
+
+#undef LESS
+#undef SWAP
+	}
+
+	for ( int i = 0; i < keyCount; ++i )
+	{
+		uint64_t key = pairKeys[i];
+
+		// The traversal is cross subtree and the seeds are disjoint, so a duplicate key means a
+		// real bug. Trap it in a validation build, and skip rather than double add to the pair
+		// set, which a later destroy would then remove once.
+		bool duplicate = i > 0 && key == pairKeys[i - 1];
+		B3_VALIDATE( duplicate == false );
+		if ( duplicate )
+		{
+			continue;
+		}
+
+		int shapeIdA = (int)( ( key >> ( 64 - B3_SHAPE_POWER ) ) & B3_SHAPE_MASK );
+		int shapeIdB = (int)( ( key >> ( 64 - 2 * B3_SHAPE_POWER ) ) & B3_SHAPE_MASK );
+		int childIndex = (int)( key & B3_CHILD_MASK );
+
+		b3Shape* shapeA = b3Array_Get( world->shapes, shapeIdA );
+		b3Shape* shapeB = b3Array_Get( world->shapes, shapeIdB );
+
+		b3CreateContact( world, shapeA, shapeB, childIndex );
+	}
+
+	b3StackFree( alloc, pairKeys );
+
+	b3StackFree( alloc, bp->movedSiblings );
+	bp->movedSiblings = NULL;
 
 	b3ValidateSolverSets( world );
 
 	b3TracyCZoneEnd( create_contacts );
-
-	b3TracyCZoneEnd( update_pairs );
 }
 
 bool b3BroadPhase_TestOverlap( const b3BroadPhase* bp, int proxyKeyA, int proxyKeyB )
@@ -535,7 +813,7 @@ void b3ValidateNoEnlarged( const b3BroadPhase* bp )
 	for ( int j = 0; j < b3_bodyTypeCount; ++j )
 	{
 		const b3DynamicTree* tree = bp->trees + j;
-		b3DynamicTree_ValidateNoEnlarged( tree );
+		b3DynamicTree_ValidateNoMoved( tree );
 	}
 #else
 	B3_UNUSED( bp );

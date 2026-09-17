@@ -12,6 +12,11 @@
 #include <intrin.h>
 #elif defined( _MSC_VER )
 #include <intrin0.h>
+// _MM_HINT_T0 lives here. Prefetch is a platform intrinsic, not part of the SIMD kernel
+// selection, so it has to survive a BOX3D_DISABLE_SIMD build.
+#if defined( _M_X64 ) || defined( _M_IX86 )
+#include <xmmintrin.h>
+#endif
 #endif
 
 #if defined( _MSC_VER )
@@ -100,6 +105,29 @@ static inline uint32_t b3AtomicLoadU32( b3AtomicU32* a )
 	return value;
 #elif defined( __GNUC__ ) || defined( __clang__ )
 	return __atomic_load_n( &a->value, __ATOMIC_SEQ_CST );
+#else
+#error "Unsupported platform"
+#endif
+}
+
+// Relaxed load on a plain word. Lets a racing reader peek before paying for a read modify write.
+static inline uint32_t b3AtomicLoadU32Raw( uint32_t* a )
+{
+#if defined( _MSC_VER ) && !defined( __clang__ )
+	return (uint32_t)__iso_volatile_load32( (volatile __int32*)a );
+#elif defined( __GNUC__ ) || defined( __clang__ )
+	return __atomic_load_n( a, __ATOMIC_RELAXED );
+#else
+#error "Unsupported platform"
+#endif
+}
+
+static inline uint32_t b3AtomicFetchOrU32( uint32_t* a, uint32_t mask )
+{
+#if defined( _MSC_VER )
+	return (uint32_t)_InterlockedOr( (long*)a, (long)mask );
+#elif defined( __GNUC__ ) || defined( __clang__ )
+	return __atomic_fetch_or( a, mask, __ATOMIC_SEQ_CST );
 #else
 #error "Unsupported platform"
 #endif

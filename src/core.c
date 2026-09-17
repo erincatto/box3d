@@ -230,6 +230,13 @@ void* b3GrowAlloc( void* oldMem, int oldSize, int newSize )
 	return newMem;
 }
 
+void* b3GrowAllocZeroed( void* oldMem, int oldSize, int newSize )
+{
+	void* newMem = b3GrowAlloc( oldMem, oldSize, newSize );
+	memset( (char*)newMem + oldSize, 0, (size_t)( newSize - oldSize ) );
+	return newMem;
+}
+
 int b3GetByteCount( void )
 {
 	return b3AtomicLoadInt( &b3_byteCount );

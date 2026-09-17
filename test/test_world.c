@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "benchmarks.h"
+#include "dynamic_tree.h"
 #include "overflow_color.h"
 #include "physics_world.h"
 #include "test_macros.h"
@@ -971,13 +972,13 @@ static int EnableContactRecyclingTest( void )
 	return 0;
 }
 
-static int CountEnlargedNodes( const b3DynamicTree* tree )
+static int CountMovedNodes( const b3DynamicTree* tree )
 {
 	int count = 0;
-	for ( int i = 0; i < tree->nodeCapacity; ++i )
+	for ( int i = 0; i < tree->nodeEnd; ++i )
 	{
 		const b3TreeNode* node = tree->nodes + i;
-		if ( ( node->flags & b3_allocatedNode ) != 0 && ( node->flags & b3_enlargedNode ) != 0 )
+		if ( b3IsEmptyNode( node ) == false && b3IsNodeMoved( node ) )
 		{
 			count += 1;
 		}
@@ -1020,17 +1021,20 @@ static int TestEnlargedProxyDestroyed( void )
 	float timeStep = 1.0f / 60.0f;
 	b3World_Step( worldId, timeStep, 4 );
 
-	ENSURE( CountEnlargedNodes( tree ) > 0 );
+	ENSURE( CountMovedNodes( tree ) > 0 );
 
 	b3DestroyBody( moverId );
 
-	// The mover was the only proxy in the move buffer
-	ENSURE( world->broadPhase.moveArray.count == 0 );
-	ENSURE( CountEnlargedNodes( tree ) > 0 );
+	// Removing the leaf re-derives the marks along its path, so the tree is already consistent
+	// here and nothing is left marked to drive a rebuild. What the destroy can still leave
+	// stale is the DFS order the sweep refit needs, so the step has to rebuild regardless.
+	b3DynamicTree_Validate( tree );
+	ENSURE( CountMovedNodes( tree ) == 0 );
 
 	b3World_Step( worldId, timeStep, 4 );
 
-	ENSURE( CountEnlargedNodes( tree ) == 0 );
+	ENSURE( CountMovedNodes( tree ) == 0 );
+	ENSURE( tree->dfsOrdered );
 
 	b3DestroyWorld( worldId );
 	return 0;

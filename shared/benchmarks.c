@@ -1000,3 +1000,331 @@ void CreateConvexPile( b3WorldId worldId )
 
 	b3DestroyHull( convex );
 }
+
+#define SPINNER_SEGMENT_COUNT 90
+
+typedef struct
+{
+	b3MeshData* cylinderMesh;
+	b3JointId spinnerId;
+} SpinnerData;
+
+static SpinnerData g_spinnerData;
+
+// An inward facing cylinder capped on both ends, axis along z. Every triangle is wound so its
+// normal points at the axis, which is what holds the contents in. The caps do the same job along
+// the axis that the 2D loop had for free.
+static b3MeshData* CreateInwardCylinderMesh( float radius, float halfDepth, float yCenter, int segmentCount )
+{
+	int vertexCount = 2 * segmentCount + 2;
+	int triangleCount = 4 * segmentCount;
+
+	b3Vec3* vertices = malloc( vertexCount * sizeof( b3Vec3 ) );
+	int* indices = malloc( 3 * triangleCount * sizeof( int ) );
+
+	for ( int i = 0; i < segmentCount; ++i )
+	{
+		float angle = 2.0f * B3_PI * (float)i / (float)segmentCount;
+		b3CosSin cs = b3ComputeCosSin( angle );
+		float x = radius * cs.cosine;
+		float y = radius * cs.sine + yCenter;
+		vertices[2 * i + 0] = (b3Vec3){ x, y, -halfDepth };
+		vertices[2 * i + 1] = (b3Vec3){ x, y, halfDepth };
+	}
+
+	int centerNegative = 2 * segmentCount;
+	int centerPositive = 2 * segmentCount + 1;
+	vertices[centerNegative] = (b3Vec3){ 0.0f, yCenter, -halfDepth };
+	vertices[centerPositive] = (b3Vec3){ 0.0f, yCenter, halfDepth };
+
+	int index = 0;
+	for ( int i = 0; i < segmentCount; ++i )
+	{
+		int j = ( i + 1 ) % segmentCount;
+
+		// Wall, normal towards the axis
+		indices[index++] = 2 * i + 0;
+		indices[index++] = 2 * i + 1;
+		indices[index++] = 2 * j + 1;
+
+		indices[index++] = 2 * i + 0;
+		indices[index++] = 2 * j + 1;
+		indices[index++] = 2 * j + 0;
+
+		// Near cap, normal towards positive z
+		indices[index++] = centerNegative;
+		indices[index++] = 2 * i + 0;
+		indices[index++] = 2 * j + 0;
+
+		// Far cap, normal towards negative z
+		indices[index++] = centerPositive;
+		indices[index++] = 2 * j + 1;
+		indices[index++] = 2 * i + 1;
+	}
+
+	assert( index == 3 * triangleCount );
+
+	b3MeshDef meshDef = { 0 };
+	meshDef.vertices = vertices;
+	meshDef.vertexCount = vertexCount;
+	meshDef.indices = indices;
+	meshDef.triangleCount = triangleCount;
+	meshDef.identifyEdges = true;
+
+	b3MeshData* meshData = b3CreateMesh( &meshDef, NULL, 0 );
+
+	free( vertices );
+	free( indices );
+
+	return meshData;
+}
+
+void GetSpinnerCapacity( b3Capacity* capacity )
+{
+	capacity->staticShapeCount = 4;
+	capacity->staticBodyCount = 4;
+	capacity->dynamicShapeCount = 2000;
+	capacity->dynamicBodyCount = 2000;
+	capacity->contactCount = 20000;
+}
+
+// A paddle on a motor churning a pile of small shapes inside a closed cylinder. The cylinder axis
+// is z so the cross section matches the 2D benchmark and the hinge, which turns about the local
+// frame z axis, lines up with it. The paddle circle is internally tangent to the cylinder at the
+// bottom, so the tip scrapes the floor.
+void CreateSpinner( b3WorldId worldId )
+{
+	g_spinnerData = (SpinnerData){ 0 };
+
+	float radius = 12.0f;
+	float halfDepth = 1.0f;
+	float yCenter = radius;
+
+	b3BodyId groundId;
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		groundId = b3CreateBody( worldId, &bodyDef );
+
+		g_spinnerData.cylinderMesh = CreateInwardCylinderMesh( radius, halfDepth, yCenter, SPINNER_SEGMENT_COUNT );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.1f;
+		b3CreateMeshShape( groundId, &shapeDef, g_spinnerData.cylinderMesh, b3Vec3_one );
+	}
+
+	{
+		float halfLength = 0.5f * radius;
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ 0.0f, yCenter - halfLength, 0.0f };
+		bodyDef.enableSleep = false;
+
+		b3BodyId spinnerId = b3CreateBody( worldId, &bodyDef );
+
+		b3BoxHull paddle = b3MakeBoxHull( 0.3f, halfLength + 0.1f, halfDepth + 0.1f );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.0f;
+		b3CreateHullShape( spinnerId, &shapeDef, &paddle.base );
+
+		b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
+		jointDef.base.bodyIdA = groundId;
+		jointDef.base.bodyIdB = spinnerId;
+		jointDef.base.localFrameA.p = (b3Vec3){ 0.0f, yCenter - halfLength, 0.0f };
+		jointDef.enableMotor = true;
+		jointDef.motorSpeed = 8.0f;
+		jointDef.maxMotorTorque = FLT_MAX;
+
+		g_spinnerData.spinnerId = b3CreateRevoluteJoint( worldId, &jointDef );
+	}
+
+	b3Capsule capsule = { { -0.15f, 0.0f, 0.0f }, { 0.15f, 0.0f, 0.0f }, 0.15f };
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.2f };
+	b3BoxHull cube = b3MakeBoxHull( 0.2f, 0.2f, 0.2f );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	shapeDef.baseMaterial.friction = 0.1f;
+	shapeDef.baseMaterial.restitution = 0.1f;
+	shapeDef.density = 0.25f;
+
+	int bodyCount = BENCHMARK_DEBUG ? 500 : 1500;
+
+	// The grid starts low where the cylinder is narrow, so the span has to fit the chord there
+	float spacing = 0.55f;
+	float yStart = 2.0f;
+	float chordHalfWidth = sqrtf( radius * radius - ( yCenter - yStart ) * ( yCenter - yStart ) );
+	float xLimit = chordHalfWidth - 2.0f * spacing;
+	float zLimit = halfDepth - 2.0f * spacing;
+
+	float x = -xLimit;
+	float y = yStart;
+	float z = -zLimit;
+
+	for ( int i = 0; i < bodyCount; ++i )
+	{
+		bodyDef.position = (b3Pos){ x, y, z };
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+		int remainder = i % 3;
+		remainder = 1;
+		if ( remainder == 0 )
+		{
+			b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
+		}
+		else if ( remainder == 1 )
+		{
+			b3CreateSphereShape( bodyId, &shapeDef, &sphere );
+		}
+		else
+		{
+			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+		}
+
+		z += spacing;
+
+		if ( z > zLimit )
+		{
+			z = -zLimit;
+			x += spacing;
+
+			if ( x > xLimit )
+			{
+				x = -xLimit;
+				y += spacing;
+			}
+		}
+	}
+}
+
+void DestroySpinner( void )
+{
+	if ( g_spinnerData.cylinderMesh != NULL )
+	{
+		b3DestroyMesh( g_spinnerData.cylinderMesh );
+		g_spinnerData.cylinderMesh = NULL;
+	}
+}
+
+// The motor is unbounded, so a healthy run holds the commanded speed and the angle advances
+// steadily. A stalling solver shows up here before it shows up in the step time.
+float GetSpinnerAngle( void )
+{
+	if ( b3Joint_IsValid( g_spinnerData.spinnerId ) == false )
+	{
+		return 0.0f;
+	}
+
+	return b3RevoluteJoint_GetAngle( g_spinnerData.spinnerId );
+}
+
+#define SLEEP_PYRAMID_COUNT 10
+
+typedef struct
+{
+	b3BodyId bodyIdA[SLEEP_PYRAMID_COUNT];
+	b3BodyId bodyIdB[SLEEP_PYRAMID_COUNT];
+} SleepData;
+
+static SleepData g_sleepData;
+
+// Reports two bodies that are certain to share a touching contact, so the filter joint below
+// always lands inside one island.
+static void CreateSleepPyramid( b3WorldId worldId, int baseCount, float extent, float centerX, b3BodyId* bodyIdA,
+								b3BodyId* bodyIdB )
+{
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.sleepThreshold = 1.0f;
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeBoxHull( extent, extent, extent );
+
+	for ( int i = 0; i < baseCount; ++i )
+	{
+		float y = ( 2.0f * i + 1.0f ) * extent;
+
+		for ( int j = i; j < baseCount; ++j )
+		{
+			float x = ( i + 1.0f ) * extent + 2.0f * ( j - i ) * extent + centerX;
+			bodyDef.position = (b3Pos){ x, y, 0.0f };
+
+			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+			if ( i == 0 && j == 0 )
+			{
+				*bodyIdA = bodyId;
+			}
+			else if ( i == 1 && j == 1 )
+			{
+				// Rests on the base body above, so the pair always has a touching contact
+				*bodyIdB = bodyId;
+			}
+		}
+	}
+}
+
+void GetSleepCapacity( b3Capacity* capacity )
+{
+	capacity->staticShapeCount = 4;
+	capacity->staticBodyCount = 4;
+	capacity->dynamicShapeCount = 2200;
+	capacity->dynamicBodyCount = 2200;
+	capacity->contactCount = 12000;
+}
+
+// Stress tests waking and sleeping. Each pyramid settles into its own island and the step below
+// wakes one of them again, so the island splitter never gets to rest.
+void CreateSleep( b3WorldId worldId )
+{
+	g_sleepData = (SleepData){ 0 };
+
+	int baseCount = BENCHMARK_DEBUG ? 8 : 20;
+	float extent = 0.5f;
+
+	float baseWidth = 2.0f * extent * baseCount;
+	float pitch = baseWidth + 8.0f * extent;
+	float span = pitch * ( SLEEP_PYRAMID_COUNT - 1 );
+
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = (b3Pos){ 0.0f, -1.0f, 0.0f };
+		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+
+		b3BoxHull box = b3MakeBoxHull( 0.5f * span + baseWidth, 1.0f, 4.0f );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		g_groundShapeId = b3CreateHullShape( groundId, &shapeDef, &box.base );
+	}
+
+	for ( int i = 0; i < SLEEP_PYRAMID_COUNT; ++i )
+	{
+		float centerX = -0.5f * span + i * pitch - 0.5f * baseWidth;
+		CreateSleepPyramid( worldId, baseCount, extent, centerX, g_sleepData.bodyIdA + i, g_sleepData.bodyIdB + i );
+	}
+}
+
+void StepSleep( b3WorldId worldId, int stepCount )
+{
+	(void)stepCount;
+
+	for ( int i = 0; i < SLEEP_PYRAMID_COUNT; ++i )
+	{
+		if ( b3Body_IsAwake( g_sleepData.bodyIdA[i] ) == false )
+		{
+			// Creating and destroying a joint engages the island splitter
+			b3FilterJointDef jointDef = b3DefaultFilterJointDef();
+			jointDef.base.bodyIdA = g_sleepData.bodyIdA[i];
+			jointDef.base.bodyIdB = g_sleepData.bodyIdB[i];
+			b3JointId jointId = b3CreateFilterJoint( worldId, &jointDef );
+
+			// This wakes the island
+			b3DestroyJoint( jointId, true );
+
+			// Only one per step
+			break;
+		}
+	}
+}

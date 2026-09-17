@@ -953,7 +953,7 @@ void b3Joint_SetCollideConnected( b3JointId jointId, bool shouldCollide )
 
 			if ( shape->proxyKey != B3_NULL_INDEX )
 			{
-				b3BufferMove( &world->broadPhase, shape->proxyKey );
+				b3BroadPhase_MarkProxyMovedSerial( &world->broadPhase, shape->proxyKey );
 			}
 
 			shapeId = shape->nextShapeId;

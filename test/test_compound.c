@@ -76,8 +76,10 @@ static int CompoundCreateMixed( void )
 	ENSURE( compound->sharedHullCount == 1 );
 	ENSURE( compound->sharedMeshCount == 1 );
 
-	ENSURE( compound->tree.nodeCount > 0 );
+	ENSURE( compound->tree.nodeEnd >= 2 );
+	ENSURE( compound->tree.proxyCount > 0 );
 	ENSURE( compound->tree.nodes != NULL );
+	ENSURE( compound->tree.proxies != NULL );
 
 	b3DestroyCompound( compound );
 	b3DestroyMesh( meshData );

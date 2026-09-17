@@ -8,7 +8,7 @@
 #include <assert.h>
 #include <stdint.h>
 
-b3DeclareArrayNative( uint64_t );
+// uint64_t is already declared in container.h for the broad-phase pair keys
 b3DeclareArrayNative( int16_t );
 b3DeclareArrayNative( uint8_t );
 
