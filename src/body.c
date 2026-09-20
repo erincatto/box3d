@@ -95,19 +95,15 @@ void b3RefreshBodyContactIndices( b3World* world, b3Body* body )
 
 void b3SyncBodyFlags( b3World* world, b3Body* body )
 {
-	// Never sync transient flags
-	uint32_t flags = body->flags & ~b3_bodyTransientFlags;
-
 	b3BodySim* bodySim = b3GetBodySim( world, body );
 
-	// Currently only the body sim carries the fast flag and it is
-	// needed for contact recycling.
-	bodySim->flags = flags | ( bodySim->flags & b3_isFast );
+	// Preserve the fast flag for contact recycling.
+	bodySim->flags = ( bodySim->flags & b3_isFast ) | ( body->flags & ~b3_bodyTransientFlags );
 
 	b3BodyState* bodyState = b3GetBodyState( world, body );
 	if ( bodyState != NULL )
 	{
-		bodyState->flags = flags;
+		bodyState->flags = body->flags & ~b3_bodyTransientFlags;
 	}
 }
 
@@ -1151,14 +1147,7 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation )
 		b3AABB* shapeFatAABB = world->fatAABBs.data + shapeId;
 		if ( b3AABB_Contains( *shapeFatAABB, aabb ) == false )
 		{
-			float margin = shape->aabbMargin;
-			b3AABB fatAABB;
-			fatAABB.lowerBound.x = aabb.lowerBound.x - margin;
-			fatAABB.lowerBound.y = aabb.lowerBound.y - margin;
-			fatAABB.lowerBound.z = aabb.lowerBound.z - margin;
-			fatAABB.upperBound.x = aabb.upperBound.x + margin;
-			fatAABB.upperBound.y = aabb.upperBound.y + margin;
-			fatAABB.upperBound.z = aabb.upperBound.z + margin;
+			b3AABB fatAABB = b3AABB_Inflate( aabb, shape->aabbMargin );
 			*shapeFatAABB = fatAABB;
 
 			// The body could be disabled

@@ -294,3 +294,19 @@ struct CastClosestContext
 
 float CastClosestCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t materialId, int triangleIndex,
 						   int childIndex, void* context );
+
+struct MechanicalEnergy
+{
+	float Total() const
+	{
+		return linear + angular + potential;
+	}
+
+	float linear;
+	float angular;
+	float potential;
+};
+
+// Kinetic and gravitational potential energy summed over the bodies. Restitution samples
+// use the total as the invariant that may only decrease.
+MechanicalEnergy MeasureEnergy( b3WorldId worldId, const b3BodyId* bodyIds, int count );

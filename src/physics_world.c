@@ -651,8 +651,8 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 		// Contact recycling optimization. Please cite this library if you use this optimization.
 		// This is inspired by persistent contact manifolds used in some physics engines, such as PhysX.
 		// However, this allows larger relative motion and has fewer tuning parameters (just one).
-		if ( isFast == false && recycleDistance > 0.0f &&
-			 ( contact->flags & b3_relativeTransformValid ) && ( contact->flags & b3_contactRecycleFlag ) )
+		if ( isFast == false && recycleDistance > 0.0f && ( contact->flags & b3_relativeTransformValid ) &&
+			 ( contact->flags & b3_contactRecycleFlag ) )
 		{
 			// The scalar part of b3InvMulQuat is just the quaternion dot product.
 			// cos(relative_angle/2) = scalar(conj(q1) * q2) = dot(q1, q2)
@@ -1442,7 +1442,7 @@ void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits )
 				b3WorldTransform transform = { bodySim->center, bodySim->transform.q };
 				draw->DrawTransformFcn( transform, draw->context );
 
-				if (body->type == b3_dynamicBody)
+				if ( body->type == b3_dynamicBody )
 				{
 					b3Vec3 offset = { 0.05f, 0.05f, 0.05f };
 					b3Pos p = b3TransformWorldPoint( transform, offset );
@@ -3641,7 +3641,7 @@ void b3ValidateSolverSets( b3World* world )
 					B3_ASSERT( body->setIndex == setIndex );
 					B3_ASSERT( body->localIndex == i );
 
-					uint32_t syncedFlags = body->flags & ~b3_bodyTransientFlags;
+					uint32_t syncedFlags = body->flags & ~( b3_isFast | b3_bodyTransientFlags );
 					B3_ASSERT( ( bodySim->flags & syncedFlags ) == syncedFlags );
 
 					b3BodyState* bodyState = b3GetBodyState( world, body );

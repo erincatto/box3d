@@ -479,7 +479,7 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 
 	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
 	b3BodySim* fastBodySim = b3Array_Get( awakeSet->bodySims, bodySimIndex );
-	B3_ASSERT( fastBodySim->flags & b3_isFast );
+	B3_VALIDATE( fastBodySim->flags & b3_isFast );
 
 	// Re-center the sweep on the fast body so the TOI and the swept query stay in float precision
 	b3Pos base = fastBodySim->center0;
@@ -565,13 +565,15 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 		fastBodySim->rotation0 = q;
 		fastBodySim->center0 = center;
 
-		// The sweep ends early, so the body never experienced the gravity of the remaining time.
-		// Restitution measures the approach speed, so that lost contribution has to come back out.
-		// Other forces and torques are ignored for now.
+		// Timeloss means there is a lost gravity contribution. Other forces and torques are ignored for now.
 		b3BodyState* fastBodyState = b3Array_Get( awakeSet->bodyStates, bodySimIndex );
+		b3Vec3 v = fastBodyState->linearVelocity;
 		float timeLoss = ( 1.0f - context.fraction ) * dt;
-		fastBodyState->linearVelocity =
-			b3MulSub( fastBodyState->linearVelocity, timeLoss * fastBodySim->gravityScale, world->gravity );
+		b3Vec3 dv = b3MulSV( -timeLoss * fastBodySim->gravityScale, world->gravity );
+		dv.x = ( fastBodyState->flags & b3_lockLinearX ) ? 0.0f : dv.x;
+		dv.y = ( fastBodyState->flags & b3_lockLinearY ) ? 0.0f : dv.y;
+		dv.z = ( fastBodyState->flags & b3_lockLinearZ ) ? 0.0f : dv.z;
+		fastBodyState->linearVelocity = b3Add( v, dv );
 
 		// The move event was written before CCD, so correct it with the impact pose
 		b3BodyMoveEvent* event = b3Array_Get( world->bodyMoveEvents, bodySimIndex );
@@ -592,9 +594,7 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 			b3AABB* shapeFatAABB = world->fatAABBs.data + shapeId;
 			if ( b3AABB_Contains( *shapeFatAABB, aabb ) == false )
 			{
-				float marginScalar = shape->aabbMargin;
-				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
-				*shapeFatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
+				*shapeFatAABB = b3AABB_Inflate( aabb, shape->aabbMargin );
 
 				// Regular bodies mark the hierarchy as moved using atomic operations.
 				// Bullets are handled separately at a later stage.
@@ -630,12 +630,7 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 			b3AABB* shapeFatAABB = world->fatAABBs.data + shapeId;
 			if ( b3AABB_Contains( *shapeFatAABB, shape->aabb ) == false )
 			{
-				float marginScalar = shape->aabbMargin;
-				b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
-				*shapeFatAABB = (b3AABB){
-					.lowerBound = b3Sub( shape->aabb.lowerBound, aabbMargin ),
-					.upperBound = b3Add( shape->aabb.upperBound, aabbMargin ),
-				};
+				*shapeFatAABB = b3AABB_Inflate( shape->aabb, shape->aabbMargin );
 
 				if ( isBullet == false )
 				{
@@ -766,10 +761,13 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 		// or b3Body_SetMassData.
 		B3_ASSERT( ( body->flags & b3_dirtyMass ) == 0 );
 
+		// Clear the transient flags (fast, speed capped, had TOI). These flags are conditionally set
+		// as part of the code below.
 		body->flags &= ~b3_bodyTransientFlags;
-		body->flags |= ( sim->flags & ( b3_isSpeedCapped | b3_hadTimeOfImpact ) );
-		body->flags |= ( state->flags & ( b3_isSpeedCapped | b3_hadTimeOfImpact ) );
-		sim->flags &= ~b3_bodyTransientFlags;
+		sim->flags &= ~( b3_isFast | b3_bodyTransientFlags );
+
+		// The body state flag knows about speed capping (used for debug draw).
+		body->flags |= ( state->flags & b3_isSpeedCapped );
 		state->flags &= ~b3_bodyTransientFlags;
 
 		if ( enableSleep == false || ( body->flags & b3_enableSleep ) == 0 || sleepVelocity > body->sleepThreshold )
@@ -854,9 +852,7 @@ static void b3FinalizeBodiesTask( int startIndex, int endIndex, int workerIndex,
 				b3AABB* shapeFatAABB = world->fatAABBs.data + shapeId;
 				if ( b3AABB_Contains( *shapeFatAABB, aabb ) == false )
 				{
-					float marginScalar = shape->aabbMargin;
-					b3Vec3 aabbMargin = { marginScalar, marginScalar, marginScalar };
-					*shapeFatAABB = (b3AABB){ b3Sub( aabb.lowerBound, aabbMargin ), b3Add( aabb.upperBound, aabbMargin ) };
+					*shapeFatAABB = b3AABB_Inflate( aabb, shape->aabbMargin );
 
 					// Mark the hierarchy as moved using atomic operations.
 					b3BroadPhase_MarkProxyMoved( &world->broadPhase, shape->proxyKey, *shapeFatAABB );

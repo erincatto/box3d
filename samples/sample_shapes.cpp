@@ -337,32 +337,6 @@ public:
 
 static int sampleRestitution = RegisterSample( "Shapes", "Restitution", Restitution::Create );
 
-static void ComputeEnergy( b3WorldId worldId, const b3BodyId* bodyIds, int count, float* linear, float* angular,
-						   float* potential )
-{
-	b3Vec3 gravity = b3World_GetGravity( worldId );
-
-	float linearSum = 0.0f;
-	float angularSum = 0.0f;
-	float potentialSum = 0.0f;
-
-	for ( int i = 0; i < count; ++i )
-	{
-		b3MassData massData = b3Body_GetMassData( bodyIds[i] );
-		b3Vec3 v = b3Body_GetLinearVelocity( bodyIds[i] );
-
-		// The inertia tensor is in the body frame, so bring the angular velocity back to it
-		b3Vec3 w = b3InvRotateVector( b3Body_GetRotation( bodyIds[i] ), b3Body_GetAngularVelocity( bodyIds[i] ) );
-
-		linearSum += 0.5f * massData.mass * b3Dot( v, v );
-		angularSum += 0.5f * b3Dot( w, b3MulMV( massData.inertia, w ) );
-		potentialSum -= massData.mass * b3Dot( gravity, b3ToVec3( b3Body_GetWorldCenter( bodyIds[i] ) ) );
-	}
-
-	*linear = linearSum;
-	*angular = angularSum;
-	*potential = potentialSum;
-}
 
 // Similar to the MeasureSupportedBounce unit test
 class SphereStackRestitution : public Sample
@@ -442,11 +416,7 @@ public:
 		m_bodyIds[m_bodyCount] = m_impactorId;
 		m_bodyCount += 1;
 
-		float linear = 0.0f;
-		float angular = 0.0f;
-		float potential = 0.0f;
-		ComputeEnergy( m_worldId, m_bodyIds, m_bodyCount, &linear, &angular, &potential );
-		m_startEnergy = linear + angular + potential;
+		m_startEnergy = MeasureEnergy( m_worldId, m_bodyIds, m_bodyCount ).Total();
 		m_peakEnergy = m_startEnergy;
 
 		m_coefficient = 0.0f;
@@ -517,11 +487,8 @@ public:
 
 		DrawLine( { -2.0f, m_startHeight, 0.0f }, { 2.0f, m_startHeight, 0.0f }, MakeColor( b3_colorRed ) );
 
-		float linear = 0.0f;
-		float angular = 0.0f;
-		float potential = 0.0f;
-		ComputeEnergy( m_worldId, m_bodyIds, m_bodyCount, &linear, &angular, &potential );
-		float total = linear + angular + potential;
+		MechanicalEnergy energy = MeasureEnergy( m_worldId, m_bodyIds, m_bodyCount );
+		float total = energy.Total();
 		m_peakEnergy = b3MaxFloat( m_peakEnergy, total );
 
 		DrawTextLine( "impactor vy = %.3f m/s", vy );
@@ -536,8 +503,8 @@ public:
 		DrawTextLine( "support speed = %.4f m/s", supportSpeed );
 
 		float scale = m_startEnergy != 0.0f ? 100.0f / m_startEnergy : 0.0f;
-		DrawTextLine( "kinetic   = %.3f J linear + %.3f J angular", linear, angular );
-		DrawTextLine( "potential = %.3f J", potential );
+		DrawTextLine( "kinetic   = %.3f J linear + %.3f J angular", energy.linear, energy.angular );
+		DrawTextLine( "potential = %.3f J", energy.potential );
 		DrawTextLine( "total     = %.3f J (%.2f%% of start, peak %.2f%%)", total, scale * total, scale * m_peakEnergy );
 	}
 
@@ -617,11 +584,7 @@ public:
 		b3BoxHull box = b3MakeBoxHull( 1.0f, 0.25f, 1.0f );
 		b3CreateHullShape( m_boxId, &shapeDef, &box.base );
 
-		float linear = 0.0f;
-		float angular = 0.0f;
-		float potential = 0.0f;
-		ComputeEnergy( m_worldId, &m_boxId, 1, &linear, &angular, &potential );
-		m_startEnergy = linear + angular + potential;
+		m_startEnergy = MeasureEnergy( m_worldId, &m_boxId, 1 ).Total();
 		m_peakEnergy = m_startEnergy;
 
 		m_coefficient = 0.0f;
@@ -685,11 +648,8 @@ public:
 		DrawPoint( b3Body_GetWorldPoint( m_boxId, { -1.0f, -0.25f, 1.0f } ), 8.0f, yellow );
 		DrawPoint( b3Body_GetWorldPoint( m_boxId, { 1.0f, -0.25f, 1.0f } ), 8.0f, yellow );
 
-		float linear = 0.0f;
-		float angular = 0.0f;
-		float potential = 0.0f;
-		ComputeEnergy( m_worldId, &m_boxId, 1, &linear, &angular, &potential );
-		float total = linear + angular + potential;
+		MechanicalEnergy energy = MeasureEnergy( m_worldId, &m_boxId, 1 );
+		float total = energy.Total();
 		m_peakEnergy = b3MaxFloat( m_peakEnergy, total );
 
 		DrawTextLine( "vy = %.3f m/s", vy );
@@ -706,8 +666,8 @@ public:
 		DrawTextLine( "off axis spin = %.4f rad/s", sqrtf( w.x * w.x + w.y * w.y ) );
 
 		float scale = m_startEnergy != 0.0f ? 100.0f / m_startEnergy : 0.0f;
-		DrawTextLine( "kinetic   = %.3f J linear + %.3f J angular", linear, angular );
-		DrawTextLine( "potential = %.3f J", potential );
+		DrawTextLine( "kinetic   = %.3f J linear + %.3f J angular", energy.linear, energy.angular );
+		DrawTextLine( "potential = %.3f J", energy.potential );
 		DrawTextLine( "total     = %.3f J (%.2f%% of start, peak %.2f%%)", total, scale * total, scale * m_peakEnergy );
 	}
 

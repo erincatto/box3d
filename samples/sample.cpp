@@ -2173,3 +2173,24 @@ float CastClosestCallback( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float 
 	rayContext->hit = true;
 	return fraction;
 }
+
+MechanicalEnergy MeasureEnergy( b3WorldId worldId, const b3BodyId* bodyIds, int count )
+{
+	b3Vec3 gravity = b3World_GetGravity( worldId );
+
+	MechanicalEnergy energy = {};
+	for ( int i = 0; i < count; ++i )
+	{
+		b3MassData massData = b3Body_GetMassData( bodyIds[i] );
+		b3Vec3 v = b3Body_GetLinearVelocity( bodyIds[i] );
+
+		// The inertia tensor is in the body frame, so bring the angular velocity back to it
+		b3Vec3 w = b3InvRotateVector( b3Body_GetRotation( bodyIds[i] ), b3Body_GetAngularVelocity( bodyIds[i] ) );
+
+		energy.linear += 0.5f * massData.mass * b3Dot( v, v );
+		energy.angular += 0.5f * b3Dot( w, b3MulMV( massData.inertia, w ) );
+		energy.potential -= massData.mass * b3Dot( gravity, b3ToVec3( b3Body_GetWorldCenter( bodyIds[i] ) ) );
+	}
+
+	return energy;
+}

@@ -204,7 +204,8 @@ void b3Free( void* mem, size_t size )
 
 	if ( b3_freeFcn != NULL )
 	{
-		b3_freeFcn( mem, size );
+		int alignedSize = ( ( (int)size - 1 ) | ( B3_ALIGNMENT - 1 ) ) + 1;
+		b3_freeFcn( mem, alignedSize );
 	}
 	else
 	{

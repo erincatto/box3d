@@ -86,12 +86,7 @@ static void b3UpdateShapeAABBs( b3Shape* shape, b3AABB* fatAABB, b3WorldTransfor
 
 	// Smaller margin for static bodies. Cannot be zero due to TOI tolerance.
 	float margin = proxyType == b3_staticBody ? speculativeDistance : aabbMargin;
-	fatAABB->lowerBound.x = aabb.lowerBound.x - margin;
-	fatAABB->lowerBound.y = aabb.lowerBound.y - margin;
-	fatAABB->lowerBound.z = aabb.lowerBound.z - margin;
-	fatAABB->upperBound.x = aabb.upperBound.x + margin;
-	fatAABB->upperBound.y = aabb.upperBound.y + margin;
-	fatAABB->upperBound.z = aabb.upperBound.z + margin;
+	*fatAABB = b3AABB_Inflate( aabb, margin );
 }
 
 static b3Shape* b3CreateShapeInternal( b3World* world, b3Body* body, b3WorldTransform bodyTransform, const b3ShapeDef* def,

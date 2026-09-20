@@ -195,6 +195,12 @@ static bool LoadHullPoints( const char* path, std::vector<b3Vec3>* points )
 	fseek( file, 0, SEEK_END );
 	long size = ftell( file );
 	fseek( file, 0, SEEK_SET );
+	if ( size < 0 )
+	{
+		fprintf( stderr, "Failed to read '%s'\n", path );
+		fclose( file );
+		return false;
+	}
 
 	std::vector<char> text( size + 1 );
 	size_t readCount = fread( text.data(), 1, size, file );
@@ -1373,28 +1379,9 @@ public:
 		m_maxBounceY = 0.0f;
 		m_bounced = false;
 		m_failed = false;
-		m_startEnergy = MeasureEnergy();
+		m_startEnergy = MeasureEnergy( m_worldId, &m_boxBody, 1 ).Total();
 		m_maxEnergy = m_startEnergy;
 		m_energyFailed = false;
-	}
-
-	// Total mechanical energy. Perfect restitution and no friction, so this may only decrease. It is
-	// the honest invariant here: the height check cannot tell a bounce that gained potential energy
-	// from one that converted it into spin, and this drop does both.
-	float MeasureEnergy() const
-	{
-		b3MassData massData = b3Body_GetMassData( m_boxBody );
-		b3Vec3 v = b3Body_GetLinearVelocity( m_boxBody );
-		b3Vec3 w = b3Body_GetAngularVelocity( m_boxBody );
-
-		// The inertia tensor is in the body frame, so bring the angular velocity back to it
-		b3Vec3 wLocal = b3InvRotateVector( b3Body_GetRotation( m_boxBody ), w );
-
-		float kinetic = 0.5f * massData.mass * b3Dot( v, v ) + 0.5f * b3Dot( wLocal, b3MulMV( massData.inertia, wLocal ) );
-		float potential =
-			-massData.mass * b3Dot( b3World_GetGravity( m_worldId ), b3ToVec3( b3Body_GetWorldCenter( m_boxBody ) ) );
-
-		return kinetic + potential;
 	}
 
 	void Step() override
@@ -1430,14 +1417,11 @@ public:
 		b3Pos markerPoint = { 0.0f, m_dropHeight + m_boxHalf, 0.0f };
 		DrawPlane( b3Vec3_axisY, markerPoint, MakeColor( b3_colorYellow ) );
 
-		b3MassData massData = b3Body_GetMassData( m_boxBody );
-		b3Vec3 v = b3Body_GetLinearVelocity( m_boxBody );
-		b3Vec3 wLocal = b3InvRotateVector( b3Body_GetRotation( m_boxBody ), b3Body_GetAngularVelocity( m_boxBody ) );
-		float linear = 0.5f * massData.mass * b3Dot( v, v );
-		float angular = 0.5f * b3Dot( wLocal, b3MulMV( massData.inertia, wLocal ) );
-		float potential =
-			-massData.mass * b3Dot( b3World_GetGravity( m_worldId ), b3ToVec3( b3Body_GetWorldCenter( m_boxBody ) ) );
-		float total = linear + angular + potential;
+		// Perfect restitution and no friction, so the total energy may only decrease. It is the honest
+		// invariant here: the height check cannot tell a bounce that gained potential energy from one
+		// that converted it into spin, and this drop does both.
+		MechanicalEnergy energy = MeasureEnergy( m_worldId, &m_boxBody, 1 );
+		float total = energy.Total();
 
 		if ( total > m_maxEnergy )
 		{
@@ -1452,8 +1436,8 @@ public:
 		DrawTextLine( "drop height = %.2f m", m_dropHeight );
 		DrawTextLine( "current y   = %.2f m", m_currentY );
 		DrawTextLine( "max bounce  = %.2f m", m_maxBounceY );
-		DrawTextLine( "kinetic     = %.0f J linear + %.0f J angular", linear, angular );
-		DrawTextLine( "potential   = %.0f J", potential );
+		DrawTextLine( "kinetic     = %.0f J linear + %.0f J angular", energy.linear, energy.angular );
+		DrawTextLine( "potential   = %.0f J", energy.potential );
 		DrawTextLine( "total       = %.0f J (%.2f%% of start, peak %.2f%%)", total, 100.0f * total / m_startEnergy,
 					  100.0f * m_maxEnergy / m_startEnergy );
 

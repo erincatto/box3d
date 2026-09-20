@@ -573,6 +573,8 @@ void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 				}
 			}
 
+			float velocityBiases[B3_MAX_MANIFOLD_POINTS];
+
 			for ( int iteration = 0; iteration < iterationCount; ++iteration )
 			{
 				bool accumulate = iteration + 1 == iterationCount;
@@ -585,19 +587,29 @@ void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 					b3Vec3 rA = cp->rA;
 					b3Vec3 rB = cp->rB;
 
-					// compute current separation
-					// this is subject to round-off error if the anchor is far from the body center of mass
-					b3Vec3 ds = b3Add( dp, b3Sub( b3RotateVector( dqB, rB ), b3RotateVector( dqA, rA ) ) );
-					float s = b3Dot( ds, normal ) + cp->baseSeparation;
-
-					// speculative bias, zero when overlapped
-					float velocityBias = s > 0.0f ? s * inv_h : 0.0f;
-
-					// Apply restitution.
-					if ( cp->restitutionVelocity > 0.0f )
+					float velocityBias;
+					if ( iteration == 0 )
 					{
-						velocityBias = b3MinFloat( velocityBias, -cp->restitutionVelocity );
-						stopRestitution = stopRestitution && s > 0.0f;
+						// compute current separation
+						// this is subject to round-off error if the anchor is far from the body center of mass
+						b3Vec3 ds = b3Add( dp, b3Sub( b3RotateVector( dqB, rB ), b3RotateVector( dqA, rA ) ) );
+						float s = b3Dot( ds, normal ) + cp->baseSeparation;
+
+						// speculative bias, zero when overlapped
+						velocityBias = s > 0.0f ? s * inv_h : 0.0f;
+
+						// Apply restitution.
+						if ( cp->restitutionVelocity > 0.0f )
+						{
+							velocityBias = b3MinFloat( velocityBias, -cp->restitutionVelocity );
+							stopRestitution = stopRestitution && s > 0.0f;
+						}
+
+						velocityBiases[pointIndex] = velocityBias;
+					}
+					else
+					{
+						velocityBias = velocityBiases[pointIndex];
 					}
 
 					// relative normal velocity at contact
@@ -1766,7 +1778,7 @@ void b3PushContacts_Convex( b3SolverBlock block, b3StepContext* context )
 }
 
 // Solve the normal constraint, friction, and rolling resistance. Deferred restitution augments
-// the normla constraint.
+// the normal constraint.
 void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context )
 {
 	b3TracyCZoneNC( solve_contact, "Solve Contact", b3_colorAliceBlue, true );
@@ -1806,6 +1818,7 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context )
 		// Restitution with more than one point needs iteration to reduce spin.
 		// This makes restitution have a significant cost.
 		int iterationCount = haveRestitution ? pointCount : 1;
+		b3FloatW velocityBiases[B3_MAX_MANIFOLD_POINTS];
 
 		for ( int iteration = 0; iteration < iterationCount; ++iteration )
 		{
@@ -1819,27 +1832,37 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context )
 				b3Vec3W rA = cp->anchorAs;
 				b3Vec3W rB = cp->anchorBs;
 
-				// Moving anchors for current separation
-				// todo speed this up using matrices
-				b3Vec3W rsA = b3RotateVectorW( bA.dq, rA );
-				b3Vec3W rsB = b3RotateVectorW( bB.dq, rB );
-
-				// compute current separation
-				// this is subject to round-off error if the anchor is far from the body center of mass
-				b3Vec3W ds = b3AddVW( dp, b3SubVW( rsB, rsA ) );
-				b3FloatW s = b3AddW( b3DotW( c->normal, ds ), cp->baseSeparations );
-
-				// Speculative bias, positive if separated and zero if overlapped
-				b3FloatW velocityBias = b3MaxW( b3ZeroW(), b3MulW( s, inv_h ) );
-
-				if ( haveRestitution )
+				b3FloatW velocityBias;
+				if ( iteration == 0 )
 				{
-					// A lane with no restitution keeps the speculative bias. A bouncing lane stops
-					// bouncing once every point on its manifold has separated.
-					b3FloatW restitutionMask = b3GreaterThanW( b3ZeroW(), cp->negRestitutionVelocities );
-					b3FloatW separated = b3GreaterThanW( s, b3ZeroW() );
-					velocityBias = b3BlendW( velocityBias, cp->negRestitutionVelocities, restitutionMask );
-					keepRestitution = b3OrW( keepRestitution, b3AndNotW( restitutionMask, separated ) );
+					// Moving anchors for current separation
+					// todo speed this up using matrices
+					b3Vec3W rsA = b3RotateVectorW( bA.dq, rA );
+					b3Vec3W rsB = b3RotateVectorW( bB.dq, rB );
+
+					// compute current separation
+					// this is subject to round-off error if the anchor is far from the body center of mass
+					b3Vec3W ds = b3AddVW( dp, b3SubVW( rsB, rsA ) );
+					b3FloatW s = b3AddW( b3DotW( c->normal, ds ), cp->baseSeparations );
+
+					// Speculative bias, positive if separated and zero if overlapped
+					velocityBias = b3MaxW( b3ZeroW(), b3MulW( s, inv_h ) );
+
+					if ( haveRestitution )
+					{
+						// A lane with no restitution keeps the speculative bias. A bouncing lane stops
+						// bouncing once every point on its manifold has separated.
+						b3FloatW restitutionMask = b3GreaterThanW( b3ZeroW(), cp->negRestitutionVelocities );
+						b3FloatW separated = b3GreaterThanW( s, b3ZeroW() );
+						velocityBias = b3BlendW( velocityBias, cp->negRestitutionVelocities, restitutionMask );
+						keepRestitution = b3OrW( keepRestitution, b3AndNotW( restitutionMask, separated ) );
+					}
+
+					velocityBiases[pointIndex] = velocityBias;
+				}
+				else
+				{
+					velocityBias = velocityBiases[pointIndex];
 				}
 
 				// Relative velocity at contact

@@ -2650,14 +2650,14 @@ typedef struct b3ManifoldPoint
 	/// result from the final sub-step.
 	float normalImpulse;
 
-	/// The total normal impulse applied during sub-stepping. This is important
+	/// The total normal impulse applied across sub-stepping and restitution. This is important
 	/// to identify speculative contact points that had an interaction in the time step.
+	/// This includes the warm starting impulse, the sub-step delta impulse, and the restitution
+	/// impulse.
 	float totalNormalImpulse;
 
-	/// Relative normal velocity pre-solve. Used for hit events. If the normal impulse is
-	/// zero then there was no hit. Negative means shapes are approaching.
-	/// Performance is improved by leaving this zero unless needed for restitution
-	/// or hit events.
+	/// Relative normal velocity pre-solve. Negative when approaching. This is only
+	/// computed if hit events are enabled.
 	float normalVelocity;
 
 	/// Local point for matching
