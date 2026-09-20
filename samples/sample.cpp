@@ -953,7 +953,7 @@ void Sample::DrawMetrics()
 		ImGui::Text( "toi d/p/r = %d/%d/%d", s.distanceIterations, s.pushBackIterations, s.rootIterations );
 		ImGui::Text( "stack allocator size = %d K", s.stackUsed / 1024 );
 		ImGui::Text( "arena capacity = %d K", s.arenaCapacity / 1024 );
-		ImGui::Text( "total allocation = %d K", s.byteCount / 1024 );
+		ImGui::Text( "total allocation = %d K", (int)(s.byteCount / 1024) );
 
 		ImGui::Separator();
 		b3Capacity c = b3World_GetMaxCapacity( m_worldId );

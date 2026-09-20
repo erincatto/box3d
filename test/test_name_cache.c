@@ -12,7 +12,7 @@
 // Direct unit test of the cache: dedup, reverse lookup, empty/null, arbitrary length, no leak.
 static int CacheUnit( void )
 {
-	int32_t base = b3GetByteCount();
+	int64_t base = b3GetByteCount();
 
 	b3NameCache cache = b3CreateNameCache();
 
@@ -155,7 +155,7 @@ static int NameRoundTrip( void )
 // the tracked byte count to return to baseline so a re-load that drops duplicate copies leaks nothing.
 static int RollbackNames( void )
 {
-	int32_t base = b3GetByteCount();
+	int64_t base = b3GetByteCount();
 
 	b3Recording* rec = b3CreateRecording( 0 );
 	ENSURE( rec != NULL );

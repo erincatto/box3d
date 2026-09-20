@@ -537,68 +537,70 @@ typedef struct b3ShapeDef
 /// @ingroup shape
 B3_API b3ShapeDef b3DefaultShapeDef( void );
 
-//! @cond
 /// Profiling data. Times are in milliseconds.
 /// @ingroup world
 typedef struct b3Profile
 {
-	float step;
-	float pairs;
-	float collide;
-	float solve;
-	float solverSetup;
-	float constraints;
-	float prepareConstraints;
-	float integrateVelocities;
-	float warmStart;
-	float solveImpulses;
-	float integratePositions;
-	float relaxImpulses;
-	float storeImpulses;
-	float splitIslands;
-	float transforms;
-	float sensorHits;
-	float jointEvents;
-	float hitEvents;
-	float refit;
-	float bullets;
-	float sleepIslands;
-	float sensors;
+	float step;				   //
+	float pairs;			   //
+	float collide;			   //
+	float solve;			   //
+	float solverSetup;		   //
+	float constraints;		   //
+	float prepareConstraints;  //
+	float integrateVelocities; //
+	float warmStart;		   //
+	float solveImpulses;	   //
+	float integratePositions;  //
+	float relaxImpulses;	   //
+	float storeImpulses;	   //
+	float splitIslands;		   //
+	float transforms;		   //
+	float sensorHits;		   //
+	float jointEvents;		   //
+	float hitEvents;		   //
+	float refit;			   //
+	float bullets;			   //
+	float sleepIslands;		   //
+	float sensors;			   //
 } b3Profile;
 
 /// Counters that give details of the simulation size.
 /// @ingroup world
 typedef struct b3Counters
 {
-	int bodyCount;
-	int shapeCount;
-	int contactCount;
-	int jointCount;
-	int islandCount;
-	int stackUsed;
-	int arenaCapacity;
-	int staticTreeHeight;
-	int treeHeight;
-	int satCallCount;
-	int satCacheHitCount;
-	int byteCount;
-	int taskCount;
-	int colorCounts[24];
-	int manifoldCounts[B3_CONTACT_MANIFOLD_COUNT_BUCKETS];
+	int64_t byteCount;									   //
+	int bodyCount;										   //
+	int shapeCount;										   //
+	int contactCount;									   //
+	int jointCount;										   //
+	int islandCount;									   //
+	int stackUsed;										   //
+	int arenaCapacity;									   //
+	int staticTreeHeight;								   //
+	int treeHeight;										   //
+	int satCallCount;									   //
+	int satCacheHitCount;								   //
+	int taskCount;										   //
+	int colorCounts[24];								   //
+	int manifoldCounts[B3_CONTACT_MANIFOLD_COUNT_BUCKETS]; //
 
 	/// Number of contacts touched by the collide pass
 	/// graph contacts + awake-set non-touching
-	int awakeContactCount;
+	int awakeContactCount; //
 
 	/// Number of contacts recycled in the most recent step.
 	int recycledContactCount;
 
-	/// Maximum number of time of impact iterations
+	/// Maximum number of time of impact outer iterations
 	int distanceIterations;
+
+	/// Maximum TOI push backs.
 	int pushBackIterations;
+
+	/// Maximum TOI root solver iterations.
 	int rootIterations;
 } b3Counters;
-//! @endcond
 
 /// Joint type enumeration. This is useful because all joint types use b3JointId and sometimes you
 /// want to get the type of a joint.

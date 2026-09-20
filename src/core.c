@@ -138,7 +138,7 @@ int b3GetMaxManifoldPoints( void )
 static b3AllocFcn* b3_allocFcn = NULL;
 static b3FreeFcn* b3_freeFcn = NULL;
 
-b3AtomicInt b3_byteCount;
+static b3AtomicI64 b3_byteCount;
 
 void b3SetAllocator( b3AllocFcn* allocFcn, b3FreeFcn* freeFcn )
 {
@@ -153,13 +153,11 @@ void* b3Alloc( size_t size )
 		return NULL;
 	}
 
-	// This could cause some sharing issues, however Box3D rarely calls b3Alloc.
-	// todo this is not true, Box3D allocates a lot.
-	b3AtomicFetchAddInt( &b3_byteCount, (int)size );
+	b3AtomicFetchAddI64( &b3_byteCount, (int)size );
 
 	// Allocation must be a multiple of B3_ALIGNMENT (required by spec).
 	// https://en.cppreference.com/w/c/memory/aligned_alloc
-	int alignedSize = ( ( (int)size - 1 ) | ( B3_ALIGNMENT - 1 ) ) + 1;
+	size_t alignedSize = ( ( size - 1 ) | ( B3_ALIGNMENT - 1 ) ) + 1;
 
 	if ( b3_allocFcn != NULL )
 	{
@@ -204,7 +202,7 @@ void b3Free( void* mem, size_t size )
 
 	if ( b3_freeFcn != NULL )
 	{
-		int alignedSize = ( ( (int)size - 1 ) | ( B3_ALIGNMENT - 1 ) ) + 1;
+		size_t alignedSize = ( ( size - 1 ) | ( B3_ALIGNMENT - 1 ) ) + 1;
 		b3_freeFcn( mem, alignedSize );
 	}
 	else
@@ -216,7 +214,7 @@ void b3Free( void* mem, size_t size )
 #endif
 	}
 
-	b3AtomicFetchAddInt( &b3_byteCount, -(int)size );
+	b3AtomicFetchAddI64( &b3_byteCount, -(int64_t)size );
 }
 
 void* b3GrowAlloc( void* oldMem, int oldSize, int newSize )
@@ -238,9 +236,9 @@ void* b3GrowAllocZeroed( void* oldMem, int oldSize, int newSize )
 	return newMem;
 }
 
-int b3GetByteCount( void )
+int64_t b3GetByteCount( void )
 {
-	return b3AtomicLoadInt( &b3_byteCount );
+	return b3AtomicLoadI64( &b3_byteCount );
 }
 
 void* b3AllocZero( size_t size )
