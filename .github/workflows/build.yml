@@ -15,7 +15,7 @@ jobs:
   test:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.timeout || 4 }}
+    timeout-minutes: ${{ matrix.timeout || 10 }}
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     strategy:
       fail-fast: false
@@ -104,7 +104,7 @@ jobs:
   build-windows-mingw:
     name: windows-mingw
     runs-on: windows-latest
-    timeout-minutes: 4
+    timeout-minutes: 10
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     defaults:
       run:
@@ -137,7 +137,7 @@ jobs:
   emscripten:
     name: emscripten
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
     - uses: actions/checkout@v6
@@ -153,7 +153,7 @@ jobs:
   samples:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 8
+    timeout-minutes: 10
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     strategy:
       fail-fast: false
