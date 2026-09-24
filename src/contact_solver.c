@@ -1114,6 +1114,18 @@ static inline b3Vec3W b3MulM3VW( b3Matrix3W m, b3Vec3W a )
 	return b;
 }
 
+static inline b3Vec3W b3InvRotateVectorW( b3QuatW q, b3Vec3W a )
+{
+	b3Vec3W t = b3CrossW( q.V, a );
+	t = (b3Vec3W){ b3AddW( t.X, t.X ), b3AddW( t.Y, t.Y ), b3AddW( t.Z, t.Z ) };
+	b3Vec3W u = b3CrossW( q.V, t );
+	return (b3Vec3W){
+		b3AddW( b3SubW( a.X, b3MulW( q.S, t.X ) ), u.X ),
+		b3AddW( b3SubW( a.Y, b3MulW( q.S, t.Y ) ), u.Y ),
+		b3AddW( b3SubW( a.Z, b3MulW( q.S, t.Z ) ), u.Z ),
+	};
+}
+
 // Soft contact constraints with sub-stepping support
 // Uses fixed anchors for Jacobians for better behavior on rolling shapes (circles & capsules)
 // http://mmacklin.com/smallsteps.pdf
@@ -1731,52 +1743,40 @@ void b3WarmStartContacts_Convex( b3SolverBlock block, b3StepContext* context )
 		int pointCount = b3MaxInt( pointCount1, pointCount2 );
 		B3_VALIDATE( 0 < pointCount && pointCount <= B3_MAX_MANIFOLD_POINTS );
 
-		// Normal impulses
+		b3FloatW zeroW = b3ZeroW();
+		b3FloatW totalNormalImpulse = zeroW;
+		b3Vec3W momentA = { zeroW, zeroW, zeroW };
+		b3Vec3W momentB = { zeroW, zeroW, zeroW };
+
 		for ( int j = 0; j < pointCount; ++j )
 		{
 			b3ContactConstraintPointWide* cp = c->points + j;
-
-			b3Vec3W rA = cp->anchorAs;
-			b3Vec3W rB = cp->anchorBs;
-
-			b3Vec3W impulse;
-			impulse.X = b3MulW( cp->normalImpulses, c->normal.X );
-			impulse.Y = b3MulW( cp->normalImpulses, c->normal.Y );
-			impulse.Z = b3MulW( cp->normalImpulses, c->normal.Z );
-
-			bA.w = b3MulSubMVW( bA.w, c->invIA, b3CrossW( rA, impulse ) );
-			bA.v = b3MulSubSVW( bA.v, c->invMassA, impulse );
-			bB.w = b3MulAddMVW( bB.w, c->invIB, b3CrossW( rB, impulse ) );
-			bB.v = b3MulAddSVW( bB.v, c->invMassB, impulse );
+			b3FloatW normalImpulse = cp->normalImpulses;
+			totalNormalImpulse = b3AddW( totalNormalImpulse, normalImpulse );
+			momentA = b3MulAddSVW( momentA, normalImpulse, cp->anchorAs );
+			momentB = b3MulAddSVW( momentB, normalImpulse, cp->anchorBs );
 		}
 
-		// Central friction
-		{
-			b3Vec3W rA = c->centerA;
-			b3Vec3W rB = c->centerB;
-			b3Vec3W impulse = b3MulSVW( c->frictionImpulse.x, c->tangent1 );
-			impulse = b3MulAddSVW( impulse, c->frictionImpulse.y, c->tangent2 );
+		b3Vec3W normal = c->normal;
+		b3Vec3W frictionImpulse = b3MulSVW( c->frictionImpulse.x, c->tangent1 );
+		frictionImpulse = b3MulAddSVW( frictionImpulse, c->frictionImpulse.y, c->tangent2 );
 
-			bA.w = b3MulSubMVW( bA.w, c->invIA, b3CrossW( rA, impulse ) );
-			bA.v = b3MulSubSVW( bA.v, c->invMassA, impulse );
-			bB.w = b3MulAddMVW( bB.w, c->invIB, b3CrossW( rB, impulse ) );
-			bB.v = b3MulAddSVW( bB.v, c->invMassB, impulse );
-		}
+		b3Vec3W linearImpulse = b3MulAddSVW( frictionImpulse, totalNormalImpulse, normal );
 
-		// Central twist friction
-		{
-			b3Vec3W impulse = b3MulSVW( c->twistImpulse, c->normal );
-			bA.w = b3MulSubMVW( bA.w, c->invIA, impulse );
-			bB.w = b3MulAddMVW( bB.w, c->invIB, impulse );
-		}
+		b3Vec3W twistImpulse = b3MulSVW( c->twistImpulse, normal );
+		b3Vec3W angularImpulseA = b3AddVW( b3AddVW( b3CrossW( momentA, normal ), b3CrossW( c->centerA, frictionImpulse ) ), twistImpulse );
+		b3Vec3W angularImpulseB = b3AddVW( b3AddVW( b3CrossW( momentB, normal ), b3CrossW( c->centerB, frictionImpulse ) ), twistImpulse );
 
-		// Rolling resistance
 		if ( b3AllZeroW( c->rollingResistance ) == false )
 		{
-			b3Vec3W impulse = c->rollingImpulse;
-			bA.w = b3MulSubMVW( bA.w, c->invIA, impulse );
-			bB.w = b3MulAddMVW( bB.w, c->invIB, impulse );
+			angularImpulseA = b3AddVW( angularImpulseA, c->rollingImpulse );
+			angularImpulseB = b3AddVW( angularImpulseB, c->rollingImpulse );
 		}
+
+		bA.w = b3MulSubMVW( bA.w, c->invIA, angularImpulseA );
+		bA.v = b3MulSubSVW( bA.v, c->invMassA, linearImpulse );
+		bB.w = b3MulAddMVW( bB.w, c->invIB, angularImpulseB );
+		bB.v = b3MulAddSVW( bB.v, c->invMassB, linearImpulse );
 
 		b3ScatterBodies( states, c->indexA, &bA );
 		b3ScatterBodies( states, c->indexB, &bB );
@@ -1824,8 +1824,11 @@ void b3PushContacts_Convex( b3SolverBlock block, b3StepContext* context )
 		b3FloatW impulseScale = b3BlendW( dynamicImpulseScale, staticImpulseScale, softMask );
 
 		b3Vec3W dp = b3SubVW( bB.dp, bA.dp );
-		b3Matrix3W dqA = b3MakeMatrixFromQuatW( bA.dq );
-		b3Matrix3W dqB = b3MakeMatrixFromQuatW( bB.dq );
+
+		// Convert to normals to local space to reduce transform math.
+		b3FloatW normalSeparation = b3DotW( c->normal, dp );
+		b3Vec3W normalA = b3InvRotateVectorW( bA.dq, c->normal );
+		b3Vec3W normalB = b3InvRotateVectorW( bB.dq, c->normal );
 
 		for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
 		{
@@ -1835,14 +1838,8 @@ void b3PushContacts_Convex( b3SolverBlock block, b3StepContext* context )
 			b3Vec3W rA = cp->anchorAs;
 			b3Vec3W rB = cp->anchorBs;
 
-			// Moving anchors for current separation
-			b3Vec3W rsA = b3MulM3VW( dqA, rA );
-			b3Vec3W rsB = b3MulM3VW( dqB, rB );
-
-			// compute current separation
-			// this is subject to round-off error if the anchor is far from the body center of mass
-			b3Vec3W ds = b3AddVW( dp, b3SubVW( rsB, rsA ) );
-			b3FloatW s = b3AddW( b3DotW( c->normal, ds ), cp->baseSeparations );
+			b3FloatW s = b3AddW( b3AddW( normalSeparation, b3SubW( b3DotW( normalB, rB ), b3DotW( normalA, rA ) ) ),
+								 cp->baseSeparations );
 
 			// Apply speculative bias if separation is greater than zero, otherwise apply soft constraint bias
 			b3FloatW separated = b3GreaterThanW( s, b3ZeroW() );
@@ -1911,8 +1908,9 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context )
 		b3BodyStateW bB = b3GatherBodies( states, c->indexB );
 
 		b3Vec3W dp = b3SubVW( bB.dp, bA.dp );
-		b3Matrix3W dqA = b3MakeMatrixFromQuatW( bA.dq );
-		b3Matrix3W dqB = b3MakeMatrixFromQuatW( bB.dq );
+		b3FloatW normalSeparation = b3DotW( c->normal, dp );
+		b3Vec3W normalA = b3InvRotateVectorW( bA.dq, c->normal );
+		b3Vec3W normalB = b3InvRotateVectorW( bB.dq, c->normal );
 
 		b3FloatW totalNormalImpulse = b3ZeroW();
 		b3FloatW totalTwistLimit = b3ZeroW();
@@ -1925,14 +1923,8 @@ void b3SolveContacts_Convex( b3SolverBlock block, b3StepContext* context )
 			b3Vec3W rA = cp->anchorAs;
 			b3Vec3W rB = cp->anchorBs;
 
-			// Moving anchors for current separation
-			b3Vec3W rsA = b3MulM3VW( dqA, rA );
-			b3Vec3W rsB = b3MulM3VW( dqB, rB );
-
-			// compute current separation
-			// this is subject to round-off error if the anchor is far from the body center of mass
-			b3Vec3W ds = b3AddVW( dp, b3SubVW( rsB, rsA ) );
-			b3FloatW s = b3AddW( b3DotW( c->normal, ds ), cp->baseSeparations );
+			b3FloatW s = b3AddW( b3AddW( normalSeparation, b3SubW( b3DotW( normalB, rB ), b3DotW( normalA, rA ) ) ),
+								 cp->baseSeparations );
 
 			// Speculative bias, positive if separated and zero if overlapped
 			b3FloatW velocityBias = b3MaxW( b3ZeroW(), b3MulW( s, inv_h ) );
