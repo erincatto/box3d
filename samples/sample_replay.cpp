@@ -216,7 +216,7 @@ enum SelectionKind
 //   - right info panel (DrawControls): Show Timeline button, view toggles, frame counter, and the
 //     selection detail
 //   - left Outline window (DrawSampleWindows): the recorded scene tree
-//   - Timeline tab in the diagnostics drawer (DrawMetricsTab): transport, scrubber, keyframe readout
+//   - Timeline tab in the metrics drawer (DrawMetricsTab): transport, scrubber, keyframe readout
 class ReplayViewer : public Sample
 {
 public:
@@ -695,6 +695,11 @@ public:
 		return false;
 	}
 
+	bool HasProfile() const override
+	{
+		return false;
+	}
+
 	// Wider than the default so the detail pane, hosted in the info panel, has room for ids and vectors.
 	float InfoPanelWidthEm() const override
 	{
@@ -1089,7 +1094,7 @@ public:
 		float menuBarHeight = ImGui::GetFrameHeight();
 		float top = menuBarHeight + 0.5f * fontSize;
 
-		// Stop above the diagnostics drawer when it is open so the panels do not overlap. The 16 em
+		// Stop above the metrics drawer when it is open so the panels do not overlap. The 16 em
 		// drawer height mirrors DrawMetrics.
 		float bottom = m_context->showMetrics ? ( m_camera->m_height - 16.0f * fontSize - fontSize )
 											  : ( m_camera->m_height - 0.5f * fontSize );
@@ -1667,7 +1672,7 @@ public:
 		}
 	}
 
-	// Timeline tab in the diagnostics drawer: file, transport, keyframe readout, scrubber, divergence.
+	// Timeline tab in the metrics drawer: file, transport, keyframe readout, scrubber, divergence.
 	void DrawMetricsTab() override
 	{
 		ImGuiTabItemFlags flags = m_selectTimelineTab ? ImGuiTabItemFlags_SetSelected : 0;
@@ -1754,7 +1759,12 @@ public:
 		b3Counters c = b3World_GetCounters( m_replayWorldId );
 		ImGui::Text( "frames %d", m_info.frameCount );
 		ImGui::SameLine();
-		ImGui::Text( "   %.0f hz, %d sub-steps", hz, m_info.subStepCount );
+		ImGui::Text( "   %.0f Hz, %d sub-steps", hz, m_info.subStepCount );
+		if ( m_info.lengthScale > 0.0f )
+		{
+			ImGui::SameLine();
+			ImGui::Text( "   %g units/m", m_info.lengthScale );
+		}
 		ImGui::SameLine();
 		ImGui::Text( "   bodies %d  shapes %d  contacts %d  joints %d", c.bodyCount, c.shapeCount, c.contactCount, c.jointCount );
 

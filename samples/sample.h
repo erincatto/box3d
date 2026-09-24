@@ -50,6 +50,10 @@ struct SampleContext
 	char recordingFile[256] = "recording.b3rec";
 	char replayFile[256] = "";
 
+	// Last recording saved this session, empty until a save succeeds. The default record path
+	// may name a stale file from an earlier run, so Play only trusts this one.
+	char savedRecordingFile[256] = "";
+
 	// Keyframe ring policy the Replay viewer applies on open, persisted across sessions.
 	int replayKeyframeBudgetMB = 512;
 	int replayKeyframeMinInterval = 16;
@@ -80,9 +84,12 @@ struct SampleContext
 	// UI visibility (Tab / View > Hide UI). When hidden only the minimal HUD shows.
 	bool showUI = true;
 
-	// Bottom diagnostics drawer (M), set by Ctrl+O for the fuzzy picker.
+	// Bottom metrics drawer (M), set by Ctrl+O for the fuzzy picker.
 	bool showMetrics = false;
 	bool openSamplePicker = false;
+
+	// Left profile panel (I)
+	bool showProfile = false;
 
 	// Controls help window (Help > Controls, toggled with ?). Promoted to the
 	// context so the key handler can reach it. Seeded from newUser after Load.
@@ -145,6 +152,12 @@ public:
 		return true;
 	}
 
+	// Allow a sample without a world step to hide the profile panel.
+	virtual bool HasProfile() const
+	{
+		return true;
+	}
+
 	// Width of the right info panel in em. The bottom drawer clears to the same width. A sample that
 	// hosts heavier content there, such as the replay viewer's detail pane, can widen it.
 	virtual float InfoPanelWidthEm() const;
@@ -169,10 +182,15 @@ public:
 	void StartRecording();
 	void FinishRecording();
 
-	// Bottom diagnostics drawer (Profile / Counters / Renderer / Frame Time).
+	// Left profile panel, a table of the step sections readable at a glance.
+	bool IsProfileVisible() const;
+	float GetProfilePanelWidth() const;
+	void DrawProfile();
+
+	// Bottom metrics drawer (Frame Time / Counters / Renderer).
 	void DrawMetrics();
 
-	// Append extra tabs to the diagnostics drawer's tab bar (the Replay viewer adds Timeline).
+	// Append extra tabs to the metrics drawer's tab bar (the Replay viewer adds Timeline).
 	virtual void DrawMetricsTab()
 	{
 	}
@@ -221,6 +239,7 @@ public:
 	float m_mouseForceScale;
 	float m_launchSpeedScale;
 	int m_stepCount;
+	int m_textX;
 	int m_textLine;
 	int m_textIncrement;
 	int m_triangleIndex;
@@ -288,8 +307,8 @@ void FrameSelection( SampleContext* context );
 // a blocking nested run loop), driven by SampleContext::openReplayPicker.
 void OpenReplayFileDialog( SampleContext* context );
 
-// The single host UI callback: menu bar, sample picker, info panel, and the
-// bottom diagnostics drawer.
+// The single host UI callback: menu bar, sample picker, info panel, profile panel,
+// and the bottom metrics drawer.
 void DrawUI( SampleContext* context );
 
 struct CastClosestContext

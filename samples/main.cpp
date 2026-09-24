@@ -236,6 +236,10 @@ static void OnEvent( const sapp_event* e )
 						s_context.showMetrics = !s_context.showMetrics;
 						break;
 
+					case SAPP_KEYCODE_I:
+						s_context.showProfile = !s_context.showProfile;
+						break;
+
 					case SAPP_KEYCODE_R:
 						SelectSample( &s_context, s_context.sampleIndex, true );
 						break;
