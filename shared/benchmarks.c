@@ -908,7 +908,7 @@ void GetConvexPileCapacity( b3Capacity* capacity )
 #ifdef NDEBUG
 	capacity->dynamicShapeCount = 5120;
 	capacity->dynamicBodyCount = 5120;
-	capacity->contactCount = 50 * 1024;
+	capacity->contactCount = 60 * 1024;
 #endif
 }
 
