@@ -2621,7 +2621,8 @@ typedef struct b3ChildShape
 	/// Material indices. Index 0 is used for convex shapes.
 	const uint16_t* materialIndices;
 
-	/// todo comment
+	/// The number of materials. This is one for convex shapes. For
+	/// meshes it is determined by the maximum triangle material index.
 	int materialCount;
 
 	/// The shape type (union tag).
