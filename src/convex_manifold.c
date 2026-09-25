@@ -1380,7 +1380,7 @@ static inline void b3GetFaceDots( const b3HullData* hull, b3Vec3 d, float* dots 
 	}
 }
 
-#define B3_PARALLEL_TOL 1e-4
+#define B3_PARALLEL_TOL 1e-4f
 
 // A hull edges is bounded by two face normals. On the Gauss map the edge becomes an arc between
 // those two face normals. This edge can only build the best separating axis if a normal on that arc
@@ -1397,7 +1397,7 @@ static inline void b3GetFaceDots( const b3HullData* hull, b3Vec3 d, float* dots 
 // bound = max_sep + radiusBound
 // Note: this doesn't compute the separation, it just rules out potential candidates. So if some input
 // is degenerate it just pass the candidate onto the next stage.
-static inline bool b3ArcCanReach( float a, float b, float c, float length, float bound )
+static inline int b3ArcCanReach( float a, float b, float c, float length, float bound )
 {
 	// c = cos(theta), the angle between the normals.
 	// s = sin(theta)^2 >= 0
@@ -1407,7 +1407,7 @@ static inline bool b3ArcCanReach( float a, float b, float c, float length, float
 	float t = a * a + b * b - 2.0f * a * b * c;
 
 	// Do either face normals beat the best separation?
-	bool endpoint = b3MaxFloat( a, b ) >= bound;
+	int endpoint = b3MaxFloat( a, b ) >= bound;
 
 	// Project d into the plane that holds both u and v, call that vector g:
 	// g = x*u + y*v
@@ -1423,8 +1423,8 @@ static inline bool b3ArcCanReach( float a, float b, float c, float length, float
 	// dot(g, n) = x*a + y*b = (a*a - a*b*c + b*b - a*b*c) / s = (a*a + b*b - 2*a*b*c) / s = t / s
 	// If that peak value beats the threshold then this edge might form the best separating axis.
 	// Using bit ops here to prevent unpredictable branches.
-	bool interior = ( a >= c * b ) & ( b >= c * a ) & ( length >= bound ) &
-					( ( bound <= 0.0f ) | ( s < B3_PARALLEL_TOL ) | ( t >= bound * bound * s ) );
+	int interior = ( a >= c * b ) & ( b >= c * a ) & ( length >= bound ) &
+				   ( ( bound <= 0.0f ) | ( s < B3_PARALLEL_TOL ) | ( t >= bound * bound * s ) );
 
 	return endpoint | interior;
 }
@@ -1555,6 +1555,8 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		}
 	}
 
+	B3_VALIDATE( res.faceA.indexA != B3_NULL_INDEX );
+
 	int faceCountB = hullB->faceCount;
 	const b3Plane* planesB = b3GetHullPlanes( hullB );
 
@@ -1646,9 +1648,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		int i2 = halfEdgesA[i + 1].face;
 		float c = b3Dot( planesA[i1].normal, planesA[i2].normal );
 		edgeIndicesA[na] = i;
-
-		bool isCandidate = b3ArcCanReach( dotA[i1], dotA[i2], c, centerDistance, edgeBound );
-		na += isCandidate ? 1 : 0;
+		na += b3ArcCanReach( dotA[i1], dotA[i2], c, centerDistance, edgeBound );
 	}
 
 	// Gather edges of B that can feasibly create a winning separating axis.
@@ -1662,10 +1662,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		int i2 = halfEdgesB[i + 1].face;
 		float c = b3Dot( planesB[i1].normal, planesB[i2].normal );
 		edgeIndicesB[nb] = i;
-
-		// todo compare assembly
-		//bool isCandidate = b3ArcCanReach( dotB[i1], dotB[i2], c, centerDistance, edgeThreshold );
-		nb += b3ArcCanReach( dotB[i1], dotB[i2], c, centerDistance, edgeBound ) ? 1 : 0;
+		nb += b3ArcCanReach( dotB[i1], dotB[i2], c, centerDistance, edgeBound );
 	}
 
 	if ( na == 0 || nb == 0 )
