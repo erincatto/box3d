@@ -545,6 +545,7 @@ public:
 							assert( capsuleIndex < capsuleCapacity );
 							capsules[capsuleIndex].capsule = { p1, p2, radius };
 							capsules[capsuleIndex].material = material;
+							capsules[capsuleIndex].material.userMaterialId = 1;
 							capsuleIndex += 1;
 						}
 						else
@@ -552,6 +553,7 @@ public:
 							assert( sphereIndex < capsuleCapacity );
 							spheres[sphereIndex].sphere = { p1, radius };
 							spheres[sphereIndex].material = material;
+							spheres[sphereIndex].material.userMaterialId = 2;
 							sphereIndex += 1;
 						}
 					}
@@ -559,6 +561,7 @@ public:
 					hulls[hullIndex].hull = &box.base;
 					hulls[hullIndex].transform = transform;
 					hulls[hullIndex].material = material;
+					hulls[hullIndex].material.userMaterialId = 3;
 
 					hullIndex += 1;
 				}
