@@ -2554,6 +2554,7 @@ typedef struct b3CompoundCapsule
 	/// Index to a shared material.
 	uint16_t materialIndex;
 
+	/// Padding for determinism.
 	uint16_t padding;
 } b3CompoundCapsule;
 
@@ -2567,7 +2568,10 @@ typedef struct b3CompoundHull
 	b3Transform transform;
 
 	/// Index to a shared material.
-	int materialIndex;
+	uint16_t materialIndex;
+
+	/// Padding for determinism.
+	uint16_t padding;
 } b3CompoundHull;
 
 /// A mesh with non-uniform scale that lives in a compound.
@@ -2600,6 +2604,7 @@ typedef struct b3CompoundSphere
 	/// Index to a shared material.
 	uint16_t materialIndex;
 
+	/// Padding for determinism.
 	uint16_t padding;
 } b3CompoundSphere;
 
