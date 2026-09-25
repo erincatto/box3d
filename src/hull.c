@@ -1636,62 +1636,44 @@ int b3FindHullSupportVertex( const b3HullData* hull, b3Vec3 direction )
 	int vertexCount = hull->vertexCount;
 	const float* vx = b3GetHullSoaVertices( hull );
 
-	if ( vx != NULL )
+	int soaVertexCount = ( vertexCount + 3 ) & ~3;
+	const float* vy = vx + soaVertexCount;
+	const float* vz = vy + soaVertexCount;
+
+	b3FloatW dx = b3SplatW( direction.x );
+	b3FloatW dy = b3SplatW( direction.y );
+	b3FloatW dz = b3SplatW( direction.z );
+	b3FloatW four = b3SplatW( 4.0f );
+	b3FloatW index = b3SetW( 0.0f, 1.0f, 2.0f, 3.0f );
+	b3FloatW bestDotW = b3SplatW( -FLT_MAX );
+	b3FloatW bestIndexW = b3SplatW( -1.0f );
+
+	for ( int i = 0; i < soaVertexCount; i += 4 )
 	{
-		int soaVertexCount = ( vertexCount + 3 ) & ~3;
-		const float* vy = vx + soaVertexCount;
-		const float* vz = vy + soaVertexCount;
-
-		b3FloatW dx = b3SplatW( direction.x );
-		b3FloatW dy = b3SplatW( direction.y );
-		b3FloatW dz = b3SplatW( direction.z );
-		b3FloatW four = b3SplatW( 4.0f );
-		b3FloatW index = b3SetW( 0.0f, 1.0f, 2.0f, 3.0f );
-		b3FloatW bestDotW = b3SplatW( -FLT_MAX );
-		b3FloatW bestIndexW = b3SplatW( -1.0f );
-
-		for ( int i = 0; i < soaVertexCount; i += 4 )
-		{
-			b3FloatW dot = b3AddW( b3AddW( b3MulW( dx, b3LoadW( vx + i ) ), b3MulW( dy, b3LoadW( vy + i ) ) ),
-								   b3MulW( dz, b3LoadW( vz + i ) ) );
-			b3FloatW mask = b3GreaterThanW( dot, bestDotW );
-			bestDotW = b3BlendW( bestDotW, dot, mask );
-			bestIndexW = b3BlendW( bestIndexW, index, mask );
-			index = b3AddW( index, four );
-		}
-
-		_Alignas( 16 ) float dots[4];
-		_Alignas( 16 ) float indices[4];
-		b3StoreW( dots, bestDotW );
-		b3StoreW( indices, bestIndexW );
-
-		for ( int lane = 0; lane < 4; ++lane )
-		{
-			int laneIndex = (int)indices[lane];
-			if ( laneIndex >= 0 && ( dots[lane] > bestDot || ( dots[lane] == bestDot && laneIndex < bestIndex ) ) )
-			{
-				bestIndex = laneIndex;
-				bestDot = dots[lane];
-			}
-		}
-
-		B3_ASSERT( 0 <= bestIndex && bestIndex < vertexCount );
-		return bestIndex;
+		b3FloatW dot =
+			b3AddW( b3AddW( b3MulW( dx, b3LoadW( vx + i ) ), b3MulW( dy, b3LoadW( vy + i ) ) ), b3MulW( dz, b3LoadW( vz + i ) ) );
+		b3FloatW mask = b3GreaterThanW( dot, bestDotW );
+		bestDotW = b3BlendW( bestDotW, dot, mask );
+		bestIndexW = b3BlendW( bestIndexW, index, mask );
+		index = b3AddW( index, four );
 	}
 
-	const b3Vec3* points = b3GetHullPoints( hull );
+	_Alignas( 16 ) float dots[4];
+	_Alignas( 16 ) float indices[4];
+	b3StoreW( dots, bestDotW );
+	b3StoreW( indices, bestIndexW );
 
-	for ( int index = 0; index < vertexCount; ++index )
+	for ( int lane = 0; lane < 4; ++lane )
 	{
-		float dot = b3Dot( direction, points[index] );
-		if ( dot > bestDot )
+		int laneIndex = (int)indices[lane];
+		if ( laneIndex >= 0 && ( dots[lane] > bestDot || ( dots[lane] == bestDot && laneIndex < bestIndex ) ) )
 		{
-			bestIndex = index;
-			bestDot = dot;
+			bestIndex = laneIndex;
+			bestDot = dots[lane];
 		}
 	}
-	B3_ASSERT( bestIndex >= 0 );
 
+	B3_ASSERT( 0 <= bestIndex && bestIndex < vertexCount );
 	return bestIndex;
 }
 
