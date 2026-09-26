@@ -809,6 +809,400 @@ public:
 
 static int sampleCollideHulls = RegisterSample( "Manifold", "Hull vs Hull", HullAndHull::Create );
 
+// Shows the candidate axes culled by the inscribed sphere bound in the separating axis test. No axis n
+// can separate the hulls by more than dot(n, centerB - centerA) - innerRadiusA - innerRadiusB, so any
+// face or edge whose bound is below the best separation found so far is skipped. This recomputes the
+// culling decisions of b3ComputeSeparatingAxis from public hull data and must be kept in sync with it.
+class ComplexHullCulling : public Manifold
+{
+public:
+	enum FeatureState
+	{
+		e_unreached = 0,
+		e_culled,
+		e_tested,
+	};
+
+	explicit ComplexHullCulling( SampleContext* context )
+		: Manifold( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 20.0f, 20.0f, 14.0f, { 0.0f, 1.8f, 0.0f } );
+		}
+
+		m_hullA = b3CreateComplexHull( 2.0f );
+		m_hullB = b3CreateComplexHull( 2.0f );
+
+		m_transformA = { { 0.0f, 0.0f, 0.0f }, b3Quat_identity };
+		m_transformB = { { 0.4f, 3.6f, 0.2f }, b3MakeQuatFromAxisAngle( b3Normalize( { 1.0f, 0.0f, 1.0f } ), 0.3f ) };
+
+		m_showSpheres = true;
+		m_showCulled = true;
+		m_showNormals = true;
+		ResetCounts();
+	}
+
+	~ComplexHullCulling() override
+	{
+		b3DestroyHull( m_hullA );
+		b3DestroyHull( m_hullB );
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::Checkbox( "Inscribed spheres", &m_showSpheres );
+		ImGui::Checkbox( "Culled features", &m_showCulled );
+		ImGui::Checkbox( "Face normals", &m_showNormals );
+		return true;
+	}
+
+	void ResetCounts()
+	{
+		memset( m_faceStateA, 0, sizeof( m_faceStateA ) );
+		memset( m_faceStateB, 0, sizeof( m_faceStateB ) );
+		memset( m_edgeStateA, 0, sizeof( m_edgeStateA ) );
+		memset( m_edgeStateB, 0, sizeof( m_edgeStateB ) );
+		m_seedA = 0;
+		m_seedB = 0;
+		m_keptEdgeCountA = 0;
+		m_keptEdgeCountB = 0;
+		m_separationA = -FLT_MAX;
+		m_separationB = -FLT_MAX;
+		m_gap = 0.0f;
+		m_separatedFeature = b3_invalidAxis;
+	}
+
+	// Face of A against the vertices of B, in frame A
+	static float FaceSeparationA( const b3HullData* hullA, const b3HullData* hullB, b3Transform transformBtoA, int faceIndex )
+	{
+		b3Plane plane = b3GetHullPlanes( hullA )[faceIndex];
+		const b3Vec3* points = b3GetHullPoints( hullB );
+		float separation = FLT_MAX;
+		for ( int i = 0; i < hullB->vertexCount; ++i )
+		{
+			b3Vec3 point = b3TransformPoint( transformBtoA, points[i] );
+			separation = b3MinFloat( separation, b3Dot( plane.normal, point ) - plane.offset );
+		}
+		return separation;
+	}
+
+	// Face of B against the vertices of A, in frame B
+	static float FaceSeparationB( const b3HullData* hullA, const b3HullData* hullB, b3Transform transformBtoA, int faceIndex )
+	{
+		b3Plane plane = b3GetHullPlanes( hullB )[faceIndex];
+		const b3Vec3* points = b3GetHullPoints( hullA );
+		float separation = FLT_MAX;
+		for ( int i = 0; i < hullA->vertexCount; ++i )
+		{
+			b3Vec3 point = b3InvTransformPoint( transformBtoA, points[i] );
+			separation = b3MinFloat( separation, b3Dot( plane.normal, point ) - plane.offset );
+		}
+		return separation;
+	}
+
+	// Mirrors b3ArcCanReach
+	static bool ArcCanReach( float a, float b, float c, float length, float bound )
+	{
+		const float parallelTolerance = 1.0e-4f;
+		float s = 1.0f - c * c;
+		float t = a * a + b * b - 2.0f * a * b * c;
+		bool endpoint = b3MaxFloat( a, b ) >= bound;
+		bool interior =
+			a >= c * b && b >= c * a && length >= bound && ( bound <= 0.0f || s < parallelTolerance || t >= bound * bound * s );
+		return endpoint || interior;
+	}
+
+	// Mirrors the culling in b3ComputeSeparatingAxis with early return enabled
+	void ComputeCulling( b3Transform transformBtoA )
+	{
+		ResetCounts();
+
+		const b3HullData* hullA = m_hullA;
+		const b3HullData* hullB = m_hullB;
+		const b3Plane* planesA = b3GetHullPlanes( hullA );
+		const b3Plane* planesB = b3GetHullPlanes( hullB );
+		float speculativeDistance = B3_SPECULATIVE_DISTANCE;
+
+		b3Vec3 deltaCenter = b3Sub( b3TransformPoint( transformBtoA, hullB->center ), hullA->center );
+		float centerDistance = b3Length( deltaCenter );
+		float radius = hullA->innerRadius + hullB->innerRadius;
+		float radiusBound = radius - ( B3_LINEAR_SLOP + 0.001f * ( centerDistance + radius ) );
+		m_gap = centerDistance - radius;
+
+		float dotA[B3_MAX_HULL_FACES];
+		for ( int i = 0; i < hullA->faceCount; ++i )
+		{
+			dotA[i] = b3Dot( planesA[i].normal, deltaCenter );
+			m_seedA = dotA[i] > dotA[m_seedA] ? i : m_seedA;
+		}
+
+		float floorA = b3MinFloat( FaceSeparationA( hullA, hullB, transformBtoA, m_seedA ), speculativeDistance );
+		for ( int i = 0; i < hullA->faceCount; ++i )
+		{
+			if ( dotA[i] - radiusBound < b3MaxFloat( floorA, m_separationA ) )
+			{
+				m_faceStateA[i] = e_culled;
+				continue;
+			}
+
+			m_faceStateA[i] = e_tested;
+			float separation = FaceSeparationA( hullA, hullB, transformBtoA, i );
+			if ( separation > m_separationA )
+			{
+				m_separationA = separation;
+				if ( separation > speculativeDistance )
+				{
+					m_separatedFeature = b3_faceAxisA;
+					return;
+				}
+			}
+		}
+
+		b3Vec3 deltaCenterB = b3Neg( b3InvRotateVector( transformBtoA.q, deltaCenter ) );
+		float dotB[B3_MAX_HULL_FACES];
+		for ( int i = 0; i < hullB->faceCount; ++i )
+		{
+			dotB[i] = b3Dot( planesB[i].normal, deltaCenterB );
+			m_seedB = dotB[i] > dotB[m_seedB] ? i : m_seedB;
+		}
+
+		float floorB = b3MaxFloat( FaceSeparationB( hullA, hullB, transformBtoA, m_seedB ), m_separationA );
+		floorB = b3MinFloat( floorB, speculativeDistance );
+		for ( int i = 0; i < hullB->faceCount; ++i )
+		{
+			if ( dotB[i] - radiusBound < b3MaxFloat( floorB, m_separationB ) )
+			{
+				m_faceStateB[i] = e_culled;
+				continue;
+			}
+
+			m_faceStateB[i] = e_tested;
+			float separation = FaceSeparationB( hullA, hullB, transformBtoA, i );
+			if ( separation > m_separationB )
+			{
+				m_separationB = separation;
+				if ( separation > speculativeDistance )
+				{
+					m_separatedFeature = b3_faceAxisB;
+					return;
+				}
+			}
+		}
+
+		float edgeBound = b3MaxFloat( m_separationA, m_separationB ) + radiusBound;
+
+		const b3HullHalfEdge* edgesA = b3GetHullEdges( hullA );
+		for ( int i = 0; i < hullA->edgeCount; i += 2 )
+		{
+			int face1 = edgesA[i].face;
+			int face2 = edgesA[i + 1].face;
+			float c = b3Dot( planesA[face1].normal, planesA[face2].normal );
+			bool kept = ArcCanReach( dotA[face1], dotA[face2], c, centerDistance, edgeBound );
+			m_edgeStateA[i / 2] = kept ? e_tested : e_culled;
+			m_keptEdgeCountA += kept ? 1 : 0;
+		}
+
+		const b3HullHalfEdge* edgesB = b3GetHullEdges( hullB );
+		for ( int i = 0; i < hullB->edgeCount; i += 2 )
+		{
+			int face1 = edgesB[i].face;
+			int face2 = edgesB[i + 1].face;
+			float c = b3Dot( planesB[face1].normal, planesB[face2].normal );
+			bool kept = ArcCanReach( dotB[face1], dotB[face2], c, centerDistance, edgeBound );
+			m_edgeStateB[i / 2] = kept ? e_tested : e_culled;
+			m_keptEdgeCountB += kept ? 1 : 0;
+		}
+	}
+
+	void Step() override
+	{
+		// Clear the cache so every step runs the full separating axis test
+		m_satCache = {};
+		b3Transform transformBtoA = b3InvMulWorldTransforms( m_transformA, m_transformB );
+		b3CollideHulls( &m_manifold, m_pointCapacity, m_hullA, m_hullB, transformBtoA, &m_satCache );
+		ComputeCulling( transformBtoA );
+	}
+
+	static int CountState( const uint8_t* states, int count, FeatureState state )
+	{
+		int n = 0;
+		for ( int i = 0; i < count; ++i )
+		{
+			n += states[i] == state ? 1 : 0;
+		}
+		return n;
+	}
+
+	void DrawEdges( b3WorldTransform transform, const b3HullData* hull, const uint8_t* states, Vec4 keptColor )
+	{
+		const b3HullHalfEdge* edges = b3GetHullEdges( hull );
+		const b3Vec3* points = b3GetHullPoints( hull );
+		for ( int i = 0; i < hull->edgeCount; i += 2 )
+		{
+			b3Pos p1 = b3TransformWorldPoint( transform, points[edges[i].origin] );
+			b3Pos p2 = b3TransformWorldPoint( transform, points[edges[i + 1].origin] );
+			uint8_t state = states[i / 2];
+			if ( state == e_tested )
+			{
+				DrawLineEx( p1, p2, keptColor, 4.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DIM );
+			}
+			else if ( state == e_culled && m_showCulled )
+			{
+				DrawLine( p1, p2, MakeColor( b3_colorSlateGray ) );
+			}
+			else if ( state == e_unreached )
+			{
+				DrawLineEx( p1, p2, MakeColor( b3_colorDimGray ), 1.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DASHED );
+			}
+		}
+	}
+
+	void DrawFaceNormals( b3WorldTransform transform, const b3HullData* hull, const uint8_t* states, int seed, Vec4 testedColor )
+	{
+		const b3HullFace* faces = b3GetHullFaces( hull );
+		const b3HullHalfEdge* edges = b3GetHullEdges( hull );
+		const b3Plane* planes = b3GetHullPlanes( hull );
+		const b3Vec3* points = b3GetHullPoints( hull );
+		float length = 0.4f * b3GetLengthUnitsPerMeter();
+
+		for ( int i = 0; i < hull->faceCount; ++i )
+		{
+			uint8_t state = states[i];
+			if ( state == e_unreached || ( state == e_culled && m_showCulled == false ) )
+			{
+				continue;
+			}
+
+			b3Vec3 centroid = b3Vec3_zero;
+			int count = 0;
+			int edgeIndex = faces[i].edge;
+			do
+			{
+				centroid = b3Add( centroid, points[edges[edgeIndex].origin] );
+				count += 1;
+				edgeIndex = edges[edgeIndex].next;
+			}
+			while ( edgeIndex != faces[i].edge );
+			centroid = b3MulSV( 1.0f / (float)count, centroid );
+
+			b3Pos p1 = b3TransformWorldPoint( transform, centroid );
+			b3Pos p2 = b3TransformWorldPoint( transform, b3MulAdd( centroid, length, planes[i].normal ) );
+
+			if ( i == seed )
+			{
+				DrawArrowEx( p1, p2, MakeColor( b3_colorGold ), 3.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DIM, 0.25f );
+			}
+			else if ( state == e_tested )
+			{
+				DrawArrowEx( p1, p2, testedColor, 2.0f, OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_DIM, 0.25f );
+			}
+			else
+			{
+				DrawLine( p1, p2, MakeColor( b3_colorSlateGray ) );
+			}
+		}
+	}
+
+	void Render() override
+	{
+		const b3HullData* hullA = m_hullA;
+		const b3HullData* hullB = m_hullB;
+
+		DrawEdges( m_transformA, hullA, m_edgeStateA, MakeColor( b3_colorOrange ) );
+		DrawEdges( m_transformB, hullB, m_edgeStateB, MakeColor( b3_colorDeepSkyBlue ) );
+
+		if ( m_showNormals )
+		{
+			DrawFaceNormals( m_transformA, hullA, m_faceStateA, m_seedA, MakeColor( b3_colorOrange ) );
+			DrawFaceNormals( m_transformB, hullB, m_faceStateB, m_seedB, MakeColor( b3_colorDeepSkyBlue ) );
+		}
+
+		b3Pos centerA = b3TransformWorldPoint( m_transformA, hullA->center );
+		b3Pos centerB = b3TransformWorldPoint( m_transformB, hullB->center );
+		DrawLine( centerA, centerB, MakeColor( b3_colorWhite ) );
+
+		if ( m_showSpheres )
+		{
+			b3Sphere sphereA = { hullA->center, hullA->innerRadius };
+			b3Sphere sphereB = { hullB->center, hullB->innerRadius };
+			DrawWireSphere( m_transformA, &sphereA, 32, MakeColor( b3_colorOrange ) );
+			DrawWireSphere( m_transformB, &sphereB, 32, MakeColor( b3_colorDeepSkyBlue ) );
+		}
+
+		int faceCountA = hullA->faceCount;
+		int faceCountB = hullB->faceCount;
+		int edgeCountA = hullA->edgeCount / 2;
+		int edgeCountB = hullB->edgeCount / 2;
+		int testedA = CountState( m_faceStateA, faceCountA, e_tested );
+		int testedB = CountState( m_faceStateB, faceCountB, e_tested );
+		int culledA = CountState( m_faceStateA, faceCountA, e_culled );
+		int culledB = CountState( m_faceStateB, faceCountB, e_culled );
+		bool edgesReached = m_separatedFeature == b3_invalidAxis;
+		int seedCount = m_separatedFeature == b3_faceAxisA ? 1 : 2;
+
+		DrawTextLine( "drag to move B, shift + drag to rotate B" );
+		DrawTextLine( "vertices %d, faces %d, edges %d", hullA->vertexCount, faceCountA, edgeCountA );
+		DrawTextLine( "|d| - rA - rB = %.3f", m_gap );
+		DrawTextLine( "faces A: tested %d, culled %d of %d, best separation %.4f", testedA, culledA, faceCountA, m_separationA );
+
+		if ( m_separatedFeature == b3_faceAxisA )
+		{
+			DrawTextLine( "separated by face A, B faces and edges not reached" );
+		}
+		else
+		{
+			DrawTextLine( "faces B: tested %d, culled %d of %d, best separation %.4f", testedB, culledB, faceCountB,
+						  m_separationB );
+		}
+
+		if ( m_separatedFeature == b3_faceAxisB )
+		{
+			DrawTextLine( "separated by face B, edges not reached" );
+		}
+
+		DrawTextLine( "support queries: %d of %d (including %d seed)", testedA + testedB + seedCount, faceCountA + faceCountB,
+					  seedCount );
+
+		if ( edgesReached )
+		{
+			int pairCount = m_keptEdgeCountA * m_keptEdgeCountB;
+			int totalPairCount = edgeCountA * edgeCountB;
+			DrawTextLine( "edges kept: A %d of %d, B %d of %d", m_keptEdgeCountA, edgeCountA, m_keptEdgeCountB, edgeCountB );
+			DrawTextLine( "edge pairs: %d of %d (%.1f%%)", pairCount, totalPairCount, 100.0f * pairCount / totalPairCount );
+		}
+
+		DrawTextLine( "SAT type: %d", m_satCache.type );
+
+		Manifold::Render();
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new ComplexHullCulling( context );
+	}
+
+	b3HullData* m_hullA;
+	b3HullData* m_hullB;
+	uint8_t m_faceStateA[B3_MAX_HULL_FACES];
+	uint8_t m_faceStateB[B3_MAX_HULL_FACES];
+	uint8_t m_edgeStateA[B3_MAX_HULL_EDGES];
+	uint8_t m_edgeStateB[B3_MAX_HULL_EDGES];
+	int m_seedA;
+	int m_seedB;
+	int m_keptEdgeCountA;
+	int m_keptEdgeCountB;
+	float m_separationA;
+	float m_separationB;
+	float m_gap;
+	b3SeparatingFeature m_separatedFeature;
+	bool m_showSpheres;
+	bool m_showCulled;
+	bool m_showNormals;
+};
+
+static int sampleComplexHullCulling = RegisterSample( "Manifold", "Complex Hull Culling", ComplexHullCulling::Create );
+
 class TriangleAndHull : public TriangleManifold
 {
 public:

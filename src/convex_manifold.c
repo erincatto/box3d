@@ -2303,25 +2303,20 @@ void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* 
 
 	b3SeparatingAxis edgeQuery = axisQuery.edge;
 
-	// If face clipping yields no points then I need to run a full SAT to get the best edge pair.
-	if ( manifold->pointCount == 0 &&
-		 edgeQuery.separation < b3MaxFloat( axisQuery.faceA.separation, axisQuery.faceB.separation ) )
-	{
-		edgeQuery = b3ComputeSeparatingAxis( hullA, hullB, transformBtoA, false ).edge;
-	}
-
 	if ( edgeQuery.indexA == B3_NULL_INDEX )
 	{
 		// There are no valid edge pairs (all edges parallel)
 		return;
 	}
 
+	float faceSeparation = b3MaxFloat( axisQuery.faceA.separation, axisQuery.faceB.separation );
 	float clipSeparation = cache->separation;
 	float edgeTol = linearSlop;
 
 	// Face contact can be empty if it does not realize the axis of minimum penetration.
 	// Create edge contact if face contact fails or edge contact is significantly better!
-	if ( manifold->pointCount == 0 || edgeQuery.separation > clipSeparation + edgeTol )
+	if ( ( manifold->pointCount == 0 && edgeQuery.separation > faceSeparation ) ||
+		 edgeQuery.separation > clipSeparation + edgeTol )
 	{
 		B3_ASSERT( 0 <= edgeQuery.indexA && edgeQuery.indexA < hullA->edgeCount );
 		B3_ASSERT( 0 <= edgeQuery.indexB && edgeQuery.indexB < hullB->edgeCount );

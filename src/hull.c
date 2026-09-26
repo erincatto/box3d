@@ -1920,6 +1920,51 @@ b3HullData* b3CreateRock( float radius )
 	return b3CreateHull( points, pointCount, pointCount );
 }
 
+// PEEL's BasicRandom. This is just for testing.
+static uint32_t b3NextComplexHullRandom( uint32_t* state )
+{
+	*state = *state * 2147001325u + 715136305u;
+	return *state;
+}
+
+static float b3ComplexHullRandomFloat( uint32_t* state )
+{
+	return (float)( b3NextComplexHullRandom( state ) & 0xffff ) / 65535.0f - 0.5f;
+}
+
+static b3Vec3 b3ComplexHullRandomDirection( uint32_t* state )
+{
+	b3Vec3 point;
+	float lengthSquared;
+	do
+	{
+		point.x = b3ComplexHullRandomFloat( state );
+		point.y = b3ComplexHullRandomFloat( state );
+		point.z = b3ComplexHullRandomFloat( state );
+		lengthSquared = b3Dot( point, point );
+	}
+	while ( lengthSquared > 0.25f );
+
+	return b3Normalize( point );
+}
+
+b3HullData* b3CreateComplexHull( float radius )
+{
+	enum
+	{
+		pointCount = 32
+	};
+
+	b3Vec3 points[pointCount];
+	uint32_t state = 42;
+	for ( int i = 0; i < pointCount; ++i )
+	{
+		points[i] = b3MulSV( radius, b3ComplexHullRandomDirection( &state ) );
+	}
+
+	return b3CreateHull( points, pointCount, pointCount );
+}
+
 static void b3UpdateHullBounds( b3HullData* hull )
 {
 	const b3Vec3* points = b3GetHullPoints( hull );
