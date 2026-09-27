@@ -1402,7 +1402,7 @@ static inline int b3TestEdgeCandidate( float a1, float a2, float c, float bound 
 	// b1 = (a1 - a2 * c) / s
 	// b2 = (a2 - a1 * c) / s
 	//
-	// s = 1 - c * c is greater than 0, so b1 and b2 must be positive for n to live in
+	// s = 1 - c * c is positive, so b1 and b2 must be positive for d to live in
 	// the arc between n1 and n2.
 	//
 	// The peak value along d is then norm(dp):
@@ -1421,7 +1421,7 @@ static inline int b3TestEdgeCandidate( float a1, float a2, float c, float bound 
 	// Interior conditions:
 	// b1 and b2 positive (interior arc): a1 >= c * a2 & a2 >= c * a1
 	// bound <= 0.0: the interior arc is automatically a candidate because it is positive
-	// s < B3_PARALLEL_TOL : n1 and n2 are nearly parallel so just pass the edge to the next stage
+	// s < B3_PARALLEL_TOL : n1 and n2 are nearly parallel so give up and pass the edge to the next stage
 	// t >= bound * bound * s : bound is positive and the interior normal direction is a candidate
 	//
 	// Using bit ops here to avoid branches.
