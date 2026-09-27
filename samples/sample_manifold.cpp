@@ -52,6 +52,7 @@ public:
 		m_lastX = 0.0f;
 		m_lastY = 0.0f;
 		m_origin = b3Pos_zero;
+		m_drawPoints = true;
 		m_useCache = false;
 		m_tracking = false;
 		m_rotating = false;
@@ -62,9 +63,9 @@ public:
 		DrawTextLine( "origin: %g %g %g", m_origin.x, m_origin.y, m_origin.z );
 		DrawTextLine( "count = %d", m_manifold.pointCount );
 
-		DrawAxes( b3WorldTransform_identity, 1.0f );
+		DrawAxes( b3WorldTransform_identity, 0.5f );
 
-		if ( m_manifold.pointCount == 0 )
+		if ( m_manifold.pointCount == 0 || m_drawPoints == false )
 		{
 			return;
 		}
@@ -115,6 +116,8 @@ public:
 			ImGui::RadioButton( "faceB", &m_manualFeature, 2 );
 			ImGui::RadioButton( "edgePair", &m_manualFeature, 3 );
 		}
+
+		ImGui::Checkbox( "Draw Points", &m_drawPoints );
 
 		return true;
 	}
@@ -177,6 +180,7 @@ public:
 	bool m_useCache;
 	bool m_tracking;
 	bool m_rotating;
+	bool m_drawPoints;
 };
 
 class TriangleManifold : public Sample
@@ -811,7 +815,7 @@ static int sampleCollideHulls = RegisterSample( "Manifold", "Hull vs Hull", Hull
 // can separate the hulls by more than dot(n, centerB - centerA) - innerRadiusA - innerRadiusB, so any
 // face or edge whose bound is below the best separation found so far is skipped. This recomputes the
 // culling decisions of b3ComputeSeparatingAxis from public hull data and must be kept in sync with it.
-class ComplexHullCulling : public Manifold
+class HullCulling : public Manifold
 {
 public:
 	enum FeatureState
@@ -821,7 +825,7 @@ public:
 		e_tested,
 	};
 
-	explicit ComplexHullCulling( SampleContext* context )
+	explicit HullCulling( SampleContext* context )
 		: Manifold( context )
 	{
 		if ( m_context->restart == false )
@@ -846,7 +850,7 @@ public:
 		ResetCounts();
 	}
 
-	~ComplexHullCulling() override
+	~HullCulling() override
 	{
 		b3DestroyHull( m_hullA );
 		b3DestroyHull( m_hullB );
@@ -875,6 +879,8 @@ public:
 
 	bool DrawControls() override
 	{
+		Manifold::DrawControls();
+
 		ImGui::Checkbox( "Inscribed spheres", &m_showSpheres );
 		ImGui::Checkbox( "Culled features", &m_showCulled );
 		ImGui::Checkbox( "Face normals", &m_showNormals );
@@ -1220,7 +1226,7 @@ public:
 
 	static Sample* Create( SampleContext* context )
 	{
-		return new ComplexHullCulling( context );
+		return new HullCulling( context );
 	}
 
 	b3HullData* m_hullA;
@@ -1246,7 +1252,7 @@ public:
 	bool m_showNormals;
 };
 
-static int sampleComplexHullCulling = RegisterSample( "Manifold", "Complex Hull Culling", ComplexHullCulling::Create );
+static int sampleHullCulling = RegisterSample( "Manifold", "Hull Culling", HullCulling::Create );
 
 // Shows that an edge pair can win the separating axis test even when the direction between the hull
 // centers peaks outside the Gauss map arc (wedge) of one of its edges. The inscribed sphere bound of such
@@ -1458,13 +1464,13 @@ public:
 		float separationA = -FLT_MAX;
 		for ( int i = 0; i < m_hullA->faceCount; ++i )
 		{
-			separationA = b3MaxFloat( separationA, ComplexHullCulling::FaceSeparationA( m_hullA, m_hullB, transformBtoA, i ) );
+			separationA = b3MaxFloat( separationA, HullCulling::FaceSeparationA( m_hullA, m_hullB, transformBtoA, i ) );
 		}
 
 		float separationB = -FLT_MAX;
 		for ( int i = 0; i < m_hullB->faceCount; ++i )
 		{
-			separationB = b3MaxFloat( separationB, ComplexHullCulling::FaceSeparationB( m_hullA, m_hullB, transformBtoA, i ) );
+			separationB = b3MaxFloat( separationB, HullCulling::FaceSeparationB( m_hullA, m_hullB, transformBtoA, i ) );
 		}
 
 		EdgeAxis edge = FindBestEdgeAxis( m_hullA, m_hullB, transformBtoA );
@@ -1541,8 +1547,8 @@ public:
 		int faceA1 = edgesA[m_edge.edgeA].face;
 		int faceA2 = edgesA[m_edge.edgeA + 1].face;
 		m_arcA = MakeArc( planesA[faceA1].normal, planesA[faceA2].normal, m_centerOffset,
-						  ComplexHullCulling::FaceSeparationA( m_hullA, m_hullB, transformBtoA, faceA1 ),
-						  ComplexHullCulling::FaceSeparationA( m_hullA, m_hullB, transformBtoA, faceA2 ) );
+						  HullCulling::FaceSeparationA( m_hullA, m_hullB, transformBtoA, faceA1 ),
+						  HullCulling::FaceSeparationA( m_hullA, m_hullB, transformBtoA, faceA2 ) );
 
 		const b3HullHalfEdge* edgesB = b3GetHullEdges( m_hullB );
 		const b3Plane* planesB = b3GetHullPlanes( m_hullB );
@@ -1550,8 +1556,8 @@ public:
 		int faceB2 = edgesB[m_edge.edgeB + 1].face;
 		b3Vec3 C = b3Neg( b3RotateVector( transformBtoA.q, planesB[faceB1].normal ) );
 		b3Vec3 D = b3Neg( b3RotateVector( transformBtoA.q, planesB[faceB2].normal ) );
-		m_arcB = MakeArc( C, D, m_centerOffset, ComplexHullCulling::FaceSeparationB( m_hullA, m_hullB, transformBtoA, faceB1 ),
-						  ComplexHullCulling::FaceSeparationB( m_hullA, m_hullB, transformBtoA, faceB2 ) );
+		m_arcB = MakeArc( C, D, m_centerOffset, HullCulling::FaceSeparationB( m_hullA, m_hullB, transformBtoA, faceB1 ),
+						  HullCulling::FaceSeparationB( m_hullA, m_hullB, transformBtoA, faceB2 ) );
 	}
 
 	bool DrawControls() override
