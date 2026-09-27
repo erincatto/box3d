@@ -1246,52 +1246,33 @@ static bool b3BuildEdgeContact( b3LocalManifold* manifold, const b3HullData* hul
 
 // Transform a SoA point/normal stream (already split into X/Y/Z) by out = -(R*v (+t)).
 // The inputs come straight from the hull's stored SoA arrays, so there's no transpose here.
-static inline void b3NegativeTransformFromSoA( b3Matrix3* R, b3Vec3 p, const float* inX, const float* inY, const float* inZ,
+static inline void b3NegativeTransformFromSoA( b3Matrix3 R, b3Vec3 p, const float* inX, const float* inY, const float* inZ,
 											   int n, float* outX, float* outY, float* outZ, bool isPoint )
 {
 	// row-column
-	b3FloatW r00 = b3SplatW( R->cx.x );
-	b3FloatW r01 = b3SplatW( R->cy.x );
-	b3FloatW r02 = b3SplatW( R->cz.x );
-	b3FloatW r10 = b3SplatW( R->cx.y );
-	b3FloatW r11 = b3SplatW( R->cy.y );
-	b3FloatW r12 = b3SplatW( R->cz.y );
-	b3FloatW r20 = b3SplatW( R->cx.z );
-	b3FloatW r21 = b3SplatW( R->cy.z );
-	b3FloatW r22 = b3SplatW( R->cz.z );
+	b3Vec3W r0 = { b3SplatW( R.cx.x ), b3SplatW( R.cy.x ), b3SplatW( R.cz.x ) };
+	b3Vec3W r1 = { b3SplatW( R.cx.y ), b3SplatW( R.cy.y ), b3SplatW( R.cz.y ) };
+	b3Vec3W r2 = { b3SplatW( R.cx.z ), b3SplatW( R.cy.z ), b3SplatW( R.cz.z ) };
 
-	b3FloatW tx = b3ZeroW();
-	b3FloatW ty = b3ZeroW();
-	b3FloatW tz = b3ZeroW();
-
+	b3Vec3W t = { b3ZeroW(), b3ZeroW(), b3ZeroW() };
 	if ( isPoint )
 	{
-		tx = b3SplatW( p.x );
-		ty = b3SplatW( p.y );
-		tz = b3SplatW( p.z );
+		t = b3SplatVW( p );
 	}
 
 	for ( int i = 0; i < n; i += 4 )
 	{
-		b3FloatW x = b3LoadW( inX + i );
-		b3FloatW y = b3LoadW( inY + i );
-		b3FloatW z = b3LoadW( inZ + i );
+		b3Vec3W v = b3LoadVW( inX + i, inY + i, inZ + i );
 
 		// Rotate four vectors at a time
-		b3FloatW ox = b3Dot3W( r00, r01, r02, x, y, z );
-		b3FloatW oy = b3Dot3W( r10, r11, r12, x, y, z );
-		b3FloatW oz = b3Dot3W( r20, r21, r22, x, y, z );
+		b3Vec3W out = { b3DotW( r0, v ), b3DotW( r1, v ), b3DotW( r2, v ) };
 
 		if ( isPoint )
 		{
-			ox = b3AddW( ox, tx );
-			oy = b3AddW( oy, ty );
-			oz = b3AddW( oz, tz );
+			out = b3AddVW( out, t );
 		}
 
-		b3StoreW( outX + i, b3NegW( ox ) );
-		b3StoreW( outY + i, b3NegW( oy ) );
-		b3StoreW( outZ + i, b3NegW( oz ) );
+		b3StoreVW( outX + i, outY + i, outZ + i, b3NegVW( out ) );
 	}
 }
 
@@ -1315,9 +1296,7 @@ _Static_assert( B3_MAX_HULL_VERTICES == 128, "must be 128" );
 static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float* vy, const float* vz, int n, float bias,
 									 float* support, int* vertexIndex )
 {
-	const b3FloatW nx = b3SplatW( normal.x );
-	const b3FloatW ny = b3SplatW( normal.y );
-	const b3FloatW nz = b3SplatW( normal.z );
+	const b3Vec3W normalW = b3SplatVW( normal );
 	const b3FloatW biasV = b3SplatW( bias );
 
 	// Start the minimum at a large value.
@@ -1326,10 +1305,8 @@ static inline void b3GetSupportWide( b3Vec3 normal, const float* vx, const float
 	// Tail lanes hold vertex 0 with index bits >= vertexCount, so they never become the min value.
 	for ( int i = 0; i < n; i += 4 )
 	{
-		b3FloatW x = b3LoadW( vx + i );
-		b3FloatW y = b3LoadW( vy + i );
-		b3FloatW z = b3LoadW( vz + i );
-		b3FloatW d = b3AddW( b3MulW( nz, z ), b3AddW( b3MulW( ny, y ), b3MulW( nx, x ) ) );
+		b3Vec3W v = b3LoadVW( vx + i, vy + i, vz + i );
+		b3FloatW d = b3DotW( normalW, v );
 
 		// This is always positive.
 		b3FloatW value = b3SubW( biasV, d );
@@ -1364,14 +1341,12 @@ static inline void b3GetFaceDots( const b3HullData* hull, b3Vec3 d, float* dots 
 	const float* ny = nx + soaFaceCount;
 	const float* nz = ny + soaFaceCount;
 
-	b3FloatW dx = b3SplatW( d.x );
-	b3FloatW dy = b3SplatW( d.y );
-	b3FloatW dz = b3SplatW( d.z );
+	b3Vec3W dW = b3SplatVW( d );
 
 	for ( int i = 0; i < soaFaceCount; i += 4 )
 	{
 		// dot product per lane
-		b3FloatW m = b3Dot3W( b3LoadW( nx + i ), b3LoadW( ny + i ), b3LoadW( nz + i ), dx, dy, dz );
+		b3FloatW m = b3DotW( b3LoadVW( nx + i, ny + i, nz + i ), dW );
 		b3StoreW( dots + i, m );
 	}
 }
@@ -1464,7 +1439,6 @@ static inline int b3TestEdgeCandidate( float a1, float a2, float c, float bound 
 
 // SIMD separating axis test based on an implementation developed by Cairn Overturf.
 // See his article: https://cairno.substack.com/p/improvements-to-the-separating-axis
-// todo convert this code to use b3Vec3W to improve readability
 b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB, bool earlyReturn )
 {
 	b3Matrix3 R = b3MakeMatrixFromQuat( xfB.q );
@@ -1718,8 +1692,8 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	const float* nyB = nxB + soaFaceCountB;
 	const float* nzB = nyB + soaFaceCountB;
 
-	b3NegativeTransformFromSoA( &R, xfB.p, nxB, nyB, nzB, soaFaceCountB, bFNx, bFNy, bFNz, false );
-	b3NegativeTransformFromSoA( &R, xfB.p, vxB, vyB, vzB, soaVertexCountB, bWx, bWy, bWz, true );
+	b3NegativeTransformFromSoA( R, xfB.p, nxB, nyB, nzB, soaFaceCountB, bFNx, bFNy, bFNz, false );
+	b3NegativeTransformFromSoA( R, xfB.p, vxB, vyB, vzB, soaVertexCountB, bWx, bWy, bWz, true );
 
 	// Per A edge data, already in A's space so just gathered. n0 and n1 are the two face
 	// normals, d the edge vector av1-av0, v0 the first vertex. Tol is the
@@ -1769,18 +1743,11 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 
 	// Zero the tail lanes.
 	b3FloatW zero = b3ZeroW();
-	b3StoreW( aN0x + na, zero );
-	b3StoreW( aN0y + na, zero );
-	b3StoreW( aN0z + na, zero );
-	b3StoreW( aN1x + na, zero );
-	b3StoreW( aN1y + na, zero );
-	b3StoreW( aN1z + na, zero );
-	b3StoreW( aDx + na, zero );
-	b3StoreW( aDy + na, zero );
-	b3StoreW( aDz + na, zero );
-	b3StoreW( aV0x + na, zero );
-	b3StoreW( aV0y + na, zero );
-	b3StoreW( aV0z + na, zero );
+	b3Vec3W zeroV = { zero, zero, zero };
+	b3StoreVW( aN0x + na, aN0y + na, aN0z + na, zeroV );
+	b3StoreVW( aN1x + na, aN1y + na, aN1z + na, zeroV );
+	b3StoreVW( aDx + na, aDy + na, aDz + na, zeroV );
+	b3StoreVW( aV0x + na, aV0y + na, aV0z + na, zeroV );
 	b3StoreW( aTol + na, zero );
 
 	float linearSlop = B3_LINEAR_SLOP;
@@ -1802,32 +1769,30 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		int v0 = edge->origin;
 		int v1 = twin->origin;
 
-		float Cx = bFNx[f0];
-		float Cy = bFNy[f0];
-		float Cz = bFNz[f0];
-		float Dx = bFNx[f1];
-		float Dy = bFNy[f1];
-		float Dz = bFNz[f1];
-		float DCx = bWx[v1] - bWx[v0];
-		float DCy = bWy[v1] - bWy[v0];
-		float DCz = bWz[v1] - bWz[v0];
-		float bv0x = bWx[v0];
-		float bv0y = bWy[v0];
-		float bv0z = bWz[v0];
+		b3Vec3 C = { bFNx[f0], bFNy[f0], bFNz[f0] };
+		b3Vec3 D = { bFNx[f1], bFNy[f1], bFNz[f1] };
+		b3Vec3 bv0 = { bWx[v0], bWy[v0], bWz[v0] };
+		b3Vec3 bv1 = { bWx[v1], bWy[v1], bWz[v1] };
+		b3Vec3 DC = b3Sub( bv1, bv0 );
 
 		for ( int i = 0; i < na; ++i )
 		{
+			b3Vec3 d = { aDx[i], aDy[i], aDz[i] };
+
 			// CBA = C.dir, DBA = D.dir, where dir = B_x_A
-			float CBA = Cx * aDx[i] + ( Cy * aDy[i] + Cz * aDz[i] );
-			float DBA = Dx * aDx[i] + ( Dy * aDy[i] + Dz * aDz[i] );
+			float CBA = b3Dot( C, d );
+			float DBA = b3Dot( D, d );
 			if ( CBA * DBA >= EPS )
 			{
 				continue;
 			}
 
+			b3Vec3 n0 = { aN0x[i], aN0y[i], aN0z[i] };
+			b3Vec3 n1 = { aN1x[i], aN1y[i], aN1z[i] };
+
 			// ADC = n0.DC, BDC = n1.DC, where DC = D_x_C
-			float ADC = aN0x[i] * DCx + ( aN0y[i] * DCy + aN0z[i] * DCz );
-			float BDC = aN1x[i] * DCx + ( aN1y[i] * DCy + aN1z[i] * DCz );
+			float ADC = b3Dot( n0, DC );
+			float BDC = b3Dot( n1, DC );
 			if ( ADC * BDC >= EPS || CBA * BDC >= EPS )
 			{
 				continue;
@@ -1844,24 +1809,17 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			float t = -CBA / ( DBA - CBA );
 
 			// normal = lerp(t, C, D) = C + (D-C)*t
-			float nx = Cx + t * ( Dx - Cx );
-			float ny = Cy + t * ( Dy - Cy );
-			float nz = Cz + t * ( Dz - Cz );
-			float len2 = nx * nx + ( ny * ny + nz * nz );
+			b3Vec3 n = b3MulAdd( C, t, b3Sub( D, C ) );
+			float len2 = b3Dot( n, n );
 			float inv = 1.0f / sqrtf( len2 );
-			nx *= inv;
-			ny *= inv;
-			nz *= inv;
+			n = b3MulSV( inv, n );
 
 			// separation = -dot(normal, av0 + bv0)
-			float sx = aV0x[i] + bv0x;
-			float sy = aV0y[i] + bv0y;
-			float sz = aV0z[i] + bv0z;
-
-			float separation = -( sx * nx + ( sy * ny + sz * nz ) );
+			b3Vec3 av0 = { aV0x[i], aV0y[i], aV0z[i] };
+			float separation = -b3Dot( b3Add( av0, bv0 ), n );
 			if ( separation > res.edge.separation )
 			{
-				res.edge.normal = (b3Vec3){ nx, ny, nz };
+				res.edge.normal = n;
 				res.edge.separation = separation;
 
 				// Half edge index
@@ -1894,41 +1852,30 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		int v0 = edge->origin;
 		int v1 = twin->origin;
 
-		const b3FloatW Cx = b3SplatW( bFNx[f0] );
-		const b3FloatW Cy = b3SplatW( bFNy[f0] );
-		const b3FloatW Cz = b3SplatW( bFNz[f0] );
-		const b3FloatW Dx = b3SplatW( bFNx[f1] );
-		const b3FloatW Dy = b3SplatW( bFNy[f1] );
-		const b3FloatW Dz = b3SplatW( bFNz[f1] );
-		const b3FloatW DCx = b3SplatW( bWx[v1] - bWx[v0] );
-		const b3FloatW DCy = b3SplatW( bWy[v1] - bWy[v0] );
-		const b3FloatW DCz = b3SplatW( bWz[v1] - bWz[v0] );
-		const b3FloatW bv0x = b3SplatW( bWx[v0] );
-		const b3FloatW bv0y = b3SplatW( bWy[v0] );
-		const b3FloatW bv0z = b3SplatW( bWz[v0] );
+		b3Vec3 nC = { bFNx[f0], bFNy[f0], bFNz[f0] };
+		b3Vec3 nD = { bFNx[f1], bFNy[f1], bFNz[f1] };
+		b3Vec3 pB = { bWx[v0], bWy[v0], bWz[v0] };
+		b3Vec3 qB = { bWx[v1], bWy[v1], bWz[v1] };
+
+		const b3Vec3W C = b3SplatVW( nC );
+		const b3Vec3W D = b3SplatVW( nD );
+		const b3Vec3W DC = b3SplatVW( b3Sub( qB, pB ) );
+		const b3Vec3W bv0 = b3SplatVW( pB );
 
 		for ( int i = 0; i < na; i += 4 )
 		{
-			b3FloatW n0x = b3LoadW( aN0x + i );
-			b3FloatW n0y = b3LoadW( aN0y + i );
-			b3FloatW n0z = b3LoadW( aN0z + i );
-			b3FloatW n1x = b3LoadW( aN1x + i );
-			b3FloatW n1y = b3LoadW( aN1y + i );
-			b3FloatW n1z = b3LoadW( aN1z + i );
-			b3FloatW dx = b3LoadW( aDx + i );
-			b3FloatW dy = b3LoadW( aDy + i );
-			b3FloatW dz = b3LoadW( aDz + i );
-			b3FloatW v0x = b3LoadW( aV0x + i );
-			b3FloatW v0y = b3LoadW( aV0y + i );
-			b3FloatW v0z = b3LoadW( aV0z + i );
+			b3Vec3W n0 = b3LoadVW( aN0x + i, aN0y + i, aN0z + i );
+			b3Vec3W n1 = b3LoadVW( aN1x + i, aN1y + i, aN1z + i );
+			b3Vec3W d = b3LoadVW( aDx + i, aDy + i, aDz + i );
+			b3Vec3W av0 = b3LoadVW( aV0x + i, aV0y + i, aV0z + i );
 			b3FloatW tol = b3LoadW( aTol + i );
 
 			// CBA = C.dir, DBA = D.dir, where dir = B_x_A
-			b3FloatW CBA = b3Dot3W( Cx, Cy, Cz, dx, dy, dz );
-			b3FloatW DBA = b3Dot3W( Dx, Dy, Dz, dx, dy, dz );
+			b3FloatW CBA = b3DotW( C, d );
+			b3FloatW DBA = b3DotW( D, d );
 			// ADC = n0.DC, BDC = n1.DC, where DC = D_x_C
-			b3FloatW ADC = b3Dot3W( n0x, n0y, n0z, DCx, DCy, DCz );
-			b3FloatW BDC = b3Dot3W( n1x, n1y, n1z, DCx, DCy, DCz );
+			b3FloatW ADC = b3DotW( n0, DC );
+			b3FloatW BDC = b3DotW( n1, DC );
 
 			// Gauss map arc crossing test, CBA*DBA<eps and ADC*BDC<eps and CBA*BDC<eps
 			b3FloatW m1 = b3LessThanW( b3MulW( CBA, DBA ), EPS );
@@ -1949,29 +1896,22 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			}
 
 			// t = -CBA / (DBA - CBA)
-			b3FloatW t = b3DivW( b3SubW( zero, CBA ), b3SubW( DBA, CBA ) );
+			b3FloatW t = b3DivW( b3NegW( CBA ), b3SubW( DBA, CBA ) );
 
 			// normal = lerp(t, C, D) = C + (D-C)*t
-			b3FloatW nx = b3MulAddW( Cx, t, b3SubW( Dx, Cx ) );
-			b3FloatW ny = b3MulAddW( Cy, t, b3SubW( Dy, Cy ) );
-			b3FloatW nz = b3MulAddW( Cz, t, b3SubW( Dz, Cz ) );
+			b3Vec3W n = b3MulAddSVW( C, t, b3SubVW( D, C ) );
 
 			// normalize
-			b3FloatW len2 = b3Dot3W( nx, ny, nz, nx, ny, nz );
+			b3FloatW len2 = b3DotW( n, n );
 			b3FloatW inv = b3DivW( b3SplatW( 1.0f ), b3SqrtW( len2 ) );
-			nx = b3MulW( nx, inv );
-			ny = b3MulW( ny, inv );
-			nz = b3MulW( nz, inv );
+			n = b3MulSVW( inv, n );
 
 			// support = dot(normal, av0 + bv0)
-			b3FloatW sx = b3AddW( v0x, bv0x );
-			b3FloatW sy = b3AddW( v0y, bv0y );
-			b3FloatW sz = b3AddW( v0z, bv0z );
-			b3FloatW support = b3Dot3W( sx, sy, sz, nx, ny, nz );
+			b3FloatW support = b3DotW( b3AddVW( av0, bv0 ), n );
 
 			// Lanes that fail the Gauss test can never win.
 			support = b3BlendW( INF, support, mask );
-			b3FloatW separation = b3SubW( zero, support );
+			b3FloatW separation = b3NegW( support );
 
 			// Test all 4 supports against the running best at once. If none beats it, skip the
 			// store and scalar reduction.
@@ -1986,9 +1926,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 			_Alignas( 16 ) float nyA[4];
 			_Alignas( 16 ) float nzA[4];
 			b3StoreW( sA, separation );
-			b3StoreW( nxA, nx );
-			b3StoreW( nyA, ny );
-			b3StoreW( nzA, nz );
+			b3StoreVW( nxA, nyA, nzA, n );
 
 			// Reduce in lane order so ties keep the first edge and the early out takes the first
 			// improving support below zero. Padded tail lanes carry +INF support, so they never

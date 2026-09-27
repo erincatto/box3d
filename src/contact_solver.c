@@ -936,12 +936,6 @@ typedef struct b3Vec2W
 	b3FloatW x, y;
 } b3Vec2W;
 
-// Wide vec3
-typedef struct b3Vec3W
-{
-	b3FloatW X, Y, Z;
-} b3Vec3W;
-
 // Wide quaternion
 typedef struct b3QuatW
 {
@@ -966,50 +960,12 @@ typedef struct b3Matrix3W
 	b3Vec3W cx, cy, cz;
 } b3Matrix3W;
 
-// s * a
-static inline b3Vec3W b3MulSVW( b3FloatW s, b3Vec3W a )
-{
-	return (b3Vec3W){ b3MulW( s, a.X ), b3MulW( s, a.Y ), b3MulW( s, a.Z ) };
-}
-
-// a - s * b
-static inline b3Vec3W b3MulSubSVW( b3Vec3W a, b3FloatW s, b3Vec3W b )
-{
-	return (b3Vec3W){ b3SubW( a.X, b3MulW( s, b.X ) ), b3SubW( a.Y, b3MulW( s, b.Y ) ), b3SubW( a.Z, b3MulW( s, b.Z ) ) };
-}
-
-// a + s * b
-static inline b3Vec3W b3MulAddSVW( b3Vec3W a, b3FloatW s, b3Vec3W b )
-{
-	return (b3Vec3W){ b3AddW( a.X, b3MulW( s, b.X ) ), b3AddW( a.Y, b3MulW( s, b.Y ) ), b3AddW( a.Z, b3MulW( s, b.Z ) ) };
-}
-
 // a + b
 static inline b3Vec2W b3AddV2W( b3Vec2W a, b3Vec2W b )
 {
 	return (b3Vec2W){
 		b3AddW( a.x, b.x ),
 		b3AddW( a.y, b.y ),
-	};
-}
-
-// a - b
-static inline b3Vec3W b3SubVW( b3Vec3W a, b3Vec3W b )
-{
-	return (b3Vec3W){
-		b3SubW( a.X, b.X ),
-		b3SubW( a.Y, b.Y ),
-		b3SubW( a.Z, b.Z ),
-	};
-}
-
-// a + b
-static inline b3Vec3W b3AddVW( b3Vec3W a, b3Vec3W b )
-{
-	return (b3Vec3W){
-		b3AddW( a.X, b.X ),
-		b3AddW( a.Y, b.Y ),
-		b3AddW( a.Z, b.Z ),
 	};
 }
 
@@ -1058,20 +1014,6 @@ static inline b3Vec3W b3MulAddMVW( b3Vec3W a, b3SymMatrix3W m, b3Vec3W b )
 	};
 
 	return (b3Vec3W){ b3AddW( a.X, c.X ), b3AddW( a.Y, c.Y ), b3AddW( a.Z, c.Z ) };
-}
-
-static inline b3FloatW b3DotW( b3Vec3W a, b3Vec3W b )
-{
-	return b3AddW( b3AddW( b3MulW( a.X, b.X ), b3MulW( a.Y, b.Y ) ), b3MulW( a.Z, b.Z ) );
-}
-
-static inline b3Vec3W b3CrossW( b3Vec3W a, b3Vec3W b )
-{
-	b3Vec3W c;
-	c.X = b3SubW( b3MulW( a.Y, b.Z ), b3MulW( a.Z, b.Y ) );
-	c.Y = b3SubW( b3MulW( a.Z, b.X ), b3MulW( a.X, b.Z ) );
-	c.Z = b3SubW( b3MulW( a.X, b.Y ), b3MulW( a.Y, b.X ) );
-	return c;
 }
 
 static inline b3Matrix3W b3MakeMatrixFromQuatW( b3QuatW q )

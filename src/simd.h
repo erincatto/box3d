@@ -554,11 +554,6 @@ static inline b3FloatW b3BlendW( b3FloatW a, b3FloatW b, b3FloatW mask )
 	return vbslq_f32( mask32, b, a );
 }
 
-static inline b3FloatW b3Dot3W( b3FloatW ax, b3FloatW ay, b3FloatW az, b3FloatW bx, b3FloatW by, b3FloatW bz )
-{
-	return vaddq_f32( vmulq_f32( ax, bx ), vaddq_f32( vmulq_f32( ay, by ), vmulq_f32( az, bz ) ) );
-}
-
 static inline b3FloatW b3EmbedIndexW( b3FloatW value, int baseIndex, int bitCount )
 {
 	uint32_t mask = ( 1u << bitCount ) - 1;
@@ -747,11 +742,6 @@ static inline bool b3AnyTrueW( b3FloatW mask )
 static inline b3FloatW b3BlendW( b3FloatW a, b3FloatW b, b3FloatW mask )
 {
 	return _mm_or_ps( _mm_and_ps( mask, b ), _mm_andnot_ps( mask, a ) );
-}
-
-static inline b3FloatW b3Dot3W( b3FloatW ax, b3FloatW ay, b3FloatW az, b3FloatW bx, b3FloatW by, b3FloatW bz )
-{
-	return _mm_add_ps( _mm_mul_ps( ax, bx ), _mm_add_ps( _mm_mul_ps( ay, by ), _mm_mul_ps( az, bz ) ) );
 }
 
 // Replace the low bitCount mantissa bits of each lane with baseIndex + lane. The value must be
@@ -981,16 +971,6 @@ static inline b3FloatW b3BlendW( b3FloatW a, b3FloatW b, b3FloatW mask )
 	return r;
 }
 
-static inline b3FloatW b3Dot3W( b3FloatW ax, b3FloatW ay, b3FloatW az, b3FloatW bx, b3FloatW by, b3FloatW bz )
-{
-	b3FloatW r;
-	r.x = ax.x * bx.x + ( ay.x * by.x + az.x * bz.x );
-	r.y = ax.y * bx.y + ( ay.y * by.y + az.y * bz.y );
-	r.z = ax.z * bx.z + ( ay.z * by.z + az.z * bz.z );
-	r.w = ax.w * bx.w + ( ay.w * by.w + az.w * bz.w );
-	return r;
-}
-
 static inline b3FloatW b3EmbedIndexW( b3FloatW value, int baseIndex, int bitCount )
 {
 	uint32_t mask = ( 1u << bitCount ) - 1;
@@ -1032,6 +1012,86 @@ static inline void b3TransposeW( b3FloatW r0, b3FloatW r1, b3FloatW r2, b3FloatW
 	*c1 = b3UnpackHiW( t0, t1 );
 	*c2 = b3UnpackLoW( t2, t3 );
 	*c3 = b3UnpackHiW( t2, t3 );
+}
+
+// Wide vec3
+typedef struct b3Vec3W
+{
+	b3FloatW X, Y, Z;
+} b3Vec3W;
+
+static inline b3Vec3W b3LoadVW( const float* x, const float* y, const float* z )
+{
+	return (b3Vec3W){ b3LoadW( x ), b3LoadW( y ), b3LoadW( z ) };
+}
+
+static inline void b3StoreVW( float* x, float* y, float* z, b3Vec3W v )
+{
+	b3StoreW( x, v.X );
+	b3StoreW( y, v.Y );
+	b3StoreW( z, v.Z );
+}
+
+static inline b3Vec3W b3SplatVW( b3Vec3 v )
+{
+	return (b3Vec3W){ b3SplatW( v.x ), b3SplatW( v.y ), b3SplatW( v.z ) };
+}
+
+static inline b3Vec3W b3NegVW( b3Vec3W a )
+{
+	return (b3Vec3W){ b3NegW( a.X ), b3NegW( a.Y ), b3NegW( a.Z ) };
+}
+
+// s * a
+static inline b3Vec3W b3MulSVW( b3FloatW s, b3Vec3W a )
+{
+	return (b3Vec3W){ b3MulW( s, a.X ), b3MulW( s, a.Y ), b3MulW( s, a.Z ) };
+}
+
+// a - s * b
+static inline b3Vec3W b3MulSubSVW( b3Vec3W a, b3FloatW s, b3Vec3W b )
+{
+	return (b3Vec3W){ b3SubW( a.X, b3MulW( s, b.X ) ), b3SubW( a.Y, b3MulW( s, b.Y ) ), b3SubW( a.Z, b3MulW( s, b.Z ) ) };
+}
+
+// a + s * b
+static inline b3Vec3W b3MulAddSVW( b3Vec3W a, b3FloatW s, b3Vec3W b )
+{
+	return (b3Vec3W){ b3AddW( a.X, b3MulW( s, b.X ) ), b3AddW( a.Y, b3MulW( s, b.Y ) ), b3AddW( a.Z, b3MulW( s, b.Z ) ) };
+}
+
+// a - b
+static inline b3Vec3W b3SubVW( b3Vec3W a, b3Vec3W b )
+{
+	return (b3Vec3W){
+		b3SubW( a.X, b.X ),
+		b3SubW( a.Y, b.Y ),
+		b3SubW( a.Z, b.Z ),
+	};
+}
+
+// a + b
+static inline b3Vec3W b3AddVW( b3Vec3W a, b3Vec3W b )
+{
+	return (b3Vec3W){
+		b3AddW( a.X, b.X ),
+		b3AddW( a.Y, b.Y ),
+		b3AddW( a.Z, b.Z ),
+	};
+}
+
+static inline b3FloatW b3DotW( b3Vec3W a, b3Vec3W b )
+{
+	return b3AddW( b3AddW( b3MulW( a.X, b.X ), b3MulW( a.Y, b.Y ) ), b3MulW( a.Z, b.Z ) );
+}
+
+static inline b3Vec3W b3CrossW( b3Vec3W a, b3Vec3W b )
+{
+	b3Vec3W c;
+	c.X = b3SubW( b3MulW( a.Y, b.Z ), b3MulW( a.Z, b.Y ) );
+	c.Y = b3SubW( b3MulW( a.Z, b.X ), b3MulW( a.X, b.Z ) );
+	c.Z = b3SubW( b3MulW( a.X, b.Y ), b3MulW( a.Y, b.X ) );
+	return c;
 }
 
 #if defined( B3_SIMD_NEON )
