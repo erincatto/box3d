@@ -524,8 +524,9 @@ typedef struct b3Cluster
 	int pointCount;
 } b3Cluster;
 
-bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact, const b3Shape* shapeA, const int* materialMap,
-							 b3WorldTransform xfA, const b3Shape* shapeB, b3WorldTransform xfB, bool isFast, b3Arena arena )
+bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact, const b3Shape* shapeA,
+							 const uint16_t* materialMap, b3WorldTransform xfA, const b3Shape* shapeB, b3WorldTransform xfB,
+							 bool isFast, b3Arena arena )
 {
 	B3_ASSERT( shapeA->type == b3_meshShape || shapeA->type == b3_heightShape );
 	B3_UNUSED( workerIndex );

@@ -2413,7 +2413,7 @@ uint64_t b3GetShapeUserMaterialId( const b3Shape* shape, int childIndex, int tri
 		{
 			const uint8_t* indices = b3GetMeshMaterialIndices( child.mesh.data );
 			int meshMaterialIndex = indices != NULL ? indices[triangleIndex] : 0;
-			meshMaterialIndex = b3ClampInt( meshMaterialIndex, 0, B3_MAX_COMPOUND_MESH_MATERIALS - 1 );
+			B3_ASSERT( 0 <= meshMaterialIndex && meshMaterialIndex < child.materialCount );
 			materialIndex = child.materialIndices[meshMaterialIndex];
 		}
 		else

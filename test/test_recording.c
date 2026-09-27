@@ -1154,10 +1154,30 @@ static int AllOps( void )
 	b3CompoundSphereDef compSphere;
 	compSphere.sphere = (b3Sphere){ { 0.0f, 0.0f, 0.0f }, 1.0f };
 	compSphere.material = b3DefaultSurfaceMaterial();
+
+	// Mesh child with five materials so the compound material map is recorded
+	b3MeshData* compoundMeshData = b3CreateGridMesh( 1, 5, 1.0f, 5, false );
+	ENSURE( compoundMeshData != NULL );
+	ENSURE( compoundMeshData->materialCount == 5 );
+	b3SurfaceMaterial compoundMeshMaterials[5];
+	for ( int i = 0; i < 5; ++i )
+	{
+		compoundMeshMaterials[i] = b3DefaultSurfaceMaterial();
+	}
+	b3CompoundMeshDef compMesh;
+	memset( &compMesh, 0, sizeof( compMesh ) );
+	compMesh.meshData = compoundMeshData;
+	compMesh.transform = b3Transform_identity;
+	compMesh.scale = (b3Vec3){ 1.0f, 1.0f, 1.0f };
+	compMesh.materials = compoundMeshMaterials;
+	compMesh.materialCount = 5;
+
 	b3CompoundDef compoundDef;
 	memset( &compoundDef, 0, sizeof( compoundDef ) );
 	compoundDef.spheres = &compSphere;
 	compoundDef.sphereCount = 1;
+	compoundDef.meshes = &compMesh;
+	compoundDef.meshCount = 1;
 	b3CompoundData* compound = b3CreateCompound( &compoundDef );
 	ENSURE( compound != NULL );
 	b3ShapeDef compoundShapeDef = b3DefaultShapeDef();
@@ -1501,6 +1521,7 @@ static int AllOps( void )
 	b3DestroyMesh( swapMeshData );
 	b3DestroyHeightField( hf );
 	b3DestroyCompound( compound );
+	b3DestroyMesh( compoundMeshData );
 
 	const uint8_t* recData = b3Recording_GetData( rec );
 	int recSize = b3Recording_GetSize( rec );

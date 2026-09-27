@@ -1438,7 +1438,7 @@ static inline int b3TestEdgeCandidate( float a1, float a2, float c, float bound 
 #define NV ( B3_MAX_HULL_VERTICES + B3_SIMD_WIDTH )
 
 // SIMD separating axis test based on an implementation developed by Cairn Overturf.
-// See his article: https://cairno.substack.com/p/improvements-to-the-separating-axis
+// See his article: https://cairnc.github.io/posts/improvements-to-the-separating-axis/
 b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB, bool earlyReturn )
 {
 	b3Matrix3 R = b3MakeMatrixFromQuat( xfB.q );

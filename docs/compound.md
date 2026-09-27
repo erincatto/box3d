@@ -55,10 +55,8 @@ b3Compound* compound = b3CreateCompound(&def);
 can be freed immediately after the call.
 
 Mesh children share the mesh pointer rather than cloning triangle data — the
-`b3MeshData` must remain valid for the lifetime of the compound. Triangle
-materials are limited to `B3_MAX_COMPOUND_MESH_MATERIALS` (4) slots per mesh
-child; if your mesh needs more materials, attach it as a standalone mesh shape
-on the static body instead.
+`b3MeshData` must remain valid for the lifetime of the compound. A compound's
+shared material table holds at most 64K unique materials.
 
 ## The b3Compound Structure
 

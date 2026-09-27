@@ -6,6 +6,7 @@
 // b3CollideMoverAndCompound, b3GetCompoundChild, b3QueryCompound are internal
 #include "compound.h"
 
+#include "box3d/box3d.h"
 #include "box3d/collision.h"
 #include "box3d/math_functions.h"
 
@@ -180,7 +181,7 @@ static int CompoundMaterialDistinct( void )
 	for ( int i = 0; i < 3; ++i )
 	{
 		b3CompoundCapsule cc = b3GetCompoundCapsule( c, i );
-		ENSURE( cc.materialIndex >= 0 && cc.materialIndex < 3 );
+		ENSURE( cc.materialIndex < 3 );
 		ENSURE( mats[cc.materialIndex].userMaterialId == (uint64_t)( i + 1 ) );
 	}
 
@@ -719,6 +720,193 @@ static int CompoundMeshMaterialRemap( void )
 	return 0;
 }
 
+// Six separated upward facing triangles, one per material index 0 to 5
+static b3MeshData* MakeSixMaterialMesh( void )
+{
+	b3Vec3 vertices[18];
+	int32_t indices[18];
+	uint8_t materialIndices[6];
+
+	for ( int i = 0; i < 6; ++i )
+	{
+		float x = 3.0f * (float)i;
+		vertices[3 * i + 0] = (b3Vec3){ x - 1.0f, 0.0f, -1.0f };
+		vertices[3 * i + 1] = (b3Vec3){ x, 0.0f, 1.0f };
+		vertices[3 * i + 2] = (b3Vec3){ x + 1.0f, 0.0f, -1.0f };
+
+		indices[3 * i + 0] = 3 * i + 0;
+		indices[3 * i + 1] = 3 * i + 1;
+		indices[3 * i + 2] = 3 * i + 2;
+
+		materialIndices[i] = (uint8_t)i;
+	}
+
+	b3MeshDef def = { 0 };
+	def.vertices = vertices;
+	def.stride = sizeof( b3Vec3 );
+	def.indices = indices;
+	def.materialIndices = materialIndices;
+	def.vertexCount = 18;
+	def.triangleCount = 6;
+
+	return b3CreateMesh( &def, NULL, 0 );
+}
+
+static int CompoundMeshManyMaterials( void )
+{
+	// The capsule material bakes first so the mesh map is not the identity
+	b3SurfaceMaterial capsuleMat = MakeMaterial( 0.4f, 1000 );
+
+	b3MeshData* md = MakeSixMaterialMesh();
+	ENSURE( md->materialCount == 6 );
+
+	b3SurfaceMaterial meshMats[6];
+	for ( int i = 0; i < 6; ++i )
+	{
+		meshMats[i] = MakeMaterial( 0.2f + 0.1f * (float)i, (uint64_t)( i + 1 ) );
+	}
+
+	b3CompoundCapsuleDef cap = { .capsule = { { -10.0f, 0.0f, 0.0f }, { -9.0f, 0.0f, 0.0f }, 0.25f }, .material = capsuleMat };
+	b3CompoundMeshDef mesh = {
+		.meshData = md,
+		.transform = b3Transform_identity,
+		.scale = { 1.0f, 1.0f, 1.0f },
+		.materials = meshMats,
+		.materialCount = 6,
+	};
+
+	b3CompoundDef def = {
+		.capsules = &cap,
+		.capsuleCount = 1,
+		.meshes = &mesh,
+		.meshCount = 1,
+	};
+	b3CompoundData* c = b3CreateCompound( &def );
+	ENSURE( c != NULL );
+	ENSURE( c->materialCount == 7 );
+
+	const b3SurfaceMaterial* table = b3GetCompoundMaterials( c );
+
+	b3ChildShape capChild = b3GetCompoundChild( c, 0 );
+	ENSURE( capChild.type == b3_capsuleShape );
+	ENSURE( capChild.materialCount == 1 );
+	ENSURE( table[capChild.materialIndices[0]].userMaterialId == 1000 );
+
+	b3ChildShape meshChild = b3GetCompoundChild( c, 1 );
+	ENSURE( meshChild.type == b3_meshShape );
+	ENSURE( meshChild.materialCount == 6 );
+	for ( int k = 0; k < 6; ++k )
+	{
+		ENSURE( table[meshChild.materialIndices[k]].userMaterialId == (uint64_t)( k + 1 ) );
+	}
+
+	// Sixth triangle, material index 5
+	const uint8_t* triangleMaterials = b3GetMeshMaterialIndices( md );
+	b3RayCastInput ray = { .origin = { 15.0f, 5.0f, 0.0f }, .translation = { 0.0f, -10.0f, 0.0f }, .maxFraction = 1.0f };
+	b3CastOutput out = b3RayCastCompound( c, &ray );
+	ENSURE( out.hit == true );
+	ENSURE( out.childIndex == 1 );
+	int rawIndex = triangleMaterials[out.triangleIndex];
+	ENSURE( rawIndex >= 4 );
+	ENSURE( table[out.materialIndex].userMaterialId == (uint64_t)( rawIndex + 1 ) );
+
+	b3DestroyCompound( c );
+	b3DestroyMesh( md );
+	return 0;
+}
+
+// Flat quad with every triangle on material index 5, so the mesh has six materials
+static b3MeshData* MakeFlatMaterial5Mesh( void )
+{
+	b3Vec3 vertices[4] = {
+		{ -5.0f, 0.0f, -5.0f },
+		{ -5.0f, 0.0f, 5.0f },
+		{ 5.0f, 0.0f, -5.0f },
+		{ 5.0f, 0.0f, 5.0f },
+	};
+	int32_t indices[6] = { 0, 1, 3, 3, 2, 0 };
+	uint8_t materialIndices[2] = { 5, 5 };
+
+	b3MeshDef def = { 0 };
+	def.vertices = vertices;
+	def.stride = sizeof( b3Vec3 );
+	def.indices = indices;
+	def.materialIndices = materialIndices;
+	def.vertexCount = 4;
+	def.triangleCount = 2;
+
+	return b3CreateMesh( &def, NULL, 0 );
+}
+
+static uint64_t s_compoundContactMaterialId;
+
+static float CompoundContactFrictionCallback( float frictionA, uint64_t userMaterialIdA, float frictionB,
+											  uint64_t userMaterialIdB )
+{
+	if ( userMaterialIdA == 6 || userMaterialIdB == 6 )
+	{
+		s_compoundContactMaterialId = 6;
+	}
+	return 0.5f * ( frictionA + frictionB );
+}
+
+static int CompoundMeshContactMaterial( void )
+{
+	s_compoundContactMaterialId = 0;
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	b3World_SetFrictionCallback( worldId, CompoundContactFrictionCallback );
+
+	b3BodyDef groundBodyDef = b3DefaultBodyDef();
+	groundBodyDef.type = b3_staticBody;
+	b3BodyId groundBodyId = b3CreateBody( worldId, &groundBodyDef );
+
+	b3MeshData* md = MakeFlatMaterial5Mesh();
+	ENSURE( md->materialCount == 6 );
+
+	b3SurfaceMaterial meshMats[6];
+	for ( int i = 0; i < 6; ++i )
+	{
+		meshMats[i] = MakeMaterial( 0.5f, (uint64_t)( i + 1 ) );
+	}
+
+	b3CompoundMeshDef meshChild = {
+		.meshData = md,
+		.transform = b3Transform_identity,
+		.scale = { 1.0f, 1.0f, 1.0f },
+		.materials = meshMats,
+		.materialCount = 6,
+	};
+	b3CompoundDef compoundDef = { .meshes = &meshChild, .meshCount = 1 };
+	b3CompoundData* compound = b3CreateCompound( &compoundDef );
+	ENSURE( compound != NULL );
+
+	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
+	b3CreateBakedCompoundShape( groundBodyId, &groundShapeDef, compound );
+
+	b3BodyDef sphereBodyDef = b3DefaultBodyDef();
+	sphereBodyDef.type = b3_dynamicBody;
+	sphereBodyDef.position = (b3Pos){ 0.0f, 3.0f, 0.0f };
+	b3BodyId sphereBodyId = b3CreateBody( worldId, &sphereBodyDef );
+	b3ShapeDef sphereShapeDef = b3DefaultShapeDef();
+	sphereShapeDef.density = 1.0f;
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+	b3CreateSphereShape( sphereBodyId, &sphereShapeDef, &sphere );
+
+	for ( int i = 0; i < 120; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	ENSURE( s_compoundContactMaterialId == 6 );
+
+	b3DestroyWorld( worldId );
+	b3DestroyCompound( compound );
+	b3DestroyMesh( md );
+	return 0;
+}
+
 static int CompoundOverlap( void )
 {
 	b3SurfaceMaterial mat = b3DefaultSurfaceMaterial();
@@ -1141,6 +1329,8 @@ int CompoundTest( void )
 	RUN_SUBTEST( CompoundShapeCastMiss );
 	RUN_SUBTEST( CompoundShapeCastHullNormalRotation );
 	RUN_SUBTEST( CompoundMeshMaterialRemap );
+	RUN_SUBTEST( CompoundMeshManyMaterials );
+	RUN_SUBTEST( CompoundMeshContactMaterial );
 
 	RUN_SUBTEST( CompoundOverlap );
 	RUN_SUBTEST( CompoundOverlapTransformed );
