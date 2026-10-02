@@ -1641,6 +1641,18 @@ static void b3UpdateHullEdgeCosines( b3HullData* hull )
 	}
 }
 
+static void b3UpdateHullFaceDistances( b3HullData* hull )
+{
+	const b3Plane* planes = b3GetHullPlanes( hull );
+	float* distances = (float*)( (intptr_t)hull + hull->faceDistanceOffset );
+	int count = hull->faceCount;
+
+	for ( int i = 0; i < count; ++i )
+	{
+		distances[i] = planes[i].offset - b3Dot( planes[i].normal, hull->center );
+	}
+}
+
 int b3FindHullSupportVertex( const b3HullData* hull, b3Vec3 direction )
 {
 	int bestIndex = B3_NULL_INDEX;
@@ -2239,6 +2251,8 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	byteCount += b3AlignUp8( 3 * soaNormalCount * (int)sizeof( float ) );
 	int edgeCosineOffset = (int)byteCount;
 	byteCount += b3AlignUp8( ( edgeCount / 2 ) * (int)sizeof( float ) );
+	int faceDistanceOffset = (int)byteCount;
+	byteCount += b3AlignUp8( faceCount * (int)sizeof( float ) );
 
 	b3HullData* hull = b3Alloc( byteCount );
 	memset( hull, 0, byteCount );
@@ -2252,6 +2266,7 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	hull->soaVertexOffset = soaVertexOffset;
 	hull->soaNormalOffset = soaNormalOffset;
 	hull->edgeCosineOffset = edgeCosineOffset;
+	hull->faceDistanceOffset = faceDistanceOffset;
 
 	hull->vertexCount = vertexCount;
 	hull->edgeCount = edgeCount;
@@ -2343,6 +2358,8 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 		return NULL;
 	}
 
+	b3UpdateHullFaceDistances( hull );
+
 	if ( b3IsValidHull( hull ) == false )
 	{
 		b3DestroyHull( hull );
@@ -2391,7 +2408,7 @@ bool b3CompareHullData( const b3HullData* hull1, const b3HullData* hull2 )
 // Hull identity covers every byte, so the structs carry explicit padding. These lock
 // the layout, re-audit padding if a size changes.
 _Static_assert( sizeof( b3HullData ) == 152, "unexpected hull data size" );
-_Static_assert( sizeof( b3BoxHull ) == 696, "unexpected box hull size" );
+_Static_assert( sizeof( b3BoxHull ) == 728, "unexpected box hull size" );
 
 // Implement b3HullMap.
 #define NAME b3HullMap
@@ -2585,6 +2602,8 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 		b3Free( hull, original->byteCount );
 		return NULL;
 	}
+
+	b3UpdateHullFaceDistances( hull );
 
 	// Must ensure the hash is 0 so it doesn't contribute to itself.
 	hull->hash = 0;
@@ -2833,6 +2852,7 @@ static const b3BoxHull s_boxHull = {
 			.soaVertexOffset = offsetof( b3BoxHull, vx ),
 			.soaNormalOffset = offsetof( b3BoxHull, nx ),
 			.edgeCosineOffset = offsetof( b3BoxHull, edgeCosines ),
+			.faceDistanceOffset = offsetof( b3BoxHull, faceDistances ),
 		},
 	.boxVertices =
 		{
@@ -2958,6 +2978,7 @@ b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform tr
 	boxHull.nz[7] = 0.0f;
 
 	b3UpdateHullEdgeCosines( &boxHull.base );
+	b3UpdateHullFaceDistances( &boxHull.base );
 
 	// Must ensure the hash is 0 so it doesn't contribute to itself.
 	boxHull.base.hash = 0;

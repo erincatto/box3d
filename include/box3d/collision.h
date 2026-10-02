@@ -223,6 +223,17 @@ B3_INLINE const float* b3GetHullEdgeCosines( const b3HullData* hull )
 	return (const float*)( (intptr_t)hull + hull->edgeCosineOffset );
 }
 
+/// todo comment
+B3_INLINE const float* b3GetHullFaceDistances( const b3HullData* hull )
+{
+	if ( hull->faceDistanceOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (const float*)( (intptr_t)hull + hull->faceDistanceOffset );
+}
+
 /// Create a tessellated cylinder as a hull.
 B3_API b3HullData* b3CreateCylinder( float height, float radius, float yOffset, int sides );
 
