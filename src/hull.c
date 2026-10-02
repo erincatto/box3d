@@ -2957,8 +2957,6 @@ b3BoxHull b3MakeTransformedBoxHull( float hx, float hy, float hz, b3Transform tr
 	boxHull.nz[6] = 0.0f;
 	boxHull.nz[7] = 0.0f;
 
-	b3UpdateHullEdgeCosines( &boxHull.base );
-
 	// Must ensure the hash is 0 so it doesn't contribute to itself.
 	boxHull.base.hash = 0;
 	boxHull.base.hash = b3Hash64NonZero( (uint8_t*)&boxHull.base, boxHull.base.byteCount );
