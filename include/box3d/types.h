@@ -2019,7 +2019,7 @@ typedef struct b3HullFace
 } b3HullFace;
 
 /// 64-bit hull version. Useful for validating serialized data.
-#define B3_HULL_VERSION 0x5B8E2C4F17D3A96Eull
+#define B3_HULL_VERSION 0x9D3E61B7C2A4F085ull
 
 /// A convex hull.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -2082,11 +2082,11 @@ typedef struct b3HullData
 	/// Offset of dot(n1, n2) for each full edge.
 	int32_t edgeCosineOffset;
 
-	/// todo comment
-	int32_t faceDistanceOffset;
-
 	/// The total number of bytes for this hull.
 	int32_t byteCount;
+
+	/// Explicit padding for determinism.
+	int32_t padding;
 
 	/// Any padding must be explicit.
 } b3HullData;
@@ -2109,7 +2109,6 @@ typedef struct b3BoxHull
 	float ny[8];				 ///< normal y, padded to multiple of 4
 	float nz[8];				 ///< normal z, padded to multiple of 4
 	float edgeCosines[12];		 ///< dot(n1, n2) for each full edge.
-	float faceDistances[8];		 ///< todo comment
 } b3BoxHull;
 
 /**@}*/ // hull

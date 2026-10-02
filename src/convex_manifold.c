@@ -1710,10 +1710,16 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	float thresholdA = earlyReturn ? maxFaceSeparation + hullB->innerRadius - boundSlack : -INFINITY;
 	float thresholdB = earlyReturn ? maxFaceSeparation + hullA->innerRadius - boundSlack : -INFINITY;
 
+	b3Vec3 centerBinA = b3Add( b3MulMV( R, hullB->center ), xfB.p );
+	b3Vec3 centerAinB = b3MulMV( invR, b3Sub( hullA->center, xfB.p ) );
+
+	_Alignas( 16 ) float planeDotA[NF];
+	_Alignas( 16 ) float planeDotB[NF];
+	b3GetFacePlaneSeparations( hullA, centerBinA, planeDotA );
+	b3GetFacePlaneSeparations( hullB, centerAinB, planeDotB );
+
 	const float* cosinesA = b3GetHullEdgeCosines( hullA );
 	const float* cosinesB = b3GetHullEdgeCosines( hullB );
-	const float* distancesA = b3GetHullFaceDistances( hullA );
-	const float* distancesB = b3GetHullFaceDistances( hullB );
 
 	for ( int i = 0; i < halfEdgeCountA; i += 2 )
 	{
@@ -1721,7 +1727,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		int i2 = halfEdgesA[i + 1].face;
 		float c = cosinesA[i >> 1];
 		edgeIndicesA[na] = i;
-		na += b3TestEdgeCandidateSorted( dotA[i1] - distancesA[i1], dotA[i2] - distancesA[i2], c, thresholdA );
+		na += b3TestEdgeCandidateSorted( planeDotA[i1], planeDotA[i2], c, thresholdA );
 	}
 
 	for ( int i = 0; i < halfEdgeCountB; i += 2 )
@@ -1730,7 +1736,7 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		int i2 = halfEdgesB[i + 1].face;
 		float c = cosinesB[i >> 1];
 		edgeIndicesB[nb] = i;
-		nb += b3TestEdgeCandidateSorted( dotB[i1] - distancesB[i1], dotB[i2] - distancesB[i2], c, thresholdB );
+		nb += b3TestEdgeCandidateSorted( planeDotB[i1], planeDotB[i2], c, thresholdB );
 	}
 
 	// The support vertices of the best faces are points on the other hull, so an edge pair axis cannot
@@ -1739,9 +1745,6 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 	if ( earlyReturn && nb * ( ( na + 3 ) >> 2 ) >= B3_EDGE_PROBE_MIN_TESTS )
 	{
 		float probeBound = maxFaceSeparation - ( 0.1f * B3_LINEAR_SLOP + 0.001f * b3AbsFloat( centerDistance + radius ) );
-
-		_Alignas( 16 ) float planeDotA[NF];
-		_Alignas( 16 ) float planeDotB[NF];
 
 		int vertexB = res.faceA.indexB != B3_NULL_INDEX ? res.faceA.indexB : seedVertexB;
 		b3Vec3 probeB = { vxB[vertexB], vyB[vertexB], vzB[vertexB] };
