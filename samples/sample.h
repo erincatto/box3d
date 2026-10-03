@@ -76,6 +76,7 @@ struct SampleContext
 	bool enableWarmStarting = true;
 	bool enableContinuous = true;
 	bool enableRestitutionPropagation = false;
+	bool enableSSE2Fallback = false;
 	bool enableSleep = true;
 	bool pause = false;
 	int singleStep = 0;

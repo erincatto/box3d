@@ -332,6 +332,110 @@ static int MeshDropTest( void )
 	return 0;
 }
 
+static uint32_t HashFloats( uint32_t hash, const float* values, int count )
+{
+	return b3Hash( hash, (const uint8_t*)values, count * (int)sizeof( float ) );
+}
+
+// Rolling resistance is mixed per contact and the manifolds have one, two, and four points, so a width 8
+// constraint can mix lanes that width 4 keeps in separate constraints. The hash covers the stored contact
+// impulses bitwise, including the sign of zero, because those survive into warm starting and contact data.
+static int SingleRollingMixTest( int workerCount, DeterminismResult* reference )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.workerCount = workerCount;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+	b3BoxHull groundBox = b3MakeBoxHull( 40.0f, 1.0f, 40.0f );
+	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
+	b3CreateHullShape( groundId, &groundShapeDef, &groundBox.base );
+
+	enum
+	{
+		rowCount = 8,
+		columnCount = 8,
+		bodyCount = rowCount * columnCount
+	};
+
+	b3BodyId bodyIds[bodyCount];
+	b3BoxHull box = b3MakeBoxHull( 0.4f, 0.4f, 0.4f );
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.4f };
+	b3Capsule capsule = { { -0.3f, 0.0f, 0.0f }, { 0.3f, 0.0f, 0.0f }, 0.25f };
+
+	uint32_t seed = 271828u;
+	for ( int i = 0; i < bodyCount; ++i )
+	{
+		int row = i / columnCount;
+		int column = i % columnCount;
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ 2.0f * (float)column - 7.0f, 1.45f, 2.0f * (float)row - 7.0f };
+		bodyIds[i] = b3CreateBody( worldId, &bodyDef );
+
+		seed = seed * 1664525u + 1013904223u;
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.density = 1.0f;
+		shapeDef.baseMaterial.rollingResistance = ( seed >> 28 ) < 5 ? 0.2f : 0.0f;
+
+		switch ( i % 3 )
+		{
+			case 0:
+				b3CreateSphereShape( bodyIds[i], &shapeDef, &sphere );
+				break;
+			case 1:
+				b3CreateCapsuleShape( bodyIds[i], &shapeDef, &capsule );
+				break;
+			default:
+				b3CreateHullShape( bodyIds[i], &shapeDef, &box.base );
+				break;
+		}
+
+		float sign = ( i & 1 ) ? -1.0f : 1.0f;
+		b3Body_SetLinearVelocity( bodyIds[i], (b3Vec3){ -0.0f, -0.5f, sign * 0.5f } );
+		b3Body_SetAngularVelocity( bodyIds[i], (b3Vec3){ sign * 3.0f, -0.0f, -2.0f * sign } );
+	}
+
+	uint32_t hash = B3_HASH_INIT;
+	int stepCount = 120;
+	for ( int step = 0; step < stepCount; ++step )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+		for ( int i = 0; i < bodyCount; ++i )
+		{
+			b3WorldTransform xf = b3Body_GetTransform( bodyIds[i] );
+			hash = b3Hash( hash, (const uint8_t*)&xf, sizeof( b3WorldTransform ) );
+
+			b3ContactData contactData[4];
+			int contactCount = b3Body_GetContactData( bodyIds[i], contactData, ARRAY_COUNT( contactData ) );
+			for ( int c = 0; c < contactCount; ++c )
+			{
+				for ( int m = 0; m < contactData[c].manifoldCount; ++m )
+				{
+					const b3Manifold* manifold = contactData[c].manifolds + m;
+					hash = HashFloats( hash, &manifold->rollingImpulse.x, 3 );
+					hash = HashFloats( hash, &manifold->frictionImpulse.x, 3 );
+					hash = HashFloats( hash, &manifold->twistImpulse, 1 );
+
+					for ( int p = 0; p < manifold->pointCount; ++p )
+					{
+						hash = HashFloats( hash, &manifold->points[p].normalImpulse, 1 );
+						hash = HashFloats( hash, &manifold->points[p].totalNormalImpulse, 1 );
+					}
+				}
+			}
+		}
+	}
+
+	b3DestroyWorld( worldId );
+
+	ENSURE( EnsureRepeatable( reference, (DeterminismResult){ .sleepStep = stepCount, .hash = hash } ) == 0 );
+	return 0;
+}
+
 typedef int SceneFcn( int workerCount, DeterminismResult* reference );
 
 static int RunSceneAtWidth( SceneFcn* scene, int width, DeterminismResult* result )
@@ -353,9 +457,11 @@ static int SIMDWidthTest( void )
 		return 0;
 	}
 
-	SceneFcn* scenes[4] = { SingleMultithreadingTest, SingleWavePileTest, SingleQuerySpawnTest, SingleMeshDropTest };
+	SceneFcn* scenes[] = {
+		SingleMultithreadingTest, SingleWavePileTest, SingleQuerySpawnTest, SingleMeshDropTest, SingleRollingMixTest,
+	};
 
-	for ( int i = 0; i < 4; ++i )
+	for ( int i = 0; i < ARRAY_COUNT( scenes ); ++i )
 	{
 		DeterminismResult narrow = { 0 };
 		DeterminismResult wide = { 0 };

@@ -219,6 +219,10 @@ B3_API void b3World_EnableWarmStarting( b3WorldId worldId, bool flag );
 /// Is constraint warm starting enabled?
 B3_API bool b3World_IsWarmStartingEnabled( b3WorldId worldId );
 
+/// Enable the SSE2 fallback even when AVX2 is present. This is for testing.
+/// Normally you should use the CMake build settings to disable AVX2.
+B3_API void b3World_EnableSSE2Fallback( b3WorldId worldId, bool flag );
+
 /// Get the number of awake bodies
 B3_API int b3World_GetAwakeBodyCount( b3WorldId worldId );
 

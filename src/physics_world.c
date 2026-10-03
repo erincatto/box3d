@@ -2031,6 +2031,17 @@ bool b3World_IsWarmStartingEnabled( b3WorldId worldId )
 	return world->enableWarmStarting;
 }
 
+void b3World_EnableSSE2Fallback( b3WorldId worldId, bool flag )
+{
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return;
+	}
+
+	world->simdWidth = flag ? 4 : b3GetSIMDWidth();
+}
+
 int b3World_GetAwakeBodyCount( b3WorldId worldId )
 {
 	b3World* world = b3GetUnlockedWorldFromId( worldId );

@@ -94,6 +94,11 @@ int b3GetSIMDWidth( void )
 	return width;
 }
 
+bool b3IsAVX2Available( void )
+{
+	return b3DetectSIMDWidth() == 8;
+}
+
 void b3SetSIMDWidth( int width )
 {
 	B3_ASSERT( width == 0 || width == 4 || width == 8 );

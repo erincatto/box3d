@@ -177,6 +177,9 @@ B3_API bool b3IsDoublePrecision( void );
 /// an ABI test.
 B3_API int b3GetMaxManifoldPoints( void );
 
+/// @return true if the current CPU has the AVX2 instruction set.
+B3_API bool b3IsAVX2Available( void );
+
 /**@}*/
 
 //! @cond
