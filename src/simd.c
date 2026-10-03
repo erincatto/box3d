@@ -18,6 +18,9 @@ static b3AtomicInt b3_simdWidth;
 #include <intrin.h>
 #endif
 
+// This code enables runtime dispatch to AVX2.
+// Inspired by https://github.com/simdjson/simdjson/blob/master/src/internal/isadetection.h
+
 static void b3CpuId( unsigned int leaf, unsigned int subLeaf, unsigned int registers[4] )
 {
 #if defined( _MSC_VER )

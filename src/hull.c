@@ -1661,6 +1661,7 @@ int b3FindHullSupportVertex( const b3HullData* hull, b3Vec3 direction )
 	b3FloatW4 bestDotW = b3SplatW4( -FLT_MAX );
 	b3FloatW4 bestIndexW = b3SplatW4( -1.0f );
 
+	// Keep this at 4 wide to avoid regressing 4 wide platforms.
 	int loopCount = ( vertexCount + 3 ) & ~3;
 	for ( int i = 0; i < loopCount; i += 4 )
 	{

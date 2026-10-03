@@ -5,6 +5,9 @@
 
 #include "simd.h"
 
+// Macros to avoid name clashes between W4 and W8 functions existing in the same code base.
+// At the same time this helps to avoid code duplication.
+
 #if B3_SIMD_WIDTH == 8
 #define B3_WIDE( name ) name##W8
 #elif B3_SIMD_WIDTH == 4
