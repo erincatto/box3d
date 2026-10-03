@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 #include "algorithm.h"
-#include "convex_manifold.h"
 #include "hull.h"
+#include "manifold.h"
 #include "shape.h"
 #include "simd.h"
 #include "simd_wide.h"

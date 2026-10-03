@@ -21,17 +21,12 @@ set(BOX3D_SOURCE_FILES
 	constraint_graph.h
 	contact.c
 	contact.h
-	contact_solver_w4.c
-	contact_solver_w8.c
 	contact_solver_wide.inl
 	contact_solver.c
 	contact_solver.h
 	container.h
-	convex_manifold_w4.c
-	convex_manifold_w8.c
 	convex_manifold_wide.inl
 	convex_manifold.c
-	convex_manifold.h
 	core.c
 	core.h
 	ctz.h
@@ -87,8 +82,6 @@ set(BOX3D_SOURCE_FILES
 	simd_neon.h
 	simd_scalar.h
 	simd_sse2.h
-	simd_v32_scalar.h
-	simd_v32_sse2.h
 	simd_wide.h
 	solver.c
 	solver.h
@@ -104,6 +97,8 @@ set(BOX3D_SOURCE_FILES
 	verstable.h
 	weld_joint.c
 	wheel_joint.c
+	wide4.c
+	wide8.c
 
 	box3d.natvis
 )
@@ -217,7 +212,7 @@ if (MSVC)
 	endif()
 
 	if (BOX3D_AVX2 AND NOT CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_C_COMPILER_ARCHITECTURE_ID MATCHES "^(x64|X86)$")
-		set_source_files_properties(contact_solver_w8.c convex_manifold_w8.c PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+		set_source_files_properties(wide8.c PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
 	endif()
 
 elseif (MINGW)

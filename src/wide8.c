@@ -15,6 +15,7 @@
 
 B3_AVX2_BEGIN
 
+#include "contact_solver_wide.inl"
 #include "convex_manifold_wide.inl"
 
 B3_AVX2_END

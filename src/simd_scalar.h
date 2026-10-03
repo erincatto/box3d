@@ -16,8 +16,6 @@ typedef struct b3FloatW4
 	float x, y, z, w;
 } b3FloatW4;
 
-#include "simd_v32_scalar.h"
-
 static inline b3FloatW4 b3ZeroW4( void )
 {
 	return (b3FloatW4){ 0.0f, 0.0f, 0.0f, 0.0f };

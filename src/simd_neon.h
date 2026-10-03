@@ -12,12 +12,6 @@
 // wide float holds 4 numbers
 typedef float32x4_t b3FloatW4;
 
-// I don't expect the use case of b3V32 to benefit from Neon code.
-// In particular the cross product is very complex in Neon.
-
-// scalar math
-#include "simd_v32_scalar.h"
-
 static inline b3FloatW4 b3ZeroW4( void )
 {
 	return vdupq_n_f32( 0.0f );

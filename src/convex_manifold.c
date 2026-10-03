@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "convex_manifold.h"
+#include "manifold.h"
 
 #include "algorithm.h"
 #include "shape.h"
