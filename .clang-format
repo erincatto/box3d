@@ -23,6 +23,8 @@ IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '^"(box3d\/)'
     Priority:        2
+  - Regex:           '^<ImGuizmo'
+    Priority:        4
   - Regex:           '^<.*'
     Priority:        3
   - Regex:           '^".*'

@@ -554,22 +554,18 @@ static sapp_desc BuildAppDesc( int argc, char** argv )
 	return desc;
 }
 
-// We own main (SOKOL_NO_ENTRY) so the leak dump can run after sapp_run returns,
-// once sokol has torn down its window and context. On Windows sapp_run returns
-// after that teardown; on macOS it may not return, so the dump is Windows only.
+// The leak dump runs at CRT exit, after static destructors. Libraries such as ImGuizmo keep
+// heap backed containers at file scope, and a dump right after sapp_run reports them.
 int main( int argc, char** argv )
 {
 #if defined( _MSC_VER )
 	_CrtSetReportMode( _CRT_WARN, _CRTDBG_MODE_DEBUG | _CRTDBG_MODE_FILE );
 	_CrtSetReportFile( _CRT_WARN, _CRTDBG_FILE_STDOUT );
+	_CrtSetDbgFlag( _CrtSetDbgFlag( _CRTDBG_REPORT_FLAG ) | _CRTDBG_LEAK_CHECK_DF );
 #endif
 
 	sapp_desc desc = BuildAppDesc( argc, argv );
 	sapp_run( &desc );
-
-#if defined( _MSC_VER )
-	_CrtDumpMemoryLeaks();
-#endif
 
 	return s_exitCode;
 }

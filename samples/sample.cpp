@@ -1064,7 +1064,7 @@ void Sample::DrawMetrics()
 			ImGui::SetItemTooltip( "tree height" );
 			ImGui::Text( "movable tree %d", s.treeHeight );
 			ImGui::SetItemTooltip( "tree height" );
-			ImGui::Text( "alloc %lld K", (long long)( s.byteCount / 1024 ) );
+			ImGui::Text( "world %lld K", (long long)( s.byteCount / 1024 ) );
 			ImGui::Text( "stack %d K", s.stackUsed / 1024 );
 			ImGui::Text( "arena %d K", s.arenaCapacity / 1024 );
 

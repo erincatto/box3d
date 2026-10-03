@@ -295,7 +295,7 @@ void DrawGrid( b3Pos center, b3Vec3 normal, float halfExtent, int divisions, Vec
 
 void DrawGroundGrid( int size )
 {
-	Vec4 color = MakeVec4( 0.3f, 0.3f, 0.3f, 1.0f );
+	Vec4 color = MakeVec4( 0.3f, 0.3f, 0.3f, 0.3f );
 	DrawGrid( b3Pos_zero, b3Vec3_axisY, (float)size, size, color );
 }
 

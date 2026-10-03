@@ -80,6 +80,20 @@ set_target_properties(implot PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
+# ImGuizmo vendored from github.com/CedricGuillemet/ImGuizmo at 18cef5e (2026-08-08), ImGuizmo.cpp/.h only.
+add_library(imguizmo STATIC
+    "${CMAKE_SOURCE_DIR}/extern/imguizmo/ImGuizmo.cpp"
+    "${CMAKE_SOURCE_DIR}/extern/imguizmo/ImGuizmo.h"
+)
+target_link_libraries(imguizmo PUBLIC imgui)
+target_include_directories(imguizmo SYSTEM PUBLIC "${CMAKE_SOURCE_DIR}/extern/imguizmo")
+set_target_properties(imguizmo PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
+)
+
 # --- sokol: vendored headers INTERFACE target + per-platform backend. --------
 set(sokol_SOURCE_DIR "${CMAKE_SOURCE_DIR}/extern/sokol")
 add_library(sokol INTERFACE)
@@ -204,7 +218,7 @@ target_include_directories(samples PRIVATE
 
 # gfx: the renderer + Draw*/adapter. shared: human, utils (Random*), the
 # benchmark/determinism helpers the samples lean on.
-target_link_libraries(samples PRIVATE gfx shared imgui implot sokol nfd)
+target_link_libraries(samples PRIVATE gfx shared imgui implot imguizmo sokol nfd)
 
 # MSVC auto-links winmm via a #pragma comment in main.cpp. MinGW ignores that
 # pragma, so link the timeBeginPeriod/timeEndPeriod library explicitly.

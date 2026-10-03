@@ -1739,9 +1739,10 @@ b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* 
 		nb += b3TestEdgeCandidateSorted( planeDotB[i1], planeDotB[i2], c, thresholdB );
 	}
 
+	// Apply additional culling use the support points for the best face axes.
 	// The support vertices of the best faces are points on the other hull, so an edge pair axis cannot
-	// have a larger separation than the plane separation of these points over the arc of the edge. This culls many
-	// of the edges that survive the inscribed sphere bound. The slack only needs to cover round-off.
+	// have a larger separation than the plane separation of these points over the arc of the edge.
+	// This can slow down boxes so skip this if there are not enough edge candidates.
 	if ( earlyReturn && nb * ( ( na + 3 ) >> 2 ) >= B3_EDGE_PROBE_MIN_TESTS )
 	{
 		float probeBound = maxFaceSeparation - ( 0.1f * B3_LINEAR_SLOP + 0.001f * b3AbsFloat( centerDistance + radius ) );
