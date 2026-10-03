@@ -347,6 +347,11 @@ static int SIMDWidthTest( void )
 {
 	b3SetSIMDWidth( 0 );
 	int nativeWidth = b3GetSIMDWidth();
+	if ( nativeWidth == 4 )
+	{
+		printf( "  subtest skipped: SIMDWidthTest, native SIMD width is 4\n" );
+		return 0;
+	}
 
 	SceneFcn* scenes[4] = { SingleMultithreadingTest, SingleWavePileTest, SingleQuerySpawnTest, SingleMeshDropTest };
 

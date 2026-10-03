@@ -97,7 +97,11 @@ int b3GetSIMDWidth( void )
 void b3SetSIMDWidth( int width )
 {
 	B3_ASSERT( width == 0 || width == 4 || width == 8 );
-	B3_ASSERT( width != 8 || b3DetectSIMDWidth() == 8 );
+	if ( width == 8 && b3DetectSIMDWidth() != 8 )
+	{
+		width = 4;
+	}
+
 	b3AtomicStoreInt( &b3_simdWidth, width );
 }
 

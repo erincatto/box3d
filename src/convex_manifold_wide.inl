@@ -3,9 +3,17 @@
 
 #include "algorithm.h"
 #include "convex_manifold.h"
+#include "hull.h"
 #include "shape.h"
 #include "simd.h"
 #include "simd_wide.h"
+
+_Static_assert( B3_SIMD_WIDTH <= B3_HULL_SOA_PADDING, "hull SoA padding must cover the SIMD width" );
+
+static inline int b3RoundUpToSIMDWidth( int count )
+{
+	return ( count + B3_SIMD_WIDTH - 1 ) & ~( B3_SIMD_WIDTH - 1 );
+}
 
 // Transform a SoA point/normal stream (already split into X/Y/Z) by out = -(R*v (+t)).
 // The inputs come straight from the hull's stored SoA arrays, so there's no transpose here.
@@ -99,14 +107,15 @@ static inline float b3GetFaceSeparation( b3Vec3 direction, float planeSeparation
 // Wide dot(n, d) for all face normals n of the hull, padded to the SIMD width.
 static inline void b3GetFaceDots( const b3HullData* hull, b3Vec3 d, float* dots )
 {
-	int soaFaceCount = ( hull->faceCount + 7 ) & ~( 7 );
+	int faceStride = b3GetHullSoaStride( hull->faceCount );
 	const float* nx = b3GetHullSoaNormals( hull );
-	const float* ny = nx + soaFaceCount;
-	const float* nz = ny + soaFaceCount;
+	const float* ny = nx + faceStride;
+	const float* nz = ny + faceStride;
 
 	b3Vec3W dW = b3SplatVW( d );
 
-	for ( int i = 0; i < soaFaceCount; i += B3_SIMD_WIDTH )
+	int wideFaceCount = b3RoundUpToSIMDWidth( hull->faceCount );
+	for ( int i = 0; i < wideFaceCount; i += B3_SIMD_WIDTH )
 	{
 		// dot product per lane
 		b3FloatW m = b3DotW( b3LoadVW( nx + i, ny + i, nz + i ), dW );
@@ -280,10 +289,11 @@ b3AxisQuery B3_WIDE( b3ComputeSeparatingAxis )( const b3HullData* hullA, const b
 	int faceCountA = hullA->faceCount;
 	const b3Plane* planesA = b3GetHullPlanes( hullA );
 
-	int soaVertexCountB = ( hullB->vertexCount + 7 ) & ~( 7 );
+	int vertexStrideB = b3GetHullSoaStride( hullB->vertexCount );
 	const float* vxB = b3GetHullSoaVertices( hullB );
-	const float* vyB = vxB + soaVertexCountB;
-	const float* vzB = vyB + soaVertexCountB;
+	const float* vyB = vxB + vertexStrideB;
+	const float* vzB = vyB + vertexStrideB;
+	int wideVertexCountB = b3RoundUpToSIMDWidth( hullB->vertexCount );
 
 	b3Vec3 cB = b3AABB_Center( hullB->aabb );
 	b3Vec3 hB = b3AABB_Extents( hullB->aabb );
@@ -328,7 +338,7 @@ b3AxisQuery B3_WIDE( b3ComputeSeparatingAxis )( const b3HullData* hullA, const b
 		b3Plane plane = planesA[seedIndexA];
 		b3Vec3 direction = b3Neg( b3MulMV( invR, plane.normal ) );
 		float planeSeparation = b3Dot( plane.normal, xfB.p ) - plane.offset;
-		seedSeparationA = b3GetFaceSeparation( direction, planeSeparation, vxB, vyB, vzB, soaVertexCountB, cB, hB, &seedVertexB );
+		seedSeparationA = b3GetFaceSeparation( direction, planeSeparation, vxB, vyB, vzB, wideVertexCountB, cB, hB, &seedVertexB );
 		floorA = b3MinFloat( seedSeparationA, speculativeDistance );
 	}
 
@@ -350,7 +360,7 @@ b3AxisQuery B3_WIDE( b3ComputeSeparatingAxis )( const b3HullData* hullA, const b
 		{
 			b3Vec3 direction = b3Neg( b3MulMV( invR, plane.normal ) );
 			float planeSeparation = b3Dot( plane.normal, xfB.p ) - plane.offset;
-			separation = b3GetFaceSeparation( direction, planeSeparation, vxB, vyB, vzB, soaVertexCountB, cB, hB, &vertexIndex );
+			separation = b3GetFaceSeparation( direction, planeSeparation, vxB, vyB, vzB, wideVertexCountB, cB, hB, &vertexIndex );
 		}
 
 		if ( separation > res.faceA.separation )
@@ -372,10 +382,11 @@ b3AxisQuery B3_WIDE( b3ComputeSeparatingAxis )( const b3HullData* hullA, const b
 	int faceCountB = hullB->faceCount;
 	const b3Plane* planesB = b3GetHullPlanes( hullB );
 
-	int soaVertexCountA = ( hullA->vertexCount + 7 ) & ~( 7 );
+	int vertexStrideA = b3GetHullSoaStride( hullA->vertexCount );
 	const float* vxA = b3GetHullSoaVertices( hullA );
-	const float* vyA = vxA + soaVertexCountA;
-	const float* vzA = vyA + soaVertexCountA;
+	const float* vyA = vxA + vertexStrideA;
+	const float* vzA = vyA + vertexStrideA;
+	int wideVertexCountA = b3RoundUpToSIMDWidth( hullA->vertexCount );
 
 	b3Vec3 cA = b3AABB_Center( hullA->aabb );
 	b3Vec3 hA = b3AABB_Extents( hullA->aabb );
@@ -404,7 +415,7 @@ b3AxisQuery B3_WIDE( b3ComputeSeparatingAxis )( const b3HullData* hullA, const b
 		b3Plane plane = planesB[seedIndexB];
 		b3Vec3 direction = b3Neg( b3MulMV( R, plane.normal ) );
 		float planeSeparation = b3Dot( direction, xfB.p ) - plane.offset;
-		seedSeparationB = b3GetFaceSeparation( direction, planeSeparation, vxA, vyA, vzA, soaVertexCountA, cA, hA, &seedVertexA );
+		seedSeparationB = b3GetFaceSeparation( direction, planeSeparation, vxA, vyA, vzA, wideVertexCountA, cA, hA, &seedVertexA );
 
 		// Include the floor set by hull A faces.
 		floorB = b3MaxFloat( seedSeparationB, res.faceA.separation );
@@ -428,7 +439,7 @@ b3AxisQuery B3_WIDE( b3ComputeSeparatingAxis )( const b3HullData* hullA, const b
 		if ( earlyReturn == false || i != seedIndexB )
 		{
 			float planeSeparation = b3Dot( direction, xfB.p ) - plane.offset;
-			separation = b3GetFaceSeparation( direction, planeSeparation, vxA, vyA, vzA, soaVertexCountA, cA, hA, &vertexIndex );
+			separation = b3GetFaceSeparation( direction, planeSeparation, vxA, vyA, vzA, wideVertexCountA, cA, hA, &vertexIndex );
 		}
 
 		if ( separation > res.faceB.separation )
@@ -447,8 +458,8 @@ b3AxisQuery B3_WIDE( b3ComputeSeparatingAxis )( const b3HullData* hullA, const b
 
 	// Transform B into A's space once, into SoA arrays. Extra space so tail can be set to zero.
 	_Static_assert( ( B3_MAX_HULL_EDGES & ( B3_SIMD_WIDTH - 1 ) ) == 0, "must be multiple of SIMD width" );
-	_Static_assert( ( B3_MAX_HULL_FACES & ( B3_SIMD_WIDTH - 1 ) ) == 0, "must be multiple of SIMD width" );
-	_Static_assert( ( B3_MAX_HULL_VERTICES & ( B3_SIMD_WIDTH - 1 ) ) == 0, "must be multiple of SIMD width" );
+	_Static_assert( ( B3_MAX_HULL_FACES & ( B3_HULL_SOA_PADDING - 1 ) ) == 0, "must be multiple of hull SoA padding" );
+	_Static_assert( ( B3_MAX_HULL_VERTICES & ( B3_HULL_SOA_PADDING - 1 ) ) == 0, "must be multiple of hull SoA padding" );
 
 	B3_VALIDATE( earlyReturn == false ||
 				 centerDistance >= b3MaxFloat( res.faceA.separation, res.faceB.separation ) + radiusBound );
@@ -535,13 +546,14 @@ b3AxisQuery B3_WIDE( b3ComputeSeparatingAxis )( const b3HullData* hullA, const b
 	_Alignas( B3_WIDE_ALIGNMENT ) float bWy[NV];
 	_Alignas( B3_WIDE_ALIGNMENT ) float bWz[NV];
 
-	int soaFaceCountB = ( faceCountB + 7 ) & ~( 7 );
+	int faceStrideB = b3GetHullSoaStride( faceCountB );
 	const float* nxB = b3GetHullSoaNormals( hullB );
-	const float* nyB = nxB + soaFaceCountB;
-	const float* nzB = nyB + soaFaceCountB;
+	const float* nyB = nxB + faceStrideB;
+	const float* nzB = nyB + faceStrideB;
 
-	b3NegativeTransformFromSoA( R, xfB.p, nxB, nyB, nzB, soaFaceCountB, bFNx, bFNy, bFNz, false );
-	b3NegativeTransformFromSoA( R, xfB.p, vxB, vyB, vzB, soaVertexCountB, bWx, bWy, bWz, true );
+	int wideFaceCountB = b3RoundUpToSIMDWidth( faceCountB );
+	b3NegativeTransformFromSoA( R, xfB.p, nxB, nyB, nzB, wideFaceCountB, bFNx, bFNy, bFNz, false );
+	b3NegativeTransformFromSoA( R, xfB.p, vxB, vyB, vzB, wideVertexCountB, bWx, bWy, bWz, true );
 
 	// Per A edge data, already in A's space so just gathered. n0 and n1 are the two face
 	// normals, d the edge vector av1-av0, v0 the first vertex. Tol is the

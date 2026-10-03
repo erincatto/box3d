@@ -1131,9 +1131,12 @@ void B3_WIDE( b3SolveContacts_Convex )( b3SolverBlock block, b3StepContext* cont
 
 			// Ensure zero rolling resistance yields no impulse
 			b3FloatW rollingMask = b3GreaterThanW( c->rollingResistance, b3ZeroW() );
-			scale = b3BlendW( b3ZeroW(), scale, rollingMask );
 
-			c->rollingImpulse = b3MulSVW( scale, c->rollingImpulse );
+			// Blend the result to ensure there are no +/-0 determinism problems, since 0 * -1 == -0.
+			b3Vec3W scaledImpulse = b3MulSVW( scale, c->rollingImpulse );
+			c->rollingImpulse.X = b3BlendW( b3ZeroW(), scaledImpulse.X, rollingMask );
+			c->rollingImpulse.Y = b3BlendW( b3ZeroW(), scaledImpulse.Y, rollingMask );
+			c->rollingImpulse.Z = b3BlendW( b3ZeroW(), scaledImpulse.Z, rollingMask );
 
 			deltaImpulse = b3SubVW( c->rollingImpulse, oldImpulse );
 

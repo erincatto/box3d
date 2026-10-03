@@ -39,10 +39,10 @@ static inline void b3StoreW8( float* data, b3FloatW8 a )
 
 static inline b3FloatW8 b3NegW8( b3FloatW8 a )
 {
-	// Create a mask with the sign bit set for each element
+	// Create a mask with the sign bit set for each element.
 	__m256 mask = _mm256_set1_ps( -0.0f );
 
-	// XOR the input with the mask to negate each element
+	// XOR the input with the mask to negate each element.
 	return _mm256_xor_ps( a, mask );
 }
 
@@ -92,14 +92,7 @@ static inline b3FloatW8 b3MaxW8( b3FloatW8 a, b3FloatW8 b )
 	return _mm256_max_ps( a, b );
 }
 
-// Horizontal min over an 8-lane vector (result broadcast to all lanes).
-static inline b3FloatW8 b3HorizontalMinW8( b3FloatW8 v )
-{
-	v = _mm256_min_ps( v, _mm256_permute_ps( v, _MM_SHUFFLE( 2, 3, 0, 1 ) ) );
-	return _mm256_min_ps( v, _mm256_permute_ps( v, _MM_SHUFFLE( 1, 0, 3, 2 ) ) );
-}
-
-// clamp a to [-b, b]
+// Clamp a to [-b, b]
 static inline b3FloatW8 b3SymClampW8( b3FloatW8 a, b3FloatW8 b )
 {
 	b3FloatW8 nb = b3NegW8( b );
@@ -166,7 +159,7 @@ static inline bool b3AnyTrueW8( b3FloatW8 mask )
 	return _mm256_movemask_ps( mask ) != 0;
 }
 
-// component-wise returns mask ? b : a
+// Component-wise returns mask ? b : a
 static inline b3FloatW8 b3BlendW8( b3FloatW8 a, b3FloatW8 b, b3FloatW8 mask )
 {
 	return _mm256_or_ps( _mm256_and_ps( mask, b ), _mm256_andnot_ps( mask, a ) );

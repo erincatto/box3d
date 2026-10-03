@@ -147,6 +147,11 @@ static int CrossWidthReplay( void )
 {
 	b3SetSIMDWidth( 0 );
 	int nativeWidth = b3GetSIMDWidth();
+	if ( nativeWidth == 4 )
+	{
+		printf( "  subtest skipped: CrossWidthReplay, native SIMD width is 4\n" );
+		return 0;
+	}
 
 	enum
 	{
