@@ -17,6 +17,8 @@
 #include "shape.h"
 #endif
 
+// todo clean this file up because it is only used for overflow now
+
 // contact separation for sub-stepping
 // s = s0 + dot(cB + rB - cA - rA, normal)
 // normal is held constant
@@ -26,7 +28,7 @@
 // s(t) = s0 + dot(cB0 - cA0, normal) + dot(dpB - dpA + rot(dqB, rB0) - rot(dqA, rA0), normal)
 // s_base = s0 + dot(cB0 - cA0, normal)
 
-// Prepare a mesh constraints
+// Prepare overflow constraints
 void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 {
 	b3TracyCZoneNC( prepare_contact, "Prepare Contact", b3_colorYellow, true );
@@ -41,7 +43,6 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	// Used for friction center weighting.
 	float invTau = 1.0f / B3_SPECULATIVE_DISTANCE;
 
-	// Need to use spans in order to find the associated b2Contact, which is per color
 	B3_ASSERT( block.blockType == b3_overflowBlock );
 	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
 	b3ContactPrepareSpan* spans = context->overflowSpans;

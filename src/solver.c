@@ -1632,16 +1632,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 				int colorMeshGroupCount = colorMeshGroupCounts[i];
 				for ( int g = 0; g < colorMeshGroupCount; ++g )
 				{
-					int slotCount = 0;
-					for ( int lane = 0; lane < ( 1 << simdShift ); ++lane )
-					{
-						int k = ( g << simdShift ) + lane;
-						if ( k < colorContactCount )
-						{
-							slotCount = b3MaxInt( slotCount, specs[order[k]].manifoldCount );
-						}
-					}
-
+					int slotCount = specs[order[g << simdShift]].manifoldCount;
 					meshManifoldStarts[groupBase + g] = meshSlotCount;
 					meshSlotCount += slotCount;
 				}

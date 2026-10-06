@@ -969,20 +969,6 @@ void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v
 		return;
 	}
 
-	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : 0.0f;
-
-	b3Vec3 margin = { speculativeDistance, speculativeDistance, speculativeDistance };
-	b3AABB triangleBounds = {
-		.lowerBound = b3Sub( b3Min( v1, b3Min( v2, v3 ) ), margin ),
-		.upperBound = b3Add( b3Max( v1, b3Max( v2, v3 ) ), margin ),
-	};
-
-	if ( b3AABB_Overlaps( triangleBounds, hullB->aabb ) == false )
-	{
-		*cache = (b3SATCache){ 0 };
-		return;
-	}
-
 	b3Plane trianglePlane = b3MakePlaneFromPoints( v1, v2, v3 );
 	float linearSlop = B3_LINEAR_SLOP;
 
@@ -1024,6 +1010,7 @@ void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v
 	const b3Plane* hullPlanes = b3GetHullPlanes( hullB );
 	const b3Vec3* hullPoints = b3GetHullPoints( hullB );
 
+	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : 0.0f;
 	cache->hit = 1;
 
 	// Attempt to use the cache to speed up collision
