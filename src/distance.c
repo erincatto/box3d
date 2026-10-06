@@ -1089,6 +1089,9 @@ b3CastOutput b3ShapeCast( const b3ShapeCastPairInput* input )
 				}
 				else if ( input->canEncroach && distanceOutput.distance > 0.0f )
 				{
+					// This is for box movers and can't normally be reached by capsule
+					// movers or regular shape casts.
+
 					// Near-target start without overlap: advance by first order while
 					// retaining a rest separation. Sweeps that cannot consume the free
 					// gap (receding, tangential, grazing) miss.
@@ -1097,10 +1100,18 @@ b3CastOutput b3ShapeCast( const b3ShapeCastPairInput* input )
 					float approach = -b3Dot( delta2, distanceOutput.normal );
 					if ( approach <= b3MaxFloat( needed, 0.0f ) )
 					{
+						// Moving away, no hit.
 						return output;
 					}
 
-					output.fraction = needed > 0.0f ? needed / approach : 0.0f;
+					float fraction = needed > 0.0f ? needed / approach : 0.0f;
+					if ( fraction >= input->maxFraction )
+					{
+						// Still no hit because the max fraction is small.
+						return output;
+					}
+
+					output.fraction = fraction;
 					output.point = b3MulAdd( distanceOutput.pointA, input->proxyA.radius, distanceOutput.normal );
 					output.normal = distanceOutput.normal;
 					output.hit = true;

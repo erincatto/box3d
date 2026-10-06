@@ -1790,6 +1790,99 @@ public:
 
 static int sampleShapeCastDebug = RegisterSample( "Collision", "Shape Cast Debug", ShapeCastDebug::Create );
 
+// Box resting a few millimeters above a ground box, inside the cast target distance.
+// With encroach enabled the box can be cast away from the surface. Without it the
+// cast reports an initial overlap and the box is stuck.
+class EncroachCast : public Sample
+{
+public:
+	explicit EncroachCast( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 120.0f, 25.0f, 8.0f, { 0.0f, 0.5f, 0.0f } );
+		}
+
+		m_ground = b3MakeTransformedBoxHull( 3.0f, 0.25f, 3.0f, { { 0.0f, -0.25f, 0.0f }, b3Quat_identity } );
+		m_box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+		m_gap = 4.0f;
+		m_angle = 0.5f;
+		m_distance = 2.0f;
+		m_canEncroach = true;
+	}
+
+	bool HasSolverControls() const override
+	{
+		return false;
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::Checkbox( "Can Encroach", &m_canEncroach );
+		ImGui::PushItemWidth( 12.0f * ImGui::GetFontSize() );
+		ImGui::SliderFloat( "Gap (mm)", &m_gap, 0.0f, 20.0f, "%.1f" );
+		ImGui::SliderFloat( "Angle", &m_angle, -5.0f, 5.0f, "%.1f deg" );
+		ImGui::SliderFloat( "Distance", &m_distance, 0.0f, 4.0f, "%.1f" );
+		ImGui::PopItemWidth();
+		return true;
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+
+		DrawGroundGrid( 20 );
+
+		b3Transform transform = { { 0.0f, 0.5f + 0.001f * m_gap, 0.0f }, b3Quat_identity };
+		float radians = m_angle * B3_DEG_TO_RAD;
+		b3Vec3 translation = m_distance * b3Vec3{ cosf( radians ), sinf( radians ), 0.0f };
+
+		b3ShapeCastPairInput input = {};
+		input.proxyA = { m_ground.boxPoints, m_ground.base.vertexCount, 0.0f };
+		input.proxyB = { m_box.boxPoints, m_box.base.vertexCount, 0.0f };
+		input.transform = transform;
+		input.translationB = translation;
+		input.maxFraction = 1.0f;
+		input.canEncroach = m_canEncroach;
+
+		b3CastOutput output = b3ShapeCast( &input );
+
+		DrawHull( b3WorldTransform_identity, &m_ground.base, MakeColor( b3_colorSteelBlue ) );
+		DrawHull( b3MakeWorldTransform( transform ), &m_box.base, MakeColor( b3_colorGreen ) );
+
+		float fraction = output.hit ? output.fraction : 1.0f;
+		b3Transform end = { transform.p + fraction * translation, transform.q };
+		DrawHull( b3MakeWorldTransform( end ), &m_box.base, MakeColor( output.hit ? b3_colorRed : b3_colorGray ) );
+		DrawLine( b3ToPos( transform.p ), b3ToPos( transform.p + translation ), MakeColor( b3_colorWhite ) );
+
+		if ( output.hit )
+		{
+			b3Pos p = b3ToPos( output.point );
+			DrawPoint( p, 8.0f, MakeColor( b3_colorRed ) );
+			DrawLine( p, b3OffsetPos( p, 0.5f * output.normal ), MakeColor( b3_colorYellow ) );
+		}
+
+		DrawTextLine( "hit = %s, fraction = %.3f, iterations = %d", output.hit ? "true" : "false", output.fraction,
+					  output.iterations );
+		DrawTextLine( "Encroach applies to gaps up to %.2f mm", 1250.0f * B3_LINEAR_SLOP );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new EncroachCast( context );
+	}
+
+	b3BoxHull m_ground;
+	b3BoxHull m_box;
+	float m_gap;
+	float m_angle;
+	float m_distance;
+	bool m_canEncroach;
+};
+
+static int sampleEncroachCast = RegisterSample( "Collision", "Encroach Cast", EncroachCast::Create );
+
 class DistanceDebug : public Sample
 {
 public:

@@ -146,6 +146,28 @@ static int ShapeCastEncroachGradedTest( void )
 	return 0;
 }
 
+static int ShapeCastEncroachMaxFractionTest( void )
+{
+	// 5mm gap closes at fraction 0.0025
+	static const b3Vec3 vbs[] = {
+		{ 1.005f, -1.0f, 0.0f },
+		{ 1.005f, 1.0f, 0.0f },
+	};
+
+	b3ShapeCastPairInput input = EncroachCastInput( (b3Vec3){ -1.0f, 0.0f, 0.0f } );
+	input.proxyB = (b3ShapeProxy){ vbs, ARRAY_COUNT( vbs ), 0.0f };
+	input.maxFraction = 0.002f;
+	b3CastOutput output = b3ShapeCast( &input );
+	ENSURE( output.hit == false );
+
+	input.maxFraction = 0.003f;
+	output = b3ShapeCast( &input );
+	ENSURE( output.hit );
+	ENSURE_SMALL( output.fraction - 0.0025f, 0.0005f );
+
+	return 0;
+}
+
 static int ShapeCastEncroachGrazeTest( void )
 {
 	// mostly tangential slide with a slight closing component: free
@@ -220,6 +242,7 @@ int DistanceTest( void )
 	RUN_SUBTEST( ShapeCastEncroachSlideTest );
 	RUN_SUBTEST( ShapeCastEncroachClosingTest );
 	RUN_SUBTEST( ShapeCastEncroachGradedTest );
+	RUN_SUBTEST( ShapeCastEncroachMaxFractionTest );
 	RUN_SUBTEST( ShapeCastEncroachGrazeTest );
 	RUN_SUBTEST( ShapeCastStartTouchingDefaultTest );
 	RUN_SUBTEST( ShapeCastEncroachOverlapTest );
