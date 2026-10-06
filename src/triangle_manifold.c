@@ -979,6 +979,7 @@ void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v
 
 	if ( b3AABB_Overlaps( triangleBounds, hullB->aabb ) == false )
 	{
+		*cache = (b3SATCache){ 0 };
 		return;
 	}
 

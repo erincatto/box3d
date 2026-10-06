@@ -230,9 +230,6 @@ typedef struct b3StepContext
 	int wideContactCount;
 
 	// Similar for mesh/overflow contact constraints
-	struct b3ManifoldConstraint* manifoldConstraints;
-	struct b3ContactConstraint* contactConstraints;
-	b3ContactPrepareSpan* contactPrepareSpans;
 	b3ContactPrepareSpan* overflowSpans;
 	void* wideMeshConstraints;
 	int* wideMeshManifoldStarts;

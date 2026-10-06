@@ -42,18 +42,11 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	float invTau = 1.0f / B3_SPECULATIVE_DISTANCE;
 
 	// Need to use spans in order to find the associated b2Contact, which is per color
-	b3ContactPrepareSpan* spans = context->contactPrepareSpans;
-	b3ManifoldConstraint* manifoldBase = context->manifoldConstraints;
-	b3ContactConstraint* base = context->contactConstraints;
-
-	// Overflow constraints are stored separately
-	if ( block.blockType == b3_overflowBlock )
-	{
-		b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
-		spans = context->overflowSpans;
-		manifoldBase = overflow->manifoldConstraints;
-		base = overflow->contactConstraints;
-	}
+	B3_ASSERT( block.blockType == b3_overflowBlock );
+	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
+	b3ContactPrepareSpan* spans = context->overflowSpans;
+	b3ManifoldConstraint* manifoldBase = overflow->manifoldConstraints;
+	b3ContactConstraint* base = overflow->contactConstraints;
 
 	int index = block.startIndex;
 	int endIndex = block.startIndex + block.count;
@@ -826,17 +819,10 @@ void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int work
 {
 	b3World* world = context->world;
 
-	// Mirror b3PrepareContacts_Mesh: the per-color flat arrays and the overflow color
-	// each have their own (base, spans, manifoldBase).
-	b3ContactPrepareSpan* spans = context->contactPrepareSpans;
-	b3ContactConstraint* base = context->contactConstraints;
-
-	if ( block.blockType == b3_overflowBlock )
-	{
-		b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
-		spans = context->overflowSpans;
-		base = overflow->contactConstraints;
-	}
+	B3_ASSERT( block.blockType == b3_overflowBlock );
+	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
+	b3ContactPrepareSpan* spans = context->overflowSpans;
+	b3ContactConstraint* base = overflow->contactConstraints;
 
 	b3TaskContext* taskContext = world->taskContexts.data + workerIndex;
 	b3BitSet* hitEventBitSet = &taskContext->hitEventBitSet;

@@ -17,14 +17,12 @@
 #include "parallel_for.h"
 #include "physics_world.h"
 #include "platform.h"
-#include "qsort.h"
 #include "sensor.h"
 #include "shape.h"
 #include "solver_set.h"
 
 #include <limits.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 
 // these are useful for solver testing
@@ -461,24 +459,20 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 
 static bool b3IsShapeFast( const b3Shape* shape, b3Vec3 centroid1, b3Vec3 centroid2, float rotationChord, float safetyFactor )
 {
-	float minExtent;
 	float radius;
 	switch ( shape->type )
 	{
 		case b3_sphereShape:
-			minExtent = shape->sphere.radius;
 			radius = shape->sphere.radius;
 			break;
 
 		case b3_capsuleShape:
-			minExtent = shape->capsule.radius;
 			radius = 0.5f * b3Distance( shape->capsule.center1, shape->capsule.center2 ) + shape->capsule.radius;
 			break;
 
 		case b3_hullShape:
 		{
 			b3Vec3 farthestPoint = b3FarthestPointOnAABB( shape->hull->aabb, shape->localCentroid );
-			minExtent = shape->hull->innerRadius;
 			radius = b3Distance( farthestPoint, shape->localCentroid );
 		}
 		break;
@@ -487,6 +481,7 @@ static bool b3IsShapeFast( const b3Shape* shape, b3Vec3 centroid1, b3Vec3 centro
 			return true;
 	}
 
+	float minExtent = b3ComputeShapeMinExtent( shape, shape->localCentroid );
 	float maxMotion = b3Distance( centroid1, centroid2 ) + rotationChord * radius;
 	return maxMotion > safetyFactor * minExtent;
 }
@@ -1583,7 +1578,19 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		// together keeping the SIMD lanes fuller and less ragged.
 		int meshSlotCount = 0;
 		{
-			uint64_t* sortKeys = b3StackAlloc( &world->stack, meshContactCount * sizeof( uint64_t ), "mesh sort keys" );
+			int maxManifoldCount = 0;
+			for ( int i = 0; i < activeColorCount; ++i )
+			{
+				b3GraphColor* color = colors + activeColorIndices[i];
+				const b3ContactSpec* specs = color->contacts.data;
+				int colorContactCount = colorMeshContactCounts[i];
+				for ( int j = 0; j < colorContactCount; ++j )
+				{
+					maxManifoldCount = b3MaxInt( maxManifoldCount, specs[j].manifoldCount );
+				}
+			}
+
+			int* bucketStarts = b3StackAlloc( &world->stack, ( maxManifoldCount + 1 ) * sizeof( int ), "mesh buckets" );
 
 			int orderBase = 0;
 			int groupBase = 0;
@@ -1599,32 +1606,27 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 				const b3ContactSpec* specs = color->contacts.data;
 				int* order = meshLaneOrder + orderBase;
 
-				uint64_t* keys = sortKeys + orderBase;
-				for ( int j = 0; j < colorContactCount; ++j )
+				for ( int k = 0; k <= maxManifoldCount; ++k )
 				{
-					keys[j] = ( (uint64_t)( UINT16_MAX - specs[j].manifoldCount ) << 32 ) | (uint64_t)j;
-				}
-
-				{
-#define LESS( i, j ) ( keys[(int)( i )] < keys[(int)( j )] )
-#define SWAP( i, j )                                                                                                             \
-	do                                                                                                                           \
-	{                                                                                                                            \
-		uint64_t tmp_ = keys[(int)( i )];                                                                                        \
-		keys[(int)( i )] = keys[(int)( j )];                                                                                     \
-		keys[(int)( j )] = tmp_;                                                                                                 \
-	}                                                                                                                            \
-	while ( 0 )
-
-					QSORT( colorContactCount, LESS, SWAP );
-
-#undef LESS
-#undef SWAP
+					bucketStarts[k] = 0;
 				}
 
 				for ( int j = 0; j < colorContactCount; ++j )
 				{
-					order[j] = (int)( keys[j] & 0xFFFFFFFFu );
+					bucketStarts[specs[j].manifoldCount] += 1;
+				}
+
+				int start = 0;
+				for ( int k = maxManifoldCount; k >= 0; --k )
+				{
+					int count = bucketStarts[k];
+					bucketStarts[k] = start;
+					start += count;
+				}
+
+				for ( int j = 0; j < colorContactCount; ++j )
+				{
+					order[bucketStarts[specs[j].manifoldCount]++] = j;
 				}
 
 				int colorMeshGroupCount = colorMeshGroupCounts[i];
@@ -1652,7 +1654,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			B3_ASSERT( groupBase == meshGroupCount );
 			meshManifoldStarts[meshGroupCount] = meshSlotCount;
 
-			b3StackFree( &world->stack, sortKeys );
+			b3StackFree( &world->stack, bucketStarts );
 		}
 
 		int wideMeshConstraintByteCount = b3GetWideMeshConstraintByteCount( world->simdWidth );
@@ -1711,9 +1713,6 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 					color->wideConstraintCount = colorContactCountW;
 					wideBase += colorContactCountW;
 				}
-
-				color->contactConstraints = NULL;
-				color->contactConstraintCount = 0;
 
 				int colorContactCount = color->contacts.count;
 				meshPrepareSpans[i].start = meshGroupBase;
@@ -1889,9 +1888,6 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		stepContext->wideConstraints = wideConstraints;
 		stepContext->widePrepareSpans = widePrepareSpans;
 		stepContext->wideContactCount = wideContactCount;
-		stepContext->manifoldConstraints = NULL;
-		stepContext->contactConstraints = NULL;
-		stepContext->contactPrepareSpans = NULL;
 		stepContext->overflowSpans = overflowSpans;
 		stepContext->wideMeshConstraints = wideMeshConstraints;
 		stepContext->wideMeshManifoldStarts = meshManifoldStarts;

@@ -674,7 +674,15 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 			separated = b3OrW4( separated, b3OrW4( b3LessThanW4( upperY, hullLowerY ), b3GreaterThanW4( lowerY, hullUpperY ) ) );
 			separated = b3OrW4( separated, b3OrW4( b3LessThanW4( upperZ, hullLowerZ ), b3GreaterThanW4( lowerZ, hullUpperZ ) ) );
 
-			keepMask &= ~(uint32_t)b3MoveMaskW4( separated );
+			uint32_t cullMask = keepMask & (uint32_t)b3MoveMaskW4( separated );
+			keepMask &= ~cullMask;
+
+			while ( cullMask != 0 )
+			{
+				uint32_t lane = b3CTZ32( cullMask );
+				cullMask &= cullMask - 1u;
+				triangleCaches[baseIndex + (int)lane].cache.satCache = (b3SATCache){ 0 };
+			}
 		}
 
 		if ( keepMask == 0 )
