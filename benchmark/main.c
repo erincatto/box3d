@@ -228,6 +228,7 @@ int main( int argc, char** argv )
 		{ "large_pyramid", NULL, CreateLargePyramid, NULL, NULL, 200 },
 		{ "large_world", GetLargeWorldCapacity, CreateLargeWorld, NULL, StepLargeWorld, 500 },
 		{ "many_pyramids", NULL, CreateManyPyramids, NULL, NULL, 100 },
+		{ "mesh_drop", NULL, CreateMeshDropBenchmark, DestroyMeshDropBenchmark, NULL, 170 },
 		{ "rain", GetRainCapacity, CreateRain, DestroyRain, StepRain, 400 },
 		{ "sleep", GetSleepCapacity, CreateSleep, NULL, StepSleep, 300 },
 		{ "spinner", GetSpinnerCapacity, CreateSpinner, DestroySpinner, NULL, 800 },

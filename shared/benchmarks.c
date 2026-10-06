@@ -786,6 +786,77 @@ void DestroyTrees( void )
 	memset( &g_treeData, 0, sizeof( g_treeData ) );
 }
 
+struct
+{
+	b3MeshData* meshData;
+} g_meshDropData;
+
+void CreateMeshDropBenchmark( b3WorldId worldId )
+{
+	memset( &g_meshDropData, 0, sizeof( g_meshDropData ) );
+
+	int meshGridCount = 120;
+	int borderCount = 10;
+	float cellWidth = 1.0f;
+
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+
+		float rowHz = 0.1f;
+		float columnHz = 0.2f;
+		float groundAmplitude = 0.5f;
+
+		g_meshDropData.meshData =
+			b3CreateWaveMesh( meshGridCount, meshGridCount, cellWidth, groundAmplitude, rowHz, columnHz );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.filter.categoryBits = 1;
+		b3CreateMeshShape( groundId, &shapeDef, g_meshDropData.meshData, b3Vec3_one );
+	}
+
+	{
+		b3BoxHull box = b3MakeBoxHull( 0.02f, 0.2f, 0.04f );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.rollingResistance = 0.1f;
+
+		// Don't allow shapes to collide with each other.
+		shapeDef.filter.categoryBits = 2;
+		shapeDef.filter.maskBits = 1;
+
+		g_randomSeed = 3963634789;
+
+		int gridCount = BENCHMARK_DEBUG ? 20 : 100;
+		float spacing = cellWidth * ( meshGridCount - 2 * borderCount ) / gridCount;
+		float offset = 0.5f * spacing * ( 1 - gridCount );
+
+		for ( int i = 0; i < gridCount; ++i )
+		{
+			for ( int j = 0; j < gridCount; ++j )
+			{
+				b3Vec3 linearVelocity = RandomVec3Uniform( -1.0f, 1.0f );
+				b3Vec3 angularVelocity = RandomVec3Uniform( -5.0f, 5.0f );
+
+				bodyDef.position = (b3Pos){ offset + spacing * i, 5.0f, offset + spacing * j };
+				bodyDef.linearVelocity = linearVelocity;
+				bodyDef.angularVelocity = angularVelocity;
+				b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+				b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			}
+		}
+	}
+}
+
+void DestroyMeshDropBenchmark( void )
+{
+	b3DestroyMesh( g_meshDropData.meshData );
+	memset( &g_meshDropData, 0, sizeof( g_meshDropData ) );
+}
+
 struct JunkyardData
 {
 	b3BodyId pusherId;

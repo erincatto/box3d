@@ -735,6 +735,34 @@ public:
 
 static int sampleFallingTrees = RegisterSample( "Benchmark", "Falling Trees", BenchmarkFallingTrees::Create );
 
+class BenchmarkMeshDrop : public Sample
+{
+public:
+	explicit BenchmarkMeshDrop( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 30.0f, 140.0f, b3Pos_zero );
+			GetGuiDraw()->forceScale = 0.1f;
+		}
+
+		CreateMeshDropBenchmark( m_worldId );
+	}
+
+	~BenchmarkMeshDrop() override
+	{
+		DestroyMeshDropBenchmark();
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new BenchmarkMeshDrop( context );
+	}
+};
+
+static int sampleMeshDropBenchmark = RegisterSample( "Benchmark", "Mesh Drop", BenchmarkMeshDrop::Create );
+
 struct ShapeUserData
 {
 	int row;

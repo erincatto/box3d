@@ -17,6 +17,8 @@
 #include "shape.h"
 #endif
 
+// todo clean this file up because it is only used for overflow now
+
 // contact separation for sub-stepping
 // s = s0 + dot(cB + rB - cA - rA, normal)
 // normal is held constant
@@ -26,7 +28,7 @@
 // s(t) = s0 + dot(cB0 - cA0, normal) + dot(dpB - dpA + rot(dqB, rB0) - rot(dqA, rA0), normal)
 // s_base = s0 + dot(cB0 - cA0, normal)
 
-// Prepare a mesh constraints
+// Prepare overflow constraints
 void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 {
 	b3TracyCZoneNC( prepare_contact, "Prepare Contact", b3_colorYellow, true );
@@ -41,19 +43,11 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	// Used for friction center weighting.
 	float invTau = 1.0f / B3_SPECULATIVE_DISTANCE;
 
-	// Need to use spans in order to find the associated b2Contact, which is per color
-	b3ContactPrepareSpan* spans = context->contactPrepareSpans;
-	b3ManifoldConstraint* manifoldBase = context->manifoldConstraints;
-	b3ContactConstraint* base = context->contactConstraints;
-
-	// Overflow constraints are stored separately
-	if ( block.blockType == b3_overflowBlock )
-	{
-		b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
-		spans = context->overflowSpans;
-		manifoldBase = overflow->manifoldConstraints;
-		base = overflow->contactConstraints;
-	}
+	B3_ASSERT( block.blockType == b3_overflowBlock );
+	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
+	b3ContactPrepareSpan* spans = context->overflowSpans;
+	b3ManifoldConstraint* manifoldBase = overflow->manifoldConstraints;
+	b3ContactConstraint* base = overflow->contactConstraints;
 
 	int index = block.startIndex;
 	int endIndex = block.startIndex + block.count;
@@ -238,6 +232,10 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 					// should not contribute to the friction center. They are not important for jitter reduction. Closer
 					// points may begin to touch on and off, so the friction center needs to move smoothly.
 					// Epsilon to avoid a branch below (or divide by zero). Small enough to get washed out normally.
+					// 
+					// Dirk suggested to weight the points by their normal impulse. This would use the total impulse from
+					// the previous time step. I suspect this could jump around if the active point set jitters, leading
+					// to a limit cycle.
 					float weight = b3ClampFloat( 2.0f - s * invTau, B3_MIN_FRICTION_WEIGHT, 1.0f );
 					centerA = b3MulAdd( centerA, weight, rA );
 					centerB = b3MulAdd( centerB, weight, rB );
@@ -313,21 +311,10 @@ void b3WarmStartContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	for ( int constraintIndex = startIndex; constraintIndex < endIndex; ++constraintIndex )
 	{
 		const b3ContactConstraint* contactConstraint = constraints + constraintIndex;
-		int indexA = contactConstraint->indexA;
-		int indexB = contactConstraint->indexB;
 
-		b3BodyState* stateA = indexA == B3_NULL_INDEX ? &dummyState : states + indexA;
-		b3BodyState* stateB = indexB == B3_NULL_INDEX ? &dummyState : states + indexB;
-
-		b3Vec3 vA = stateA->linearVelocity;
-		b3Vec3 wA = stateA->angularVelocity;
-		b3Vec3 vB = stateB->linearVelocity;
-		b3Vec3 wB = stateB->angularVelocity;
-
-		float mA = contactConstraint->invMassA;
-		b3Matrix3 iA = contactConstraint->invIA;
-		float mB = contactConstraint->invMassB;
-		b3Matrix3 iB = contactConstraint->invIB;
+		b3Vec3 linearImpulse = b3Vec3_zero;
+		b3Vec3 angularImpulseA = b3Vec3_zero;
+		b3Vec3 angularImpulseB = b3Vec3_zero;
 
 		int manifoldCount = contactConstraint->manifoldCount;
 		for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
@@ -336,60 +323,56 @@ void b3WarmStartContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 
 			// Normal impulses
 			b3Vec3 normal = constraint->normal;
+			float totalNormalImpulse = 0.0f;
+			b3Vec3 momentA = b3Vec3_zero;
+			b3Vec3 momentB = b3Vec3_zero;
+
 			int pointCount = constraint->pointCount;
 			for ( int j = 0; j < pointCount; ++j )
 			{
 				const b3ManifoldConstraintPoint* cp = constraint->points + j;
 
 				// fixed anchors
-				b3Vec3 rA = cp->rA;
-				b3Vec3 rB = cp->rB;
-
-				b3Vec3 impulse = b3MulSV( cp->normalImpulse, normal );
-				wA = b3Sub( wA, b3MulMV( iA, b3Cross( rA, impulse ) ) );
-				vA = b3MulSub( vA, mA, impulse );
-				wB = b3Add( wB, b3MulMV( iB, b3Cross( rB, impulse ) ) );
-				vB = b3MulAdd( vB, mB, impulse );
+				totalNormalImpulse += cp->normalImpulse;
+				momentA = b3MulAdd( momentA, cp->normalImpulse, cp->rA );
+				momentB = b3MulAdd( momentB, cp->normalImpulse, cp->rB );
 			}
 
 			// Central friction
-			{
-				b3Vec3 rA = constraint->centerA;
-				b3Vec3 rB = constraint->centerB;
-				b3Vec3 impulse = b3MulSV( constraint->frictionImpulse.x, constraint->tangent1 );
-				impulse = b3Add( impulse, b3MulSV( constraint->frictionImpulse.y, constraint->tangent2 ) );
+			b3Vec3 frictionImpulse = b3MulSV( constraint->frictionImpulse.x, constraint->tangent1 );
+			frictionImpulse = b3MulAdd( frictionImpulse, constraint->frictionImpulse.y, constraint->tangent2 );
 
-				wA = b3Sub( wA, b3MulMV( iA, b3Cross( rA, impulse ) ) );
-				vA = b3MulSub( vA, mA, impulse );
-				wB = b3Add( wB, b3MulMV( iB, b3Cross( rB, impulse ) ) );
-				vB = b3MulAdd( vB, mB, impulse );
-			}
+			linearImpulse = b3Add( linearImpulse, b3MulAdd( frictionImpulse, totalNormalImpulse, normal ) );
 
 			// Central twist friction
-			{
-				b3Vec3 impulse = b3MulSV( constraint->twistImpulse, constraint->normal );
-				wA = b3Sub( wA, b3MulMV( iA, impulse ) );
-				wB = b3Add( wB, b3MulMV( iB, impulse ) );
-			}
+			b3Vec3 twistImpulse = b3MulSV( constraint->twistImpulse, normal );
+
+			b3Vec3 angularA =
+				b3Add( b3Add( b3Cross( momentA, normal ), b3Cross( constraint->centerA, frictionImpulse ) ), twistImpulse );
+			b3Vec3 angularB =
+				b3Add( b3Add( b3Cross( momentB, normal ), b3Cross( constraint->centerB, frictionImpulse ) ), twistImpulse );
 
 			// Rolling resistance
-			{
-				b3Vec3 impulse = constraint->rollingImpulse;
-				wA = b3Sub( wA, b3MulMV( iA, impulse ) );
-				wB = b3Add( wB, b3MulMV( iB, impulse ) );
-			}
+			angularImpulseA = b3Add( angularImpulseA, b3Add( angularA, constraint->rollingImpulse ) );
+			angularImpulseB = b3Add( angularImpulseB, b3Add( angularB, constraint->rollingImpulse ) );
 		}
+
+		int indexA = contactConstraint->indexA;
+		int indexB = contactConstraint->indexB;
+
+		b3BodyState* stateA = indexA == B3_NULL_INDEX ? &dummyState : states + indexA;
+		b3BodyState* stateB = indexB == B3_NULL_INDEX ? &dummyState : states + indexB;
 
 		if ( stateA->flags & b3_dynamicFlag )
 		{
-			stateA->linearVelocity = vA;
-			stateA->angularVelocity = wA;
+			stateA->linearVelocity = b3MulSub( stateA->linearVelocity, contactConstraint->invMassA, linearImpulse );
+			stateA->angularVelocity = b3Sub( stateA->angularVelocity, b3MulMV( contactConstraint->invIA, angularImpulseA ) );
 		}
 
 		if ( stateB->flags & b3_dynamicFlag )
 		{
-			stateB->linearVelocity = vB;
-			stateB->angularVelocity = wB;
+			stateB->linearVelocity = b3MulAdd( stateB->linearVelocity, contactConstraint->invMassB, linearImpulse );
+			stateB->angularVelocity = b3Add( stateB->angularVelocity, b3MulMV( contactConstraint->invIB, angularImpulseB ) );
 		}
 	}
 }
@@ -837,17 +820,10 @@ void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int work
 {
 	b3World* world = context->world;
 
-	// Mirror b3PrepareContacts_Mesh: the per-color flat arrays and the overflow color
-	// each have their own (base, spans, manifoldBase).
-	b3ContactPrepareSpan* spans = context->contactPrepareSpans;
-	b3ContactConstraint* base = context->contactConstraints;
-
-	if ( block.blockType == b3_overflowBlock )
-	{
-		b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
-		spans = context->overflowSpans;
-		base = overflow->contactConstraints;
-	}
+	B3_ASSERT( block.blockType == b3_overflowBlock );
+	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
+	b3ContactPrepareSpan* spans = context->overflowSpans;
+	b3ContactConstraint* base = overflow->contactConstraints;
 
 	b3TaskContext* taskContext = world->taskContexts.data + workerIndex;
 	b3BitSet* hitEventBitSet = &taskContext->hitEventBitSet;
@@ -1147,4 +1123,110 @@ int b3GetWideContactConstraintByteCount( int simdWidth )
 #endif
 
 	return b3GetWideContactConstraintByteCountW4();
+}
+
+void b3PrepareContacts_MeshWide( b3SolverBlock block, b3StepContext* context )
+{
+#if defined( B3_SIMD_HAS_WIDTH_8 )
+	if ( context->world->simdWidth == 8 )
+	{
+		b3PrepareContacts_MeshWideW8( block, context );
+		return;
+	}
+#endif
+
+	b3PrepareContacts_MeshWideW4( block, context );
+}
+
+void b3WarmStartContacts_MeshWide( b3SolverBlock block, b3StepContext* context )
+{
+#if defined( B3_SIMD_HAS_WIDTH_8 )
+	if ( context->world->simdWidth == 8 )
+	{
+		b3WarmStartContacts_MeshWideW8( block, context );
+		return;
+	}
+#endif
+
+	b3WarmStartContacts_MeshWideW4( block, context );
+}
+
+void b3PushContacts_MeshWide( b3SolverBlock block, b3StepContext* context )
+{
+#if defined( B3_SIMD_HAS_WIDTH_8 )
+	if ( context->world->simdWidth == 8 )
+	{
+		b3PushContacts_MeshWideW8( block, context );
+		return;
+	}
+#endif
+
+	b3PushContacts_MeshWideW4( block, context );
+}
+
+void b3SolveContacts_MeshWide( b3SolverBlock block, b3StepContext* context )
+{
+#if defined( B3_SIMD_HAS_WIDTH_8 )
+	if ( context->world->simdWidth == 8 )
+	{
+		b3SolveContacts_MeshWideW8( block, context );
+		return;
+	}
+#endif
+
+	b3SolveContacts_MeshWideW4( block, context );
+}
+
+void b3ApplyRestitution_MeshWide( b3SolverBlock block, b3StepContext* context )
+{
+#if defined( B3_SIMD_HAS_WIDTH_8 )
+	if ( context->world->simdWidth == 8 )
+	{
+		b3ApplyRestitution_MeshWideW8( block, context );
+		return;
+	}
+#endif
+
+	b3ApplyRestitution_MeshWideW4( block, context );
+}
+
+void b3StoreImpulses_MeshWide( b3SolverBlock block, b3StepContext* context, int workerIndex )
+{
+#if defined( B3_SIMD_HAS_WIDTH_8 )
+	if ( context->world->simdWidth == 8 )
+	{
+		b3StoreImpulses_MeshWideW8( block, context, workerIndex );
+		return;
+	}
+#endif
+
+	b3StoreImpulses_MeshWideW4( block, context, workerIndex );
+}
+
+int b3GetWideMeshConstraintByteCount( int simdWidth )
+{
+#if defined( B3_SIMD_HAS_WIDTH_8 )
+	if ( simdWidth == 8 )
+	{
+		return b3GetWideMeshConstraintByteCountW8();
+	}
+#else
+	B3_UNUSED( simdWidth );
+#endif
+
+	return b3GetWideMeshConstraintByteCountW4();
+}
+
+int b3GetWideMeshManifoldByteCount( int simdWidth )
+{
+#if defined( B3_SIMD_HAS_WIDTH_8 )
+	if ( simdWidth == 8 )
+	{
+		return b3GetWideMeshManifoldByteCountW8();
+	}
+#else
+	B3_UNUSED( simdWidth );
+#endif
+
+	return b3GetWideMeshManifoldByteCountW4();
 }

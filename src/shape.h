@@ -5,6 +5,7 @@
 
 #include "math_internal.h"
 
+#include "box3d/collision.h"
 #include "box3d/types.h"
 
 #include <stdbool.h>
@@ -80,6 +81,7 @@ void b3DestroyShapeAllocations( b3World* world, b3Shape* shape );
 
 b3MassData b3ComputeShapeMass( const b3Shape* shape );
 b3ShapeExtent b3ComputeShapeExtent( const b3Shape* shape, b3Vec3 localCenter );
+float b3ComputeShapeMinExtent( const b3Shape* shape, b3Vec3 localCenter );
 
 b3AABB b3ComputeSweptSphereAABB( const b3Sphere* shape, b3Transform xf1, b3Transform xf2 );
 b3AABB b3ComputeSweptCapsuleAABB( const b3Capsule* shape, b3Transform xf1, b3Transform xf2 );
@@ -134,7 +136,52 @@ static inline int b3GetHeightFieldTriangleCount( const b3HeightFieldData* height
 }
 
 // Mesh
-b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleIndex );
+
+// Making this inline made the tree benchmarks faster.
+static inline b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleIndex )
+{
+	B3_ASSERT( 0 <= triangleIndex && triangleIndex < mesh->data->triangleCount );
+
+	const b3MeshTriangle* triangles = b3GetMeshTriangles( mesh->data );
+	const uint8_t* flags = b3GetMeshFlags( mesh->data );
+	const b3Vec3* vertices = b3GetMeshVertices( mesh->data );
+
+	b3Triangle result;
+	b3MeshTriangle triangle = triangles[triangleIndex];
+	uint8_t triangleFlags = flags[triangleIndex];
+
+	b3Vec3 scale = mesh->scale;
+
+	result.vertices[0] = b3Mul( scale, vertices[triangle.index1] );
+	result.i1 = triangle.index1;
+
+	if ( scale.x * scale.y * scale.z < 0.0f )
+	{
+		result.vertices[1] = b3Mul( scale, vertices[triangle.index3] );
+		result.vertices[2] = b3Mul( scale, vertices[triangle.index2] );
+
+		result.i2 = triangle.index3;
+		result.i3 = triangle.index2;
+
+		// mesh is inverted, so concave edges are now convex
+		result.flags = 0;
+		result.flags |= ( triangleFlags & b3_inverseConcaveEdge1 ) ? b3_concaveEdge1 : 0;
+		result.flags |= ( triangleFlags & b3_inverseConcaveEdge2 ) ? b3_concaveEdge2 : 0;
+		result.flags |= ( triangleFlags & b3_inverseConcaveEdge3 ) ? b3_concaveEdge3 : 0;
+	}
+	else
+	{
+		result.vertices[1] = b3Mul( scale, vertices[triangle.index2] );
+		result.vertices[2] = b3Mul( scale, vertices[triangle.index3] );
+
+		result.i2 = triangle.index2;
+		result.i3 = triangle.index3;
+		result.flags = triangleFlags;
+	}
+
+	return result;
+}
+
 bool b3IsValidMesh( const b3MeshData* meshData );
 
 static inline bool b3ShouldShapesCollide( b3Filter filterA, b3Filter filterB )

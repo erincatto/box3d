@@ -163,6 +163,14 @@ static inline bool b3AnyTrueW4( b3FloatW4 mask )
 	return ( vget_lane_u32( p, 0 ) | vget_lane_u32( p, 1 ) ) != 0;
 }
 
+static inline int b3MoveMaskW4( b3FloatW4 mask )
+{
+	const int32_t shifts[4] = { 0, 1, 2, 3 };
+	uint32x4_t bits = vshlq_u32( vshrq_n_u32( vreinterpretq_u32_f32( mask ), 31 ), vld1q_s32( shifts ) );
+	uint32x2_t p = vorr_u32( vget_low_u32( bits ), vget_high_u32( bits ) );
+	return (int)( vget_lane_u32( p, 0 ) | vget_lane_u32( p, 1 ) );
+}
+
 // component-wise returns mask ? b : a
 static inline b3FloatW4 b3BlendW4( b3FloatW4 a, b3FloatW4 b, b3FloatW4 mask )
 {

@@ -3,6 +3,7 @@
 
 #include "solver.h"
 
+#include "aabb.h"
 #include "arena_allocator.h"
 #include "bitset.h"
 #include "body.h"
@@ -326,8 +327,6 @@ typedef struct b3ContinuousContext
 	float sensorFractions[B2_MAX_CONTINUOUS_SENSOR_HITS];
 	int sensorCount;
 
-	int visitCount;
-
 	int distanceIterations;
 	int pushBackIterations;
 	int rootIterations;
@@ -340,7 +339,6 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 
 	int shapeId = (int)userData;
 	b3ContinuousContext* continuousContext = context;
-	continuousContext->visitCount += 1;
 
 	b3Shape* fastShape = continuousContext->fastShape;
 	b3BodySim* fastBodySim = continuousContext->fastBodySim;
@@ -411,8 +409,6 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 		}
 	}
 
-	uint64_t ticks = b3GetTicks();
-
 	// todo does having a sweep on shapeA help with bullets?
 	b3Sweep sweepA = b3MakeRelativeSweep( bodySim, continuousContext->base );
 
@@ -457,24 +453,43 @@ static bool b3ContinuousQueryCallback( int proxyId, uint64_t userData, void* con
 		}
 	}
 
-	float ms = b3GetMilliseconds( ticks );
-	if ( ms > 1000.0f * b3GetStallThreshold() )
-	{
-		const char* nameFast = b3FindNameWithDefault( &world->names, fastBody->nameId, "NULL" );
-		const char* name = b3FindNameWithDefault( &world->names, body->nameId, "NULL" );
-		b3Log( "CCD stall: duration %.1f ms for %s versus %s", ms, nameFast, name );
-	}
-
 	// Continue query
 	return true;
+}
+
+static bool b3IsShapeFast( const b3Shape* shape, b3Vec3 centroid1, b3Vec3 centroid2, float rotationChord, float safetyFactor )
+{
+	float radius;
+	switch ( shape->type )
+	{
+		case b3_sphereShape:
+			radius = shape->sphere.radius;
+			break;
+
+		case b3_capsuleShape:
+			radius = 0.5f * b3Distance( shape->capsule.center1, shape->capsule.center2 ) + shape->capsule.radius;
+			break;
+
+		case b3_hullShape:
+		{
+			b3Vec3 farthestPoint = b3FarthestPointOnAABB( shape->hull->aabb, shape->localCentroid );
+			radius = b3Distance( farthestPoint, shape->localCentroid );
+		}
+		break;
+
+		default:
+			return true;
+	}
+
+	float minExtent = b3ComputeShapeMinExtent( shape, shape->localCentroid );
+	float maxMotion = b3Distance( centroid1, centroid2 ) + rotationChord * radius;
+	return maxMotion > safetyFactor * minExtent;
 }
 
 // Continuous collision of dynamic versus static
 static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* taskContext, float dt )
 {
 	b3TracyCZoneNC( ccd, "CCD", b3_colorDarkGoldenRod, true );
-
-	uint64_t ticks = b3GetTicks();
 
 	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
 	b3BodySim* fastBodySim = b3Array_Get( awakeSet->bodySims, bodySimIndex );
@@ -506,6 +521,8 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	context.fraction = 1.0f;
 
 	bool isBullet = ( fastBodySim->flags & b3_isBullet ) != 0;
+	float safetyFactor = fastBody->safetyFactor;
+	float rotationChord = 2.0f * b3Length( b3InvMulQuat( sweep.q1, sweep.q2 ).v );
 
 	int shapeId = fastBody->headShapeId;
 	while ( shapeId != B3_NULL_INDEX )
@@ -534,6 +551,15 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 		if ( fastShape->sensorIndex != B3_NULL_INDEX )
 		{
 			continue;
+		}
+
+		if ( isBullet == false )
+		{
+			bool isShapeFast = b3IsShapeFast( fastShape, context.centroid1, context.centroid2, rotationChord, safetyFactor );
+			if ( isShapeFast == false )
+			{
+				continue;
+			}
 		}
 
 		b3AABB sweptBox = b3AABB_Union( box1, box2 );
@@ -659,17 +685,6 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 	taskContext->distanceIterations = b3MaxInt( taskContext->distanceIterations, context.distanceIterations );
 	taskContext->pushBackIterations = b3MaxInt( taskContext->pushBackIterations, context.pushBackIterations );
 	taskContext->rootIterations = b3MaxInt( taskContext->rootIterations, context.rootIterations );
-
-	float ms = b3GetMilliseconds( ticks );
-	if ( ms > 1000.0f * b3GetStallThreshold() )
-	{
-		const char* nameFast = b3FindNameWithDefault( &world->names, fastBody->nameId, "NULL" );
-		b3Vec3 c1 = sweep.c1;
-		b3Vec3 c2 = sweep.c2;
-		int vc = context.visitCount;
-		b3Log( "CCD stall: duration %.1f ms and visit count %d for %s: c1 = (%g, %g, %g), c2 = (%g, %g, %g)", ms, vc, nameFast,
-			   c1.x, c1.y, c1.z, c2.x, c2.y, c2.z );
-	}
 
 	b3TracyCZoneEnd( ccd );
 }
@@ -985,7 +1000,7 @@ static void b3ExecuteBlock( b3SolverStage* stage, b3StepContext* context, b3Solv
 			break;
 
 		case b3_stagePrepareContacts:
-			b3PrepareContacts_Mesh( block, context );
+			b3PrepareContacts_MeshWide( block, context );
 			break;
 
 		case b3_stageIntegrateVelocities:
@@ -1003,7 +1018,7 @@ static void b3ExecuteBlock( b3SolverStage* stage, b3StepContext* context, b3Solv
 			}
 			else
 			{
-				b3WarmStartContacts_Mesh( block, context );
+				b3WarmStartContacts_MeshWide( block, context );
 			}
 			break;
 
@@ -1019,7 +1034,7 @@ static void b3ExecuteBlock( b3SolverStage* stage, b3StepContext* context, b3Solv
 			}
 			else
 			{
-				b3PushContacts_Mesh( block, context );
+				b3PushContacts_MeshWide( block, context );
 			}
 			break;
 
@@ -1039,7 +1054,7 @@ static void b3ExecuteBlock( b3SolverStage* stage, b3StepContext* context, b3Solv
 			}
 			else
 			{
-				b3SolveContacts_Mesh( block, context );
+				b3SolveContacts_MeshWide( block, context );
 			}
 			break;
 
@@ -1050,7 +1065,7 @@ static void b3ExecuteBlock( b3SolverStage* stage, b3StepContext* context, b3Solv
 			}
 			else if ( blockType == b3_graphContactBlock )
 			{
-				b3ApplyRestitution_Mesh( block, context );
+				b3ApplyRestitution_MeshWide( block, context );
 			}
 			break;
 
@@ -1059,7 +1074,7 @@ static void b3ExecuteBlock( b3SolverStage* stage, b3StepContext* context, b3Solv
 			break;
 
 		case b3_stageStoreImpulses:
-			b3StoreImpulses_Mesh( block, context, workerIndex );
+			b3StoreImpulses_MeshWide( block, context, workerIndex );
 			break;
 	}
 }
@@ -1456,7 +1471,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 
 		// Prepare buffers for continuous collision (fast bodies)
 		b3AtomicStoreInt( &stepContext->bulletBodyCount, 0 );
-		stepContext->bulletBodies = (int*)b3StackAlloc( &world->stack, awakeBodyCount * sizeof( int ), "bullet bodies" );
+		stepContext->bulletBodies = b3StackAlloc( &world->stack, awakeBodyCount * sizeof( int ), "bullet bodies" );
 
 		b3ConstraintGraph* graph = &world->constraintGraph;
 		b3GraphColor* colors = graph->colors;
@@ -1493,28 +1508,28 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		// The blocks are a mix of convex contact, mesh contact, and joint blocks
 		int activeColorIndices[B3_GRAPH_COLOR_COUNT];
 		int colorWideContactCounts[B3_GRAPH_COLOR_COUNT];
-		int colorContactCounts[B3_GRAPH_COLOR_COUNT];
-		// int colorManifoldCounts[B3_GRAPH_COLOR_COUNT];
+		int colorMeshContactCounts[B3_GRAPH_COLOR_COUNT];
+		int colorMeshGroupCounts[B3_GRAPH_COLOR_COUNT];
 		int colorJointCounts[B3_GRAPH_COLOR_COUNT];
 		b3BlockDim graphWideContactDims[B3_GRAPH_COLOR_COUNT];
-		b3BlockDim graphContactDims[B3_GRAPH_COLOR_COUNT];
+		b3BlockDim graphMeshContactDims[B3_GRAPH_COLOR_COUNT];
 		b3BlockDim graphJointDims[B3_GRAPH_COLOR_COUNT];
 		int graphBlockCount = 0;
 
 		// c is the active color index
 		int wideContactCount = 0;
-		int contactCount = 0;
-		int manifoldCount = 0;
+		int meshContactCount = 0;
+		int meshGroupCount = 0;
 		int jointCount = 0;
 		int c = 0;
 		for ( int i = 0; i < B3_GRAPH_COLOR_COUNT - 1; ++i )
 		{
 			b3GraphColor* color = colors + i;
 			int colorConvexContactCount = color->convexContacts.count;
-			int colorContactCount = color->contacts.count;
+			int colorMeshContactCount = color->contacts.count;
 			int colorJointCount = color->jointSims.count;
 
-			if ( colorConvexContactCount + colorContactCount + colorJointCount == 0 )
+			if ( colorConvexContactCount + colorMeshContactCount + colorJointCount == 0 )
 			{
 				continue;
 			}
@@ -1526,24 +1541,21 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			wideContactCount += colorWideConstraintCount;
 			colorWideContactCounts[c] = colorWideConstraintCount;
 
-			colorContactCounts[c] = colorContactCount;
-			contactCount += colorContactCount;
+			colorMeshContactCounts[c] = colorMeshContactCount;
+			meshContactCount += colorMeshContactCount;
 
-			// Compute manifold starts and accumulate manifold count
-			for ( int j = 0; j < colorContactCount; ++j )
-			{
-				color->contacts.data[j].manifoldStart = manifoldCount;
-				manifoldCount += color->contacts.data[j].manifoldCount;
-			}
+			int colorMeshGroupCount = colorMeshContactCount > 0 ? ( ( colorMeshContactCount - 1 ) >> simdShift ) + 1 : 0;
+			colorMeshGroupCounts[c] = colorMeshGroupCount;
+			meshGroupCount += colorMeshGroupCount;
 
 			colorJointCounts[c] = colorJointCount;
 			jointCount += colorJointCount;
 
 			// Solver block dimensions
 			graphWideContactDims[c] = b3ComputeBlockCount( colorWideConstraintCount, minContactsPerBlock, maxBlockCount );
-			graphContactDims[c] = b3ComputeBlockCount( colorContactCount, minContactsPerBlock, maxBlockCount );
+			graphMeshContactDims[c] = b3ComputeBlockCount( colorMeshGroupCount, minContactsPerBlock, maxBlockCount );
 			graphJointDims[c] = b3ComputeBlockCount( colorJointCount, minJointsPerBlock, maxBlockCount );
-			graphBlockCount += graphWideContactDims[c].count + graphContactDims[c].count + graphJointDims[c].count;
+			graphBlockCount += graphWideContactDims[c].count + graphMeshContactDims[c].count + graphJointDims[c].count;
 
 			c += 1;
 		}
@@ -1553,15 +1565,94 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		// partitioned into uniformly sized blocks. Color info is consulted inside the task via
 		// a small span array, so blocks do not need to honor color boundaries here.
 		b3BlockDim convexPrepareDim = b3ComputeBlockCount( wideContactCount, minContactsPerBlock, maxBlockCount );
-		b3BlockDim meshPrepareDim = b3ComputeBlockCount( contactCount, minContactsPerBlock, maxBlockCount );
+		b3BlockDim meshPrepareDim = b3ComputeBlockCount( meshGroupCount, minContactsPerBlock, maxBlockCount );
 		b3BlockDim jointPrepareDim = b3ComputeBlockCount( jointCount, minJointsPerBlock, maxBlockCount );
 
 		int wideContactByteCount = b3GetWideContactConstraintByteCount( world->simdWidth );
 		void* wideConstraints = b3StackAlloc( &world->stack, wideContactCount * wideContactByteCount, "wide contacts" );
-		b3ContactConstraint* contactConstraints =
-			(b3ContactConstraint*)b3StackAlloc( &world->stack, contactCount * sizeof( b3ContactConstraint ), "contacts" );
-		b3ManifoldConstraint* manifoldConstraints = (b3ManifoldConstraint*)b3StackAlloc(
-			&world->stack, manifoldCount * sizeof( b3ManifoldConstraint ), "manifold constraints" );
+
+		int* meshLaneOrder = b3StackAlloc( &world->stack, meshContactCount * sizeof( int ), "mesh lane order" );
+		int* meshManifoldStarts = b3StackAlloc( &world->stack, ( meshGroupCount + 1 ) * sizeof( int ), "mesh manifold starts" );
+
+		// Sort mesh contacts by manifold count so that contacts with more manifolds are solved
+		// together keeping the SIMD lanes fuller and less ragged.
+		int meshSlotCount = 0;
+		{
+			int maxManifoldCount = 0;
+			for ( int i = 0; i < activeColorCount; ++i )
+			{
+				b3GraphColor* color = colors + activeColorIndices[i];
+				const b3ContactSpec* specs = color->contacts.data;
+				int colorContactCount = colorMeshContactCounts[i];
+				for ( int j = 0; j < colorContactCount; ++j )
+				{
+					maxManifoldCount = b3MaxInt( maxManifoldCount, specs[j].manifoldCount );
+				}
+			}
+
+			int* bucketStarts = b3StackAlloc( &world->stack, ( maxManifoldCount + 1 ) * sizeof( int ), "mesh buckets" );
+
+			int orderBase = 0;
+			int groupBase = 0;
+			for ( int i = 0; i < activeColorCount; ++i )
+			{
+				b3GraphColor* color = colors + activeColorIndices[i];
+				int colorContactCount = colorMeshContactCounts[i];
+				if ( colorContactCount == 0 )
+				{
+					continue;
+				}
+
+				const b3ContactSpec* specs = color->contacts.data;
+				int* order = meshLaneOrder + orderBase;
+
+				for ( int k = 0; k <= maxManifoldCount; ++k )
+				{
+					bucketStarts[k] = 0;
+				}
+
+				for ( int j = 0; j < colorContactCount; ++j )
+				{
+					bucketStarts[specs[j].manifoldCount] += 1;
+				}
+
+				int start = 0;
+				for ( int k = maxManifoldCount; k >= 0; --k )
+				{
+					int count = bucketStarts[k];
+					bucketStarts[k] = start;
+					start += count;
+				}
+
+				for ( int j = 0; j < colorContactCount; ++j )
+				{
+					order[bucketStarts[specs[j].manifoldCount]++] = j;
+				}
+
+				int colorMeshGroupCount = colorMeshGroupCounts[i];
+				for ( int g = 0; g < colorMeshGroupCount; ++g )
+				{
+					int slotCount = specs[order[g << simdShift]].manifoldCount;
+					meshManifoldStarts[groupBase + g] = meshSlotCount;
+					meshSlotCount += slotCount;
+				}
+
+				orderBase += colorContactCount;
+				groupBase += colorMeshGroupCount;
+			}
+
+			B3_ASSERT( orderBase == meshContactCount );
+			B3_ASSERT( groupBase == meshGroupCount );
+			meshManifoldStarts[meshGroupCount] = meshSlotCount;
+
+			b3StackFree( &world->stack, bucketStarts );
+		}
+
+		int wideMeshConstraintByteCount = b3GetWideMeshConstraintByteCount( world->simdWidth );
+		int wideMeshManifoldByteCount = b3GetWideMeshManifoldByteCount( world->simdWidth );
+		void* wideMeshConstraints =
+			b3StackAlloc( &world->stack, meshGroupCount * wideMeshConstraintByteCount + meshSlotCount * wideMeshManifoldByteCount,
+						  "wide mesh constraints" );
 
 		b3GraphColor* overflow = colors + B3_OVERFLOW_INDEX;
 		int overflowCount = overflow->contacts.count;
@@ -1572,23 +1663,23 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			overflowManifoldCount += overflow->contacts.data[i].manifoldCount;
 		}
 
-		overflow->contactConstraints = (b3ContactConstraint*)b3StackAlloc(
-			&world->stack, overflowCount * sizeof( b3ContactConstraint ), "overflow contacts" );
-		overflow->manifoldConstraints = (b3ManifoldConstraint*)b3StackAlloc(
-			&world->stack, overflowManifoldCount * sizeof( b3ManifoldConstraint ), "overflow manifolds" );
+		overflow->contactConstraints =
+			b3StackAlloc( &world->stack, overflowCount * sizeof( b3ContactConstraint ), "overflow contacts" );
+		overflow->manifoldConstraints =
+			b3StackAlloc( &world->stack, overflowManifoldCount * sizeof( b3ManifoldConstraint ), "overflow manifolds" );
 
 		// Build the span table for the flat prepare/store parallel-for while I slice the
 		// wide constraint buffer across colors. One entry per active color plus a sentinel
 		// at wideContactCount.
 		b3WidePrepareSpan widePrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
-		b3ContactPrepareSpan contactPrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
+		b3MeshPrepareSpan meshPrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
 		b3JointPrepareSpan jointPrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
 
 		// Distribute transient constraints to each graph color and prepare spans
-		// todo it might be simpler for solver blocks to index into the global arrays
 		{
 			int wideBase = 0;
 			int contactBase = 0;
+			int meshGroupBase = 0;
 			int jointBase = 0;
 			for ( int i = 0; i < activeColorCount; ++i )
 			{
@@ -1615,19 +1706,25 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 				}
 
 				int colorContactCount = color->contacts.count;
-				contactPrepareSpans[i].start = contactBase;
-				contactPrepareSpans[i].count = colorContactCount;
-				contactPrepareSpans[i].contacts = color->contacts.data;
+				meshPrepareSpans[i].start = meshGroupBase;
+				meshPrepareSpans[i].count = colorContactCount;
+				meshPrepareSpans[i].contacts = color->contacts.data;
+				meshPrepareSpans[i].order = meshLaneOrder + contactBase;
 
 				if ( colorContactCount == 0 )
 				{
-					color->contactConstraints = NULL;
-					color->contactConstraintCount = 0;
+					color->wideMeshConstraints = NULL;
+					color->wideMeshManifoldStarts = NULL;
+					color->wideMeshConstraintCount = 0;
 				}
 				else
 				{
-					color->contactConstraints = contactConstraints + contactBase;
-					color->contactConstraintCount = colorContactCount;
+					int colorMeshGroupCount = colorMeshGroupCounts[i];
+					color->wideMeshConstraints = (uint8_t*)wideMeshConstraints + meshGroupBase * wideMeshConstraintByteCount +
+												 meshManifoldStarts[meshGroupBase] * wideMeshManifoldByteCount;
+					color->wideMeshManifoldStarts = meshManifoldStarts + meshGroupBase;
+					color->wideMeshConstraintCount = colorMeshGroupCount;
+					meshGroupBase += colorMeshGroupCount;
 					contactBase += colorContactCount;
 				}
 
@@ -1643,10 +1740,12 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			widePrepareSpans[activeColorCount].contacts = NULL;
 			B3_ASSERT( wideBase == wideContactCount );
 
-			contactPrepareSpans[activeColorCount].start = contactCount;
-			contactPrepareSpans[activeColorCount].count = 0;
-			contactPrepareSpans[activeColorCount].contacts = NULL;
-			B3_ASSERT( contactBase == contactCount );
+			meshPrepareSpans[activeColorCount].start = meshGroupCount;
+			meshPrepareSpans[activeColorCount].count = 0;
+			meshPrepareSpans[activeColorCount].contacts = NULL;
+			meshPrepareSpans[activeColorCount].order = NULL;
+			B3_ASSERT( contactBase == meshContactCount );
+			B3_ASSERT( meshGroupBase == meshGroupCount );
 
 			jointPrepareSpans[activeColorCount].start = jointCount;
 			jointPrepareSpans[activeColorCount].count = 0;
@@ -1688,17 +1787,13 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		// b3_stageStoreImpulses
 		stageCount += 1;
 
-		b3SolverStage* stages = (b3SolverStage*)b3StackAlloc( &world->stack, stageCount * sizeof( b3SolverStage ), "stages" );
-		b3SyncBlock* bodyBlocks =
-			(b3SyncBlock*)b3StackAlloc( &world->stack, bodyDim.count * sizeof( b3SyncBlock ), "body blocks" );
+		b3SolverStage* stages = b3StackAlloc( &world->stack, stageCount * sizeof( b3SolverStage ), "stages" );
+		b3SyncBlock* bodyBlocks = b3StackAlloc( &world->stack, bodyDim.count * sizeof( b3SyncBlock ), "body blocks" );
 		b3SyncBlock* convexBlocks =
-			(b3SyncBlock*)b3StackAlloc( &world->stack, convexPrepareDim.count * sizeof( b3SyncBlock ), "convex blocks" );
-		b3SyncBlock* meshBlocks =
-			(b3SyncBlock*)b3StackAlloc( &world->stack, meshPrepareDim.count * sizeof( b3SyncBlock ), "mesh blocks" );
-		b3SyncBlock* jointBlocks =
-			(b3SyncBlock*)b3StackAlloc( &world->stack, jointPrepareDim.count * sizeof( b3SyncBlock ), "joint blocks" );
-		b3SyncBlock* graphBlocks =
-			(b3SyncBlock*)b3StackAlloc( &world->stack, graphBlockCount * sizeof( b3SyncBlock ), "graph blocks" );
+			b3StackAlloc( &world->stack, convexPrepareDim.count * sizeof( b3SyncBlock ), "convex blocks" );
+		b3SyncBlock* meshBlocks = b3StackAlloc( &world->stack, meshPrepareDim.count * sizeof( b3SyncBlock ), "mesh blocks" );
+		b3SyncBlock* jointBlocks = b3StackAlloc( &world->stack, jointPrepareDim.count * sizeof( b3SyncBlock ), "joint blocks" );
+		b3SyncBlock* graphBlocks = b3StackAlloc( &world->stack, graphBlockCount * sizeof( b3SyncBlock ), "graph blocks" );
 
 		// Split an awake island. This modifies:
 		// - stack allocator
@@ -1727,7 +1822,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		// Prepare blocks as a single flat parallel-for over the whole constraint range.
 		// The task walks spans to decode flat slot indices back to per-color arrays.
 		b3InitBlocks( convexBlocks, convexPrepareDim, wideContactCount, b3_wideContactBlock, UINT8_MAX );
-		b3InitBlocks( meshBlocks, meshPrepareDim, contactCount, b3_contactBlock, UINT8_MAX );
+		b3InitBlocks( meshBlocks, meshPrepareDim, meshGroupCount, b3_contactBlock, UINT8_MAX );
 		b3InitBlocks( jointBlocks, jointPrepareDim, jointCount, b3_jointBlock, UINT8_MAX );
 
 		// Prepare graph work blocks. Each color gets joint blocks followed by contact blocks.
@@ -1746,10 +1841,10 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 						  colorIndex );
 			baseGraphBlock += graphWideContactDims[i].count;
 
-			b3InitBlocks( baseGraphBlock, graphContactDims[i], colorContactCounts[i], b3_graphContactBlock, colorIndex );
-			baseGraphBlock += graphContactDims[i].count;
+			b3InitBlocks( baseGraphBlock, graphMeshContactDims[i], colorMeshGroupCounts[i], b3_graphContactBlock, colorIndex );
+			baseGraphBlock += graphMeshContactDims[i].count;
 
-			graphBlockCounts[i] = graphJointDims[i].count + graphWideContactDims[i].count + graphContactDims[i].count;
+			graphBlockCounts[i] = graphJointDims[i].count + graphWideContactDims[i].count + graphMeshContactDims[i].count;
 		}
 
 		B3_ASSERT( (ptrdiff_t)( baseGraphBlock - graphBlocks ) == graphBlockCount );
@@ -1784,10 +1879,10 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		stepContext->wideConstraints = wideConstraints;
 		stepContext->widePrepareSpans = widePrepareSpans;
 		stepContext->wideContactCount = wideContactCount;
-		stepContext->manifoldConstraints = manifoldConstraints;
-		stepContext->contactConstraints = contactConstraints;
-		stepContext->contactPrepareSpans = contactPrepareSpans;
 		stepContext->overflowSpans = overflowSpans;
+		stepContext->wideMeshConstraints = wideMeshConstraints;
+		stepContext->wideMeshManifoldStarts = meshManifoldStarts;
+		stepContext->meshPrepareSpans = meshPrepareSpans;
 		stepContext->jointPrepareSpans = jointPrepareSpans;
 		b3AtomicStoreU32( &stepContext->atomicSyncBits, 0 );
 		b3AtomicStoreInt( &stepContext->mainClaimed, 0 );
@@ -1882,7 +1977,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		b3ValidateNoMoved( &world->broadPhase );
 
 		// Finalize bodies. Must happen after the constraint solver and after island splitting.
-		b3ParallelFor( world, &b3FinalizeBodiesTask, awakeBodyCount, 16, stepContext, "ccd" );
+		b3ParallelFor( world, &b3FinalizeBodiesTask, awakeBodyCount, 8, stepContext, "ccd" );
 
 		// Free in reverse order
 		b3StackFree( &world->stack, graphBlocks );
@@ -1893,8 +1988,9 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		b3StackFree( &world->stack, stages );
 		b3StackFree( &world->stack, overflow->manifoldConstraints );
 		b3StackFree( &world->stack, overflow->contactConstraints );
-		b3StackFree( &world->stack, manifoldConstraints );
-		b3StackFree( &world->stack, contactConstraints );
+		b3StackFree( &world->stack, wideMeshConstraints );
+		b3StackFree( &world->stack, meshManifoldStarts );
+		b3StackFree( &world->stack, meshLaneOrder );
 		b3StackFree( &world->stack, wideConstraints );
 
 		world->profile.transforms = b3GetMilliseconds( transformTicks );

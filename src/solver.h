@@ -163,6 +163,14 @@ typedef struct b3ContactPrepareSpan
 	b3ContactSpec* contacts;
 } b3ContactPrepareSpan;
 
+typedef struct b3MeshPrepareSpan
+{
+	int start;
+	int count;
+	b3ContactSpec* contacts;
+	int* order;
+} b3MeshPrepareSpan;
+
 typedef struct b3JointPrepareSpan
 {
 	int start;
@@ -216,16 +224,16 @@ typedef struct b3StepContext
 	// Flat view of the wide contact constraint array used by prepare and store.
 	// prepareSpans has activeColorCount + 1 entries, the last being a sentinel
 	// at wideContactCount. wideContactConstraints is the contiguous base
-	// pointer; per-color slices live at colors[i].wideConstraints.
+	// pointer. Per-color slices live at colors[i].wideConstraints.
 	void* wideConstraints;
 	b3WidePrepareSpan* widePrepareSpans;
 	int wideContactCount;
 
-	// Similar for mesh/overflow contact constraints
-	struct b3ManifoldConstraint* manifoldConstraints;
-	struct b3ContactConstraint* contactConstraints;
-	b3ContactPrepareSpan* contactPrepareSpans;
+	// Similar for overflow contact constraints.
 	b3ContactPrepareSpan* overflowSpans;
+	void* wideMeshConstraints;
+	int* wideMeshManifoldStarts;
+	b3MeshPrepareSpan* meshPrepareSpans;
 	b3JointPrepareSpan* jointPrepareSpans;
 
 	int activeColorCount;

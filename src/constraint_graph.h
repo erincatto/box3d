@@ -53,11 +53,13 @@ typedef struct b3GraphColor
 	void* wideConstraints;
 	int wideConstraintCount;
 
+	void* wideMeshConstraints;
+	int* wideMeshManifoldStarts;
+	int wideMeshConstraintCount;
+
 	// These are used for mesh and overflow contacts
 	struct b3ManifoldConstraint* manifoldConstraints;
-	int manifoldConstraintCount;
 	struct b3ContactConstraint* contactConstraints;
-	int contactConstraintCount;
 } b3GraphColor;
 
 typedef struct b3ConstraintGraph

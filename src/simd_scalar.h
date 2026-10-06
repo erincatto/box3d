@@ -202,6 +202,11 @@ static inline bool b3AnyTrueW4( b3FloatW4 mask )
 	return mask.x != 0.0f || mask.y != 0.0f || mask.z != 0.0f || mask.w != 0.0f;
 }
 
+static inline int b3MoveMaskW4( b3FloatW4 mask )
+{
+	return ( mask.x != 0.0f ? 1 : 0 ) | ( mask.y != 0.0f ? 2 : 0 ) | ( mask.z != 0.0f ? 4 : 0 ) | ( mask.w != 0.0f ? 8 : 0 );
+}
+
 // component-wise returns mask ? b : a
 static inline b3FloatW4 b3BlendW4( b3FloatW4 a, b3FloatW4 b, b3FloatW4 mask )
 {

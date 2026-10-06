@@ -24,6 +24,8 @@ void CreateTrees25( b3WorldId worldId );
 void CreateTrees50( b3WorldId worldId );
 void CreateTrees100( b3WorldId worldId );
 void DestroyTrees( void );
+void CreateMeshDropBenchmark( b3WorldId worldId );
+void DestroyMeshDropBenchmark( void );
 void CreateJointGrid( b3WorldId worldId );
 void CreateJunkyard( b3WorldId worldId );
 void GetJunkyardCapacity( b3Capacity* capacity );

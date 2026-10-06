@@ -969,11 +969,6 @@ public:
 			b3CreateMeshShape( bodyId, &shapeDef, m_mesh, b3Vec3_one );
 		}
 
-		m_savedThreshold = b3GetStallThreshold();
-
-		// Log any CCD that takes longer than 1 ms.
-		b3SetStallThreshold( 0.001f );
-
 		Launch();
 	}
 
@@ -1013,7 +1008,6 @@ public:
 	~Stall() override
 	{
 		b3DestroyMesh( m_mesh );
-		b3SetStallThreshold( m_savedThreshold );
 	}
 
 	static Sample* Create( SampleContext* context )
@@ -1023,7 +1017,6 @@ public:
 
 	b3MeshData* m_mesh = nullptr;
 	b3BodyId m_bulletId = b3_nullBodyId;
-	float m_savedThreshold;
 };
 
 static int sampleStall = RegisterSample( "Continuous", "Stall", Stall::Create );

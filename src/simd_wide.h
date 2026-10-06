@@ -8,6 +8,11 @@
 // Macros to avoid name clashes between W4 and W8 functions existing in the same code base.
 // At the same time this helps to avoid code duplication.
 
+// Help Intellisense from being confused.
+#if defined( __INTELLISENSE__ ) && !defined( B3_SIMD_WIDTH )
+#define B3_SIMD_WIDTH 8
+#endif
+
 #if B3_SIMD_WIDTH == 8
 #define B3_WIDE( name ) name##W8
 #elif B3_SIMD_WIDTH == 4
@@ -18,8 +23,9 @@
 
 #define B3_WIDE_ALIGNMENT ( 4 * B3_SIMD_WIDTH )
 
-#define b3FloatW B3_WIDE( b3Float )
-#define b3Vec3W B3_WIDE( b3Vec3 )
+typedef B3_WIDE( b3Float ) b3FloatW;
+typedef B3_WIDE( b3Vec3 ) b3Vec3W;
+
 #define b3ZeroW B3_WIDE( b3Zero )
 #define b3SplatW B3_WIDE( b3Splat )
 #define b3SetW B3_WIDE( b3Set )

@@ -52,19 +52,6 @@ float b3GetLengthUnitsPerMeter( void )
 	return b3_lengthUnitsPerMeter;
 }
 
-static float b3_stallThreshold = FLT_MAX;
-
-void b3SetStallThreshold( float seconds )
-{
-	B3_ASSERT( b3IsValidFloat( seconds ) && seconds > 0.0f );
-	b3_stallThreshold = seconds;
-}
-
-float b3GetStallThreshold( void )
-{
-	return b3_stallThreshold;
-}
-
 static int b3DefaultAssertFcn( const char* condition, const char* fileName, int lineNumber )
 {
 	printf( "BOX3D ASSERTION: %s, %s, line %d\n", condition, fileName, lineNumber );

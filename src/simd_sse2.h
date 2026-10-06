@@ -159,6 +159,11 @@ static inline bool b3AnyTrueW4( b3FloatW4 mask )
 	return _mm_movemask_ps( mask ) != 0;
 }
 
+static inline int b3MoveMaskW4( b3FloatW4 mask )
+{
+	return _mm_movemask_ps( mask );
+}
+
 // component-wise returns mask ? b : a
 static inline b3FloatW4 b3BlendW4( b3FloatW4 a, b3FloatW4 b, b3FloatW4 mask )
 {
