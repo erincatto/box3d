@@ -780,11 +780,12 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 					break;
 				}
 				b3RegistrySlot* slot = b3RecGetSlot( rdr, gid, b3_geometryCompound );
-				dst->compound = slot != NULL ? b3RecGetLiveCompound( slot ) : NULL;
-				if ( dst->compound == NULL )
+				if ( slot == NULL )
 				{
 					r->ok = false;
+					break;
 				}
+				dst->compound = (const b3CompoundData*)slot->bytes;
 				break;
 			}
 			default:

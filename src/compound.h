@@ -3,7 +3,19 @@
 
 #pragma once
 
+#include "dynamic_tree.h"
+
 #include "box3d/types.h"
+
+static inline b3TreeView b3GetCompoundTreeView( const b3CompoundData* compound )
+{
+	b3TreeView view = {
+		.nodes = (const b3TreeNode*)( (intptr_t)compound + compound->nodeOffset ),
+		.proxies = (const b3TreeProxy*)( (intptr_t)compound + compound->proxyOffset ),
+		.proxyCount = compound->proxyCount,
+	};
+	return view;
+}
 
 b3TOIOutput b3CompoundTimeOfImpact( const b3CompoundData* compound, b3Transform transform, const b3ShapeProxy* proxy,
 									const b3Sweep* sweep, float maxFraction );

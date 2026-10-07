@@ -13,10 +13,9 @@ not a runtime mutation primitive. The intended workflow is:
 
 1. Author geometry offline (level mesh, terrain tile, building shell).
 2. Bake the compound once with `b3CreateCompound`.
-3. Serialize it to a byte buffer with `b3ConvertCompoundToBytes` and store it on
-   disk or in a streaming cache.
-4. At runtime, load the bytes and reconstruct the compound with
-   `b3ConvertBytesToCompound`, then attach it to a static body.
+3. Write the compound bytes to disk or a streaming cache.
+4. At runtime, load the bytes and check them with `b3ValidateCompound`, then
+   attach the compound to a static body.
 
 This makes compounds well-suited to open-world streaming: tiles are baked
 offline, kept in memory as flat byte buffers (which the engine uses directly
@@ -62,37 +61,41 @@ shared material table holds at most 64K unique materials.
 
 ```c
 typedef struct b3Compound {
-    uint64_t version;   // versioned against the tree/mesh/hull formats
+    uint64_t version;   // versioned against the mesh/hull formats
     int      byteCount; // total size when serialized
-    // internal tree, child arrays, material table
+    // tree offsets and counts, child arrays, material table
     // ... (treat as opaque)
 } b3Compound;
 ```
 
 `version` is a compile-time constant (`B3_COMPOUND_VERSION`) that incorporates
-the dynamic tree, mesh, and hull format versions. A version mismatch at load
-time means the bytes were baked with a different engine version and cannot be
-used.
+the mesh and hull format versions. A version mismatch at load time means the
+bytes were baked with a different engine version and cannot be used.
 
 ## Serialization
 
-Convert a live compound to a self-contained byte buffer:
+A compound is a single flat blob that contains no pointers. Everything inside it
+is addressed by byte offset from the start of the struct, so the bytes are
+position independent. Write `compound->byteCount` bytes starting at the compound
+address to disk. A plain `memcpy`, file read, or memory map of those bytes is a
+valid compound, and no fixup step is needed.
+
+Validate bytes at runtime before using them (zero-copy; bytes must remain in
+scope and must not be modified while a shape uses them):
 
 ```c
-uint8_t* bytes = b3ConvertCompoundToBytes(compound);
-// compound is now in an unusable state; its pointers have been nullified.
-// Write bytes[0 .. compound->byteCount - 1] to disk.
+const b3CompoundData* compound = b3ValidateCompound(bytes, byteCount);
+if (compound == NULL)
+{
+    // wrong version, wrong size, or corrupt offsets
+}
 ```
 
-Reconstruct from bytes at runtime (zero-copy; bytes must remain in scope):
-
-```c
-b3Compound* compound = b3ConvertBytesToCompound(bytes, byteCount);
-```
-
-The bytes are mutated in place to fixup internal pointers. Multiple static
-bodies can use the same byte buffer simultaneously (instancing), since the
-compound itself holds no per-body state.
+`b3ValidateCompound` never modifies the bytes. It returns `NULL` unless the
+version matches, `byteCount` equals the size stored in the compound, and the tree
+node and proxy arrays lie fully inside the buffer. On success it returns the
+input address. Multiple static bodies can use the same byte buffer
+simultaneously (instancing), since the compound itself holds no per-body state.
 
 ## Attaching to a Static Body
 
@@ -151,5 +154,5 @@ you manage the buffer lifetime yourself):
 b3DestroyCompound(compound);
 ```
 
-Do not call `b3DestroyCompound` on a compound reconstructed from bytes with
-`b3ConvertBytesToCompound` — free the byte buffer instead.
+Do not call `b3DestroyCompound` on a compound validated from bytes with
+`b3ValidateCompound` — free the byte buffer instead.

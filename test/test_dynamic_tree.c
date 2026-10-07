@@ -625,8 +625,7 @@ static int TreeQueryClosest( void )
 	return 0;
 }
 
-// A saved tree carries only its live node range. A baked compound tree has no parent array, so
-// saving one has to bail out rather than write from a null pointer.
+// A saved tree carries only its live node range.
 static int TreeSaveLoadRoundtrip( void )
 {
 	s_seed = 4242;
@@ -667,34 +666,6 @@ static int TreeSaveLoadRoundtrip( void )
 
 	b3DynamicTree_Destroy( &loaded );
 	b3DynamicTree_Destroy( &tree );
-
-	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
-
-	b3CompoundHullDef hulls[2];
-	hulls[0].hull = &box.base;
-	hulls[0].transform = (b3Transform){ { -1.0f, 0.0f, 0.0f }, b3Quat_identity };
-	hulls[0].material = b3DefaultSurfaceMaterial();
-	hulls[1].hull = &box.base;
-	hulls[1].transform = (b3Transform){ { 1.0f, 0.0f, 0.0f }, b3Quat_identity };
-	hulls[1].material = b3DefaultSurfaceMaterial();
-
-	b3CompoundDef compoundDef = { 0 };
-	compoundDef.hulls = hulls;
-	compoundDef.hullCount = 2;
-	b3CompoundData* compound = b3CreateCompound( &compoundDef );
-	ENSURE( compound != NULL );
-	ENSURE( compound->tree.parents == NULL );
-	ENSURE( compound->tree.proxyCapacity == compound->tree.proxyCount );
-
-	const char* compoundPath = "test_dynamic_tree_compound.dat";
-	remove( compoundPath );
-	b3DynamicTree_Save( &compound->tree, compoundPath );
-
-	b3DynamicTree noTree = b3DynamicTree_Load( compoundPath, 1.0f );
-	remove( compoundPath );
-	ENSURE( noTree.nodes == NULL );
-
-	b3DestroyCompound( compound );
 	return 0;
 }
 

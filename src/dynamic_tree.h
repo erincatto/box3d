@@ -69,6 +69,32 @@ B3_FORCE_INLINE b3TreeNode b3MakeEmptyNode( void )
 	};
 }
 
+typedef struct b3TreeView
+{
+	const b3TreeNode* nodes;
+	const b3TreeProxy* proxies;
+	int proxyCount;
+} b3TreeView;
+
+static inline b3TreeView b3MakeTreeView( const b3DynamicTree* tree )
+{
+	b3TreeView view = {
+		.nodes = tree->nodes,
+		.proxies = tree->proxies,
+		.proxyCount = tree->proxyCount,
+	};
+	return view;
+}
+
+b3TreeStats b3TreeView_Query( const b3TreeView* view, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
+							  b3TreeQueryCallbackFcn* callback, void* context );
+b3TreeStats b3TreeView_QueryClosest( const b3TreeView* view, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
+									 b3TreeQueryClosestCallbackFcn* callback, void* context, float* minDistanceSqr );
+b3TreeStats b3TreeView_RayCast( const b3TreeView* view, const b3RayCastInput* input, uint64_t maskBits, bool requireAllBits,
+								b3TreeRayCastCallbackFcn* callback, void* context );
+b3TreeStats b3TreeView_BoxCast( const b3TreeView* view, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
+								b3TreeBoxCastCallbackFcn* callback, void* context );
+
 static inline bool b3HasTreeMoved( const b3DynamicTree* tree )
 {
 	return b3IsNodeMoved( tree->nodes + B3_ROOT_NODE );

@@ -244,8 +244,8 @@ static void b3EmitCompoundPairs( b3PairContext* context, int compoundShapeId, in
 
 	int startCount = context->pairKeys->count;
 
-	b3DynamicTree_Query( &compoundShape->compound->tree, localAABB, B3_DEFAULT_MASK_BITS, false, b3CompoundChildCallback,
-						 &compoundContext );
+	b3TreeView view = b3GetCompoundTreeView( compoundShape->compound );
+	b3TreeView_Query( &view, localAABB, B3_DEFAULT_MASK_BITS, false, b3CompoundChildCallback, &compoundContext );
 
 	if ( context->pairKeys->count > startCount && b3ShouldCreatePair( world, compoundShapeId, otherShapeId ) == false )
 	{

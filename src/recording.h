@@ -351,11 +351,11 @@ float b3RecCastTrampoline( b3ShapeId id, b3Pos point, b3Vec3 normal, float fract
 bool b3RecPlaneTrampoline( b3ShapeId id, const b3PlaneResult* planes, int planeCount, void* ctx );
 
 // Geometry registry
-uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount );
+uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, const uint8_t* bytes, int byteCount );
 // Append an entry unconditionally and return its id, which equals its array index. Unlike
 // b3InternGeometry it never deduplicates, so the keyframe seed can mirror slots 1:1 even when an
 // already-recorded file carries byte-identical duplicate slots (a hash collision wrote them apart).
-uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount );
+uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, const uint8_t* bytes, int byteCount );
 void b3FreeRegistry( b3GeometryRegistry* reg );
 void b3RecWriteRegistry( b3Recording* rec );
 
@@ -367,7 +367,6 @@ uint64_t b3HashQueryTag( uint64_t id, const char* name );
 void b3RecInternTag( b3Recording* rec, uint64_t key, uint64_t id, const char* name );
 
 // Intern each large geometry kind and return a stable u32 id for use in create ops.
-// Caller does NOT free bytes; b3InternGeometry takes ownership (frees on duplicate).
 uint32_t b3RecInternHull( b3Recording* rec, const b3HullData* hull );
 uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh );
 uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightFieldData* hf );

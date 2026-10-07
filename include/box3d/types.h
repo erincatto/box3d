@@ -2487,8 +2487,8 @@ typedef struct b3CompoundDef
 	int sphereCount;
 } b3CompoundDef;
 
-/// The baked compound version depends on the tree, mesh, and hull versions.
-#define B3_COMPOUND_VERSION ( 0x7A2F41C9E6D0B358ull ^ B3_DYNAMIC_TREE_VERSION ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
+/// The baked compound version depends on the mesh and hull versions.
+#define B3_COMPOUND_VERSION ( 0x3C81E5A2D94F607Bull ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
 
 /// The data for a baked compound shape. This is a potentially large yet highly optimized
 /// data structure. It can contain thousands of child shapes, yet at runtime it populates
@@ -2505,15 +2505,23 @@ typedef struct b3CompoundData
 	/// The total number of bytes for this compound.
 	int byteCount;
 
+	// Bounds of the tree.
+	b3AABB bounds;
+
+	// Tree height for diagnostics.
+	int treeHeight;
+
 	/// Offset of the tree node array in bytes from the struct address.
 	int nodeOffset;
+
+	// The number of tree nodes.
+	int nodeCount;
 
 	/// Offset of the tree proxy array in bytes from the struct address.
 	int proxyOffset;
 
-	/// Immutable dynamic tree. The node and proxy pointers must be fixed up using the offsets
-	/// above. A baked tree is never inserted into, so the parent array stays null.
-	b3DynamicTree tree;
+	// The number of tree proxies.
+	int proxyCount;
 
 	/// Offset of the material array in bytes from the struct address.
 	int materialOffset;

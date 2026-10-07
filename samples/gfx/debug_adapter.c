@@ -793,11 +793,10 @@ typedef struct
 
 // The compound tree stores child indices. Remap to the pool slot the flatten
 // pass assigned, then append the child under the body transform.
-static bool CompoundCullCallback( int proxyId, uint64_t userData, void* context )
+static bool CompoundCullCallback( const b3CompoundData* compound, int childIndex, void* context )
 {
-	(void)proxyId;
+	(void)compound;
 	CompoundCullContext* ctx = (CompoundCullContext*)context;
-	const int childIndex = (int)userData;
 	if ( childIndex < 0 || childIndex >= ctx->parent->compound.childMapCount )
 	{
 		return true;
@@ -888,7 +887,7 @@ static void DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexCo
 
 			// If the whole compound sits inside the view the query returns every child,
 			// so walking the list is cheaper. Both boxes are in the draw origin frame.
-			b3AABB rootRel = b3AABB_Transform( shapeRelative, b3DynamicTree_GetRootBounds( &us->compound.data->tree ) );
+			b3AABB rootRel = b3AABB_Transform( shapeRelative, us->compound.data->bounds );
 			if ( b3AABB_Contains( viewRel, rootRel ) )
 			{
 				cull = false;
@@ -901,7 +900,7 @@ static void DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexCo
 			b3AABB localCull = b3AABB_Transform( b3InvertTransform( shapeRelative ), viewRel );
 
 			CompoundCullContext ctx = { us, shapeRelative, c, metallic, roughness, shadowCast, hk, 0 };
-			b3DynamicTree_Query( &us->compound.data->tree, localCull, ~0ull, false, CompoundCullCallback, &ctx );
+			b3QueryCompound( us->compound.data, localCull, CompoundCullCallback, &ctx );
 
 			s_adapter.lastCompoundAppended += ctx.appended;
 			s_adapter.lastCompoundTotal += us->compound.childMapCount;

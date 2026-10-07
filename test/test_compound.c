@@ -77,10 +77,11 @@ static int CompoundCreateMixed( void )
 	ENSURE( compound->sharedHullCount == 1 );
 	ENSURE( compound->sharedMeshCount == 1 );
 
-	ENSURE( compound->tree.nodeEnd >= 2 );
-	ENSURE( compound->tree.proxyCount > 0 );
-	ENSURE( compound->tree.nodes != NULL );
-	ENSURE( compound->tree.proxies != NULL );
+	ENSURE( compound->nodeCount >= 2 );
+	ENSURE( compound->proxyCount > 0 );
+	ENSURE( compound->nodeOffset > 0 );
+	ENSURE( compound->proxyOffset > 0 );
+	ENSURE( compound->bounds.lowerBound.x < compound->bounds.upperBound.x );
 
 	b3DestroyCompound( compound );
 	b3DestroyMesh( meshData );
@@ -1233,18 +1234,24 @@ static int CompoundSerializeRoundtrip( void )
 	uint8_t* buffer = (uint8_t*)malloc( (size_t)byteCount );
 	ENSURE( buffer != NULL );
 
-	uint8_t* serialized = b3ConvertCompoundToBytes( a );
-	memcpy( buffer, serialized, (size_t)byteCount );
+	uint8_t* reference = (uint8_t*)malloc( (size_t)byteCount );
+	ENSURE( reference != NULL );
+
+	memcpy( buffer, a, (size_t)byteCount );
+	memcpy( reference, a, (size_t)byteCount );
 	b3DestroyCompound( a );
 
-	b3CompoundData* b = b3ConvertBytesToCompound( buffer, byteCount );
+	const b3CompoundData* b = b3ValidateCompound( buffer, byteCount );
 	ENSURE( b != NULL );
+	ENSURE( (const uint8_t*)b == buffer );
 	ENSURE( b->byteCount == byteCount );
 	ENSURE( b->capsuleCount == 1 );
 	ENSURE( b->hullCount == 1 );
 	ENSURE( b->meshCount == 1 );
 	ENSURE( b->sphereCount == 1 );
-	ENSURE( b->tree.nodes != NULL );
+
+	// Validation must not touch the bytes
+	ENSURE( memcmp( buffer, reference, (size_t)byteCount ) == 0 );
 
 	// Bounds and ray cast on the deserialized compound match the original.
 	b3AABB aabbB = b3ComputeCompoundAABB( b, b3Transform_identity );
@@ -1256,6 +1263,7 @@ static int CompoundSerializeRoundtrip( void )
 	ENSURE_SMALL( rayB.fraction - rayA.fraction, 1e-5f );
 	ENSURE( rayB.childIndex == rayA.childIndex );
 
+	free( reference );
 	free( buffer );
 	b3DestroyMesh( md );
 	return 0;
@@ -1268,13 +1276,13 @@ static int CompoundSerializeBadVersion( void )
 
 	int byteCount = a->byteCount;
 	uint8_t* buffer = (uint8_t*)malloc( (size_t)byteCount );
-	memcpy( buffer, b3ConvertCompoundToBytes( a ), (size_t)byteCount );
+	memcpy( buffer, a, (size_t)byteCount );
 	b3DestroyCompound( a );
 
 	// Corrupt the version word (first 8 bytes of b3Compound).
 	( (b3CompoundData*)buffer )->version ^= 0x1ull;
 
-	b3CompoundData* b = b3ConvertBytesToCompound( buffer, byteCount );
+	const b3CompoundData* b = b3ValidateCompound( buffer, byteCount );
 	ENSURE( b == NULL );
 
 	free( buffer );
@@ -1289,12 +1297,41 @@ static int CompoundSerializeWrongByteCount( void )
 
 	int byteCount = a->byteCount;
 	uint8_t* buffer = (uint8_t*)malloc( (size_t)byteCount );
-	memcpy( buffer, b3ConvertCompoundToBytes( a ), (size_t)byteCount );
+	memcpy( buffer, a, (size_t)byteCount );
 	b3DestroyCompound( a );
 
 	// Off-by-one in the declared length is rejected.
-	b3CompoundData* b = b3ConvertBytesToCompound( buffer, byteCount + 1 );
+	const b3CompoundData* b = b3ValidateCompound( buffer, byteCount + 1 );
 	ENSURE( b == NULL );
+
+	free( buffer );
+	b3DestroyMesh( md );
+	return 0;
+}
+
+static int CompoundSerializeBadNodeCount( void )
+{
+	b3MeshData* md = b3CreateBoxMesh( b3Vec3_zero, (b3Vec3){ 0.5f, 0.5f, 0.5f }, false );
+	b3CompoundData* a = BuildSerializableCompound( md );
+
+	int byteCount = a->byteCount;
+	uint8_t* buffer = (uint8_t*)malloc( (size_t)byteCount );
+	memcpy( buffer, a, (size_t)byteCount );
+	b3DestroyCompound( a );
+
+	b3CompoundData* header = (b3CompoundData*)buffer;
+	int nodeCount = header->nodeCount;
+
+	// Node array runs off the end of the buffer
+	header->nodeCount = byteCount;
+	ENSURE( b3ValidateCompound( buffer, byteCount ) == NULL );
+
+	// Overflow in 32 bit arithmetic must still be caught
+	header->nodeCount = INT32_MAX;
+	ENSURE( b3ValidateCompound( buffer, byteCount ) == NULL );
+
+	header->nodeCount = nodeCount;
+	ENSURE( b3ValidateCompound( buffer, byteCount ) != NULL );
 
 	free( buffer );
 	b3DestroyMesh( md );
@@ -1344,6 +1381,7 @@ int CompoundTest( void )
 	RUN_SUBTEST( CompoundSerializeRoundtrip );
 	RUN_SUBTEST( CompoundSerializeBadVersion );
 	RUN_SUBTEST( CompoundSerializeWrongByteCount );
+	RUN_SUBTEST( CompoundSerializeBadNodeCount );
 
 	return 0;
 }

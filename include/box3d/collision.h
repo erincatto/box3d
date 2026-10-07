@@ -468,13 +468,8 @@ B3_API b3CompoundData* b3CreateCompound( const b3CompoundDef* def );
 /// Destroy a compound shape.
 B3_API void b3DestroyCompound( b3CompoundData* compound );
 
-/// Cast the provided compound data to bytes, setting the internal pointers to null.
-/// Use this before serializing the compound bytes.
-B3_API uint8_t* b3ConvertCompoundToBytes( b3CompoundData* compound );
-
-/// Cast the provided bytes to compound data, setting up internal pointers.
-/// Use this after de-serializing the compound bytes.
-B3_API b3CompoundData* b3ConvertBytesToCompound( uint8_t* bytes, int byteCount );
+// Cast serialized bytes into a compound and validate. Returns null if invalid.
+B3_API const b3CompoundData* b3ValidateCompound( const uint8_t* bytes, int byteCount );
 
 /**@}*/ // compound
 

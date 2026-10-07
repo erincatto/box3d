@@ -1949,6 +1949,11 @@ static int CorruptCompound( void )
 	ENSURE( b3CreatePlayer( patched, recSize, 1 ) == NULL );
 
 	memcpy( patched, recData, (size_t)recSize );
+	int32_t zeroByteCount = 0;
+	memcpy( patched + blobOffset - 4, &zeroByteCount, sizeof( zeroByteCount ) );
+	ENSURE( b3CreatePlayer( patched, recSize, 1 ) == NULL );
+
+	memcpy( patched, recData, (size_t)recSize );
 	patched[blobOffset - 5] = (uint8_t)b3_geometryMesh;
 	ENSURE( b3ValidateReplay( patched, recSize, 1 ) == false );
 
@@ -1963,13 +1968,16 @@ static int CorruptCompound( void )
 // without growing the registry. Forces the collision by handing the same hash to distinct blobs.
 static int GeometryHashCollision( void )
 {
-	const int n = 16;
+	enum
+	{
+		n = 16
+	};
 	const uint64_t sharedHash = 0xABCD1234ull;
 
 	b3GeometryRegistry reg = { 0 };
 
-	uint8_t* blobA = (uint8_t*)b3Alloc( (size_t)n );
-	uint8_t* blobB = (uint8_t*)b3Alloc( (size_t)n );
+	uint8_t blobA[n];
+	uint8_t blobB[n];
 	memset( blobA, 0xAA, (size_t)n );
 	memset( blobB, 0xBB, (size_t)n );
 
@@ -1982,12 +1990,12 @@ static int GeometryHashCollision( void )
 	// Re-interning either blob must find it through the hash chain and never grow the registry,
 	// including the one shadowed behind the bucket head. The old single-entry lookup missed the
 	// shadowed blob and appended a duplicate, which is exactly what tripped the keyframe assert.
-	uint8_t* blobA2 = (uint8_t*)b3Alloc( (size_t)n );
+	uint8_t blobA2[n];
 	memset( blobA2, 0xAA, (size_t)n );
 	ENSURE( b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobA2, n ) == idA );
 	ENSURE( reg.entries.count == 2 );
 
-	uint8_t* blobB2 = (uint8_t*)b3Alloc( (size_t)n );
+	uint8_t blobB2[n];
 	memset( blobB2, 0xBB, (size_t)n );
 	ENSURE( b3InternGeometry( &reg, b3_geometryHull, sharedHash, blobB2, n ) == idB );
 	ENSURE( reg.entries.count == 2 );
@@ -1997,9 +2005,9 @@ static int GeometryHashCollision( void )
 	// Seed-then-capture: appending byte-identical duplicate slots keeps id == slot index, and a later
 	// exact intern still resolves to one of them without appending a new entry.
 	b3GeometryRegistry seeded = { 0 };
-	uint8_t* slot0 = (uint8_t*)b3Alloc( (size_t)n );
-	uint8_t* slot1 = (uint8_t*)b3Alloc( (size_t)n );
-	uint8_t* slot2 = (uint8_t*)b3Alloc( (size_t)n );
+	uint8_t slot0[n];
+	uint8_t slot1[n];
+	uint8_t slot2[n];
 	memset( slot0, 0xAA, (size_t)n );
 	memset( slot1, 0xBB, (size_t)n );
 	memset( slot2, 0xAA, (size_t)n ); // duplicate of slot0
@@ -2007,7 +2015,7 @@ static int GeometryHashCollision( void )
 	ENSURE( b3AppendGeometry( &seeded, b3_geometryHull, sharedHash, slot1, n ) == 1 );
 	ENSURE( b3AppendGeometry( &seeded, b3_geometryHull, sharedHash, slot2, n ) == 2 );
 
-	uint8_t* live = (uint8_t*)b3Alloc( (size_t)n );
+	uint8_t live[n];
 	memset( live, 0xAA, (size_t)n );
 	uint32_t resolved = b3InternGeometry( &seeded, b3_geometryHull, sharedHash, live, n );
 	ENSURE( seeded.entries.count == 3 );	  // no growth

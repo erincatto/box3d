@@ -63,13 +63,12 @@ typedef struct b3RecDrawQuery
 } b3RecDrawQuery;
 
 // One slot in the preloaded geometry registry. Loaded from the trailing block before any
-// ops run; live pointer built lazily on first shape create that references the id.
+// ops run.
 typedef struct b3RegistrySlot
 {
 	b3GeometryKind kind;
 	int byteCount;
 	uint8_t* bytes; // raw bytes from the file (always freed at teardown)
-	void* live;		// reconstructed live object, freed after b3DestroyWorld
 } b3RegistrySlot;
 
 // This is used to simplify the scratch buffer lifetime. Names longer than this probably
@@ -259,6 +258,3 @@ void b3RecEnsureHits( b3RecReader* rdr, int n );
 
 // Get a geometry slot with kind validation.
 b3RegistrySlot* b3RecGetSlot( b3RecReader* rdr, uint32_t id, b3GeometryKind kind );
-
-// Get the recorded compound with the pointers fixed up.
-const b3CompoundData* b3RecGetLiveCompound( b3RegistrySlot* slot );

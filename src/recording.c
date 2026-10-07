@@ -762,16 +762,19 @@ void b3RecEndRecord( b3Recording* rec )
 
 // Append a fresh entry and splice it onto the front of its hash chain. The map value is the chain head.
 static uint32_t b3RegistryPush( b3GeometryRegistry* reg, b3GeometryHashMap* map, b3GeometryHashMap_itr itr, bool hashPresent,
-								b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount )
+								b3GeometryKind kind, uint64_t contentHash, const uint8_t* bytes, int byteCount )
 {
+	B3_ASSERT( byteCount > 0 );
+	uint8_t* copy = b3Alloc( (size_t)byteCount );
+	memcpy( copy, bytes, (size_t)byteCount );
+
 	uint32_t id = (uint32_t)reg->entries.count;
 	b3GeometryEntry* entry = b3Array_Emplace( reg->entries );
 	entry->contentHash = contentHash;
 	entry->id = id;
 	entry->kind = kind;
 	entry->byteCount = byteCount;
-	// Take ownership.
-	entry->bytes = bytes;
+	entry->bytes = copy;
 	entry->hashNext = hashPresent ? (int)itr.data->val : B3_NULL_INDEX;
 
 	if ( hashPresent )
@@ -796,7 +799,7 @@ static b3GeometryHashMap* b3RegistryMap( b3GeometryRegistry* reg )
 	return reg->dedupMap;
 }
 
-uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount )
+uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, const uint8_t* bytes, int byteCount )
 {
 	b3GeometryHashMap* map = b3RegistryMap( reg );
 
@@ -810,8 +813,6 @@ uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_
 			b3GeometryEntry* e = reg->entries.data + index;
 			if ( e->byteCount == byteCount && memcmp( e->bytes, bytes, (size_t)byteCount ) == 0 )
 			{
-				// Duplicate. Free bytes because the caller transferred ownership. Return existing id.
-				b3Free( bytes, (size_t)byteCount );
 				return e->id;
 			}
 		}
@@ -820,7 +821,7 @@ uint32_t b3InternGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_
 	return b3RegistryPush( reg, map, itr, hashPresent, kind, contentHash, bytes, byteCount );
 }
 
-uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, uint8_t* bytes, int byteCount )
+uint32_t b3AppendGeometry( b3GeometryRegistry* reg, b3GeometryKind kind, uint64_t contentHash, const uint8_t* bytes, int byteCount )
 {
 	b3GeometryHashMap* map = b3RegistryMap( reg );
 	b3GeometryHashMap_itr itr = b3GeometryHashMap_get( map, contentHash );
@@ -1146,43 +1147,31 @@ b3Recording* b3LoadRecordingFromFile( const char* path )
 
 // Geometry interning helpers
 
+static uint32_t b3RecInternBlob( b3Recording* rec, b3GeometryKind kind, const void* blob, int byteCount )
+{
+	const uint8_t* bytes = (const uint8_t*)blob;
+	uint64_t h = b3Hash64NonZero( bytes, byteCount );
+	return b3InternGeometry( &rec->registry, kind, h, bytes, byteCount );
+}
+
 uint32_t b3RecInternHull( b3Recording* rec, const b3HullData* hull )
 {
-	int byteCount = hull->byteCount;
-	uint8_t* bytes = b3Alloc( (size_t)byteCount );
-	memcpy( bytes, hull, (size_t)byteCount );
-	uint64_t h = b3Hash64NonZero( bytes, byteCount );
-	return b3InternGeometry( &rec->registry, b3_geometryHull, h, bytes, byteCount );
+	return b3RecInternBlob( rec, b3_geometryHull, hull, hull->byteCount );
 }
 
 uint32_t b3RecInternMesh( b3Recording* rec, const b3MeshData* mesh )
 {
-	int byteCount = mesh->byteCount;
-	uint8_t* bytes = b3Alloc( (size_t)byteCount );
-	memcpy( bytes, mesh, (size_t)byteCount );
-	uint64_t h = b3Hash64NonZero( bytes, byteCount );
-	return b3InternGeometry( &rec->registry, b3_geometryMesh, h, bytes, byteCount );
+	return b3RecInternBlob( rec, b3_geometryMesh, mesh, mesh->byteCount );
 }
 
 uint32_t b3RecInternHeightField( b3Recording* rec, const b3HeightFieldData* hf )
 {
-	int byteCount = hf->byteCount;
-	uint8_t* bytes = b3Alloc( (size_t)byteCount );
-	memcpy( bytes, hf, (size_t)byteCount );
-	uint64_t h = b3Hash64NonZero( bytes, byteCount );
-	return b3InternGeometry( &rec->registry, b3_geometryHeightField, h, bytes, byteCount );
+	return b3RecInternBlob( rec, b3_geometryHeightField, hf, hf->byteCount );
 }
 
 uint32_t b3RecInternCompound( b3Recording* rec, const b3CompoundData* compound )
 {
-	int byteCount = compound->byteCount;
-	uint8_t* bytes = b3Alloc( (size_t)byteCount );
-	memcpy( bytes, compound, (size_t)byteCount );
-	// Null the tree pointers in the copy so the canonical bytes are pointer-free.
-	// b3ConvertBytesToCompound fixes it back on load via nodeOffset.
-	b3ConvertCompoundToBytes( (b3CompoundData*)bytes );
-	uint64_t h = b3Hash64NonZero( bytes, byteCount );
-	return b3InternGeometry( &rec->registry, b3_geometryCompound, h, bytes, byteCount );
+	return b3RecInternBlob( rec, b3_geometryCompound, compound, compound->byteCount );
 }
 
 uint64_t b3HashWorldState( b3World* world )

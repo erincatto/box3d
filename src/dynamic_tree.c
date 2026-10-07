@@ -867,17 +867,17 @@ B3_FORCE_INLINE bool b3TestCategory( uint64_t categoryBits, uint64_t maskBits, b
 	return requireAllBits ? ( categoryBits & maskBits ) == maskBits : ( categoryBits & maskBits ) != 0;
 }
 
-b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
-								 b3TreeQueryCallbackFcn* callback, void* context )
+b3TreeStats b3TreeView_Query( const b3TreeView* view, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
+							  b3TreeQueryCallbackFcn* callback, void* context )
 {
 	b3TreeStats result = { 0 };
 
-	if ( tree->proxyCount == 0 )
+	if ( view->proxyCount == 0 )
 	{
 		return result;
 	}
 
-	const b3TreeNode* nodes = tree->nodes;
+	const b3TreeNode* nodes = view->nodes;
 
 	int stack[B3_TREE_STACK_SIZE];
 	int stackCount = 0;
@@ -901,7 +901,7 @@ b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_
 			if ( b3IsLeaf( node ) )
 			{
 				int proxyId = b3GetProxyId( node );
-				const b3TreeProxy* proxy = tree->proxies + proxyId;
+				const b3TreeProxy* proxy = view->proxies + proxyId;
 				if ( b3TestCategory( proxy->categoryBits, maskBits, requireAllBits ) )
 				{
 					bool proceed = callback( proxyId, proxy->userData, context );
@@ -942,17 +942,17 @@ struct b3QueryClosestItem
 	float distanceToNodeSqr;
 };
 
-b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
-										b3TreeQueryClosestCallbackFcn* callback, void* context, float* minDistanceSqr )
+b3TreeStats b3TreeView_QueryClosest( const b3TreeView* view, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
+									 b3TreeQueryClosestCallbackFcn* callback, void* context, float* minDistanceSqr )
 {
 	b3TreeStats result = { 0 };
 
-	if ( tree->proxyCount == 0 )
+	if ( view->proxyCount == 0 )
 	{
 		return result;
 	}
 
-	const b3TreeNode* nodes = tree->nodes;
+	const b3TreeNode* nodes = view->nodes;
 
 	float minSqr = *minDistanceSqr;
 	struct b3QueryClosestItem stack[B3_TREE_STACK_SIZE];
@@ -1002,7 +1002,7 @@ b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point,
 		if ( b3IsLeaf( node ) )
 		{
 			int proxyId = b3GetProxyId( node );
-			const b3TreeProxy* proxy = tree->proxies + proxyId;
+			const b3TreeProxy* proxy = view->proxies + proxyId;
 			if ( b3TestCategory( proxy->categoryBits, maskBits, requireAllBits ) == false )
 			{
 				continue;
@@ -1059,12 +1059,12 @@ b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point,
 
 // A lot of optimization work went into this. The children of a popped pair are both tested
 // before either is followed, then the survivors are ordered so the closer one narrows first.
-b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits, bool requireAllBits,
-								   b3TreeRayCastCallbackFcn* callback, void* context )
+b3TreeStats b3TreeView_RayCast( const b3TreeView* view, const b3RayCastInput* input, uint64_t maskBits, bool requireAllBits,
+								b3TreeRayCastCallbackFcn* callback, void* context )
 {
 	b3TreeStats result = { 0 };
 
-	if ( tree->proxyCount == 0 )
+	if ( view->proxyCount == 0 )
 	{
 		return result;
 	}
@@ -1083,7 +1083,7 @@ b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInp
 	b3AABB segmentAABB = { b3Min( p1, p2 ), b3Max( p1, p2 ) };
 	b3AABBV boxv = b3LoadAABBV( &segmentAABB );
 
-	const b3TreeNode* nodes = tree->nodes;
+	const b3TreeNode* nodes = view->nodes;
 
 	int stack[B3_TREE_STACK_SIZE];
 	int stackCount = 0;
@@ -1140,7 +1140,7 @@ b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInp
 			if ( isLeaf[i] )
 			{
 				int proxyId = b3GetProxyId( hit[i] );
-				const b3TreeProxy* proxy = tree->proxies + proxyId;
+				const b3TreeProxy* proxy = view->proxies + proxyId;
 
 				if ( b3TestCategory( proxy->categoryBits, maskBits, requireAllBits ) == false )
 				{
@@ -1188,12 +1188,12 @@ b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInp
 }
 
 // Follows structure of ray cast with small tweaks to handle a swept box.
-b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
-								   b3TreeBoxCastCallbackFcn* callback, void* context )
+b3TreeStats b3TreeView_BoxCast( const b3TreeView* view, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
+								b3TreeBoxCastCallbackFcn* callback, void* context )
 {
 	b3TreeStats result = { 0 };
 
-	if ( tree->proxyCount == 0 )
+	if ( view->proxyCount == 0 )
 	{
 		return result;
 	}
@@ -1220,7 +1220,7 @@ b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInp
 	};
 	b3AABBV boxv = b3LoadAABBV( &totalAABB );
 
-	const b3TreeNode* nodes = tree->nodes;
+	const b3TreeNode* nodes = view->nodes;
 
 	int stack[B3_TREE_STACK_SIZE];
 	int stackCount = 0;
@@ -1278,7 +1278,7 @@ b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInp
 			if ( isLeaf[i] )
 			{
 				int proxyId = b3GetProxyId( hit[i] );
-				const b3TreeProxy* proxy = tree->proxies + proxyId;
+				const b3TreeProxy* proxy = view->proxies + proxyId;
 
 				if ( b3TestCategory( proxy->categoryBits, maskBits, requireAllBits ) == false )
 				{
@@ -1322,6 +1322,33 @@ b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInp
 	return result;
 }
 
+b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
+								 b3TreeQueryCallbackFcn* callback, void* context )
+{
+	b3TreeView view = b3MakeTreeView( tree );
+	return b3TreeView_Query( &view, aabb, maskBits, requireAllBits, callback, context );
+}
+
+b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
+										b3TreeQueryClosestCallbackFcn* callback, void* context, float* minDistanceSqr )
+{
+	b3TreeView view = b3MakeTreeView( tree );
+	return b3TreeView_QueryClosest( &view, point, maskBits, requireAllBits, callback, context, minDistanceSqr );
+}
+
+b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits, bool requireAllBits,
+								   b3TreeRayCastCallbackFcn* callback, void* context )
+{
+	b3TreeView view = b3MakeTreeView( tree );
+	return b3TreeView_RayCast( &view, input, maskBits, requireAllBits, callback, context );
+}
+
+b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
+								   b3TreeBoxCastCallbackFcn* callback, void* context )
+{
+	b3TreeView view = b3MakeTreeView( tree );
+	return b3TreeView_BoxCast( &view, input, maskBits, requireAllBits, callback, context );
+}
 
 // Median split == 0, Surface area heuristic == 1
 #define B3_TREE_HEURISTIC 0
