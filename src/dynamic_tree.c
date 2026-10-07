@@ -867,8 +867,8 @@ B3_FORCE_INLINE bool b3TestCategory( uint64_t categoryBits, uint64_t maskBits, b
 	return requireAllBits ? ( categoryBits & maskBits ) == maskBits : ( categoryBits & maskBits ) != 0;
 }
 
-b3TreeStats b3TreeView_Query( const b3TreeView* view, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
-							  b3TreeQueryCallbackFcn* callback, void* context )
+B3_FORCE_INLINE b3TreeStats b3QueryTreeView( const b3TreeView* view, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
+											 b3TreeQueryCallbackFcn* callback, void* context )
 {
 	b3TreeStats result = { 0 };
 
@@ -942,8 +942,9 @@ struct b3QueryClosestItem
 	float distanceToNodeSqr;
 };
 
-b3TreeStats b3TreeView_QueryClosest( const b3TreeView* view, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
-									 b3TreeQueryClosestCallbackFcn* callback, void* context, float* minDistanceSqr )
+B3_FORCE_INLINE b3TreeStats b3QueryClosestTreeView( const b3TreeView* view, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
+													b3TreeQueryClosestCallbackFcn* callback, void* context,
+													float* minDistanceSqr )
 {
 	b3TreeStats result = { 0 };
 
@@ -1059,8 +1060,8 @@ b3TreeStats b3TreeView_QueryClosest( const b3TreeView* view, b3Vec3 point, uint6
 
 // A lot of optimization work went into this. The children of a popped pair are both tested
 // before either is followed, then the survivors are ordered so the closer one narrows first.
-b3TreeStats b3TreeView_RayCast( const b3TreeView* view, const b3RayCastInput* input, uint64_t maskBits, bool requireAllBits,
-								b3TreeRayCastCallbackFcn* callback, void* context )
+B3_FORCE_INLINE b3TreeStats b3RayCastTreeView( const b3TreeView* view, const b3RayCastInput* input, uint64_t maskBits,
+											   bool requireAllBits, b3TreeRayCastCallbackFcn* callback, void* context )
 {
 	b3TreeStats result = { 0 };
 
@@ -1188,8 +1189,8 @@ b3TreeStats b3TreeView_RayCast( const b3TreeView* view, const b3RayCastInput* in
 }
 
 // Follows structure of ray cast with small tweaks to handle a swept box.
-b3TreeStats b3TreeView_BoxCast( const b3TreeView* view, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
-								b3TreeBoxCastCallbackFcn* callback, void* context )
+B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3BoxCastInput* input, uint64_t maskBits,
+											   bool requireAllBits, b3TreeBoxCastCallbackFcn* callback, void* context )
 {
 	b3TreeStats result = { 0 };
 
@@ -1326,28 +1327,52 @@ b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_
 								 b3TreeQueryCallbackFcn* callback, void* context )
 {
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3TreeView_Query( &view, aabb, maskBits, requireAllBits, callback, context );
+	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context );
 }
 
 b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
 										b3TreeQueryClosestCallbackFcn* callback, void* context, float* minDistanceSqr )
 {
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3TreeView_QueryClosest( &view, point, maskBits, requireAllBits, callback, context, minDistanceSqr );
+	return b3QueryClosestTreeView( &view, point, maskBits, requireAllBits, callback, context, minDistanceSqr );
 }
 
 b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits, bool requireAllBits,
 								   b3TreeRayCastCallbackFcn* callback, void* context )
 {
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3TreeView_RayCast( &view, input, maskBits, requireAllBits, callback, context );
+	return b3RayCastTreeView( &view, input, maskBits, requireAllBits, callback, context );
 }
 
 b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
 								   b3TreeBoxCastCallbackFcn* callback, void* context )
 {
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3TreeView_BoxCast( &view, input, maskBits, requireAllBits, callback, context );
+	return b3BoxCastTreeView( &view, input, maskBits, requireAllBits, callback, context );
+}
+
+b3TreeStats b3TreeView_Query( const b3TreeView* view, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
+							  b3TreeQueryCallbackFcn* callback, void* context )
+{
+	return b3QueryTreeView( view, aabb, maskBits, requireAllBits, callback, context );
+}
+
+b3TreeStats b3TreeView_QueryClosest( const b3TreeView* view, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
+									 b3TreeQueryClosestCallbackFcn* callback, void* context, float* minDistanceSqr )
+{
+	return b3QueryClosestTreeView( view, point, maskBits, requireAllBits, callback, context, minDistanceSqr );
+}
+
+b3TreeStats b3TreeView_RayCast( const b3TreeView* view, const b3RayCastInput* input, uint64_t maskBits, bool requireAllBits,
+								b3TreeRayCastCallbackFcn* callback, void* context )
+{
+	return b3RayCastTreeView( view, input, maskBits, requireAllBits, callback, context );
+}
+
+b3TreeStats b3TreeView_BoxCast( const b3TreeView* view, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
+								b3TreeBoxCastCallbackFcn* callback, void* context )
+{
+	return b3BoxCastTreeView( view, input, maskBits, requireAllBits, callback, context );
 }
 
 // Median split == 0, Surface area heuristic == 1

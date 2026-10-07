@@ -2483,7 +2483,8 @@ static bool b3RecLoadSlots( b3RecReader* rdr, const void* data, int size, uint64
 			slots[i].byteCount = (int)byteCount;
 			slots[i].bytes = bytes;
 
-			// todo comment
+			// Validate the compound.
+			// todo validate other types?
 			if ( kind == b3_geometryCompound && b3ValidateCompound( bytes, (int)byteCount ) == NULL )
 			{
 				error = "is not a valid compound";
