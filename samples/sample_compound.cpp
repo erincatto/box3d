@@ -345,7 +345,7 @@ public:
 		DrawTextLine( "compound hull count = %d, mesh count = %d", m_compound->hullCount, m_compound->meshCount );
 		DrawTextLine( "compound byte count = %d", m_compound->byteCount );
 
-		int treeBytes = m_compound->nodeCount * (int)sizeof( b3TreeNode ) + m_compound->proxyCount * (int)sizeof( b3TreeProxy );
+		int treeBytes = m_compound->nodeCount * (int)sizeof( b3TreeNode );
 		int height = m_compound->treeHeight;
 		DrawTextLine( "compound tree byte count = %d, height = %d", treeBytes, height );
 	}
@@ -461,7 +461,7 @@ public:
 
 		DrawTextLine( "compound instance count = %d, byte count = %d", m_compound->meshCount, m_compound->byteCount );
 
-		int treeBytes = m_compound->nodeCount * (int)sizeof( b3TreeNode ) + m_compound->proxyCount * (int)sizeof( b3TreeProxy );
+		int treeBytes = m_compound->nodeCount * (int)sizeof( b3TreeNode );
 		int height = m_compound->treeHeight;
 		DrawTextLine( "compound tree byte count = %d, height = %d", treeBytes, height );
 	}
@@ -700,7 +700,7 @@ public:
 					  m_compound->hullCount, m_compound->meshCount, m_compound->sphereCount );
 		DrawTextLine( "compound byte count = %d", m_compound->byteCount );
 
-		int treeBytes = m_compound->nodeCount * (int)sizeof( b3TreeNode ) + m_compound->proxyCount * (int)sizeof( b3TreeProxy );
+		int treeBytes = m_compound->nodeCount * (int)sizeof( b3TreeNode );
 		int height = m_compound->treeHeight;
 		DrawTextLine( "compound tree byte count = %d, height = %d", treeBytes, height );
 

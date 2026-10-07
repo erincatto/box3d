@@ -235,6 +235,7 @@ int main( int argc, char** argv )
 		{ "trees100", NULL, CreateTrees100, DestroyTrees, NULL, 500 },
 		{ "trees50", NULL, CreateTrees50, DestroyTrees, NULL, 500 },
 		{ "trees25", NULL, CreateTrees25, DestroyTrees, NULL, 500 },
+		{ "village", GetVillageCapacity, CreateVillage, DestroyVillage, StepVillage, VILLAGE_STEP_COUNT },
 		{ "washer", GetWasherCapacity, CreateWasher, NULL, NULL, 1000 },
 		//{ "smash", CreateSmash, NULL, 300 },
 		//{ "tumbler", CreateTumbler, NULL, 750 },

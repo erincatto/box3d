@@ -78,9 +78,7 @@ static int CompoundCreateMixed( void )
 	ENSURE( compound->sharedMeshCount == 1 );
 
 	ENSURE( compound->nodeCount >= 2 );
-	ENSURE( compound->proxyCount > 0 );
 	ENSURE( compound->nodeOffset > 0 );
-	ENSURE( compound->proxyOffset > 0 );
 	ENSURE( compound->bounds.lowerBound.x < compound->bounds.upperBound.x );
 
 	b3DestroyCompound( compound );
@@ -884,7 +882,8 @@ static int CompoundMeshContactMaterial( void )
 	ENSURE( compound != NULL );
 
 	b3ShapeDef groundShapeDef = b3DefaultShapeDef();
-	b3CreateBakedCompoundShape( groundBodyId, &groundShapeDef, compound );
+	b3ShapeId compoundShapeId = b3CreateBakedCompoundShape( groundBodyId, &groundShapeDef, compound );
+	ENSURE( b3Shape_GetCompound( compoundShapeId ) == compound );
 
 	b3BodyDef sphereBodyDef = b3DefaultBodyDef();
 	sphereBodyDef.type = b3_dynamicBody;

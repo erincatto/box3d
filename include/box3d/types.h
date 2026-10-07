@@ -2488,7 +2488,7 @@ typedef struct b3CompoundDef
 } b3CompoundDef;
 
 /// The baked compound version depends on the mesh and hull versions.
-#define B3_COMPOUND_VERSION ( 0x3C81E5A2D94F607Bull ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
+#define B3_COMPOUND_VERSION ( 0x9E4B17D3A25C68F1ull ^ B3_MESH_VERSION ^ B3_HULL_VERSION )
 
 /// The data for a baked compound shape. This is a potentially large yet highly optimized
 /// data structure. It can contain thousands of child shapes, yet at runtime it populates
@@ -2516,12 +2516,6 @@ typedef struct b3CompoundData
 
 	// The number of tree nodes.
 	int nodeCount;
-
-	/// Offset of the tree proxy array in bytes from the struct address.
-	int proxyOffset;
-
-	// The number of tree proxies.
-	int proxyCount;
 
 	/// Offset of the material array in bytes from the struct address.
 	int materialOffset;

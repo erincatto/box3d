@@ -93,7 +93,7 @@ if (compound == NULL)
 
 `b3ValidateCompound` never modifies the bytes. It returns `NULL` unless the
 version matches, `byteCount` equals the size stored in the compound, and the tree
-node and proxy arrays lie fully inside the buffer. On success it returns the
+node array lies fully inside the buffer. On success it returns the
 input address. Multiple static bodies can use the same byte buffer
 simultaneously (instancing), since the compound itself holds no per-body state.
 

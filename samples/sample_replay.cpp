@@ -1538,6 +1538,20 @@ public:
 		b3AABB aabb = b3Shape_GetAABB( shape );
 		ImGui::Text( "aabb (%.2f, %.2f, %.2f)", aabb.lowerBound.x, aabb.lowerBound.y, aabb.lowerBound.z );
 		ImGui::Text( "     (%.2f, %.2f, %.2f)", aabb.upperBound.x, aabb.upperBound.y, aabb.upperBound.z );
+
+		if ( b3Shape_GetType( shape ) == b3_compoundShape )
+		{
+			const b3CompoundData* compound = b3Shape_GetCompound( shape );
+			int childCount = compound->capsuleCount + compound->hullCount + compound->meshCount + compound->sphereCount;
+			ImGui::Text( "children %d", childCount );
+			ImGui::Text( "  capsules %d", compound->capsuleCount );
+			ImGui::Text( "  hulls    %d (%d unique)", compound->hullCount, compound->sharedHullCount );
+			ImGui::Text( "  meshes   %d (%d unique)", compound->meshCount, compound->sharedMeshCount );
+			ImGui::Text( "  spheres  %d", compound->sphereCount );
+			ImGui::Text( "materials %d", compound->materialCount );
+			ImGui::Text( "tree height %d  nodes %d", compound->treeHeight, compound->nodeCount );
+			ImGui::Text( "bytes %d", compound->byteCount );
+		}
 	}
 
 	void DrawContactDetail( b3BodyId body )

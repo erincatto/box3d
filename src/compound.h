@@ -11,8 +11,7 @@ static inline b3TreeView b3GetCompoundTreeView( const b3CompoundData* compound )
 {
 	b3TreeView view = {
 		.nodes = (const b3TreeNode*)( (intptr_t)compound + compound->nodeOffset ),
-		.proxies = (const b3TreeProxy*)( (intptr_t)compound + compound->proxyOffset ),
-		.proxyCount = compound->proxyCount,
+		.proxies = NULL,
 	};
 	return view;
 }

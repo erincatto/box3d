@@ -3,6 +3,7 @@
 #pragma once
 
 #include "box3d/id.h"
+#include "box3d/math_functions.h"
 
 #include <stdbool.h>
 
@@ -51,6 +52,32 @@ float GetSpinnerAngle( void );
 void GetSleepCapacity( b3Capacity* capacity );
 void CreateSleep( b3WorldId worldId );
 void StepSleep( b3WorldId worldId, int stepCount );
+
+#define VILLAGE_STEP_COUNT 600
+
+typedef struct VillageCast
+{
+	b3Pos origin;
+	b3Pos point;
+	b3Vec3 normal;
+	float fraction;
+	bool hit;
+} VillageCast;
+
+// The sphere casts from the latest village step, for drawing
+typedef struct VillageCurtain
+{
+	const VillageCast* casts;
+	int castCount;
+	b3Vec3 translation;
+	float radius;
+} VillageCurtain;
+
+void GetVillageCapacity( b3Capacity* capacity );
+void CreateVillage( b3WorldId worldId );
+void StepVillage( b3WorldId worldId, int stepIndex );
+void DestroyVillage( void );
+VillageCurtain GetVillageCurtain( void );
 
 // void CreateSmash( b3WorldId worldId );
 // void CreateTumbler( b3WorldId worldId );

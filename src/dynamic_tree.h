@@ -73,7 +73,6 @@ typedef struct b3TreeView
 {
 	const b3TreeNode* nodes;
 	const b3TreeProxy* proxies;
-	int proxyCount;
 } b3TreeView;
 
 static inline b3TreeView b3MakeTreeView( const b3DynamicTree* tree )
@@ -81,7 +80,6 @@ static inline b3TreeView b3MakeTreeView( const b3DynamicTree* tree )
 	b3TreeView view = {
 		.nodes = tree->nodes,
 		.proxies = tree->proxies,
-		.proxyCount = tree->proxyCount,
 	};
 	return view;
 }

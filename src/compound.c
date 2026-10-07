@@ -50,7 +50,7 @@ typedef struct b3MeshInstance
 
 _Static_assert( sizeof( b3CompoundCapsule ) == sizeof( b3Capsule ) + 2 * sizeof( uint16_t ), "review padding" );
 _Static_assert( sizeof( b3CompoundSphere ) == sizeof( b3Sphere ) + 2 * sizeof( uint16_t ), "review padding" );
-_Static_assert( sizeof( b3CompoundData ) == sizeof( uint64_t ) + sizeof( b3AABB ) + 18 * sizeof( int ), "review padding" );
+_Static_assert( sizeof( b3CompoundData ) == sizeof( uint64_t ) + sizeof( b3AABB ) + 16 * sizeof( int ), "review padding" );
 
 const b3SurfaceMaterial* b3GetCompoundMaterials( const b3CompoundData* compound )
 {
@@ -488,12 +488,10 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 
 	b3DynamicTree_Rebuild( &tree, true );
 
-	// Tree nodes and proxies. The rebuild is dense, so only the live nodes travel.
+	// Tree nodes. The rebuild is dense, so only the live nodes travel.
 	size_t byteCount = b3AlignUp8( sizeof( b3CompoundData ) );
 	int nodeOffset = (int)byteCount;
 	byteCount += b3AlignUp8( tree.nodeEnd * sizeof( b3TreeNode ) );
-	int proxyOffset = (int)byteCount;
-	byteCount += b3AlignUp8( tree.proxyCount * sizeof( b3TreeProxy ) );
 	int materialOffset = (int)byteCount;
 	byteCount += b3AlignUp8( materialCount * sizeof( b3SurfaceMaterial ) );
 	int capsuleOffset = (int)byteCount;
@@ -543,11 +541,9 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 	compound->version = B3_COMPOUND_VERSION;
 	compound->byteCount = (int)byteCount;
 	compound->nodeOffset = nodeOffset;
-	compound->proxyOffset = proxyOffset;
 	compound->bounds = b3DynamicTree_GetRootBounds( &tree );
 	compound->treeHeight = b3DynamicTree_GetHeight( &tree );
 	compound->nodeCount = tree.nodeEnd;
-	compound->proxyCount = tree.proxyCount;
 	compound->materialOffset = materialOffset;
 	compound->materialCount = materialCount;
 	compound->capsuleOffset = capsuleOffset;
@@ -559,12 +555,9 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 	compound->sphereOffset = sphereOffset;
 	compound->sphereCount = sphereCount;
 
-	// Tree nodes and proxies
+	// Tree nodes
 	b3TreeNode* nodes = (b3TreeNode*)( (intptr_t)compound + nodeOffset );
 	memcpy( nodes, tree.nodes, tree.nodeEnd * sizeof( b3TreeNode ) );
-
-	b3TreeProxy* proxies = (b3TreeProxy*)( (intptr_t)compound + proxyOffset );
-	memcpy( proxies, tree.proxies, tree.proxyCount * sizeof( b3TreeProxy ) );
 
 	// Materials
 	B3_ASSERT( materialCount > 0 );
@@ -683,19 +676,13 @@ const b3CompoundData* b3ValidateCompound( const uint8_t* bytes, int byteCount )
 		return NULL;
 	}
 
-	if ( compound->proxyOffset < (int)sizeof( b3CompoundData ) || ( compound->proxyOffset & 7 ) != 0 )
-	{
-		return NULL;
-	}
-
-	if ( compound->nodeCount < 2 || compound->proxyCount <= 0 )
+	if ( compound->nodeCount < 2 )
 	{
 		return NULL;
 	}
 
 	int64_t nodeEnd = (int64_t)compound->nodeOffset + (int64_t)compound->nodeCount * (int64_t)sizeof( b3TreeNode );
-	int64_t proxyEnd = (int64_t)compound->proxyOffset + (int64_t)compound->proxyCount * (int64_t)sizeof( b3TreeProxy );
-	if ( nodeEnd > byteCount || proxyEnd > byteCount )
+	if ( nodeEnd > byteCount )
 	{
 		return NULL;
 	}

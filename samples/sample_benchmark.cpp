@@ -763,6 +763,93 @@ public:
 
 static int sampleMeshDropBenchmark = RegisterSample( "Benchmark", "Mesh Drop", BenchmarkMeshDrop::Create );
 
+class BenchmarkVillage : public Sample
+{
+public:
+	explicit BenchmarkVillage( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 45.0f, 30.0f, 300.0f, b3Pos_zero );
+		}
+
+		b3Capacity capacity = {};
+		GetVillageCapacity( &capacity );
+		CreateWorld( &capacity );
+
+		CreateVillage( m_worldId );
+	}
+
+	~BenchmarkVillage() override
+	{
+		DestroyVillage();
+	}
+
+	void Step() override
+	{
+		StepVillage( m_worldId, m_stepCount );
+		Sample::Step();
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::Checkbox( "Draw Casts", &m_drawCasts );
+		ImGui::Checkbox( "Draw Spheres", &m_drawSpheres );
+		return true;
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+
+		VillageCurtain curtain = GetVillageCurtain();
+
+		int hitCount = 0;
+		for ( int i = 0; i < curtain.castCount; ++i )
+		{
+			const VillageCast& cast = curtain.casts[i];
+			hitCount += cast.hit ? 1 : 0;
+
+			if ( m_drawCasts == false )
+			{
+				continue;
+			}
+
+			b3Pos end = cast.origin + cast.fraction * curtain.translation;
+			DrawLine( cast.origin, end, MakeColor( cast.hit ? b3_colorYellow : b3_colorGray ) );
+
+			if ( cast.hit == false )
+			{
+				continue;
+			}
+
+			DrawPoint( cast.point, 4.0f, MakeColor( b3_colorGreen ) );
+			DrawLine( cast.point, cast.point + 0.5f * cast.normal, MakeColor( b3_colorGreen ) );
+
+			if ( m_drawSpheres )
+			{
+				b3WorldTransform transform = b3WorldTransform_identity;
+				transform.p = end;
+				DrawSphereEx( transform, curtain.radius, MakeColorAlpha( b3_colorPurple, 0.5f ), 0.0f, 0.5f,
+							  TRANSPARENT_SHADOW_NONE );
+			}
+		}
+
+		DrawTextLine( "casts = %d, hits = %d", curtain.castCount, hitCount );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new BenchmarkVillage( context );
+	}
+
+	bool m_drawCasts = true;
+	bool m_drawSpheres = true;
+};
+
+static int sampleVillageBenchmark = RegisterSample( "Benchmark", "Village", BenchmarkVillage::Create );
+
 struct ShapeUserData
 {
 	int row;
