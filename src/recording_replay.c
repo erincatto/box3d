@@ -2620,7 +2620,12 @@ static void b3RecSeedKeyframeRegistry( b3RecPlayer* player )
 		{
 			memcpy( copy, slot->bytes, (size_t)slot->byteCount );
 		}
-		uint64_t h = b3Hash64NonZero( slot->bytes, slot->byteCount );
+		if ( slot->kind == b3_geometryCompound )
+		{
+			// Null the pointers in the compound
+			b3ConvertCompoundToBytes( (b3CompoundData*)copy );
+		}
+		uint64_t h = b3Hash64NonZero( copy, slot->byteCount );
 		uint32_t id = b3AppendGeometry( reg, slot->kind, h, copy, slot->byteCount );
 		// Seeding in order without dedup keeps id == slot index.
 		B3_ASSERT( id == (uint32_t)i );

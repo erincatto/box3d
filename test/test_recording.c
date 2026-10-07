@@ -1645,6 +1645,10 @@ static int AllOps( void )
 		b3RecPlayer* player = b3CreatePlayer( recData, recSize, 1 );
 		ENSURE( player != NULL );
 
+		// Capture keyframes while every geometry kind is live. The default interval is longer
+		// than this recording.
+		b3RecPlayer_SetKeyframePolicy( player, b3RecPlayer_GetKeyframeBudget( player ), 4 );
+
 		b3RecPlayerInfo info = b3RecPlayer_GetInfo( player );
 		b3Vec3 recExtents = b3Sub( info.bounds.upperBound, info.bounds.lowerBound );
 		ENSURE( recExtents.x > 0.0f && recExtents.y > 0.0f );
