@@ -19,19 +19,19 @@ set(BOX3D_SOURCE_FILES
 	compound.h
 	constraint_graph.c
 	constraint_graph.h
-	contact.c
-	contact.h
 	contact_solver_wide.inl
 	contact_solver.c
 	contact_solver.h
+	contact.c
+	contact.h
 	container.h
 	convex_manifold_wide.inl
 	convex_manifold.c
 	core.c
 	core.h
 	ctz.h
-	distance.c
 	distance_joint.c
+	distance.c
 	dynamic_tree.c
 	dynamic_tree.h
 	height_field.c
@@ -47,8 +47,8 @@ set(BOX3D_SOURCE_FILES
 	manifold.h
 	math_functions.c
 	math_internal.h
-	mesh.c
 	mesh_contact.c
+	mesh.c
 	motor_joint.c
 	mover.c
 	name_cache.c
@@ -62,13 +62,11 @@ set(BOX3D_SOURCE_FILES
 	prismatic_joint.c
 	qsort.h
 	rapidhash.h
+	recording_ops.inl
 	recording.c
 	recording.h
-	recording_ops.inl
-	recording_replay.c
-	recording_replay.h
-	world_snapshot.c
-	world_snapshot.h
+	replay.c
+	replay.h
 	revolute_joint.c
 	scheduler.c
 	scheduler.h
@@ -76,17 +74,17 @@ set(BOX3D_SOURCE_FILES
 	sensor.h
 	shape.c
 	shape.h
-	simd.c
-	simd.h
 	simd_avx2.h
 	simd_neon.h
 	simd_scalar.h
 	simd_sse2.h
 	simd_wide.h
-	solver.c
-	solver.h
+	simd.c
+	simd.h
 	solver_set.c
 	solver_set.h
+	solver.c
+	solver.h
 	sphere.c
 	spherical_joint.c
 	table.c
@@ -99,6 +97,8 @@ set(BOX3D_SOURCE_FILES
 	wheel_joint.c
 	wide4.c
 	wide8.c
+	world_snapshot.c
+	world_snapshot.h
 
 	box3d.natvis
 )

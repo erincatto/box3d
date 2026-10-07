@@ -256,3 +256,9 @@ b3PlaneResult b3RecR_PLANERESULT( b3RecReader* rdr );
 // Grow the reader's hit scratch to at least n entries, preserving contents. n is bounded by the
 // file size since every recorded hit consumes at least one byte.
 void b3RecEnsureHits( b3RecReader* rdr, int n );
+
+// Get a geometry slot with kind validation.
+b3RegistrySlot* b3RecGetSlot( b3RecReader* rdr, uint32_t id, b3GeometryKind kind );
+
+// Get the recorded compound with the pointers fixed up.
+const b3CompoundData* b3RecGetLiveCompound( b3RegistrySlot* slot );

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "recording.h"
-#include "recording_replay.h"
+#include "replay.h"
 
 #include <stdbool.h>
 #include <stdint.h>

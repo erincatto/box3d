@@ -855,6 +855,22 @@ static float QueryReplayCastFcn( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, 
 	return fraction;
 }
 
+static float CompoundHitCastFcn( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+								 int triangleIndex, int childIndex, void* context )
+{
+	(void)point;
+	(void)normal;
+	(void)fraction;
+	(void)userMaterialId;
+	(void)triangleIndex;
+	(void)childIndex;
+	if ( b3Shape_GetType( shapeId ) == b3_compoundShape )
+	{
+		*(bool*)context = true;
+	}
+	return 1.0f;
+}
+
 static bool QueryReplayPlaneFcn( b3ShapeId shapeId, const b3PlaneResult* planes, int planeCount, void* context )
 {
 	(void)shapeId;
@@ -1672,6 +1688,27 @@ static int AllOps( void )
 		ENSURE( b3RecPlayer_GetFrame( player ) == 12 );
 		ENSURE( b3RecPlayer_IsAtEnd( player ) );
 		ENSURE( b3RecPlayer_HasDiverged( player ) == false );
+		ENSURE( b3RecPlayer_GetKeyframeBytes( player ) > 0 );
+
+		// Seek back onto the frame 4 keyframe, then skip forward onto the frame 8 keyframe. Each
+		// restore rebuilds the compound from the registry, so a ray must still reach its tree and
+		// the state hashes must hold through the re-stepped frames.
+		int seekTargets[] = { 6, 9 };
+		for ( int k = 0; k < 2; ++k )
+		{
+			b3RecPlayer_SeekFrame( player, seekTargets[k] );
+			ENSURE( b3RecPlayer_GetFrame( player ) == seekTargets[k] );
+
+			bool hitCompound = false;
+			b3World_CastRay( b3RecPlayer_GetWorldId( player ), (b3Pos){ 30.0f, 10.0f, 0.0f }, (b3Vec3){ 0.0f, -20.0f, 0.0f },
+							 b3DefaultQueryFilter(), CompoundHitCastFcn, &hitCompound );
+			ENSURE( hitCompound );
+		}
+		while ( b3RecPlayer_StepFrame( player ) )
+		{
+		}
+		ENSURE( b3RecPlayer_GetFrame( player ) == 12 );
+		ENSURE( b3RecPlayer_HasDiverged( player ) == false );
 
 		// The trailing DestroyWorld is an end marker; the world stays valid after end
 		ENSURE( b3World_IsValid( b3RecPlayer_GetWorldId( player ) ) );
@@ -1833,6 +1870,89 @@ static int ReservedHeaderBytes( void )
 	ENSURE( b3ValidateReplay( patched, recSize, 1 ) );
 	b3Free( patched, (size_t)recSize );
 
+	b3DestroyRecording( rec );
+	return 0;
+}
+
+// A corrupt compound in the geometry registry must fail the replay cleanly. A stale version or a
+// wrong kind is rejected when the shape is created and a truncated entry is rejected at load.
+static int CorruptCompound( void )
+{
+	b3CompoundSphereDef sphereDef;
+	sphereDef.sphere = (b3Sphere){ { 0.0f, 0.0f, 0.0f }, 1.0f };
+	sphereDef.material = b3DefaultSurfaceMaterial();
+	b3CompoundDef compoundDef;
+	memset( &compoundDef, 0, sizeof( compoundDef ) );
+	compoundDef.spheres = &sphereDef;
+	compoundDef.sphereCount = 1;
+	b3CompoundData* compound = b3CreateCompound( &compoundDef );
+	ENSURE( compound != NULL );
+	int compoundByteCount = compound->byteCount;
+
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	b3World_StartRecording( worldId, rec );
+
+	b3BodyDef bd = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &bd );
+	b3ShapeDef sd = b3DefaultShapeDef();
+	b3CreateBakedCompoundShape( groundId, &sd, compound );
+
+	bd.type = b3_dynamicBody;
+	bd.position = (b3Pos){ 0.0f, 3.0f, 0.0f };
+	b3BodyId bodyId = b3CreateBody( worldId, &bd );
+	b3Sphere s = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+	b3CreateSphereShape( bodyId, &sd, &s );
+
+	for ( int i = 0; i < 10; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+	b3DestroyCompound( compound );
+
+	const uint8_t* recData = b3Recording_GetData( rec );
+	int recSize = b3Recording_GetSize( rec );
+	ENSURE( b3ValidateReplay( recData, recSize, 1 ) );
+
+	// The registry entry is a kind byte and a 4 byte length, then the blob, which leads with its version
+	uint64_t version = B3_COMPOUND_VERSION;
+	int blobOffset = -1;
+	for ( int i = 5; i + (int)sizeof( version ) <= recSize; ++i )
+	{
+		if ( memcmp( recData + i, &version, sizeof( version ) ) == 0 )
+		{
+			blobOffset = i;
+			break;
+		}
+	}
+	ENSURE( blobOffset > 0 );
+	ENSURE( recData[blobOffset - 5] == (uint8_t)b3_geometryCompound );
+	int32_t storedByteCount;
+	memcpy( &storedByteCount, recData + blobOffset - 4, sizeof( storedByteCount ) );
+	ENSURE( storedByteCount == compoundByteCount );
+
+	uint8_t* patched = (uint8_t*)b3Alloc( (size_t)recSize );
+
+	memcpy( patched, recData, (size_t)recSize );
+	patched[blobOffset] ^= 0xFF;
+	ENSURE( b3ValidateReplay( patched, recSize, 1 ) == false );
+
+	memcpy( patched, recData, (size_t)recSize );
+	int32_t shortByteCount = 8;
+	memcpy( patched + blobOffset - 4, &shortByteCount, sizeof( shortByteCount ) );
+	ENSURE( b3CreatePlayer( patched, recSize, 1 ) == NULL );
+
+	memcpy( patched, recData, (size_t)recSize );
+	patched[blobOffset - 5] = (uint8_t)b3_geometryMesh;
+	ENSURE( b3ValidateReplay( patched, recSize, 1 ) == false );
+
+	b3Free( patched, (size_t)recSize );
 	b3DestroyRecording( rec );
 	return 0;
 }
@@ -2265,5 +2385,6 @@ int RecordingTest( void )
 	RUN_SUBTEST( GeometryMutatorReplay );
 	RUN_SUBTEST( AllOps );
 	RUN_SUBTEST( ReservedHeaderBytes );
+	RUN_SUBTEST( CorruptCompound );
 	return 0;
 }

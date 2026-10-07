@@ -563,24 +563,14 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 	compound->byteCount = (int)byteCount;
 	compound->nodeOffset = nodeOffset;
 	compound->proxyOffset = proxyOffset;
-	memcpy( &compound->tree, &tree, sizeof( b3DynamicTree ) );
-
-	// todo clean up this mess
+	compound->tree.version = tree.version;
+	compound->tree.nodeEnd = tree.nodeEnd;
 	compound->tree.nodeCapacity = tree.nodeEnd;
 	compound->tree.pairFreeList = B3_NULL_INDEX;
+	compound->tree.proxyCount = tree.proxyCount;
 	compound->tree.proxyCapacity = tree.proxyCount;
 	compound->tree.proxyFreeList = B3_NULL_INDEX;
-	compound->tree.swapNodes = NULL;
-	compound->tree.leafIndices = NULL;
-	compound->tree.leafNodes = NULL;
-	compound->tree.leafBoxes = NULL;
-	compound->tree.leafCenters = NULL;
-	compound->tree.binIndices = NULL;
-	compound->tree.rebuildCapacity = 0;
-
-	compound->tree.nodes = NULL;
-	compound->tree.parents = NULL;
-	compound->tree.proxies = NULL;
+	compound->tree.dfsOrdered = tree.dfsOrdered;
 	compound->materialOffset = materialOffset;
 	compound->materialCount = materialCount;
 	compound->capsuleOffset = capsuleOffset;
