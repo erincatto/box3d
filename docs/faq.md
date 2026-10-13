@@ -143,7 +143,7 @@ edge means solving a quartic. So engines fall back on GJK with a support functio
 shapes. They also need extra machinery such as EPA or shrunken cores with margins for overlapping shapes.
 
 GJK only gives one contact point but a cylinder resting on the end cap needs at least 4 points. Some physics engines
-just clip a predifined polygon. In this case it is not really a cylinder being simulated.
+just clip a predefined polygon. In this case it is not really a cylinder being simulated.
 
 ### What should I use instead of a cylinder?
 
