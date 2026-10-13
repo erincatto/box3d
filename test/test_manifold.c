@@ -52,6 +52,11 @@ static b3Transform SlideX( float x )
 	return (b3Transform){ { x, 0.0f, 0.0f }, b3Quat_identity };
 }
 
+static b3Transform SlideY( float y )
+{
+	return (b3Transform){ { 0.0f, y, 0.0f }, b3Quat_identity };
+}
+
 static float MinSeparation( const b3LocalManifold* manifold )
 {
 	float minSeparation = FLT_MAX;
@@ -1249,6 +1254,112 @@ static int HullCapsuleFaceDeepTest( void )
 	return 0;
 }
 
+static int CheckSpeculativePoints( const b3LocalManifold* manifold, float gap )
+{
+	ENSURE( manifold->pointCount > 0 );
+	ENSURE_SMALL( MinSeparation( manifold ) - gap, 1e-4f );
+	return 0;
+}
+
+// Contact recycling treats a pair without points as separated by at least the speculative distance.
+// Every manifold routine must report a pair inside that distance or recycling can skip real overlap.
+// Discussion #175.
+static int SpeculativeMarginTest( void )
+{
+	float gaps[] = { 0.0f, 0.25f * B3_SPECULATIVE_DISTANCE, 0.75f * B3_SPECULATIVE_DISTANCE };
+	int gapCount = sizeof( gaps ) / sizeof( gaps[0] );
+
+	b3Sphere sphere = { b3Vec3_zero, 0.25f };
+	b3Sphere bigSphere = { b3Vec3_zero, 0.5f };
+	b3Capsule capsuleX = { { -0.5f, 0.0f, 0.0f }, { 0.5f, 0.0f, 0.0f }, 0.25f };
+	b3Capsule capsuleZ = { { 0.0f, 0.0f, -0.5f }, { 0.0f, 0.0f, 0.5f }, 0.25f };
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+	// Normal is +y
+	b3Vec3 triangle[3] = { { -2.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 2.0f }, { 2.0f, 0.0f, -2.0f } };
+
+	b3LocalManifoldPoint points[B3_MAX_MANIFOLD_POINTS];
+	b3LocalManifold manifold = { 0 };
+	manifold.points = points;
+
+	for ( int i = 0; i < gapCount; ++i )
+	{
+		float gap = gaps[i];
+
+		manifold.pointCount = 0;
+		b3CollideSpheres( &manifold, B3_MAX_MANIFOLD_POINTS, &bigSphere, &sphere, SlideY( 0.75f + gap ) );
+		ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
+
+		manifold.pointCount = 0;
+		b3CollideCapsuleAndSphere( &manifold, B3_MAX_MANIFOLD_POINTS, &capsuleX, &sphere, SlideY( 0.5f + gap ) );
+		ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
+
+		manifold.pointCount = 0;
+		b3CollideCapsules( &manifold, B3_MAX_MANIFOLD_POINTS, &capsuleX, &capsuleZ, SlideY( 0.5f + gap ) );
+		ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
+
+		{
+			manifold.pointCount = 0;
+			b3SimplexCache cache = { 0 };
+			b3CollideHullAndSphere( &manifold, B3_MAX_MANIFOLD_POINTS, &box.base, &sphere, SlideY( 0.75f + gap ), &cache );
+			ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
+		}
+
+		{
+			manifold.pointCount = 0;
+			b3SimplexCache cache = { 0 };
+			b3CollideHullAndCapsule( &manifold, B3_MAX_MANIFOLD_POINTS, &box.base, &capsuleX, SlideY( 0.75f + gap ), &cache );
+			ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
+		}
+
+		{
+			manifold.pointCount = 0;
+			b3SATCache cache = { 0 };
+			b3CollideHulls( &manifold, B3_MAX_MANIFOLD_POINTS, &box.base, &box.base, SlideY( 1.0f + gap ), &cache );
+			ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
+		}
+
+		{
+			manifold.pointCount = 0;
+			b3Sphere raised = { { 0.0f, 0.25f + gap, 0.0f }, 0.25f };
+			b3CollideTriangleAndSphere( &manifold, B3_MAX_MANIFOLD_POINTS, triangle, &raised );
+			ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
+		}
+
+		{
+			manifold.pointCount = 0;
+			b3Capsule raised = capsuleX;
+			raised.center1.y = 0.25f + gap;
+			raised.center2.y = 0.25f + gap;
+			b3SimplexCache cache = { 0 };
+			b3CollideTriangleAndCapsule( &manifold, B3_MAX_MANIFOLD_POINTS, triangle, &raised, &cache );
+			ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
+		}
+
+		{
+			manifold.pointCount = 0;
+			b3BoxHull raised = b3MakeTransformedBoxHull( 0.5f, 0.5f, 0.5f, SlideY( 0.5f + gap ) );
+			b3SATCache cache = { 0 };
+			b3CollideTriangleAndHull( &manifold, B3_MAX_MANIFOLD_POINTS, triangle[0], triangle[1], triangle[2], 0, &raised.base,
+									  &cache, true );
+			ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
+		}
+	}
+
+	// Beyond the speculative distance the closed form routines report nothing
+	float farGap = 1.5f * B3_SPECULATIVE_DISTANCE;
+
+	manifold.pointCount = 0;
+	b3CollideSpheres( &manifold, B3_MAX_MANIFOLD_POINTS, &bigSphere, &sphere, SlideY( 0.75f + farGap ) );
+	ENSURE( manifold.pointCount == 0 );
+
+	manifold.pointCount = 0;
+	b3CollideCapsuleAndSphere( &manifold, B3_MAX_MANIFOLD_POINTS, &capsuleX, &sphere, SlideY( 0.5f + farGap ) );
+	ENSURE( manifold.pointCount == 0 );
+
+	return 0;
+}
+
 // The library reports the point count it was built with. A mismatch against the manifold
 // this translation unit sees means the app and the library disagree on b3Manifold.
 static int MaxPointCountTest( void )
@@ -1281,6 +1392,7 @@ int ManifoldTest( void )
 	RUN_SUBTEST( HullCapsuleFaceDeepTest );
 	RUN_SUBTEST( SphereHullSeamTest );
 	RUN_SUBTEST( CapsuleHullSeamTest );
+	RUN_SUBTEST( SpeculativeMarginTest );
 
 	return 0;
 }

@@ -47,6 +47,8 @@ B3_API int b3GetMaxWorldCount( void );
 B3_API bool b3World_IsValid( b3WorldId id );
 
 /// Simulate a world for one time step. This performs collision detection, integration, and constraint solution.
+/// A time step of zero runs the broad-phase and collision, but skips the solver. So you can still get contact
+/// and sensor events.
 /// @param worldId The world to simulate
 /// @param timeStep The amount of time to simulate, this should be a fixed number. Usually 1/60.
 /// @param subStepCount The number of sub-steps, increasing the sub-step count can increase accuracy. Usually 4.

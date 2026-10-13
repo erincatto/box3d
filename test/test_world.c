@@ -14,6 +14,7 @@
 #include "box3d/constants.h"
 #include "box3d/math_functions.h"
 
+#include <float.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -974,6 +975,174 @@ static int EnableContactRecyclingTest( void )
 	return 0;
 }
 
+// A slow sphere closes on a static round shape from just outside contact. The step is too short
+// to make the sphere fast, so the pair is eligible for recycling. A routine without a speculative
+// margin left the pair empty and recycling then let the sphere sink without a contact. Discussion #175.
+static int RunRecycledApproach( bool capsuleTarget )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_staticBody;
+	b3BodyId targetId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	float targetRadius = 0.5f;
+	if ( capsuleTarget )
+	{
+		b3Capsule capsule = { { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, targetRadius };
+		b3CreateCapsuleShape( targetId, &shapeDef, &capsule );
+	}
+	else
+	{
+		b3Sphere sphere = { b3Vec3_zero, targetRadius };
+		b3CreateSphereShape( targetId, &shapeDef, &sphere );
+	}
+
+	float radius = 0.25f;
+	float totalRadius = targetRadius + radius;
+	float timeStep = 1.0f / 60.0f;
+
+	// Half the speculative distance per step
+	float speed = 0.5f * B3_SPECULATIVE_DISTANCE / timeStep;
+
+	bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ 0.0f, totalRadius + 0.25f * B3_SPECULATIVE_DISTANCE, 0.0f };
+	bodyDef.linearVelocity = (b3Vec3){ 0.0f, -speed, 0.0f };
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3Sphere sphere = { b3Vec3_zero, radius };
+	b3CreateSphereShape( bodyId, &shapeDef, &sphere );
+
+	float minSeparation = FLT_MAX;
+	for ( int i = 0; i < 20; ++i )
+	{
+		b3World_Step( worldId, timeStep, 4 );
+
+		b3Pos p = b3Body_GetPosition( bodyId );
+		minSeparation = b3MinFloat( minSeparation, (float)p.y - totalRadius );
+	}
+
+	b3DestroyWorld( worldId );
+
+	ENSURE( minSeparation > -B3_LINEAR_SLOP );
+
+	return 0;
+}
+
+static int RecycledSphereApproachTest( void )
+{
+	ENSURE( RunRecycledApproach( false ) == 0 );
+	ENSURE( RunRecycledApproach( true ) == 0 );
+	return 0;
+}
+
+static bool PreSolveReject( b3ShapeId shapeIdA, b3ShapeId shapeIdB, b3Pos point, b3Vec3 normal, void* context )
+{
+	(void)shapeIdA;
+	(void)shapeIdB;
+	(void)point;
+	(void)normal;
+	bool* reject = context;
+	return *reject == false;
+}
+
+// A rejected pre-solve frees the manifold while the shapes may already touch. The next step must
+// rebuild the contact and ask again instead of recycling the empty pair.
+static int PreSolveRejectRecycleTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.enableSleep = false;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	bool reject = true;
+	b3World_SetPreSolveCallback( worldId, PreSolveReject, &reject );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_staticBody;
+	bodyDef.position = (b3Pos){ 0.0f, -0.5f, 0.0f };
+	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+	b3BoxHull groundBox = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
+
+	float radius = 0.25f;
+	bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ 0.0f, radius, 0.0f };
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	shapeDef.enablePreSolveEvents = true;
+	b3Sphere sphere = { b3Vec3_zero, radius };
+	b3CreateSphereShape( bodyId, &shapeDef, &sphere );
+
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	reject = false;
+
+	float minSeparation = FLT_MAX;
+	for ( int i = 0; i < 30; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+		b3Pos p = b3Body_GetPosition( bodyId );
+		minSeparation = b3MinFloat( minSeparation, (float)p.y - radius );
+	}
+
+	b3DestroyWorld( worldId );
+
+	ENSURE( minSeparation > -B3_LINEAR_SLOP );
+
+	return 0;
+}
+
+static int CountRecycledResting( bool enableSpeculative )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.enableSleep = false;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_staticBody;
+	bodyDef.position = (b3Pos){ 0.0f, -0.5f, 0.0f };
+	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+	b3BoxHull groundBox = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3CreateHullShape( groundId, &shapeDef, &groundBox.base );
+
+	bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ 0.0f, 0.5f, 0.0f };
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	shapeDef.enableSpeculativeContact = enableSpeculative;
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+	int recycledCount = 0;
+	for ( int i = 0; i < 60; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		recycledCount += b3World_GetCounters( worldId ).recycledContactCount;
+	}
+
+	b3DestroyWorld( worldId );
+
+	return recycledCount;
+}
+
+// Without speculative points an empty pair may be closer than the speculative distance, so these
+// contacts must never recycle
+static int SpeculativeOffRecycleTest( void )
+{
+	ENSURE( CountRecycledResting( true ) > 0 );
+	ENSURE( CountRecycledResting( false ) == 0 );
+	return 0;
+}
+
 static int CountMovedNodes( const b3DynamicTree* tree )
 {
 	int count = 0;
@@ -1640,6 +1809,9 @@ int WorldTest( void )
 	RUN_SUBTEST( EnableSleepFlagSyncTest );
 	RUN_SUBTEST( EnableSleepNoopUnlockTest );
 	RUN_SUBTEST( EnableContactRecyclingTest );
+	RUN_SUBTEST( RecycledSphereApproachTest );
+	RUN_SUBTEST( PreSolveRejectRecycleTest );
+	RUN_SUBTEST( SpeculativeOffRecycleTest );
 	RUN_SUBTEST( TestSetWorkerCount );
 	RUN_SUBTEST( TestHullDatabase );
 	RUN_SUBTEST( TestEnlargedProxyDestroyed );

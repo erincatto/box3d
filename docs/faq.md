@@ -121,6 +121,41 @@ approximately solve the differential equations. Box3D also does not have exact c
 moving shapes may have small overlap for a few time steps. In extreme stacking scenarios, shapes may have sustained
 overlap.
 
+## Shapes
+
+### Why doesn't Box3D have a cylinder shape?
+
+Cylinders look simple but they are one of the hardest shapes to make work well in a 3D physics engine. Other engines
+that support cylinders tend to document them as their least stable shape. A cylinder combines three kinds of geometry
+that each need different handling:
+
+* flat caps, like a polytope
+* a sharp circular rim, like an edge that is curved
+* a curved side, like a capsule that has no rounded ends
+
+These cause several problems:
+
+**Collision algorithms don't fit.** The other shapes in Box3D fall into two families. Spheres and capsules are a point
+or a segment with a radius, so their collision is closed form and exact. Convex hulls have a finite set of faces and
+edges, so Box3D can find the separating axis directly and clip faces to build a contact manifold. A cylinder belongs to
+neither family. Its side has infinitely many face normals, and the rim is a curved edge. Testing the rim against a box
+edge means solving a quartic. So engines fall back on GJK with a support function, which converges slowly on smooth
+shapes. They also need extra machinery such as EPA or shrunken cores with margins for overlapping shapes.
+
+GJK only gives one contact point but a cylinder resting on the end cap needs at least 4 points. Some physics engines
+just clip a predifined polygon. In this case it is not really a cylinder being simulated.
+
+### What should I use instead of a cylinder?
+
+It depends on what the cylinder is for:
+* **Barrels, logs, and pipes that roll:** a capsule rolls perfectly smoothly on its side. The rounded ends are often not
+  noticeable. Box3D supports rolling resistance for capsules as well.
+* **Wheels:** use a sphere for the wheel collision, together with a wheel joint or revolute joint. A sphere rolls
+  perfectly and is the cheapest shape to collide. Box3D can reject ghost collisions between spheres and internal mesh edges.
+  Many vehicle setups instead skip wheel collision entirely and use ray casts or shape casts to find the ground.
+* **Pillars, coins, and anything that mostly rests on its cap:** use a hull from `b3CreateCylinder()`. It makes a
+  tessellated cylinder along the y-axis with between 3 and 32 sides. Use the fewest sides that looks acceptable.
+
 ## Making Games
 
 ### Tile / Voxel Based Environments
