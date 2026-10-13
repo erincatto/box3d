@@ -1123,6 +1123,7 @@ B3_FORCE_INLINE void b3PushContactsW( b3SolverBlock block, b3StepContext* contex
 		b3FloatW impulseScale = b3BlendW( dynamicImpulseScale, staticImpulseScale, softMask );
 
 		b3Vec3W dp = b3SubVW( bB.dp, bA.dp );
+		b3FloatW invMass = b3AddW( c->invMassA, c->invMassB );
 
 		b3ContactManifoldWide* manifolds = b3GetManifoldsW( c );
 		for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
@@ -1134,6 +1135,9 @@ B3_FORCE_INLINE void b3PushContactsW( b3SolverBlock block, b3StepContext* contex
 			b3FloatW normalSeparation = b3DotW( cm->normal, dp );
 			b3Vec3W normalA = b3InvRotateVectorW( bA.dq, cm->normal );
 			b3Vec3W normalB = b3InvRotateVectorW( bB.dq, cm->normal );
+
+			b3FloatW linearNormalVelocity = b3DotW( cm->normal, b3SubVW( bB.v, bA.v ) );
+			b3FloatW manifoldImpulse = zeroW;
 
 			for ( int pointIndex = 0; pointIndex < cm->pointCount; ++pointIndex )
 			{
@@ -1159,27 +1163,27 @@ B3_FORCE_INLINE void b3PushContactsW( b3SolverBlock block, b3StepContext* contex
 				b3FloatW pointMassScale = b3BlendW( massScale, oneW, separated );
 				b3FloatW pointImpulseScale = b3BlendW( impulseScale, zeroW, separated );
 
-				// Relative velocity at contact
-				b3Vec3W vrA = b3AddVW( bA.v, b3CrossW( bA.w, rA ) );
-				b3Vec3W vrB = b3AddVW( bB.v, b3CrossW( bB.w, rB ) );
-				b3FloatW vn = b3DotW( b3SubVW( vrB, vrA ), cm->normal );
+				b3Vec3W uA = b3CrossW( rA, cm->normal );
+				b3Vec3W uB = b3CrossW( rB, cm->normal );
+				b3Vec3W gA = b3MulMVW( c->invIA, uA );
+				b3Vec3W gB = b3MulMVW( c->invIB, uB );
 
-				// Compute normal impulse
+				b3FloatW vn = b3AddW( linearNormalVelocity, b3SubW( b3DotW( uB, bB.w ), b3DotW( uA, bA.w ) ) );
+
 				b3FloatW negImpulse = b3AddW( b3MulW( cp->normalMasses, b3AddW( b3MulW( pointMassScale, vn ), velocityBias ) ),
 											  b3MulW( pointImpulseScale, cp->normalImpulses ) );
+				b3FloatW impulse = b3MaxW( b3NegW( negImpulse ), b3NegW( cp->normalImpulses ) );
+				cp->normalImpulses = b3AddW( cp->normalImpulses, impulse );
 
-				// Clamp the accumulated impulse
-				b3FloatW newImpulse = b3MaxW( b3SubW( cp->normalImpulses, negImpulse ), zeroW );
-				b3FloatW deltaImpulse = b3SubW( newImpulse, cp->normalImpulses );
-				cp->normalImpulses = newImpulse;
-
-				// Apply contact impulse
-				b3Vec3W P = b3MulSVW( deltaImpulse, cm->normal );
-				bA.w = b3MulSubMVW( bA.w, c->invIA, b3CrossW( rA, P ) );
-				bA.v = b3MulSubSVW( bA.v, c->invMassA, P );
-				bB.w = b3MulAddMVW( bB.w, c->invIB, b3CrossW( rB, P ) );
-				bB.v = b3MulAddSVW( bB.v, c->invMassB, P );
+				linearNormalVelocity = b3MulAddW( linearNormalVelocity, invMass, impulse );
+				manifoldImpulse = b3AddW( manifoldImpulse, impulse );
+				bA.w = b3MulSubSVW( bA.w, impulse, gA );
+				bB.w = b3MulAddSVW( bB.w, impulse, gB );
 			}
+
+			b3Vec3W P = b3MulSVW( manifoldImpulse, cm->normal );
+			bA.v = b3MulSubSVW( bA.v, c->invMassA, P );
+			bB.v = b3MulAddSVW( bB.v, c->invMassB, P );
 		}
 
 		b3ScatterBodies( states, c->indexA, &bA );
@@ -1208,6 +1212,7 @@ B3_FORCE_INLINE void b3SolveContactsW( b3SolverBlock block, b3StepContext* conte
 
 		bool anyRolling = b3AllZeroW( c->rollingResistance ) == false;
 		b3Vec3W dp = b3SubVW( bB.dp, bA.dp );
+		b3FloatW invMass = b3AddW( c->invMassA, c->invMassB );
 
 		b3ContactManifoldWide* manifolds = b3GetManifoldsW( c );
 		for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
@@ -1218,6 +1223,12 @@ B3_FORCE_INLINE void b3SolveContactsW( b3SolverBlock block, b3StepContext* conte
 			b3FloatW normalSeparation = b3DotW( cm->normal, dp );
 			b3Vec3W normalA = b3InvRotateVectorW( bA.dq, cm->normal );
 			b3Vec3W normalB = b3InvRotateVectorW( bB.dq, cm->normal );
+
+			b3Vec3W dv = b3SubVW( bB.v, bA.v );
+			b3FloatW linearNormalVelocity = b3DotW( cm->normal, dv );
+			b3FloatW linearTangentVelocity1 = b3SubW( b3DotW( cm->tangent1, dv ), cm->tangentVelocity1 );
+			b3FloatW linearTangentVelocity2 = b3SubW( b3DotW( cm->tangent2, dv ), cm->tangentVelocity2 );
+			b3FloatW manifoldImpulse = zeroW;
 
 			b3FloatW totalNormalImpulse = zeroW;
 			b3FloatW totalTwistLimit = zeroW;
@@ -1237,28 +1248,25 @@ B3_FORCE_INLINE void b3SolveContactsW( b3SolverBlock block, b3StepContext* conte
 				// Speculative bias, positive if separated and zero if overlapped
 				b3FloatW velocityBias = b3MaxW( zeroW, b3MulW( s, inv_h ) );
 
-				// Relative velocity at contact
-				b3Vec3W vrA = b3AddVW( bA.v, b3CrossW( bA.w, rA ) );
-				b3Vec3W vrB = b3AddVW( bB.v, b3CrossW( bB.w, rB ) );
-				b3FloatW vn = b3DotW( b3SubVW( vrB, vrA ), cm->normal );
+				b3Vec3W uA = b3CrossW( rA, cm->normal );
+				b3Vec3W uB = b3CrossW( rB, cm->normal );
+				b3Vec3W gA = b3MulMVW( c->invIA, uA );
+				b3Vec3W gB = b3MulMVW( c->invIB, uB );
 
-				// Compute normal impulse
+				b3FloatW vn = b3AddW( linearNormalVelocity, b3SubW( b3DotW( uB, bB.w ), b3DotW( uA, bA.w ) ) );
+
 				b3FloatW negImpulse = b3MulW( cp->normalMasses, b3AddW( vn, velocityBias ) );
-
-				// Clamp the accumulated impulse
-				b3FloatW newImpulse = b3MaxW( b3SubW( cp->normalImpulses, negImpulse ), zeroW );
-				b3FloatW deltaImpulse = b3SubW( newImpulse, cp->normalImpulses );
+				b3FloatW impulse = b3MaxW( b3NegW( negImpulse ), b3NegW( cp->normalImpulses ) );
+				b3FloatW newImpulse = b3AddW( cp->normalImpulses, impulse );
 				cp->normalImpulses = newImpulse;
 				cp->totalNormalImpulses = b3AddW( cp->totalNormalImpulses, newImpulse );
 				totalNormalImpulse = b3AddW( totalNormalImpulse, newImpulse );
 				totalTwistLimit = b3AddW( totalTwistLimit, b3MulW( cp->leverArms, newImpulse ) );
 
-				// Apply contact impulse
-				b3Vec3W P = b3MulSVW( deltaImpulse, cm->normal );
-				bA.w = b3MulSubMVW( bA.w, c->invIA, b3CrossW( rA, P ) );
-				bA.v = b3MulSubSVW( bA.v, c->invMassA, P );
-				bB.w = b3MulAddMVW( bB.w, c->invIB, b3CrossW( rB, P ) );
-				bB.v = b3MulAddSVW( bB.v, c->invMassB, P );
+				linearNormalVelocity = b3MulAddW( linearNormalVelocity, invMass, impulse );
+				manifoldImpulse = b3AddW( manifoldImpulse, impulse );
+				bA.w = b3MulSubSVW( bA.w, impulse, gA );
+				bB.w = b3MulAddSVW( bB.w, impulse, gB );
 			}
 
 			// Rolling resistance. After normal constraints because it uses the normal impulse.
@@ -1299,14 +1307,13 @@ B3_FORCE_INLINE void b3SolveContactsW( b3SolverBlock block, b3StepContext* conte
 			{
 				b3FloatW twistSpeed = b3DotW( cm->normal, b3SubVW( bB.w, bA.w ) );
 				b3FloatW maxLambda = b3MulW( c->friction, totalTwistLimit );
-				b3FloatW deltaImpulse = b3NegW( b3MulW( cm->twistMass, twistSpeed ) );
 				b3FloatW oldImpulse = cm->twistImpulse;
-				cm->twistImpulse = b3SymClampW( b3AddW( oldImpulse, deltaImpulse ), maxLambda );
-				deltaImpulse = b3SubW( cm->twistImpulse, oldImpulse );
+				b3FloatW impulse = b3NegW( b3MulW( cm->twistMass, twistSpeed ) );
+				impulse = b3MaxW( b3SubW( b3NegW( maxLambda ), oldImpulse ), b3MinW( impulse, b3SubW( maxLambda, oldImpulse ) ) );
+				cm->twistImpulse = b3AddW( oldImpulse, impulse );
 
-				b3Vec3W L = b3MulSVW( deltaImpulse, cm->normal );
-				bA.w = b3MulSubMVW( bA.w, c->invIA, L );
-				bB.w = b3MulAddMVW( bB.w, c->invIB, L );
+				bA.w = b3MulSubSVW( bA.w, impulse, b3MulMVW( c->invIA, cm->normal ) );
+				bB.w = b3MulAddSVW( bB.w, impulse, b3MulMVW( c->invIB, cm->normal ) );
 			}
 
 			// Central friction. Friction goes last to improve stacking stability.
@@ -1319,12 +1326,10 @@ B3_FORCE_INLINE void b3SolveContactsW( b3SolverBlock block, b3StepContext* conte
 				b3Vec3W rB = cm->centerB;
 
 				// Relative tangent velocity at contact
-				b3Vec3W vrA = b3AddVW( bA.v, b3CrossW( bA.w, rA ) );
-				b3Vec3W vrB = b3AddVW( bB.v, b3CrossW( bB.w, rB ) );
-				b3Vec3W vr = b3SubVW( vrB, vrA );
+				b3Vec3W vr = b3SubVW( b3CrossW( bB.w, rB ), b3CrossW( bA.w, rA ) );
 				b3Vec2W vt = {
-					b3SubW( b3DotW( vr, tangent1 ), cm->tangentVelocity1 ),
-					b3SubW( b3DotW( vr, tangent2 ), cm->tangentVelocity2 ),
+					b3AddW( linearTangentVelocity1, b3DotW( vr, tangent1 ) ),
+					b3AddW( linearTangentVelocity2, b3DotW( vr, tangent2 ) ),
 				};
 
 				// Incremental tangent impulse
@@ -1359,8 +1364,10 @@ B3_FORCE_INLINE void b3SolveContactsW( b3SolverBlock block, b3StepContext* conte
 				// Apply delta impulse
 				b3Vec3W P = b3AddVW( b3MulSVW( deltaImpulse.x, tangent1 ), b3MulSVW( deltaImpulse.y, tangent2 ) );
 				bA.w = b3MulSubMVW( bA.w, c->invIA, b3CrossW( rA, P ) );
-				bA.v = b3MulSubSVW( bA.v, c->invMassA, P );
 				bB.w = b3MulAddMVW( bB.w, c->invIB, b3CrossW( rB, P ) );
+
+				P = b3MulAddSVW( P, manifoldImpulse, cm->normal );
+				bA.v = b3MulSubSVW( bA.v, c->invMassA, P );
 				bB.v = b3MulAddSVW( bB.v, c->invMassB, P );
 			}
 		}
