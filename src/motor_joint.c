@@ -361,16 +361,7 @@ void b3SolveMotorJoint( b3JointSim* base, b3StepContext* context )
 		b3Vec3 cdot = b3Sub( b3Add( vB, b3Cross( wB, rB ) ), b3Add( vA, b3Cross( wA, rA ) ) );
 
 		//// K = [(1/m1 + 1/m2) * eye(2) - skew(r1) * invI1 * skew(r1) - skew(r2) * invI2 * skew(r2)]
-		b3Matrix3 sA = b3Skew( rA );
-		b3Matrix3 sB = b3Skew( rB );
-		b3Matrix3 kA = b3MulMM( sA, b3MulMM( base->invIA, sA ) );
-		b3Matrix3 kB = b3MulMM( sB, b3MulMM( base->invIB, sB ) );
-		b3Matrix3 k = b3NegateMat3( b3AddMM( kA, kB ) );
-		k.cx.x += mA + mB;
-		k.cy.y += mA + mB;
-		k.cz.z += mA + mB;
-
-		b3Vec3 b = b3Solve3( k, b3Add( cdot, bias ) );
+		b3Vec3 b = b3SolvePointConstraint( mA, mB, base->invIA, base->invIB, rA, rB, b3Add( cdot, bias ) );
 
 		b3Vec3 oldImpulse = joint->linearSpringImpulse;
 		b3Vec3 impulse = b3MulSub( b3MulSV( -massScale, b ), impulseScale, oldImpulse );
@@ -396,16 +387,7 @@ void b3SolveMotorJoint( b3JointSim* base, b3StepContext* context )
 		b3Vec3 cdot = b3Sub( b3Add( vB, b3Cross( wB, rB ) ), b3Add( vA, b3Cross( wA, rA ) ) );
 		cdot = b3Sub( cdot, joint->linearVelocity );
 		//// K = [(1/m1 + 1/m2) * eye(2) - skew(r1) * invI1 * skew(r1) - skew(r2) * invI2 * skew(r2)]
-		b3Matrix3 sA = b3Skew( rA );
-		b3Matrix3 sB = b3Skew( rB );
-		b3Matrix3 kA = b3MulMM( sA, b3MulMM( base->invIA, sA ) );
-		b3Matrix3 kB = b3MulMM( sB, b3MulMM( base->invIB, sB ) );
-		b3Matrix3 k = b3NegateMat3( b3AddMM( kA, kB ) );
-		k.cx.x += mA + mB;
-		k.cy.y += mA + mB;
-		k.cz.z += mA + mB;
-
-		b3Vec3 b = b3Solve3( k, cdot );
+		b3Vec3 b = b3SolvePointConstraint( mA, mB, base->invIA, base->invIB, rA, rB, cdot );
 		b3Vec3 impulse = b3Neg( b );
 
 		b3Vec3 oldImpulse = joint->linearVelocityImpulse;

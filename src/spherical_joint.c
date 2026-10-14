@@ -454,86 +454,132 @@ void b3SolveSphericalJoint( b3JointSim* base, b3StepContext* context, bool useBi
 
 	b3Quat relQ = b3InvMulQuat( quatA, quatB );
 
-	// Solve spring
-	if ( joint->enableSpring && fixedRotation == false )
+	if ( fixedRotation == false &&
+		 ( joint->enableSpring || joint->enableMotor || joint->enableTwistLimit || joint->enableConeLimit ) )
 	{
-		// Rotation constraint error
-		b3Vec3 deltaRotation = b3DeltaQuatToRotation( relQ, joint->targetRotation );
-		b3Vec3 c = b3Neg( b3RotateVector( quatA, deltaRotation ) );
-
-		b3Vec3 bias = b3MulSV( joint->springSoftness.biasRate, c );
-		float massScale = joint->springSoftness.massScale;
-		float impulseScale = joint->springSoftness.impulseScale;
+		b3Matrix3 invInertiaSum = b3AddMM( iA, iB );
 		b3Vec3 cdot = b3Sub( wB, wA );
+		b3Vec3 angularImpulse = b3Vec3_zero;
 
-		b3Vec3 impulse = b3MulSub( b3MulSV( -massScale, b3MulMV( joint->rotationMass, b3Add( cdot, bias ) ) ),
-								   impulseScale, joint->springImpulse );
-		joint->springImpulse = b3Add( joint->springImpulse, impulse );
-
-		wA = b3Sub( wA, b3MulMV( iA, impulse ) );
-		wB = b3Add( wB, b3MulMV( iB, impulse ) );
-	}
-
-	if ( joint->enableMotor && fixedRotation == false )
-	{
-		b3Vec3 cdot = b3Sub( wB, wA );
-
-		// todo it might be more accurate to have the motor velocity in frameA due to sub-stepping.
-		b3Vec3 lambda = b3Neg( b3MulMV( joint->rotationMass, b3Sub( cdot, joint->motorVelocity ) ) );
-		b3Vec3 newImpulse = b3Add( joint->motorImpulse, lambda );
-		float length = b3Length( newImpulse );
-		float maxImpulse = joint->maxMotorTorque * context->h;
-		if ( length > maxImpulse )
+		// Solve spring
+		if ( joint->enableSpring )
 		{
-			newImpulse = b3MulSV( maxImpulse / length, newImpulse );
+			// Rotation constraint error
+			b3Vec3 deltaRotation = b3DeltaQuatToRotation( relQ, joint->targetRotation );
+			b3Vec3 c = b3Neg( b3RotateVector( quatA, deltaRotation ) );
+
+			b3Vec3 bias = b3MulSV( joint->springSoftness.biasRate, c );
+			float massScale = joint->springSoftness.massScale;
+			float impulseScale = joint->springSoftness.impulseScale;
+
+			b3Vec3 impulse = b3MulSub( b3MulSV( -massScale, b3MulMV( joint->rotationMass, b3Add( cdot, bias ) ) ),
+									   impulseScale, joint->springImpulse );
+			joint->springImpulse = b3Add( joint->springImpulse, impulse );
+
+			cdot = b3Add( cdot, b3MulMV( invInertiaSum, impulse ) );
+			angularImpulse = b3Add( angularImpulse, impulse );
 		}
 
-		lambda = b3Sub( newImpulse, joint->motorImpulse );
-		joint->motorImpulse = newImpulse;
-
-		wA = b3Sub( wA, b3MulMV( iA, lambda ) );
-		wB = b3Add( wB, b3MulMV( iB, lambda ) );
-	}
-
-	if ( joint->enableTwistLimit && fixedRotation == false )
-	{
-		float twistAngle = b3GetTwistAngle( relQ );
-
-		// todo does an updated twist axis help?
-
-		b3Vec3 twistJacobian = joint->twistJacobian;
-
-		// Lower limit
+		if ( joint->enableMotor )
 		{
-			float c = twistAngle - joint->lowerTwistAngle;
-			float bias = 0.0f;
-			float massScale = 1.0f;
-			float impulseScale = 0.0f;
-			if ( c > 0.0f )
+			// todo it might be more accurate to have the motor velocity in frameA due to sub-stepping.
+			b3Vec3 lambda = b3Neg( b3MulMV( joint->rotationMass, b3Sub( cdot, joint->motorVelocity ) ) );
+			b3Vec3 newImpulse = b3Add( joint->motorImpulse, lambda );
+			float length = b3Length( newImpulse );
+			float maxImpulse = joint->maxMotorTorque * context->h;
+			if ( length > maxImpulse )
 			{
-				// speculation
-				bias = c * context->inv_h;
-			}
-			else if ( useBias )
-			{
-				bias = base->constraintSoftness.biasRate * c;
-				massScale = base->constraintSoftness.massScale;
-				impulseScale = base->constraintSoftness.impulseScale;
+				newImpulse = b3MulSV( maxImpulse / length, newImpulse );
 			}
 
-			float cdot = b3Dot( b3Sub( wB, wA ), twistJacobian );
-			float oldImpulse = joint->lowerTwistImpulse;
-			float deltaImpulse = -massScale * joint->twistMass * ( cdot + bias ) - impulseScale * oldImpulse;
-			joint->lowerTwistImpulse = b3MaxFloat( oldImpulse + deltaImpulse, 0.0f );
-			deltaImpulse = joint->lowerTwistImpulse - oldImpulse;
+			lambda = b3Sub( newImpulse, joint->motorImpulse );
+			joint->motorImpulse = newImpulse;
 
-			wA = b3MulSub( wA, deltaImpulse, b3MulMV( iA, twistJacobian ) );
-			wB = b3MulAdd( wB, deltaImpulse, b3MulMV( iB, twistJacobian ) );
+			cdot = b3Add( cdot, b3MulMV( invInertiaSum, lambda ) );
+			angularImpulse = b3Add( angularImpulse, lambda );
 		}
 
-		// Upper limit
+		if ( joint->enableTwistLimit )
 		{
-			float c = joint->upperTwistAngle - twistAngle;
+			float twistAngle = b3GetTwistAngle( relQ );
+
+			// todo does an updated twist axis help?
+
+			b3Vec3 twistJacobian = joint->twistJacobian;
+			b3Vec3 twistResponse = b3MulMV( invInertiaSum, twistJacobian );
+
+			// Lower limit
+			{
+				float c = twistAngle - joint->lowerTwistAngle;
+				float bias = 0.0f;
+				float massScale = 1.0f;
+				float impulseScale = 0.0f;
+				if ( c > 0.0f )
+				{
+					// speculation
+					bias = c * context->inv_h;
+				}
+				else if ( useBias )
+				{
+					bias = base->constraintSoftness.biasRate * c;
+					massScale = base->constraintSoftness.massScale;
+					impulseScale = base->constraintSoftness.impulseScale;
+				}
+
+				float twistCdot = b3Dot( cdot, twistJacobian );
+				float oldImpulse = joint->lowerTwistImpulse;
+				float deltaImpulse =
+					b3MaxFloat( -massScale * joint->twistMass * ( twistCdot + bias ) - impulseScale * oldImpulse, -oldImpulse );
+				joint->lowerTwistImpulse = oldImpulse + deltaImpulse;
+
+				cdot = b3MulAdd( cdot, deltaImpulse, twistResponse );
+				angularImpulse = b3MulAdd( angularImpulse, deltaImpulse, twistJacobian );
+			}
+
+			// Upper limit
+			{
+				float c = joint->upperTwistAngle - twistAngle;
+				float bias = 0.0f;
+				float massScale = 1.0f;
+				float impulseScale = 0.0f;
+				if ( c > 0.0f )
+				{
+					// speculation
+					bias = c * context->inv_h;
+				}
+				else if ( useBias )
+				{
+					bias = base->constraintSoftness.biasRate * c;
+					massScale = base->constraintSoftness.massScale;
+					impulseScale = base->constraintSoftness.impulseScale;
+				}
+
+				// sign flipped on Cdot
+				float twistCdot = -b3Dot( cdot, twistJacobian );
+				float oldImpulse = joint->upperTwistImpulse;
+				float deltaImpulse =
+					b3MaxFloat( -massScale * joint->twistMass * ( twistCdot + bias ) - impulseScale * oldImpulse, -oldImpulse );
+				joint->upperTwistImpulse = oldImpulse + deltaImpulse;
+
+				// sign flipped on applied impulse
+				cdot = b3MulSub( cdot, deltaImpulse, twistResponse );
+				angularImpulse = b3MulSub( angularImpulse, deltaImpulse, twistJacobian );
+			}
+		}
+
+		if ( joint->enableConeLimit )
+		{
+			float swingAngle = b3GetSwingAngle( relQ );
+
+			// todo does an updated swing axis help?
+			// b3Vec3 axisA = b3RotateVector( quatA, b3Vec3_axisZ );
+			// b3Vec3 axisB = b3RotateVector( quatB, b3Vec3_axisZ );
+			// b3Vec3 swingAxis = b3Normalize( b3Cross( axisA, axisB ) );
+			// joint->swingAxis = swingAxis;
+
+			b3Vec3 swingAxis = joint->swingAxis;
+
+			float c = joint->coneAngle - swingAngle;
 			float bias = 0.0f;
 			float massScale = 1.0f;
 			float impulseScale = 0.0f;
@@ -550,56 +596,18 @@ void b3SolveSphericalJoint( b3JointSim* base, b3StepContext* context, bool useBi
 			}
 
 			// sign flipped on Cdot
-			float cdot = b3Dot( b3Sub( wA, wB ), twistJacobian );
-			float oldImpulse = joint->upperTwistImpulse;
-			float deltaImpulse = -massScale * joint->twistMass * ( cdot + bias ) - impulseScale * oldImpulse;
-			joint->upperTwistImpulse = b3MaxFloat( oldImpulse + deltaImpulse, 0.0f );
-			deltaImpulse = joint->upperTwistImpulse - oldImpulse;
+			float swingCdot = -b3Dot( cdot, swingAxis );
+			float oldImpulse = joint->swingImpulse;
+			float deltaImpulse =
+				b3MaxFloat( -massScale * joint->swingMass * ( swingCdot + bias ) - impulseScale * oldImpulse, -oldImpulse );
+			joint->swingImpulse = oldImpulse + deltaImpulse;
 
 			// sign flipped on applied impulse
-			wA = b3MulAdd( wA, deltaImpulse, b3MulMV( iA, twistJacobian ) );
-			wB = b3MulSub( wB, deltaImpulse, b3MulMV( iB, twistJacobian ) );
-		}
-	}
-
-	if ( joint->enableConeLimit && fixedRotation == false )
-	{
-		float swingAngle = b3GetSwingAngle( relQ );
-
-		// todo does an updated swing axis help?
-		// b3Vec3 axisA = b3RotateVector( quatA, b3Vec3_axisZ );
-		// b3Vec3 axisB = b3RotateVector( quatB, b3Vec3_axisZ );
-		// b3Vec3 swingAxis = b3Normalize( b3Cross( axisA, axisB ) );
-		// joint->swingAxis = swingAxis;
-
-		b3Vec3 swingAxis = joint->swingAxis;
-
-		float c = joint->coneAngle - swingAngle;
-		float bias = 0.0f;
-		float massScale = 1.0f;
-		float impulseScale = 0.0f;
-		if ( c > 0.0f )
-		{
-			// speculation
-			bias = c * context->inv_h;
-		}
-		else if ( useBias )
-		{
-			bias = base->constraintSoftness.biasRate * c;
-			massScale = base->constraintSoftness.massScale;
-			impulseScale = base->constraintSoftness.impulseScale;
+			angularImpulse = b3MulSub( angularImpulse, deltaImpulse, swingAxis );
 		}
 
-		// sign flipped on Cdot
-		float cdot = b3Dot( b3Sub( wA, wB ), swingAxis );
-		float oldImpulse = joint->swingImpulse;
-		float deltaImpulse = -massScale * joint->swingMass * ( cdot + bias ) - impulseScale * oldImpulse;
-		joint->swingImpulse = b3MaxFloat( oldImpulse + deltaImpulse, 0.0f );
-		deltaImpulse = joint->swingImpulse - oldImpulse;
-
-		// sign flipped on applied impulse
-		wA = b3MulAdd( wA, deltaImpulse, b3MulMV( iA, swingAxis ) );
-		wB = b3MulSub( wB, deltaImpulse, b3MulMV( iB, swingAxis ) );
+		wA = b3Sub( wA, b3MulMV( iA, angularImpulse ) );
+		wB = b3Add( wB, b3MulMV( iB, angularImpulse ) );
 	}
 
 	// Solve point-to-point constraint
@@ -626,16 +634,7 @@ void b3SolveSphericalJoint( b3JointSim* base, b3StepContext* context, bool useBi
 		}
 
 		//// K = [(1/m1 + 1/m2) * eye(2) - skew(r1) * invI1 * skew(r1) - skew(r2) * invI2 * skew(r2)]
-		b3Matrix3 sA = b3Skew( rA );
-		b3Matrix3 sB = b3Skew( rB );
-		b3Matrix3 kA = b3MulMM( sA, b3MulMM( base->invIA, sA ) );
-		b3Matrix3 kB = b3MulMM( sB, b3MulMM( base->invIB, sB ) );
-		b3Matrix3 k = b3NegateMat3( b3AddMM( kA, kB ) );
-		k.cx.x += mA + mB;
-		k.cy.y += mA + mB;
-		k.cz.z += mA + mB;
-
-		b3Vec3 b = b3Solve3( k, b3Add( cdot, bias ) );
+		b3Vec3 b = b3SolvePointConstraint( mA, mB, base->invIA, base->invIB, rA, rB, b3Add( cdot, bias ) );
 
 		b3Vec3 impulse = b3MulSub( b3MulSV( -massScale, b ), impulseScale, joint->linearImpulse );
 		joint->linearImpulse = b3Add( joint->linearImpulse, impulse );

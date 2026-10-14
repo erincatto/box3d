@@ -413,3 +413,45 @@ void b3DrawRevoluteJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform 
 void b3DrawSphericalJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform transformA, b3WorldTransform transformB, float scale );
 void b3DrawWeldJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform transformA, b3WorldTransform transformB, float scale );
 void b3DrawWheelJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform transformA, b3WorldTransform transformB, float scale );
+
+static inline b3Vec3 b3SolvePointConstraint( float mA, float mB, b3Matrix3 iA, b3Matrix3 iB, b3Vec3 rA, b3Vec3 rB, b3Vec3 rhs )
+{
+	float axy = rA.z * iA.cy.y - rA.y * iA.cz.y;
+	float axz = rA.z * iA.cy.z - rA.y * iA.cz.z;
+	b3Vec3 ay = b3Sub( b3MulSV( rA.x, iA.cz ), b3MulSV( rA.z, iA.cx ) );
+	b3Vec3 az = b3Sub( b3MulSV( rA.y, iA.cx ), b3MulSV( rA.x, iA.cy ) );
+
+	float bxy = rB.z * iB.cy.y - rB.y * iB.cz.y;
+	float bxz = rB.z * iB.cy.z - rB.y * iB.cz.z;
+	b3Vec3 by = b3Sub( b3MulSV( rB.x, iB.cz ), b3MulSV( rB.z, iB.cx ) );
+	b3Vec3 bz = b3Sub( b3MulSV( rB.y, iB.cx ), b3MulSV( rB.x, iB.cy ) );
+
+	float m = mA + mB;
+	float kxx = ( axy * rA.z - axz * rA.y ) + ( bxy * rB.z - bxz * rB.y ) + m;
+	float kyy = ( ay.z * rA.x - ay.x * rA.z ) + ( by.z * rB.x - by.x * rB.z ) + m;
+	float kzz = ( az.x * rA.y - az.y * rA.x ) + ( bz.x * rB.y - bz.y * rB.x ) + m;
+	float kxy = ( ay.y * rA.z - ay.z * rA.y ) + ( by.y * rB.z - by.z * rB.y );
+	float kxz = ( az.y * rA.z - az.z * rA.y ) + ( bz.y * rB.z - bz.z * rB.y );
+	float kyz = ( az.z * rA.x - az.x * rA.z ) + ( bz.z * rB.x - bz.x * rB.z );
+
+	float cxx = kyy * kzz - kyz * kyz;
+	float cyy = kxx * kzz - kxz * kxz;
+	float czz = kxx * kyy - kxy * kxy;
+	float cxy = kxz * kyz - kxy * kzz;
+	float cxz = kxy * kyz - kyy * kxz;
+	float cyz = kxy * kxz - kxx * kyz;
+
+	float det = kxx * cxx + kxy * cxy + kxz * cxz;
+	if ( b3AbsFloat( det ) > 1000.0f * FLT_MIN )
+	{
+		float invDet = 1.0f / det;
+		b3Vec3 b = {
+			invDet * ( cxx * rhs.x + cxy * rhs.y + cxz * rhs.z ),
+			invDet * ( cxy * rhs.x + cyy * rhs.y + cyz * rhs.z ),
+			invDet * ( cxz * rhs.x + cyz * rhs.y + czz * rhs.z ),
+		};
+		return b;
+	}
+
+	return b3Vec3_zero;
+}

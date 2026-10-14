@@ -19,8 +19,8 @@
 // Double precision accumulates body positions in double, so the settle/sleep step and the
 // state hash differ from the float build. Both modes are internally deterministic.
 #if defined( BOX3D_DOUBLE_PRECISION )
-#define RAGDOLL_SLEEP_STEP 264
-#define RAGDOLL_HASH 0xAB4EFAF6
+#define RAGDOLL_SLEEP_STEP 267
+#define RAGDOLL_HASH 0x01EB8FDB
 #define WAVE_PILE_SLEEP_STEP 333
 #define WAVE_PILE_HASH 0x80D5266B
 #define QUERY_SPAWN_SLEEP_STEP 242
@@ -30,8 +30,8 @@
 #define MESH_DROP_SLEEP_STEP 218
 #define MESH_DROP_HASH 0x10051259
 #else
-#define RAGDOLL_SLEEP_STEP 267
-#define RAGDOLL_HASH 0xB5FF7C69
+#define RAGDOLL_SLEEP_STEP 265
+#define RAGDOLL_HASH 0xB98B3638
 #define WAVE_PILE_SLEEP_STEP 288
 #define WAVE_PILE_HASH 0xFC1CD2DC
 #define QUERY_SPAWN_SLEEP_STEP 242
