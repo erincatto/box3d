@@ -582,7 +582,6 @@ void b3SolveRevoluteJoint( b3JointSim* base, b3StepContext* context, bool useBia
 			impulseScale = base->constraintSoftness.impulseScale;
 		}
 
-		//// K = [(1/m1 + 1/m2) * eye(2) - skew(r1) * invI1 * skew(r1) - skew(r2) * invI2 * skew(r2)]
 		b3Vec3 b = b3SolvePointConstraint( mA, mB, base->invIA, base->invIB, rA, rB, b3Add( cdot, bias ) );
 
 		b3Vec3 impulse = b3Sub( b3MulSV( -massScale, b ), b3MulSV( impulseScale, joint->linearImpulse ) );

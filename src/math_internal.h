@@ -394,16 +394,6 @@ static inline b3Matrix3 b3MakeDiagonalMatrix( float a, float b, float c )
 	return (b3Matrix3){ { a, 0.0f, 0.0f }, { 0.0f, b, 0.0f }, { 0.0f, 0.0f, c } };
 }
 
-static inline b3Matrix3 b3Skew( b3Vec3 v )
-{
-	b3Matrix3 out;
-	out.cx = (b3Vec3){ 0, v.z, -v.y };
-	out.cy = (b3Vec3){ -v.z, 0, v.x };
-	out.cz = (b3Vec3){ v.y, -v.x, 0 };
-
-	return out;
-}
-
 static inline b3Plane b3NormalizePlane( b3Plane plane )
 {
 	float invLength = 1.0f / b3Length( plane.normal );

@@ -633,7 +633,6 @@ void b3SolveSphericalJoint( b3JointSim* base, b3StepContext* context, bool useBi
 			impulseScale = base->constraintSoftness.impulseScale;
 		}
 
-		//// K = [(1/m1 + 1/m2) * eye(2) - skew(r1) * invI1 * skew(r1) - skew(r2) * invI2 * skew(r2)]
 		b3Vec3 b = b3SolvePointConstraint( mA, mB, base->invIA, base->invIB, rA, rB, b3Add( cdot, bias ) );
 
 		b3Vec3 impulse = b3MulSub( b3MulSV( -massScale, b ), impulseScale, joint->linearImpulse );
