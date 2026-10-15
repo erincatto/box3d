@@ -1325,11 +1325,12 @@ B3_FORCE_INLINE void b3SolveContactsW( b3SolverBlock block, b3StepContext* conte
 				b3Vec3W rA = cm->centerA;
 				b3Vec3W rB = cm->centerB;
 
+				b3Vec3W angularRelativeVelocity = b3SubVW( b3CrossW( bB.w, rB ), b3CrossW( bA.w, rA ) );
+
 				// Relative tangent velocity at contact
-				b3Vec3W vr = b3SubVW( b3CrossW( bB.w, rB ), b3CrossW( bA.w, rA ) );
 				b3Vec2W vt = {
-					b3AddW( linearTangentVelocity1, b3DotW( vr, tangent1 ) ),
-					b3AddW( linearTangentVelocity2, b3DotW( vr, tangent2 ) ),
+					b3AddW( linearTangentVelocity1, b3DotW( angularRelativeVelocity, tangent1 ) ),
+					b3AddW( linearTangentVelocity2, b3DotW( angularRelativeVelocity, tangent2 ) ),
 				};
 
 				// Incremental tangent impulse
