@@ -332,6 +332,7 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 	world->restitutionIterations = b3ClampInt( def->restitutionIterations, 0, B3_MAX_RESTITUTION_ITERATIONS );
 	world->enableRestitutionPropagation = def->enableRestitutionPropagation;
 	world->maxLinearSpeed = def->maximumLinearSpeed;
+	world->isotropicInertiaTolerance = b3MaxFloat( def->isotropicInertiaTolerance, 0.0f );
 	world->contactSpeed = def->contactSpeed;
 	world->contactHertz = def->contactHertz;
 	world->contactDampingRatio = def->contactDampingRatio;

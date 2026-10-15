@@ -106,6 +106,7 @@ static void b3IntegrateVelocitiesTask( b3SolverBlock block, b3StepContext* conte
 		// I * (w2 - w1) + h * cross(w2, I * w2) = 0
 		// This is all done in local coordinates where the Jacobian is easier to compute.
 		// This improves the simulation of long skinny bodies.
+		if ( ( sim->flags & b3_isotropicInertia ) == 0 )
 		{
 			// Get current rotation.
 			b3Quat q0 = sim->transform.q;

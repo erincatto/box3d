@@ -892,12 +892,37 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 	return result;
 }
 
+// https://en.wikipedia.org/wiki/Cauchy_stress_tensor#Stress_deviator_tensor
+static void b3UpdateIsotropicInertia( b3World* world, b3Body* body )
+{
+	b3Matrix3 inertia = body->inertia;
+	float mean = ( inertia.cx.x + inertia.cy.y + inertia.cz.z ) / 3.0f;
+	float dx = inertia.cx.x - mean;
+	float dy = inertia.cy.y - mean;
+	float dz = inertia.cz.z - mean;
+	float offDiagonal = inertia.cy.x * inertia.cy.x + inertia.cz.x * inertia.cz.x + inertia.cz.y * inertia.cz.y;
+	float deviation = dx * dx + dy * dy + dz * dz + 2.0f * offDiagonal;
+	float tolerance = world->isotropicInertiaTolerance;
+
+	if ( 2.0f * deviation <= tolerance * tolerance * mean * mean )
+	{
+		body->flags |= b3_isotropicInertia;
+	}
+	else
+	{
+		body->flags &= ~b3_isotropicInertia;
+	}
+
+	b3SyncBodyFlags( world, body );
+}
+
 void b3UpdateBodyMassData( b3World* world, b3Body* body )
 {
 	b3BodySim* bodySim = b3GetBodySim( world, body );
 
 	// Mass is no longer dirty
 	body->flags &= ~b3_dirtyMass;
+	body->flags |= b3_isotropicInertia;
 	b3SyncBodyFlags( world, body );
 
 	// Compute mass data from shapes. Each shape has its own density.
@@ -1052,6 +1077,8 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 		bodySim->invInertiaLocal = b3Mat3_zero;
 		bodySim->invInertiaWorld = b3Mat3_zero;
 	}
+
+	b3UpdateIsotropicInertia( world, body );
 }
 
 b3Pos b3Body_GetPosition( b3BodyId bodyId )
@@ -1916,6 +1943,8 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 		bodySim->invInertiaLocal = b3Mat3_zero;
 		bodySim->invInertiaWorld = b3Mat3_zero;
 	}
+
+	b3UpdateIsotropicInertia( world, body );
 
 	// Update extents using supplied mass center.
 	bodySim->minExtent = B3_HUGE;

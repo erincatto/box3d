@@ -475,6 +475,156 @@ static int ShapeExtents( void )
 	return 0;
 }
 
+static int CompoundInertiaConsistency( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Normalize( (b3Vec3){ 0.3f, -0.8f, 0.5f } ), 1.3f );
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull boxA = b3MakeOffsetBoxHull( 0.5f, 0.25f, 0.5f, (b3Vec3){ 1.0f, 1.0f, 0.0f } );
+	b3BoxHull boxB = b3MakeOffsetBoxHull( 0.3f, 0.6f, 0.2f, (b3Vec3){ -0.8f, -0.4f, 0.3f } );
+	b3CreateHullShape( bodyId, &shapeDef, &boxA.base );
+	b3CreateHullShape( bodyId, &shapeDef, &boxB.base );
+	b3Body_ApplyMassFromShapes( bodyId );
+
+	b3Matrix3 local = b3Body_GetLocalRotationalInertia( bodyId );
+	ENSURE( b3AbsFloat( local.cy.x ) > 0.1f );
+
+	b3Matrix3 r = b3MakeMatrixFromQuat( bodyDef.rotation );
+	b3Matrix3 world = b3MulMM( b3MulMM( r, local ), b3Transpose( r ) );
+	b3Matrix3 invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
+	b3Matrix3 product = b3MulMM( invWorld, world );
+
+	ENSURE_SMALL( product.cx.x - 1.0f, 1.0e-4f );
+	ENSURE_SMALL( product.cy.y - 1.0f, 1.0e-4f );
+	ENSURE_SMALL( product.cz.z - 1.0f, 1.0e-4f );
+	ENSURE_SMALL( product.cx.y, 1.0e-4f );
+	ENSURE_SMALL( product.cx.z, 1.0e-4f );
+	ENSURE_SMALL( product.cy.x, 1.0e-4f );
+	ENSURE_SMALL( product.cy.z, 1.0e-4f );
+	ENSURE_SMALL( product.cz.x, 1.0e-4f );
+	ENSURE_SMALL( product.cz.y, 1.0e-4f );
+
+	b3Quat q2 = b3MakeQuatFromAxisAngle( b3Normalize( (b3Vec3){ -1.0f, 0.2f, 0.4f } ), -2.1f );
+	b3Body_SetTransform( bodyId, b3Body_GetPosition( bodyId ), q2 );
+	r = b3MakeMatrixFromQuat( q2 );
+	world = b3MulMM( b3MulMM( r, local ), b3Transpose( r ) );
+	invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
+	product = b3MulMM( invWorld, world );
+	ENSURE_SMALL( product.cx.x - 1.0f, 1.0e-4f );
+	ENSURE_SMALL( product.cy.y - 1.0f, 1.0e-4f );
+	ENSURE_SMALL( product.cz.z - 1.0f, 1.0e-4f );
+	ENSURE_SMALL( product.cy.x, 1.0e-4f );
+	ENSURE_SMALL( product.cz.y, 1.0e-4f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+static b3BodyId CreateSpinningHullBody( b3WorldId worldId, float x, const b3HullData* hull )
+{
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position.x = x;
+	bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Normalize( (b3Vec3){ 0.3f, -0.8f, 0.5f } ), 1.3f );
+	bodyDef.angularVelocity = (b3Vec3){ 1.0f, -2.0f, 3.0f };
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3CreateHullShape( bodyId, &shapeDef, hull );
+	return bodyId;
+}
+
+static bool IsIsotropic( b3BodyId bodyId )
+{
+	b3World* world = b3GetWorld( bodyId.world0 );
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	return ( body->flags & b3_isotropicInertia ) != 0;
+}
+
+// Bodies within the isotropic tolerance skip the gyroscopic solve, so in free flight the world
+// angular velocity is untouched. Anisotropic bodies precess.
+static int IsotropicInertiaTolerance( void )
+{
+	b3Vec3 w0 = { 1.0f, -2.0f, 3.0f };
+
+	b3HullData* rock = b3CreateRock( 0.5f );
+	b3HullData* complex = b3CreateComplexHull( 0.5f );
+	b3BoxHull cube = b3MakeCubeHull( 0.5f );
+	b3Transform cubeTransform = { b3Vec3_zero, b3MakeQuatFromAxisAngle( b3Normalize( (b3Vec3){ 1.0f, 2.0f, 3.0f } ), 0.7f ) };
+	b3BoxHull rotatedCube = b3MakeTransformedBoxHull( 0.5f, 0.5f, 0.5f, cubeTransform );
+	b3BoxHull plank = b3MakeBoxHull( 0.5f, 1.0f, 0.25f );
+
+	{
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		worldDef.gravity = b3Vec3_zero;
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+
+		b3BodyId rockId = CreateSpinningHullBody( worldId, 0.0f, rock );
+		b3BodyId complexId = CreateSpinningHullBody( worldId, 5.0f, complex );
+		b3BodyId cubeId = CreateSpinningHullBody( worldId, 10.0f, &cube.base );
+		b3BodyId rotatedCubeId = CreateSpinningHullBody( worldId, 15.0f, &rotatedCube.base );
+		b3BodyId plankId = CreateSpinningHullBody( worldId, 20.0f, &plank.base );
+
+		ENSURE( IsIsotropic( rockId ) );
+		ENSURE( IsIsotropic( complexId ) );
+		ENSURE( IsIsotropic( cubeId ) );
+		ENSURE( IsIsotropic( rotatedCubeId ) );
+		ENSURE( IsIsotropic( plankId ) == false );
+
+		for ( int i = 0; i < 10; ++i )
+		{
+			b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		}
+
+		b3Vec3 w = b3Body_GetAngularVelocity( rockId );
+		ENSURE( w.x == w0.x && w.y == w0.y && w.z == w0.z );
+		w = b3Body_GetAngularVelocity( complexId );
+		ENSURE( w.x == w0.x && w.y == w0.y && w.z == w0.z );
+		w = b3Body_GetAngularVelocity( rotatedCubeId );
+		ENSURE( w.x == w0.x && w.y == w0.y && w.z == w0.z );
+		w = b3Body_GetAngularVelocity( plankId );
+		ENSURE( b3Length( b3Sub( w, w0 ) ) > 0.01f );
+
+		b3Body_SetMotionLocks( plankId, (b3MotionLocks){ .angularX = true, .angularY = true, .angularZ = true } );
+		ENSURE( IsIsotropic( plankId ) );
+
+		b3DestroyWorld( worldId );
+	}
+
+	{
+		b3WorldDef worldDef = b3DefaultWorldDef();
+		worldDef.gravity = b3Vec3_zero;
+		worldDef.isotropicInertiaTolerance = 0.0f;
+		b3WorldId worldId = b3CreateWorld( &worldDef );
+
+		b3BodyId rockId = CreateSpinningHullBody( worldId, 0.0f, rock );
+		b3BodyId cubeId = CreateSpinningHullBody( worldId, 10.0f, &cube.base );
+
+		ENSURE( IsIsotropic( rockId ) == false );
+		ENSURE( IsIsotropic( cubeId ) );
+
+		for ( int i = 0; i < 10; ++i )
+		{
+			b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		}
+
+		b3Vec3 w = b3Body_GetAngularVelocity( rockId );
+		ENSURE( b3Length( b3Sub( w, w0 ) ) > 0.001f );
+
+		b3DestroyWorld( worldId );
+	}
+
+	b3DestroyHull( rock );
+	b3DestroyHull( complex );
+	return 0;
+}
+
 int BodyTest( void )
 {
 	RUN_SUBTEST( FarSingleSphereMass );
@@ -486,5 +636,7 @@ int BodyTest( void )
 	RUN_SUBTEST( SetMassDataZeroMass );
 	RUN_SUBTEST( SetMassDataConsistentVelocity );
 	RUN_SUBTEST( ShapeExtents );
+	RUN_SUBTEST( CompoundInertiaConsistency );
+	RUN_SUBTEST( IsotropicInertiaTolerance );
 	return 0;
 }
