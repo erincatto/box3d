@@ -174,8 +174,7 @@ typedef struct b3WorldDef
 	float maximumLinearSpeed;
 
 	/// Use this to disable gyroscopic torque on sphere-like objects automatically.
-	/// A value of 0.2 means up to 20% non-isotropic inertia values are treated as
-	/// isotropic.
+	/// Range is [0, 1]. A sphere is 0 and a 1x1x2 box is 0.5.
 	float isotropicInertiaTolerance;
 
 	/// Optional mixing callback for friction. The default uses sqrt(frictionA * frictionB).

@@ -901,10 +901,14 @@ static void b3UpdateIsotropicInertia( b3World* world, b3Body* body )
 	float dy = inertia.cy.y - mean;
 	float dz = inertia.cz.z - mean;
 	float offDiagonal = inertia.cy.x * inertia.cy.x + inertia.cz.x * inertia.cz.x + inertia.cz.y * inertia.cz.y;
+
+	// This is the square of the Frobenius matrix norm.
+	// https://en.wikipedia.org/wiki/Matrix_norm
 	float deviation = dx * dx + dy * dy + dz * dz + 2.0f * offDiagonal;
+
 	float tolerance = world->isotropicInertiaTolerance;
 
-	if ( 2.0f * deviation <= tolerance * tolerance * mean * mean )
+	if ( 2.0f * deviation <= 3.0f * tolerance * tolerance * mean * mean )
 	{
 		body->flags |= b3_isotropicInertia;
 	}

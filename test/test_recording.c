@@ -1584,6 +1584,21 @@ static int AllOps( void )
 	b3World_SetMaximumLinearSpeed( worldId, 100.0f );
 	b3World_RebuildStaticTree( worldId );
 
+	// The tolerance only reaches bodies whose mass is computed afterwards. A free spinning rod made
+	// after the change loses its gyroscopic torque, so replay diverges if the op goes missing.
+	b3World_SetIsotropicInertiaTolerance( worldId, 1.0f );
+	{
+		b3BodyDef rodDef = b3DefaultBodyDef();
+		rodDef.type = b3_dynamicBody;
+		rodDef.position = (b3Pos){ 40.0f, 10.0f, 0.0f };
+		rodDef.gravityScale = 0.0f;
+		rodDef.angularVelocity = (b3Vec3){ 1.0f, 5.0f, 0.5f };
+		b3BodyId rodId = b3CreateBody( worldId, &rodDef );
+		b3BoxHull rod = b3MakeBoxHull( 0.1f, 1.0f, 0.1f );
+		b3ShapeDef rodShapeDef = b3DefaultShapeDef();
+		b3CreateHullShape( rodId, &rodShapeDef, &rod.base );
+	}
+
 	b3ExplosionDef explosion = b3DefaultExplosionDef();
 	explosion.position = (b3Pos){ 0.0f, 5.0f, 0.0f };
 	explosion.radius = 3.0f;

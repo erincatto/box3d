@@ -806,6 +806,12 @@ static void b3RecDispatch_WorldEnableRestitutionPropagation( const b3RecArgs_Wor
 	b3World_EnableRestitutionPropagation( rdr->replayWorldId, a->flag );
 }
 
+static void b3RecDispatch_WorldSetIsotropicInertiaTolerance( const b3RecArgs_WorldSetIsotropicInertiaTolerance* a,
+															 b3RecReader* rdr )
+{
+	b3World_SetIsotropicInertiaTolerance( rdr->replayWorldId, a->tolerance );
+}
+
 static void b3RecDispatch_CreateBody( const b3RecArgs_CreateBody* a, b3RecReader* rdr )
 {
 	b3BodyId recId = b3RecR_BODYID( rdr );

@@ -40,6 +40,7 @@ B3_REC_OP( 0x0C, WorldRebuildStaticTree, RET_NONE, ARG( WORLDID, world ) )
 B3_REC_OP( 0x0D, WorldEnableSpeculative, RET_NONE, ARG( WORLDID, world ) ARG( BOOL, flag ) )
 B3_REC_OP( 0x0E, WorldSetRestitutionIterations, RET_NONE, ARG( WORLDID, world ) ARG( I32, iterations ) )
 B3_REC_OP( 0x0F, WorldEnableRestitutionPropagation, RET_NONE, ARG( WORLDID, world ) ARG( BOOL, flag ) )
+B3_REC_OP( 0x70, WorldSetIsotropicInertiaTolerance, RET_NONE, ARG( WORLDID, world ) ARG( F32, tolerance ) )
 
 // Body
 B3_REC_OP( 0x10, CreateBody, RET_BODYID, ARG( WORLDID, world ) ARG( BODYDEF, def ) )
