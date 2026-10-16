@@ -625,8 +625,6 @@ public:
 		m_capsuleId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		//shapeDef.baseMaterial.rollingResistance = 0.0f;
-		//shapeDef.baseMaterial.friction = 0.2f;
 		b3CreateCapsuleShape( m_capsuleId, &shapeDef, &capsule );
 	}
 

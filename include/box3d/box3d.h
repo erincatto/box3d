@@ -214,10 +214,11 @@ B3_API void b3World_SetMaximumLinearSpeed( b3WorldId worldId, float maximumLinea
 /// Get the maximum linear speed. Usually in m/s.
 B3_API float b3World_GetMaximumLinearSpeed( b3WorldId worldId );
 
-// Set the tolerance for gyroscopic torque. [0, 1]
+/// Set the tolerance for gyroscopic torque. [0, 1]
+/// @note modifying this only affects new bodies or bodies that get their mass updated.
 B3_API void b3World_SetIsotropicInertiaTolerance( b3WorldId worldId, float tolerance );
 
-// Get the tolerance for gyroscopic torque. [0, 1]
+/// Get the tolerance for gyroscopic torque. [0, 1]
 B3_API float b3World_GetIsotropicInertiaTolerance( b3WorldId worldId );
 
 /// Enable/disable constraint warm starting. Advanced feature for testing. Disabling

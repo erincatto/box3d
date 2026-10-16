@@ -540,11 +540,11 @@ static b3BodyId CreateSpinningHullBody( b3WorldId worldId, float x, const b3Hull
 	return bodyId;
 }
 
-static bool IsIsotropic( b3BodyId bodyId )
+static bool HasGyroscopicTorque( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	return ( body->flags & b3_isotropicInertia ) != 0;
+	return ( body->flags & b3_enableGyroscopicTorque ) != 0;
 }
 
 // Bodies within the isotropic tolerance skip the gyroscopic solve, so in free flight the world
@@ -571,11 +571,11 @@ static int IsotropicInertiaTolerance( void )
 		b3BodyId rotatedCubeId = CreateSpinningHullBody( worldId, 15.0f, &rotatedCube.base );
 		b3BodyId plankId = CreateSpinningHullBody( worldId, 20.0f, &plank.base );
 
-		ENSURE( IsIsotropic( rockId ) );
-		ENSURE( IsIsotropic( complexId ) );
-		ENSURE( IsIsotropic( cubeId ) );
-		ENSURE( IsIsotropic( rotatedCubeId ) );
-		ENSURE( IsIsotropic( plankId ) == false );
+		ENSURE( HasGyroscopicTorque( rockId ) == false );
+		ENSURE( HasGyroscopicTorque( complexId ) == false );
+		ENSURE( HasGyroscopicTorque( cubeId ) == false );
+		ENSURE( HasGyroscopicTorque( rotatedCubeId ) == false );
+		ENSURE( HasGyroscopicTorque( plankId ) );
 
 		for ( int i = 0; i < 10; ++i )
 		{
@@ -592,7 +592,25 @@ static int IsotropicInertiaTolerance( void )
 		ENSURE( b3Length( b3Sub( w, w0 ) ) > 0.01f );
 
 		b3Body_SetMotionLocks( plankId, (b3MotionLocks){ .angularX = true, .angularY = true, .angularZ = true } );
-		ENSURE( IsIsotropic( plankId ) );
+		ENSURE( HasGyroscopicTorque( plankId ) == false );
+
+		// Gyroscopic torque stays off until a mass update proves the body anisotropic
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position.x = 25.0f;
+		bodyDef.angularVelocity = w0;
+		b3BodyId emptyId = b3CreateBody( worldId, &bodyDef );
+		ENSURE( HasGyroscopicTorque( emptyId ) == false );
+
+		bodyDef.position.x = 30.0f;
+		b3BodyId deferredId = b3CreateBody( worldId, &bodyDef );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.updateBodyMass = false;
+		b3CreateHullShape( deferredId, &shapeDef, &plank.base );
+		ENSURE( HasGyroscopicTorque( deferredId ) == false );
+
+		b3Body_ApplyMassFromShapes( deferredId );
+		ENSURE( HasGyroscopicTorque( deferredId ) );
 
 		b3DestroyWorld( worldId );
 	}
@@ -606,8 +624,8 @@ static int IsotropicInertiaTolerance( void )
 		b3BodyId rockId = CreateSpinningHullBody( worldId, 0.0f, rock );
 		b3BodyId cubeId = CreateSpinningHullBody( worldId, 10.0f, &cube.base );
 
-		ENSURE( IsIsotropic( rockId ) == false );
-		ENSURE( IsIsotropic( cubeId ) );
+		ENSURE( HasGyroscopicTorque( rockId ) );
+		ENSURE( HasGyroscopicTorque( cubeId ) == false );
 
 		for ( int i = 0; i < 10; ++i )
 		{

@@ -58,13 +58,13 @@ enum b3BodyFlags
 
 	b3_enableSleep = 0x00002000,
 
-	b3_bodyEnableContactRecycling = 0x00004000,
+	b3_enableContactRecycling = 0x00004000,
 
 	// The user deferred mass computation via the updateBodyMass shape option and mass
 	// data still hasn't been set.
 	b3_dirtyMass = 0x00008000,
 
-	b3_isotropicInertia = 0x00010000,
+	b3_enableGyroscopicTorque = 0x00010000,
 
 	// All lock flags
 	b3_allLocks = b3_lockLinearX | b3_lockLinearY | b3_lockLinearZ | b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
@@ -115,9 +115,6 @@ typedef struct b3Body
 	float sleepVelocity;
 	float safetyFactor;
 	float mass;
-
-	// local space inertia
-	b3Matrix3 inertia;
 
 	// this is used to adjust the fellAsleep flag in the body move array
 	int bodyMoveIndex;
@@ -214,6 +211,9 @@ typedef struct b3BodySim
 	b3Vec3 torque;
 
 	float invMass;
+
+	// Local space inertia
+	b3Matrix3 inertia;
 
 	// Rotational inertia about the center of mass. The world space inverse inertia tensor
 	// must be updated whenever the body rotation is modified.
