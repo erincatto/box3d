@@ -1868,7 +1868,7 @@ static void b3RecComputeQueryBounds( b3RecDrawQuery* q )
 	// Sweep each point across the translation. A non-cast query has zero translation, so both ends
 	// coincide and the duplicates fold away.
 	b3Pos end = b3OffsetPos( q->origin, q->translation );
-	b3Vec3 world[2 * B3_MAX_SHAPE_CAST_POINTS];
+	b3Vec3 world[2 * B3_MAX_SHAPE_CAST_POINTS] = { 0 };
 	int n = 0;
 	for ( int i = 0; i < count; ++i )
 	{

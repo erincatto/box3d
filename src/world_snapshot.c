@@ -323,7 +323,7 @@ static void b3SerTree( b3RecBuffer* buf, const b3DynamicTree* tree )
 
 static void b3DesTree( b3SnapReader* r, b3DynamicTree* tree )
 {
-	uint64_t version;
+	uint64_t version = 0;
 	b3SnapR_Bytes( r, &version, sizeof( uint64_t ) );
 	int nodeEnd = b3SnapR_I32( r );
 	int pairFreeList = b3SnapR_I32( r );

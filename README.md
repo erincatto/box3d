@@ -147,9 +147,9 @@ You will need a compiler that supports C17 to build the Box3D library.
 
 You will need a compiler that supports C++20 to build the samples.
 
-Box3D uses SSE2 and Neon SIMD math to improve performance. SIMD can be disabled by defining `BOX3D_DISABLE_SIMD`.
-
-On x86, AVX2 kernels are selected at runtime when the CPU supports them. Configure with `-DBOX3D_AVX2=OFF` to disable them.
+Box3D uses SSE2, AVX2, and Neon (AArch64) SIMD math to improve performance. This can be disabled by
+defining `BOX3D_DISABLE_SIMD`. SSE2 is automatically used as a fallback when the CPU doesn't support
+AVX2.
 
 ## Documentation
 

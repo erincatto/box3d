@@ -41,19 +41,18 @@ set_target_properties(test PROPERTIES
     C_EXTENSIONS NO
 )
 
-# Special access to Box3D internals for testing
+if(BOX3D_COMPILE_WARNING_AS_ERROR)
+    set_target_properties(test PROPERTIES COMPILE_WARNING_AS_ERROR ON)
+endif()
+
+# Special access to Box3D internals for testing. The internal headers select the SIMD path
+# from the build configuration, so the tests must see the same selection as the library.
 target_include_directories(test PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(test PRIVATE ${BOX3D_SIMD_DEFINITIONS})
+target_compile_options(test PRIVATE ${BOX3D_SIMD_OPTIONS})
 
 if(BOX3D_VALIDATE)
 	target_compile_definitions(test PRIVATE BOX3D_VALIDATE)
-endif()
-
-if(BOX3D_DISABLE_SIMD)
-	target_compile_definitions(test PRIVATE BOX3D_DISABLE_SIMD)
-endif()
-
-if(NOT BOX3D_AVX2)
-	target_compile_definitions(test PRIVATE BOX3D_DISABLE_AVX2)
 endif()
 
 target_link_libraries(test PRIVATE box3d shared)

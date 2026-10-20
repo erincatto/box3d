@@ -232,7 +232,7 @@ B3_API b3HullData* b3CreateCone( float height, float radius1, float radius2, int
 /// Create a rock shaped hull.
 B3_API b3HullData* b3CreateRock( float radius );
 
-// Hull of 32 pseudo random points on a sphere. From the convex pile hull in PEEL.
+/// Hull of 32 pseudo random points on a sphere. From the convex pile hull in PEEL.
 B3_API b3HullData* b3CreateComplexHull( float radius );
 
 /// Create a generic convex hull. This can fail if B3_MAX_HULL_VERTICES, B3_MAX_HULL_FACES,
@@ -468,7 +468,7 @@ B3_API b3CompoundData* b3CreateCompound( const b3CompoundDef* def );
 /// Destroy a compound shape.
 B3_API void b3DestroyCompound( b3CompoundData* compound );
 
-// Cast serialized bytes into a compound and validate. Returns null if invalid.
+/// Cast serialized bytes into a compound and validate. Returns null if invalid.
 B3_API const b3CompoundData* b3ValidateCompound( const uint8_t* bytes, int byteCount );
 
 /**@}*/ // compound

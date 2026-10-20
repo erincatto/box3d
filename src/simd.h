@@ -395,7 +395,7 @@ float b3IntersectRayTriangle( b3V32 rayStart, b3V32 rayDelta, b3V32 vertex1, b3V
 
 B3_FORCE_INLINE b3AABB b3UnionV( b3AABB a, b3AABB b )
 {
-	b3AABB result;
+	b3AABB result = { 0 };
 	b3StoreAABBV( &result, b3UnionAABBV( b3LoadAABBV( &a ), b3LoadAABBV( &b ) ), true );
 	return result;
 }
