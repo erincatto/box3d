@@ -892,6 +892,9 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 	return result;
 }
 
+// This computes the deviation of the principal inertia values without computing eigenvalues.
+// It computes:
+// ((I1 - I2)^2 + (I1 - I3)^2 + (I2 - I3)^2) / (I1^2 + I2^2 + I3^2)
 // https://en.wikipedia.org/wiki/Cauchy_stress_tensor#Stress_deviator_tensor
 static void b3UpdateIsotropicInertia( b3World* world, b3Body* body, b3BodySim* bodySim )
 {
