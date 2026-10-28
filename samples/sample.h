@@ -97,6 +97,9 @@ struct SampleContext
 	// UI visibility (Tab / View > Hide UI). When hidden only the minimal HUD shows.
 	bool showUI = true;
 
+	// Viewport text: HUD, sample text lines and world labels.
+	bool showText = true;
+
 	// Bottom metrics drawer (M), set by Ctrl+O for the fuzzy picker.
 	bool showMetrics = false;
 	bool openSamplePicker = false;

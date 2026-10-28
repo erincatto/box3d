@@ -14,6 +14,8 @@
 
 #include <imgui.h>
 
+#include <math.h>
+
 class CapsulePlane : public Sample
 {
 public:
@@ -1678,6 +1680,21 @@ public:
 		if ( key == KEY_T && action == ACTION_PRESS )
 		{
 			ToggleThirdPerson();
+		}
+
+		// Align movement for video
+		if ( key == KEY_K && action == ACTION_PRESS )
+		{
+			float quarterTurn = 0.5f * B3_PI;
+			m_camera->m_yaw = quarterTurn * roundf( m_camera->m_yaw / quarterTurn );
+			m_camera->m_pitch = 15.0f * B3_DEG_TO_RAD;
+
+			b3BodyId bodyId = m_mover.GetBodyId();
+			b3Pos position = b3Body_GetPosition( bodyId );
+			position.x = roundf( position.x );
+			position.z = roundf( position.z );
+			b3Body_SetTransform( bodyId, position, b3Body_GetRotation( bodyId ) );
+			b3Body_SetLinearVelocity( bodyId, b3Vec3_zero );
 		}
 	}
 

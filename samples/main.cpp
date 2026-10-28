@@ -14,6 +14,7 @@
 #include "gfx/debug_adapter.h"
 #include "gfx/keycodes.h"
 #include "gfx/renderer.h"
+#include "gfx/text.h"
 #include "host/gui.h"
 #include "sample.h"
 #include "sokol_app.h"
@@ -192,7 +193,18 @@ static void OnEvent( const sapp_event* e )
 				switch ( e->key_code )
 				{
 					case SAPP_KEYCODE_TAB:
-						s_context.showUI = !s_context.showUI;
+						if ( mods & SAPP_MODIFIER_SHIFT )
+						{
+							bool hide = s_context.showUI || s_context.showText;
+							s_context.showUI = !hide;
+							s_context.showText = !hide;
+						}
+						else
+						{
+							// Plain Tab also restores text so it always leads back to the full view
+							s_context.showUI = !s_context.showUI;
+							s_context.showText = true;
+						}
 						break;
 
 					case SAPP_KEYCODE_ESCAPE:
@@ -412,6 +424,12 @@ static void OnFrame( void )
 
 	s_context.sample->Step();
 	s_context.sample->Render();
+
+	// Before RenderFrame so world labels drop too
+	if ( s_context.showText == false )
+	{
+		ResetTextArena();
+	}
 
 	FrameInput fi{};
 	fi.view = camera.View();
