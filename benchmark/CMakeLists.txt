@@ -34,7 +34,7 @@ if (NOT BUILD_SHARED_LIBS)
 	endif()
 
 	target_include_directories(mesh_soak PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
-	target_link_libraries(mesh_soak PRIVATE box3d)
+	target_link_libraries(mesh_soak PRIVATE box3d shared)
 endif()
 
 # Headless Ghost Collisions sample. Counts ghost manifolds per scene and body.

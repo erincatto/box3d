@@ -3,34 +3,30 @@
 
 // Headless soak of the Continuous / Mesh Drop sample. Each generation drops 1024 small bodies on a
 // wave mesh and steps until every body sleeps. A generation fails if a body falls through the mesh
-// or the pile is still awake at the step limit. Generations run in parallel, one single threaded
-// world per thread. The printed seed reproduces a generation in the sample.
+// or the pile is still awake at the step limit. Tunnels are rare, so the soak also counts bodies that
+// sink into the wave past a few depth levels and can compare those counts against a baseline.
+// Generations run in parallel, one single threaded world per thread. The printed seed reproduces a
+// generation in the sample.
+
+#define _CRT_SECURE_NO_WARNINGS
 
 #include "core.h"
+#include "mesh_drop.h"
 
 #include "box3d/box3d.h"
 #include "box3d/collision.h"
 #include "box3d/math_functions.h"
 
+#include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define GRID_COUNT 32
-#define BODY_COUNT ( GRID_COUNT * GRID_COUNT )
 #define MAX_REPORTED_FAILURES 32
 #define MAX_THREADS 64
-
-typedef enum ShapeType
-{
-	e_box,
-	e_capsule,
-	e_cylinder,
-	e_sphere,
-	e_shapeCount,
-} ShapeType;
-
-static const char* s_shapeNames[e_shapeCount] = { "box", "capsule", "cylinder", "sphere" };
+#define MAX_BASELINE_ROWS 64
+#define BASELINE_ROW_SIZE 512
 
 typedef enum FailureKind
 {
@@ -41,95 +37,50 @@ typedef enum FailureKind
 typedef struct Failure
 {
 	FailureKind kind;
-	ShapeType shapeType;
+	MeshDropShape shape;
 	int generation;
 	uint32_t seed;
 	int step;
-	int index1;
-	int index2;
+	int index;
 	b3Pos position;
 } Failure;
+
+typedef struct ShapeStats
+{
+	int generationCount;
+	int tunnelCount;
+	int awakeCount;
+	int depthCounts[MESH_DROP_DEPTH_LEVEL_COUNT];
+
+	float maxDepth;
+	uint32_t maxSeed;
+	int maxGeneration;
+	int maxIndex;
+	int maxStep;
+} ShapeStats;
 
 typedef struct Soak
 {
 	b3Mutex* mutex;
 	b3MeshData* groundMesh;
 	b3HullData* cylinder;
+	MeshDropSettings settings;
 	uint32_t baseSeed;
 	int generationCount;
 	int nextGeneration;
-	int shapeType;
+
+	// -1 rotates through the shapes
+	int shapeFilter;
+
 	bool fixedSeed;
 
 	int completedCount;
 	int failureCount;
-	int tunnelCount;
-	int awakeCount;
 	long long totalSteps;
 	int maxSteps;
+	ShapeStats stats[e_meshDropShapeCount];
 	Failure failures[MAX_REPORTED_FAILURES];
 } Soak;
-
-// Same XorShift32 and mapping as the samples, so a seed replays there
-static float RandomFloatRange( uint32_t* seed, float lo, float hi )
-{
-	uint32_t x = *seed;
-	x ^= x << 13;
-	x ^= x >> 17;
-	x ^= x << 5;
-	*seed = x;
-
-	int i = (int)( x % 32768 );
-	float r = (float)( i & 32767 ) / 32767.0f;
-	return ( hi - lo ) * r + lo;
-}
-
-static b3Vec3 RandomVec3Uniform( uint32_t* seed, float lo, float hi )
-{
-	b3Vec3 v;
-	v.x = RandomFloatRange( seed, lo, hi );
-	v.y = RandomFloatRange( seed, lo, hi );
-	v.z = RandomFloatRange( seed, lo, hi );
-	return v;
-}
-
-static uint32_t HashSeed( uint32_t x )
-{
-	x ^= x >> 16;
-	x *= 0x7feb352du;
-	x ^= x >> 15;
-	x *= 0x846ca68bu;
-	x ^= x >> 16;
-	return x != 0 ? x : 1;
-}
-
-static void CreateGround( b3WorldId worldId, const b3MeshData* mesh )
-{
-	b3BodyDef bodyDef = b3DefaultBodyDef();
-	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
-
-	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	shapeDef.filter.categoryBits = 1;
-	b3CreateMeshShape( groundId, &shapeDef, mesh, b3Vec3_one );
-
-	float extent = 20.0f;
-	float halfHeight = 1.0f;
-
-	b3Transform transforms[4] = {
-		{ { 0.0f, halfHeight, -extent }, b3Quat_identity },
-		{ { 0.0f, halfHeight, extent }, b3Quat_identity },
-		{ { -extent, halfHeight, 0.0f }, b3Quat_identity },
-		{ { extent, halfHeight, 0.0f }, b3Quat_identity },
-	};
-
-	for ( int i = 0; i < 4; ++i )
-	{
-		float hx = i < 2 ? extent : 0.1f;
-		float hz = i < 2 ? 0.1f : extent;
-		b3BoxHull wallBox = b3MakeTransformedBoxHull( hx, halfHeight, hz, transforms[i] );
-		b3CreateHullShape( groundId, &shapeDef, &wallBox.base );
-	}
-}
 
 static void RecordFailure( Soak* soak, const Failure* failure )
 {
@@ -139,24 +90,18 @@ static void RecordFailure( Soak* soak, const Failure* failure )
 		soak->failures[soak->failureCount] = *failure;
 	}
 	soak->failureCount += 1;
-	if ( failure->kind == e_tunnel )
-	{
-		soak->tunnelCount += 1;
-	}
-	else
-	{
-		soak->awakeCount += 1;
-	}
 	b3UnlockMutex( soak->mutex );
 
 	const char* kind = failure->kind == e_tunnel ? "TUNNEL" : "AWAKE";
 	printf( "%s: generation %d, %s, seed %u, step %d, body (%d, %d) at (%.2f, %.2f, %.2f)\n", kind, failure->generation,
-			s_shapeNames[failure->shapeType], failure->seed, failure->step, failure->index1, failure->index2,
-			(float)failure->position.x, (float)failure->position.y, (float)failure->position.z );
+			g_meshDropShapeNames[failure->shape], failure->seed, failure->step, failure->index / MESH_DROP_GRID_COUNT,
+			failure->index % MESH_DROP_GRID_COUNT, (float)failure->position.x, (float)failure->position.y,
+			(float)failure->position.z );
 }
 
-// Mirrors MeshDrop::Generate and the auto generate step loop
-static int RunGeneration( Soak* soak, int generation, uint32_t seed, ShapeType shapeType, b3BodyId* bodies )
+// Mirrors MeshDrop::Generate and the auto generate step loop. Returns the step count.
+static int RunGeneration( Soak* soak, int generation, uint32_t seed, MeshDropShape shape, b3BodyId* bodies,
+						  MeshDropDepth* depth, int* failureKind )
 {
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	worldDef.workerCount = 1;
@@ -166,74 +111,34 @@ static int RunGeneration( Soak* soak, int generation, uint32_t seed, ShapeType s
 	b3WorldId worldId = b3CreateWorld( &worldDef );
 	b3UnlockMutex( soak->mutex );
 
-	CreateGround( worldId, soak->groundMesh );
+	CreateMeshDropGround( worldId, soak->groundMesh );
 
-	b3BoxHull box = b3MakeBoxHull( 0.02f, 0.2f, 0.04f );
-	b3Capsule capsule = { { 0.0f, -0.2f, 0.0f }, { 0.0f, 0.2f, 0.0f }, 0.05f };
-	b3Sphere sphere = { b3Vec3_zero, 0.05f };
-
-	b3BodyDef bodyDef = b3DefaultBodyDef();
-	bodyDef.type = b3_dynamicBody;
-
-	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	shapeDef.baseMaterial.rollingResistance = shapeType == e_capsule || shapeType == e_sphere ? 0.4f : 0.1f;
-
-	// Isolate mesh collision
-	shapeDef.filter.categoryBits = 2;
-	shapeDef.filter.maskBits = 1;
-
-	uint32_t random = seed;
-	int bodyIndex = 0;
-	for ( int i = 0; i < GRID_COUNT; ++i )
-	{
-		for ( int j = 0; j < GRID_COUNT; ++j )
-		{
-			b3Vec3 linearVelocity = RandomVec3Uniform( &random, -1.0f, 1.0f );
-			b3Vec3 angularVelocity = RandomVec3Uniform( &random, -5.0f, 5.0f );
-
-			bodyDef.position = (b3Pos){ 0.5f * ( i - 0.5f * GRID_COUNT ), 5.0f, 0.5f * ( j - 0.5f * GRID_COUNT ) };
-			bodyDef.linearVelocity = linearVelocity;
-			bodyDef.angularVelocity = angularVelocity;
-			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
-
-			switch ( shapeType )
-			{
-				case e_box:
-					b3CreateHullShape( bodyId, &shapeDef, &box.base );
-					break;
-				case e_capsule:
-					b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
-					break;
-				case e_cylinder:
-					b3CreateHullShape( bodyId, &shapeDef, soak->cylinder );
-					break;
-				default:
-					b3CreateSphereShape( bodyId, &shapeDef, &sphere );
-					break;
-			}
-
-			bodies[bodyIndex++] = bodyId;
-		}
-	}
+	MeshDropSettings settings = soak->settings;
+	settings.shape = shape;
+	CreateMeshDropBodies( worldId, settings, seed, soak->cylinder, bodies );
+	ResetMeshDropDepth( depth, settings, soak->cylinder );
 
 	float timeStep = 1.0f / 60.0f;
 	int subStepCount = 4;
-	int maxSteps = shapeType == e_capsule ? 3000 : 1000;
+	int maxSteps = GetMeshDropStepLimit( shape );
+	float tunnelHeight = GetMeshDropTunnelHeight();
 	int step = 0;
 	bool failed = false;
 
 	while ( failed == false )
 	{
 		b3World_Step( worldId, timeStep, subStepCount );
+		UpdateMeshDropDepth( worldId, depth );
 		step += 1;
 
-		for ( int i = 0; i < BODY_COUNT; ++i )
+		for ( int i = 0; i < MESH_DROP_BODY_COUNT; ++i )
 		{
 			b3Pos center = b3Body_GetWorldCenter( bodies[i] );
-			if ( center.y < -2.0f )
+			if ( center.y < tunnelHeight )
 			{
-				Failure failure = { e_tunnel, shapeType, generation, seed, step, i / GRID_COUNT, i % GRID_COUNT, center };
+				Failure failure = { e_tunnel, shape, generation, seed, step, i, center };
 				RecordFailure( soak, &failure );
+				*failureKind = e_tunnel;
 				failed = true;
 				break;
 			}
@@ -247,7 +152,7 @@ static int RunGeneration( Soak* soak, int generation, uint32_t seed, ShapeType s
 		if ( failed == false && step > maxSteps )
 		{
 			int awakeIndex = 0;
-			for ( int i = 0; i < BODY_COUNT; ++i )
+			for ( int i = 0; i < MESH_DROP_BODY_COUNT; ++i )
 			{
 				if ( b3Body_IsAwake( bodies[i] ) )
 				{
@@ -257,8 +162,9 @@ static int RunGeneration( Soak* soak, int generation, uint32_t seed, ShapeType s
 			}
 
 			b3Pos center = b3Body_GetWorldCenter( bodies[awakeIndex] );
-			Failure failure = { e_awake, shapeType, generation, seed, step, awakeIndex / GRID_COUNT, awakeIndex % GRID_COUNT, center };
+			Failure failure = { e_awake, shape, generation, seed, step, awakeIndex, center };
 			RecordFailure( soak, &failure );
+			*failureKind = e_awake;
 			failed = true;
 		}
 	}
@@ -273,7 +179,8 @@ static int RunGeneration( Soak* soak, int generation, uint32_t seed, ShapeType s
 static void SoakWorker( void* context )
 {
 	Soak* soak = context;
-	b3BodyId* bodies = malloc( BODY_COUNT * sizeof( b3BodyId ) );
+	b3BodyId* bodies = malloc( MESH_DROP_BODY_COUNT * sizeof( b3BodyId ) );
+	MeshDropDepth* depth = malloc( sizeof( MeshDropDepth ) );
 
 	while ( true )
 	{
@@ -287,26 +194,245 @@ static void SoakWorker( void* context )
 			break;
 		}
 
-		uint32_t seed = soak->fixedSeed ? soak->baseSeed : HashSeed( soak->baseSeed + (uint32_t)generation );
-		ShapeType shapeType = soak->shapeType >= 0 ? (ShapeType)soak->shapeType : (ShapeType)( generation % e_shapeCount );
+		uint32_t seed = soak->fixedSeed ? soak->baseSeed : GetMeshDropSeed( soak->baseSeed, generation );
+		MeshDropShape shape =
+			soak->shapeFilter >= 0 ? (MeshDropShape)soak->shapeFilter : (MeshDropShape)( generation % e_meshDropShapeCount );
 
-		int steps = RunGeneration( soak, generation, seed, shapeType, bodies );
+		int failureKind = -1;
+		int steps = RunGeneration( soak, generation, seed, shape, bodies, depth, &failureKind );
+
+		int depthCounts[MESH_DROP_DEPTH_LEVEL_COUNT];
+		GetMeshDropDepthCounts( depth, depthCounts );
 
 		b3LockMutex( soak->mutex );
 		soak->completedCount += 1;
 		soak->totalSteps += steps;
 		soak->maxSteps = b3MaxInt( soak->maxSteps, steps );
+
+		ShapeStats* stats = soak->stats + shape;
+		stats->generationCount += 1;
+		stats->tunnelCount += failureKind == e_tunnel ? 1 : 0;
+		stats->awakeCount += failureKind == e_awake ? 1 : 0;
+		for ( int i = 0; i < MESH_DROP_DEPTH_LEVEL_COUNT; ++i )
+		{
+			stats->depthCounts[i] += depthCounts[i];
+		}
+
+		// Ties go to the earlier generation so the report does not depend on thread timing
+		if ( depth->maxDepth > stats->maxDepth ||
+			 ( depth->maxDepth == stats->maxDepth && generation < stats->maxGeneration ) )
+		{
+			stats->maxDepth = depth->maxDepth;
+			stats->maxSeed = seed;
+			stats->maxGeneration = generation;
+			stats->maxIndex = depth->maxIndex;
+			stats->maxStep = depth->maxStep;
+		}
+
 		int completed = soak->completedCount;
 		b3UnlockMutex( soak->mutex );
 
-		if ( completed % 100 == 0 )
+		if ( completed % b3MaxInt( 100, soak->generationCount / 10 ) == 0 )
 		{
-			printf( "%d generations, %d bodies\n", completed, completed * BODY_COUNT );
+			printf( "%d generations, %d bodies\n", completed, completed * MESH_DROP_BODY_COUNT );
 			fflush( stdout );
 		}
 	}
 
+	free( depth );
 	free( bodies );
+}
+
+static const char* GetFilterName( int shapeFilter )
+{
+	return shapeFilter >= 0 ? g_meshDropShapeNames[shapeFilter] : "all";
+}
+
+// A baseline row starts with the run that made it, so one file can hold several runs
+static void GetBaselineKey( const Soak* soak, char* key, int size )
+{
+	snprintf( key, size, "%s,%u,%d,", GetFilterName( soak->shapeFilter ), soak->baseSeed, soak->generationCount );
+}
+
+// Replaces the rows of this run and keeps the rest
+static void WriteBaseline( const Soak* soak, const char* path )
+{
+	char key[64];
+	GetBaselineKey( soak, key, sizeof( key ) );
+	size_t keyLength = strlen( key );
+
+	char* rows = malloc( MAX_BASELINE_ROWS * BASELINE_ROW_SIZE );
+	int rowCount = 0;
+
+	FILE* file = fopen( path, "r" );
+	if ( file != NULL )
+	{
+		char line[BASELINE_ROW_SIZE];
+		bool header = true;
+		while ( fgets( line, sizeof( line ), file ) != NULL )
+		{
+			if ( header == false && strncmp( line, key, keyLength ) != 0 && rowCount < MAX_BASELINE_ROWS )
+			{
+				snprintf( rows + rowCount * BASELINE_ROW_SIZE, BASELINE_ROW_SIZE, "%s", line );
+				rowCount += 1;
+			}
+
+			header = false;
+		}
+
+		fclose( file );
+	}
+
+	file = fopen( path, "w" );
+	if ( file == NULL )
+	{
+		printf( "cannot write %s\n", path );
+		free( rows );
+		return;
+	}
+
+	fprintf( file, "filter,base,generations,shape,tunnels,awake" );
+	for ( int i = 0; i < MESH_DROP_DEPTH_LEVEL_COUNT; ++i )
+	{
+		fprintf( file, ",depth%g", g_meshDropDepthLevels[i] );
+	}
+	fprintf( file, "\n" );
+
+	for ( int i = 0; i < rowCount; ++i )
+	{
+		fputs( rows + i * BASELINE_ROW_SIZE, file );
+	}
+
+	free( rows );
+
+	for ( int shape = 0; shape < e_meshDropShapeCount; ++shape )
+	{
+		const ShapeStats* stats = soak->stats + shape;
+		if ( stats->generationCount == 0 )
+		{
+			continue;
+		}
+
+		fprintf( file, "%s,%u,%d,%s,%d,%d", GetFilterName( soak->shapeFilter ), soak->baseSeed, soak->generationCount,
+				 g_meshDropShapeNames[shape], stats->tunnelCount, stats->awakeCount );
+		for ( int i = 0; i < MESH_DROP_DEPTH_LEVEL_COUNT; ++i )
+		{
+			fprintf( file, ",%d", stats->depthCounts[i] );
+		}
+		fprintf( file, "\n" );
+	}
+
+	fclose( file );
+	printf( "wrote %s\n", path );
+}
+
+// Returns 0 when no count grew past its noise band, 1 when one did, 2 when the baseline has no rows for this run
+static int CompareBaseline( const Soak* soak, const char* path )
+{
+	FILE* file = fopen( path, "r" );
+	if ( file == NULL )
+	{
+		printf( "cannot read %s\n", path );
+		return 2;
+	}
+
+	char line[512];
+	if ( fgets( line, sizeof( line ), file ) == NULL )
+	{
+		fclose( file );
+		printf( "empty baseline %s\n", path );
+		return 2;
+	}
+
+	int result = 0;
+	int changedCount = 0;
+	int matchedCount = 0;
+
+	while ( fgets( line, sizeof( line ), file ) != NULL )
+	{
+		char filter[32];
+		char shapeName[32];
+		unsigned int base;
+		int generations;
+		int counts[2 + MESH_DROP_DEPTH_LEVEL_COUNT];
+
+		_Static_assert( MESH_DROP_DEPTH_LEVEL_COUNT == 4, "update the baseline row format" );
+		int fieldCount = sscanf( line, "%31[^,],%u,%d,%31[^,],%d,%d,%d,%d,%d,%d", filter, &base, &generations, shapeName,
+								 counts + 0, counts + 1, counts + 2, counts + 3, counts + 4, counts + 5 );
+		if ( fieldCount != 10 )
+		{
+			continue;
+		}
+
+		if ( strcmp( filter, GetFilterName( soak->shapeFilter ) ) != 0 || base != soak->baseSeed ||
+			 generations != soak->generationCount )
+		{
+			continue;
+		}
+
+		int shape = -1;
+		for ( int i = 0; i < e_meshDropShapeCount; ++i )
+		{
+			if ( strcmp( shapeName, g_meshDropShapeNames[i] ) == 0 )
+			{
+				shape = i;
+			}
+		}
+
+		if ( shape < 0 )
+		{
+			continue;
+		}
+
+		matchedCount += 1;
+
+		const ShapeStats* stats = soak->stats + shape;
+		int current[2 + MESH_DROP_DEPTH_LEVEL_COUNT] = { stats->tunnelCount, stats->awakeCount };
+		for ( int i = 0; i < MESH_DROP_DEPTH_LEVEL_COUNT; ++i )
+		{
+			current[2 + i] = stats->depthCounts[i];
+		}
+
+		for ( int i = 0; i < 2 + MESH_DROP_DEPTH_LEVEL_COUNT; ++i )
+		{
+			if ( current[i] == counts[i] )
+			{
+				continue;
+			}
+
+			// Any collision change reshuffles the chaotic pile, so a count moves by about its square root
+			// even when nothing got worse. Flag growth past three of those. A count that was zero flags on any
+			// growth, since a good build never sinks that deep.
+			float band = 3.0f * sqrtf( (float)counts[i] );
+			bool regressed = i < 2 ? current[i] > counts[i] : current[i] > counts[i] + band;
+
+			char column[32];
+			if ( i < 2 )
+			{
+				snprintf( column, sizeof( column ), i == 0 ? "tunnels" : "awake" );
+			}
+			else
+			{
+				snprintf( column, sizeof( column ), "> %g slop", g_meshDropDepthLevels[i - 2] );
+			}
+
+			printf( "  %-9s %-11s %d>%d%s\n", shapeName, column, counts[i], current[i], regressed ? "  GREW" : "" );
+			changedCount += 1;
+			result = regressed ? 1 : result;
+		}
+	}
+
+	fclose( file );
+
+	if ( matchedCount == 0 )
+	{
+		printf( "%s has no rows for -s=%s -b=%u -g=%d\n", path, GetFilterName( soak->shapeFilter ), soak->baseSeed,
+				soak->generationCount );
+		return 2;
+	}
+
+	printf( "compared with %s: %d changed, %s\n", path, changedCount, result == 0 ? "none grew past noise" : "GREW" );
+	return result;
 }
 
 static const char* MatchValue( const char* arg, const char* shortName, const char* longName )
@@ -330,10 +456,12 @@ int main( int argc, char** argv )
 {
 	int generationCount = 1000;
 	int threadCount = 8;
-	int shapeType = e_box;
+	int shapeFilter = e_meshDropBox;
 	uint32_t seed = (uint32_t)b3GetTicks();
 	bool fixedSeed = false;
-	float amplitude = 0.5f;
+	const char* writePath = NULL;
+	const char* comparePath = NULL;
+	MeshDropSettings settings = GetDefaultMeshDropSettings();
 
 	for ( int i = 1; i < argc; ++i )
 	{
@@ -350,21 +478,21 @@ int main( int argc, char** argv )
 		}
 		else if ( ( value = MatchValue( arg, "-s=", "--shape=" ) ) != NULL )
 		{
-			shapeType = -2;
-			for ( int k = 0; k < e_shapeCount; ++k )
+			shapeFilter = -2;
+			for ( int k = 0; k < e_meshDropShapeCount; ++k )
 			{
-				if ( strcmp( value, s_shapeNames[k] ) == 0 )
+				if ( strcmp( value, g_meshDropShapeNames[k] ) == 0 )
 				{
-					shapeType = k;
+					shapeFilter = k;
 				}
 			}
 
 			if ( strcmp( value, "all" ) == 0 )
 			{
-				shapeType = -1;
+				shapeFilter = -1;
 			}
 
-			if ( shapeType == -2 )
+			if ( shapeFilter == -2 )
 			{
 				printf( "unknown shape: %s\n", value );
 				return 2;
@@ -381,37 +509,61 @@ int main( int argc, char** argv )
 		}
 		else if ( ( value = MatchValue( arg, "-a=", "--amplitude=" ) ) != NULL )
 		{
-			amplitude = (float)atof( value );
+			settings.amplitude = (float)atof( value );
+		}
+		else if ( ( value = MatchValue( arg, "-w=", "--write=" ) ) != NULL )
+		{
+			writePath = value;
+		}
+		else if ( ( value = MatchValue( arg, "-c=", "--compare=" ) ) != NULL )
+		{
+			comparePath = value;
 		}
 		else
 		{
 			printf( "Usage: mesh_soak [options]\n"
 					"Drops %d bodies per generation on the Mesh Drop wave mesh until they sleep.\n"
 					"Fails on a body below y = -2 (tunnel) or a pile awake past the step limit.\n"
+					"Counts bodies that sink into the wave deeper than each depth level.\n"
 					"  -g, --generations=<int>  generation count (default 1000)\n"
 					"  -t, --threads=<int>      worker threads, one world each (default 8)\n"
 					"  -s, --shape=<name>       box, capsule, cylinder, sphere or all (default box)\n"
-					"  -b, --base-seed=<uint>   base seed, each generation hashes its own seed from it\n"
+					"  -b, --base-seed=<uint>   base seed, each generation hashes its own seed from it (default random)\n"
 					"  --seed=<uint>            run every generation with this exact seed (replay)\n"
 					"  -a, --amplitude=<float>  wave amplitude (default 0.5)\n"
-					"Exit code is 0 when every generation passes, 1 otherwise.\n",
-					BODY_COUNT );
+					"  -w, --write=<csv>        write the counts as a baseline, replacing only the rows of this run\n"
+					"  -c, --compare=<csv>      compare the counts with the baseline rows from the same -s, -b and -g\n"
+					"Exit code is 0 when every generation passes and no count grew past noise, 1 otherwise,\n"
+					"2 for bad arguments or a baseline from a different run.\n",
+					MESH_DROP_BODY_COUNT );
 			return 2;
 		}
 	}
 
+	if ( fixedSeed && ( writePath != NULL || comparePath != NULL ) )
+	{
+		printf( "a baseline needs a base seed, not --seed\n" );
+		return 2;
+	}
+
 	Soak soak = { 0 };
 	soak.mutex = b3CreateMutex();
-	soak.groundMesh = b3CreateWaveMesh( 40, 40, 1.0f, amplitude, 0.1f, 0.2f );
-	soak.cylinder = b3CreateCylinder( 0.4f, 0.05f, 0.0f, 6 );
+	soak.settings = settings;
+	soak.groundMesh = CreateMeshDropMesh( settings.amplitude );
+	soak.cylinder = CreateMeshDropCylinder();
 	soak.baseSeed = seed;
 	soak.fixedSeed = fixedSeed;
 	soak.generationCount = generationCount;
-	soak.shapeType = shapeType;
+	soak.shapeFilter = shapeFilter;
 
-	const char* shapeName = shapeType >= 0 ? s_shapeNames[shapeType] : "all";
-	printf( "mesh soak: %d generations, %d threads, shape %s, %s seed %u\n", generationCount, threadCount, shapeName,
-			fixedSeed ? "fixed" : "base", seed );
+	for ( int i = 0; i < e_meshDropShapeCount; ++i )
+	{
+		soak.stats[i].maxDepth = -FLT_MAX;
+		soak.stats[i].maxGeneration = INT32_MAX;
+	}
+
+	printf( "mesh soak: %d generations, %d threads, shape %s, %s seed %u\n", generationCount, threadCount,
+			GetFilterName( shapeFilter ), fixedSeed ? "fixed" : "base", seed );
 	fflush( stdout );
 
 	uint64_t ticks = b3GetTicks();
@@ -429,24 +581,71 @@ int main( int argc, char** argv )
 
 	float seconds = 0.001f * b3GetMilliseconds( ticks );
 	double averageSteps = soak.completedCount > 0 ? (double)soak.totalSteps / soak.completedCount : 0.0;
+	float slop = B3_LINEAR_SLOP;
 
-	printf( "generations: %d, bodies: %d, tunnels: %d, awake: %d\n", soak.completedCount, soak.completedCount * BODY_COUNT,
-			soak.tunnelCount, soak.awakeCount );
-	printf( "steps to sleep: average %.0f, max %d, time %.1f s\n", averageSteps, soak.maxSteps, seconds );
+	printf( "\n%-9s %8s %8s %6s", "shape", "bodies", "tunnels", "awake" );
+	for ( int i = 0; i < MESH_DROP_DEPTH_LEVEL_COUNT; ++i )
+	{
+		char label[32];
+		snprintf( label, sizeof( label ), "> %g slop", g_meshDropDepthLevels[i] );
+		printf( " %10s", label );
+	}
+	printf( "   deepest\n" );
+
+	for ( int shape = 0; shape < e_meshDropShapeCount; ++shape )
+	{
+		const ShapeStats* stats = soak.stats + shape;
+		if ( stats->generationCount == 0 )
+		{
+			continue;
+		}
+
+		printf( "%-9s %8d %8d %6d", g_meshDropShapeNames[shape], stats->generationCount * MESH_DROP_BODY_COUNT,
+				stats->tunnelCount, stats->awakeCount );
+		for ( int i = 0; i < MESH_DROP_DEPTH_LEVEL_COUNT; ++i )
+		{
+			printf( " %10d", stats->depthCounts[i] );
+		}
+
+		if ( stats->maxIndex >= 0 )
+		{
+			printf( "   %.1f slop, seed %u body (%d, %d) step %d\n", stats->maxDepth / slop, stats->maxSeed,
+					stats->maxIndex / MESH_DROP_GRID_COUNT, stats->maxIndex % MESH_DROP_GRID_COUNT, stats->maxStep );
+		}
+		else
+		{
+			printf( "\n" );
+		}
+	}
+
+	printf( "\nsteps to sleep: average %.0f, max %d, time %.1f s\n", averageSteps, soak.maxSteps, seconds );
 
 	int reported = b3MinInt( soak.failureCount, MAX_REPORTED_FAILURES );
 	for ( int i = 0; i < reported; ++i )
 	{
 		Failure* f = soak.failures + i;
-		printf( "  %s %s seed %u body (%d, %d)\n", f->kind == e_tunnel ? "tunnel" : "awake", s_shapeNames[f->shapeType], f->seed,
-				f->index1, f->index2 );
+		printf( "  %s %s seed %u body (%d, %d)\n", f->kind == e_tunnel ? "tunnel" : "awake", g_meshDropShapeNames[f->shape],
+				f->seed, f->index / MESH_DROP_GRID_COUNT, f->index % MESH_DROP_GRID_COUNT );
 	}
 
-	printf( soak.failureCount == 0 ? "PASS\n" : "FAIL\n" );
+	int exitCode = soak.failureCount == 0 ? 0 : 1;
+
+	if ( writePath != NULL )
+	{
+		WriteBaseline( &soak, writePath );
+	}
+
+	if ( comparePath != NULL )
+	{
+		int compareResult = CompareBaseline( &soak, comparePath );
+		exitCode = b3MaxInt( exitCode, compareResult );
+	}
+
+	printf( exitCode == 0 ? "PASS\n" : "FAIL\n" );
 
 	b3DestroyHull( soak.cylinder );
 	b3DestroyMesh( soak.groundMesh );
 	b3DestroyMutex( soak.mutex );
 
-	return soak.failureCount == 0 ? 0 : 1;
+	return exitCode;
 }

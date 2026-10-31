@@ -9,6 +9,8 @@ set(BOX3D_SHARED_FILES
 	ghost_collisions.h
 	human.c
 	human.h
+	mesh_drop.c
+	mesh_drop.h
 	overflow_color.c
 	overflow_color.h
 	stability.c
