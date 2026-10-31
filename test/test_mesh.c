@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "ghost_collisions.h"
 #include "shape.h"
 #include "test_macros.h"
 
@@ -1118,6 +1119,58 @@ static int MeshApexContact( void )
 	return 0;
 }
 
+// Runs a Mesh / Ghost Collisions scene with the cylinder and returns the ghost count
+static int CountCylinderGhosts( GhostScene scene, int peelPreset, bool mirror, int* runCount )
+{
+	GhostSettings settings = GetDefaultGhostSettings();
+	settings.scene = scene;
+	settings.peelPreset = peelPreset;
+	settings.body = e_ghostCylinder;
+	settings.mirror = mirror;
+
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+	GhostCollisionsData data = CreateGhostCollisions( worldId, settings );
+
+	for ( int step = 0; step < 900; ++step )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		UpdateGhostCollisions( worldId, &data, NULL, 0 );
+	}
+
+	*runCount = data.runCount;
+	int ghostCount = data.ghostCount;
+
+	b3DestroyWorld( worldId );
+	DestroyGhostCollisions( &data );
+	return ghostCount;
+}
+
+// The fine and coarse strips of the T-junction share only every other vertex, so the edges along the
+// junction have no neighbors. Boundary contacts there are blocked by the triangles across the junction.
+static int MeshTJunctionSlide( void )
+{
+	for ( int mirror = 0; mirror < 2; ++mirror )
+	{
+		int runCount;
+		ENSURE( CountCylinderGhosts( e_ghostTJunction, 0, mirror == 1, &runCount ) == 0 );
+		ENSURE( runCount >= 2 );
+	}
+
+	return 0;
+}
+
+// The PEEL cylinder slides along its axis on a polygon edge that runs along an internal edge of the
+// strip. Deep edge contacts on the far side fail the neighbor test and their face snap is empty, so
+// they are kept, and the triangles under the cylinder block them.
+static int MeshPeelCylinder( void )
+{
+	int runCount;
+	ENSURE( CountCylinderGhosts( e_ghostInternal, 2, false, &runCount ) == 0 );
+	ENSURE( runCount >= 1 );
+	return 0;
+}
+
 int MeshTest( void )
 {
 	RUN_SUBTEST( MeshDenseStride );
@@ -1134,6 +1187,8 @@ int MeshTest( void )
 	RUN_SUBTEST( MeshSphereOnRidge );
 	RUN_SUBTEST( MeshCapsuleOverCrest );
 	RUN_SUBTEST( MeshApexContact );
+	RUN_SUBTEST( MeshTJunctionSlide );
+	RUN_SUBTEST( MeshPeelCylinder );
 
 	return 0;
 }

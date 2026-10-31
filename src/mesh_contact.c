@@ -5,7 +5,6 @@
 #include "ctz.h"
 #include "manifold.h"
 #include "physics_world.h"
-#include "qsort.h"
 #include "shape.h"
 #include "simd.h"
 
@@ -156,124 +155,6 @@ static void b3RefreshCache( b3Contact* contact, const b3Shape* shapeA, b3WorldTr
 						   shapeA->mesh.data->triangleCount );
 		}
 	}
-}
-
-typedef struct b3TentativeTriangle
-{
-	float squaredDistance;
-	int index;
-} b3TentativeTriangle;
-
-#define B3_EMPTY_EDGE_KEY UINT64_MAX
-
-// Capacity for edge and vertex keys.
-static int b3GetFoundCapacity( int keyCount )
-{
-	int capacity = 16;
-	while ( capacity < 2 * keyCount )
-	{
-		capacity *= 2;
-	}
-	return capacity;
-}
-
-typedef struct b3FoundEdges
-{
-	uint64_t* keys;
-	int mask;
-} b3FoundEdges;
-
-static b3FoundEdges b3CreateFoundEdges( b3Arena* arena, int edgeCount )
-{
-	int capacity = b3GetFoundCapacity( edgeCount );
-	b3FoundEdges edges;
-	edges.keys = b3Bump( arena, capacity * (int)sizeof( uint64_t ) );
-	memset( edges.keys, 0xFF, capacity * sizeof( uint64_t ) );
-	edges.mask = capacity - 1;
-	return edges;
-}
-
-static inline uint64_t b3MakeEdgeKey( int vertex1, int vertex2 )
-{
-	uint64_t i1 = (uint64_t)b3MinInt( vertex1, vertex2 );
-	uint64_t i2 = (uint64_t)b3MaxInt( vertex1, vertex2 );
-	return i1 << 32 | i2;
-}
-
-static inline int b3FindEdgeSlot( const b3FoundEdges* edges, uint64_t key )
-{
-	int index = (int)( b3KeyHash( key ) & (uint32_t)edges->mask );
-	while ( edges->keys[index] != key && edges->keys[index] != B3_EMPTY_EDGE_KEY )
-	{
-		index = ( index + 1 ) & edges->mask;
-	}
-
-	return index;
-}
-
-static inline bool b3AddEdge( b3FoundEdges* edges, int vertex1, int vertex2 )
-{
-	uint64_t key = b3MakeEdgeKey( vertex1, vertex2 );
-	int index = b3FindEdgeSlot( edges, key );
-	if ( edges->keys[index] == key )
-	{
-		return false;
-	}
-
-	edges->keys[index] = key;
-	return true;
-}
-
-static inline bool b3FindEdge( const b3FoundEdges* edges, int vertex1, int vertex2 )
-{
-	uint64_t key = b3MakeEdgeKey( vertex1, vertex2 );
-	int index = b3FindEdgeSlot( edges, key );
-	return edges->keys[index] == key;
-}
-
-#if 0
-// Two triangles share an edge iff they share at least two vertex indices.
-static inline bool b3TrianglesShareEdge( int a1, int a2, int a3, int b1, int b2, int b3 )
-{
-	int matches = 0;
-	matches += ( a1 == b1 || a1 == b2 || a1 == b3 );
-	matches += ( a2 == b1 || a2 == b2 || a2 == b3 );
-	matches += ( a3 == b1 || a3 == b2 || a3 == b3 );
-	return matches >= 2;
-}
-#endif
-
-typedef struct b3FoundVertices
-{
-	int* keys;
-	int mask;
-} b3FoundVertices;
-
-static b3FoundVertices b3CreateFoundVertices( b3Arena* arena, int vertexCount )
-{
-	int capacity = b3GetFoundCapacity( vertexCount );
-	b3FoundVertices vertices;
-	vertices.keys = b3Bump( arena, capacity * (int)sizeof( int ) );
-	memset( vertices.keys, 0xFF, capacity * sizeof( int ) );
-	vertices.mask = capacity - 1;
-	return vertices;
-}
-
-static inline bool b3AddVertex( b3FoundVertices* vertices, int vertex )
-{
-	int index = (int)( b3KeyHash( (uint64_t)vertex ) & (uint32_t)vertices->mask );
-	while ( vertices->keys[index] != B3_NULL_INDEX )
-	{
-		if ( vertices->keys[index] == vertex )
-		{
-			return false;
-		}
-
-		index = ( index + 1 ) & vertices->mask;
-	}
-
-	vertices->keys[index] = vertex;
-	return true;
 }
 
 #if B3_MAX_MANIFOLD_POINTS == 4
@@ -639,8 +520,10 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 // Voronoi test of neighbors based on deepest point.
 static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int triangleIndex,
 												 const b3Vec3* vertices, b3Matrix3 meshToLocal,
-												 const b3LocalManifold* manifold )
+												 const b3LocalManifold* manifold,
+												 b3TriangleFeature* nearFeature )
 {
+	*nearFeature = b3_featureNone;
 	b3Vec3 normal = manifold->normal;
 	b3Vec3 triangleNormal = b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] );
 	float tolerance = B3_NEIGHBOR_TOLERANCE;
@@ -720,11 +603,167 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 		return b3_neighborUnknown;
 	}
 
+	*nearFeature = feature;
+
 	// Never skip a hull face, its normal can miss the whole vertex cone so every triangle would
 	// skip, the face contact is empty when the hull is off this triangle.
 	b3NeighborResult result =
 		b3TestNeighbors( shape, triangleIndex, vertices, meshToLocal, feature, normal );
 	return result == b3_neighborSkip ? b3_neighborSnap : result;
+}
+
+typedef struct b3BlockSource
+{
+	b3Vec3 point;
+	int manifoldIndex;
+	int survivorIndex;
+	int blockerIndex;
+} b3BlockSource;
+
+// The deepest point moved onto the triangle feature that generates the manifold normal.
+static b3Vec3 b3GetFeaturePoint( const b3LocalManifold* manifold, const b3Vec3* vertices,
+								  b3TriangleFeature feature )
+{
+	int deepest = 0;
+	for ( int i = 1; i < manifold->pointCount; ++i )
+	{
+		if ( manifold->points[i].separation < manifold->points[deepest].separation )
+		{
+			deepest = i;
+		}
+	}
+
+	b3Vec3 point = manifold->points[deepest].point;
+	if ( manifold->feature == b3_featureHullFace )
+	{
+		point = b3MulSub( point, manifold->points[deepest].separation, manifold->normal );
+	}
+
+	int edgeIndex;
+	switch ( feature )
+	{
+		case b3_featureEdge1:
+			edgeIndex = 0;
+			break;
+
+		case b3_featureEdge2:
+			edgeIndex = 1;
+			break;
+
+		case b3_featureEdge3:
+			edgeIndex = 2;
+			break;
+
+		case b3_featureVertex1:
+			return vertices[0];
+
+		case b3_featureVertex2:
+			return vertices[1];
+
+		case b3_featureVertex3:
+			return vertices[2];
+
+		default:
+			return point;
+	}
+
+	b3Vec3 a = vertices[edgeIndex];
+	b3Vec3 edge = b3Sub( vertices[edgeIndex < 2 ? edgeIndex + 1 : 0], a );
+	float fraction = b3Dot( b3Sub( point, a ), edge ) / b3Dot( edge, edge );
+	fraction = b3ClampFloat( fraction, 0.0f, 1.0f );
+	return b3MulAdd( a, fraction, edge );
+}
+
+typedef struct b3BlockTarget
+{
+	b3Vec3 normal;
+	float distanceTolerance;
+} b3BlockTarget;
+
+static b3BlockTarget b3MakeBlockTarget( const b3Vec3* vertices )
+{
+	float maxLengthSquared = 0.0f;
+	for ( int i = 0; i < 3; ++i )
+	{
+		b3Vec3 edge = b3Sub( vertices[i < 2 ? i + 1 : 0], vertices[i] );
+		maxLengthSquared = b3MaxFloat( maxLengthSquared, b3Dot( edge, edge ) );
+	}
+
+	// Relative to the triangle size.
+	return (b3BlockTarget){
+		.normal = b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] ),
+		.distanceTolerance = 1.0e-3f * sqrtf( maxLengthSquared ),
+	};
+}
+
+// From Bepu MeshReduction ShouldBlockNormal, a normal is blocked when the point lies on
+// the target triangle and the normal leans over the target face across every edge the point is on, or
+// the point is interior).
+static bool b3ShouldBlockNormal( const b3Vec3* vertices, b3BlockTarget target, b3Vec3 point, b3Vec3 normal )
+{
+	b3Vec3 triangleNormal = target.normal;
+	float distanceTolerance = target.distanceTolerance;
+	if ( b3AbsFloat( b3Dot( triangleNormal, b3Sub( point, vertices[0] ) ) ) > distanceTolerance )
+	{
+		return false;
+	}
+
+	if ( b3Dot( normal, triangleNormal ) < -0.01f )
+	{
+		return false;
+	}
+
+	b3Vec3 edges[3];
+	for ( int i = 0; i < 3; ++i )
+	{
+		edges[i] = b3Sub( vertices[i < 2 ? i + 1 : 0], vertices[i] );
+	}
+
+	// Stricter for being on an edge than for being near the triangle, so a point near an
+	// edge needs every edge it is on to be infringed.
+	float edgeTolerance = 0.01f * distanceTolerance;
+	bool onEdge = false;
+	bool infringed = false;
+	bool allInfringed = true;
+	for ( int i = 0; i < 3; ++i )
+	{
+		b3Vec3 inward = b3Normalize( b3Cross( triangleNormal, edges[i] ) );
+		float distance = b3Dot( inward, b3Sub( point, vertices[i] ) );
+		if ( distance < -distanceTolerance )
+		{
+			return false;
+		}
+
+		if ( distance <= edgeTolerance )
+		{
+			// Strictly positive lean on one edge so a flat neighbor is not blocked, a
+			// nearly parallel lean is enough on the others.
+			float lean = b3Dot( normal, inward );
+			onEdge = true;
+			infringed = infringed || lean > 1.0e-6f;
+			allInfringed = allInfringed && lean > -0.01f;
+		}
+	}
+
+	// At a target vertex a normal leaning along an edge leaving the vertex has a closer point on
+	// that edge, so the vertex is not a closest point, a true corner normal never leans along
+	// an edge leaving it)
+	for ( int i = 0; i < 3; ++i )
+	{
+		if ( b3Distance( point, vertices[i] ) > edgeTolerance )
+		{
+			continue;
+		}
+
+		b3Vec3 nextEdge = b3Normalize( edges[i] );
+		b3Vec3 previousEdge = b3Normalize( b3Neg( edges[i > 0 ? i - 1 : 2] ) );
+		if ( b3Dot( normal, nextEdge ) > B3_NEIGHBOR_TOLERANCE || b3Dot( normal, previousEdge ) > B3_NEIGHBOR_TOLERANCE )
+		{
+			return true;
+		}
+	}
+
+	return onEdge == false || ( infringed && allInfringed );
 }
 
 bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact,
@@ -748,12 +787,6 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	b3LocalManifold** acceptedManifolds =
 		b3Bump( &arena, triangleCount * sizeof( b3LocalManifold* ) );
 	int acceptedManifoldCount = 0;
-	b3LocalManifold** tentativeManifolds =
-		b3Bump( &arena, triangleCount * sizeof( b3LocalManifold* ) );
-	int tentativeManifoldCount = 0;
-	b3TentativeTriangle* tentativeTriangles =
-		b3Bump( &arena, triangleCount * sizeof( b3TentativeTriangle ) );
-	int tentativeTriangleCount = 0;
 
 	// This transform converts from mesh frame into the shapeB frame
 	b3Transform transformAtoB = b3InvMulWorldTransforms( xfB, xfA );
@@ -929,7 +962,12 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	b3LocalManifold* manifoldBuffer = b3Bump( &arena, survivorCount * sizeof( b3LocalManifold ) );
 	int manifoldCount = 0;
 
-	bool validateNeighbors = B3_VALIDATE_NEIGHBOR_NORMALS && B3_FORCE_GHOST_COLLISIONS == 0;
+	bool validateNeighbors = B3_FORCE_GHOST_COLLISIONS == 0;
+
+	int* survivorManifolds = b3Bump( &arena, survivorCount * sizeof( int ) );
+	memset( survivorManifolds, 0xFF, survivorCount * sizeof( int ) );
+	b3BlockSource* blockSources = b3Bump( &arena, survivorCount * sizeof( b3BlockSource ) );
+	int blockSourceCount = 0;
 
 	for ( int survivorIndex = 0;
 		  survivorIndex < survivorCount && totalPointCount + 3 < pointBufferCapacity;
@@ -955,7 +993,6 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 		b3LocalManifold* manifold = manifoldBuffer + manifoldCount;
 		manifold->points = pointBuffer + totalPointCount;
 		manifold->pointCount = 0;
-		manifold->triangleFlags = triangle.flags;
 		manifold->feature = b3_featureNone;
 
 		switch ( shapeB->type )
@@ -989,15 +1026,23 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 				return false;
 		}
 
+		bool blockSource = false;
+		b3TriangleFeature nearFeature = manifold->feature;
 		if ( validateNeighbors && manifold->pointCount > 0 &&
 			 manifold->feature != b3_featureTriangleFace )
 		{
 			b3NeighborResult result =
 				manifold->feature == b3_featureHullFace
 					? b3TestHullFaceNeighbors( shapeA, triangleIndex, vertices, relativeMatrix,
-											   manifold )
+											   manifold, &nearFeature )
 					: b3TestNeighbors( shapeA, triangleIndex, vertices, relativeMatrix,
 									   manifold->feature, manifold->normal );
+
+			// A vertex test only sees the two edges of this triangle at the vertex, so an admitted
+			// vertex normal can still lean across another edge at the vertex, as out of a sliver tip.
+			bool vertexFeature = nearFeature == b3_featureVertex1 || nearFeature == b3_featureVertex2 ||
+								 nearFeature == b3_featureVertex3;
+			blockSource = result == b3_neighborUnknown || ( result == b3_neighborAdmit && vertexFeature );
 
 			bool deep = false;
 			if ( result == b3_neighborSkip || result == b3_neighborSnap )
@@ -1052,6 +1097,9 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 					*manifold = deepManifold;
 					memcpy( manifold->points, deepPoints,
 							manifold->pointCount * sizeof( b3LocalManifoldPoint ) );
+
+					// The kept manifold failed the neighbor test, so it is unverified like a boundary contact.
+					blockSource = true;
 				}
 			}
 		}
@@ -1062,193 +1110,101 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 		{
 			B3_ASSERT( manifold->feature != b3_featureNone );
 
-			manifoldCount += 1;
-			totalPointCount += manifoldPointCount;
 			manifold->triangleIndex = triangleIndex;
 			manifold->triangleNormal =
 				b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] );
-			manifold->i1 = triangle.i1;
-			manifold->i2 = triangle.i2;
-			manifold->i3 = triangle.i3;
 
-			if ( manifold->feature == b3_featureTriangleFace || B3_FORCE_GHOST_COLLISIONS )
+			if ( blockSource )
 			{
-				acceptedManifolds[acceptedManifoldCount++] = manifold;
+				blockSources[blockSourceCount] = (b3BlockSource){
+					.point = b3GetFeaturePoint( manifold, vertices, nearFeature ),
+					.manifoldIndex = manifoldCount,
+					.survivorIndex = survivorIndex,
+					.blockerIndex = B3_NULL_INDEX,
+				};
+				blockSourceCount += 1;
 			}
-			else if ( manifold->feature == b3_featureHullFace )
+
+			survivorManifolds[survivorIndex] = manifoldCount;
+			manifoldCount += 1;
+			totalPointCount += manifoldPointCount;
+		}
+	}
+
+	if ( blockSourceCount > 0 )
+	{
+		bool* usedAsBlocker = b3Bump( &arena, manifoldCount * sizeof( bool ) );
+		memset( usedAsBlocker, 0, manifoldCount * sizeof( bool ) );
+
+		b3BlockTarget* blockTargets = b3Bump( &arena, survivorCount * sizeof( b3BlockTarget ) );
+		for ( int i = 0; i < survivorCount; ++i )
+		{
+			blockTargets[i] = b3MakeBlockTarget( survivorVertices + 3 * i );
+		}
+
+		for ( int i = 0; i < blockSourceCount; ++i )
+		{
+			b3BlockSource* source = blockSources + i;
+			b3Vec3 normal = manifoldBuffer[source->manifoldIndex].normal;
+			for ( int j = 0; j < survivorCount; ++j )
 			{
-				float cosNormalAngle = b3Dot( manifold->triangleNormal, manifold->normal );
-				if ( cosNormalAngle > 0.5f )
+				if ( j == source->survivorIndex )
 				{
-					acceptedManifolds[acceptedManifoldCount++] = manifold;
+					continue;
 				}
-				else
+
+				if ( b3ShouldBlockNormal( survivorVertices + 3 * j, blockTargets[j], source->point, normal ) )
 				{
-					float minSeparation = manifold->points[0].separation;
-					for ( int i = 1; i < manifoldPointCount; ++i )
+					source->blockerIndex = j;
+					int blockerManifold = survivorManifolds[j];
+					if ( blockerManifold != B3_NULL_INDEX )
 					{
-						minSeparation = b3MinFloat( minSeparation, manifold->points[i].separation );
+						usedAsBlocker[blockerManifold] = true;
 					}
-
-					if ( minSeparation < -2.0f * linearSlop )
-					{
-						// Deep overlap
-						acceptedManifolds[acceptedManifoldCount++] = manifold;
-					}
-					else
-					{
-						b3TentativeTriangle tentativeTriangle = { .squaredDistance =
-																	  manifold->squaredDistance,
-																  .index = tentativeManifoldCount };
-						tentativeTriangles[tentativeTriangleCount++] = tentativeTriangle;
-						tentativeManifolds[tentativeManifoldCount++] = manifold;
-					}
+					break;
 				}
 			}
-			else
-			{
-				b3TentativeTriangle tentativeTriangle = {
-					.squaredDistance = manifold->squaredDistance, .index = tentativeManifoldCount };
-				tentativeTriangles[tentativeTriangleCount++] = tentativeTriangle;
-				tentativeManifolds[tentativeManifoldCount++] = manifold;
-			}
-		}
-	}
-
-	B3_ASSERT( acceptedManifoldCount <= triangleCount );
-	B3_ASSERT( tentativeManifoldCount <= triangleCount );
-	B3_ASSERT( tentativeTriangleCount <= triangleCount );
-
-	b3FoundEdges foundEdges = b3CreateFoundEdges( &arena, 3 * manifoldCount );
-	b3FoundVertices foundVertices = b3CreateFoundVertices( &arena, 3 * manifoldCount );
-
-	for ( int i = 0; i < acceptedManifoldCount; ++i )
-	{
-		b3LocalManifold* m = acceptedManifolds[i];
-		(void)b3AddEdge( &foundEdges, m->i1, m->i2 );
-		(void)b3AddEdge( &foundEdges, m->i2, m->i3 );
-		(void)b3AddEdge( &foundEdges, m->i3, m->i1 );
-		(void)b3AddVertex( &foundVertices, m->i1 );
-		(void)b3AddVertex( &foundVertices, m->i2 );
-		(void)b3AddVertex( &foundVertices, m->i3 );
-	}
-
-	if ( shapeB->type == b3_sphereShape )
-	{
-		// Sort triangles so the closest triangles are processed first
-		{
-#define LESS( i, j )                                                                               \
-	tentativeTriangles[(int)i].squaredDistance < tentativeTriangles[(int)j].squaredDistance
-#define SWAP( i, j )                                                                               \
-	do                                                                                             \
-	{                                                                                              \
-		b3TentativeTriangle tmp = tentativeTriangles[(int)i];                                      \
-		tentativeTriangles[(int)i] = tentativeTriangles[(int)j];                                   \
-		tentativeTriangles[(int)j] = tmp;                                                          \
-	}                                                                                              \
-	while ( 0 )
-			QSORT( tentativeTriangleCount, LESS, SWAP );
-#undef LESS
-#undef SWAP
 		}
 
-		// Add tentative manifolds in sorted order. Avoid adding manifolds that generate ghost
-		// collisions.
-		for ( int i = 0; i < tentativeTriangleCount; ++i )
+		for ( int i = 0; i < blockSourceCount; ++i )
 		{
-			b3LocalManifold* m = tentativeManifolds[tentativeTriangles[i].index];
-
-			bool addedEdge1 = b3AddEdge( &foundEdges, m->i1, m->i2 );
-			bool addedEdge2 = b3AddEdge( &foundEdges, m->i2, m->i3 );
-			bool addedEdge3 = b3AddEdge( &foundEdges, m->i3, m->i1 );
-			bool addedVertex1 = b3AddVertex( &foundVertices, m->i1 );
-			bool addedVertex2 = b3AddVertex( &foundVertices, m->i2 );
-			bool addedVertex3 = b3AddVertex( &foundVertices, m->i3 );
-
-			b3TriangleFeature feature = m->feature;
-			bool shouldCollide = false;
-			switch ( feature )
-			{
-				case b3_featureNone:
-				case b3_featureTriangleFace:
-					B3_ASSERT( false );
-					break;
-
-				case b3_featureEdge1:
-					shouldCollide = addedEdge1;
-					break;
-
-				case b3_featureEdge2:
-					shouldCollide = addedEdge2;
-					break;
-
-				case b3_featureEdge3:
-					shouldCollide = addedEdge3;
-					break;
-
-				case b3_featureVertex1:
-					shouldCollide = addedVertex1;
-					break;
-
-				case b3_featureVertex2:
-					shouldCollide = addedVertex2;
-					break;
-
-				case b3_featureVertex3:
-					shouldCollide = addedVertex3;
-					break;
-
-				default:
-					B3_ASSERT( false );
-					break;
-			}
-
-			if ( shouldCollide == true )
-			{
-				acceptedManifolds[acceptedManifoldCount++] = m;
-			}
-		}
-	}
-	else
-	{
-		// Problem: hull can tunnel if time of impact is at concave edge
-		// Example: flat box sliding down a ramp to a flat bottom
-		// Solution: only ignore flat edges
-		for ( int i = 0; i < tentativeManifoldCount; ++i )
-		{
-			b3LocalManifold* m = tentativeManifolds[i];
-			int triangleFlags = m->triangleFlags;
-
-			if ( ( triangleFlags & b3_allFlatEdges ) == b3_allFlatEdges )
+			const b3BlockSource* source = blockSources + i;
+			if ( source->blockerIndex == B3_NULL_INDEX )
 			{
 				continue;
 			}
 
-			if ( ( triangleFlags & b3_flatEdge1 ) == b3_flatEdge1 )
+			b3LocalManifold* manifold = manifoldBuffer + source->manifoldIndex;
+			float minSeparation = manifold->points[0].separation;
+			for ( int j = 1; j < manifold->pointCount; ++j )
 			{
-				if ( b3FindEdge( &foundEdges, m->i1, m->i2 ) )
-				{
-					continue;
-				}
+				minSeparation = b3MinFloat( minSeparation, manifold->points[j].separation );
 			}
 
-			if ( ( triangleFlags & b3_flatEdge2 ) == b3_flatEdge2 )
+			// From Bepu, drop when the blocker has its own contact unless the two block each
+			// other as when wedged in a crease, otherwise correct to the blocker face normal if touching.
+			bool blockerHasManifold = survivorManifolds[source->blockerIndex] != B3_NULL_INDEX;
+			bool wedged = usedAsBlocker[source->manifoldIndex];
+			if ( ( blockerHasManifold && wedged == false ) || minSeparation >= restOffset )
 			{
-				if ( b3FindEdge( &foundEdges, m->i2, m->i3 ) )
-				{
-					continue;
-				}
+				manifold->pointCount = 0;
 			}
-
-			if ( ( triangleFlags & b3_flatEdge3 ) == b3_flatEdge3 )
+			else
 			{
-				if ( b3FindEdge( &foundEdges, m->i3, m->i1 ) )
-				{
-					continue;
-				}
+				b3Vec3 blockerNormal = blockTargets[source->blockerIndex].normal;
+				manifold->normal = blockerNormal;
+				manifold->triangleNormal = blockerNormal;
+				manifold->feature = b3_featureTriangleFace;
 			}
+		}
+	}
 
-			acceptedManifolds[acceptedManifoldCount++] = m;
+	for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
+	{
+		b3LocalManifold* manifold = manifoldBuffer + manifoldIndex;
+		if ( manifold->pointCount > 0 )
+		{
+			acceptedManifolds[acceptedManifoldCount++] = manifold;
 		}
 	}
 
@@ -1298,37 +1254,9 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 				continue;
 			}
 
-#if 0
-			// todo there could be later triangles that create the connection
-			// then failure to cluster breaks greedy impulse warm starting
-			bool edgeConnected = false;
-
-			for ( int k = 0; k < i; ++k )
-			{
-				if ( clusterMemberships[k] != j )
-				{
-					continue;
-				}
-
-				const b3LocalManifold* other = acceptedManifolds[k];
-				if ( b3TrianglesShareEdge( manifold->i1, manifold->i2, manifold->i3, other->i1, other->i2, other->i3 ) )
-				{
-					edgeConnected = true;
-					break;
-				}
-			}
-
-			if ( edgeConnected )
-			{
-				clusterIndex = j;
-				break;
-			}
-#else
-
 			// Found a cluster
 			clusterIndex = j;
 			break;
-#endif
 		}
 
 		if ( clusterIndex != B3_NULL_INDEX )

@@ -104,7 +104,6 @@ void b3CollideTriangleAndSphere( b3LocalManifold* manifold, int capacity, const 
 	manifold->normal = normal;
 	manifold->pointCount = 1;
 	manifold->feature = closest.feature;
-	manifold->squaredDistance = squaredDistance;
 
 	b3LocalManifoldPoint* mp = manifold->points + 0;
 	mp->point = contactPoint;

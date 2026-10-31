@@ -84,6 +84,9 @@ typedef struct GhostCollisionsData
 	GhostSettings settings;
 	b3Vec2 profile[GHOST_MAX_PROFILE_POINTS];
 	int profileCount;
+
+	// The ground spans z in [-halfWidth, halfWidth]
+	float halfWidth;
 	b3MeshData* meshes[2];
 	int meshCount;
 	b3HullData* cylinder;

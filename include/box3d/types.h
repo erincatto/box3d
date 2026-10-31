@@ -2930,18 +2930,8 @@ typedef struct b3LocalManifold
 	/// The index of the triangle.
 	int triangleIndex;
 
-	int i1; ///< Vertex 1 index.
-	int i2; ///< Vertex 2 index.
-	int i3; ///< Vertex 3 index.
-
-	/// The squared distance of a sphere from a triangle. For ghost collision reduction.
-	float squaredDistance;
-
 	/// The triangle feature involved.
 	b3TriangleFeature feature;
-
-	/// b3MeshEdgeFlags.
-	int triangleFlags;
 } b3LocalManifold;
 
 /**@}*/ // collision

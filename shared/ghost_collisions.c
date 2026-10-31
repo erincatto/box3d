@@ -5,6 +5,7 @@
 
 #include "box3d/box3d.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -204,6 +205,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 	const GhostSettings* settings = &data->settings;
 	float h = GHOST_HALF_LENGTH;
 	data->profileCount = 0;
+	data->halfWidth = GHOST_HALF_WIDTH;
 
 	switch ( settings->scene )
 	{
@@ -283,6 +285,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 		int zCount = preset.columnCount - 1;
 		float halfWidth = 20.0f * preset.scaleX * (float)zCount;
 		AddGrid( &builder, data->profile, data->profileCount, halfWidth, zCount, false, mirror );
+		data->halfWidth = halfWidth;
 		AddMesh( data, &builder, true );
 
 		b3BoxHull box = b3MakeOffsetBoxHull( 140.0f, 1.0f, 30.0f, ( b3Vec3 ){ 65.0f, -1.0f, 0.0f } );
@@ -434,13 +437,28 @@ static float SegmentAngle( const GhostCollisionsData* data, int k )
 }
 
 // The normal points from the ground to the body. A hull face can be the reference face, so any
-// normal within the span of face normals under the body is valid.
-static bool IsGhost( const GhostCollisionsData* data, b3Vec3 normal, float xMin, float xMax )
+// normal within the span of face normals under the body is valid. At a side edge of the ground the
+// normal may also lean off that side, perpendicular to the edge.
+static bool IsGhost( const GhostCollisionsData* data, b3Vec3 normal, float xMin, float xMax, float zMin, float zMax )
 {
 	float tolerance = 5.0f * B3_PI / 180.0f;
-	if ( b3AbsFloat( normal.z ) > sinf( tolerance ) )
+	float sinTolerance = sinf( tolerance );
+	if ( b3AbsFloat( normal.z ) > sinTolerance )
 	{
-		return true;
+		// The manifold must reach the side it leans off
+		float margin = 0.05f;
+		bool atSide = normal.z < 0.0f ? zMin < -data->halfWidth + margin : zMax > data->halfWidth - margin;
+		if ( atSide == false )
+		{
+			return true;
+		}
+	}
+
+	// A normal leaning off a side has a short projection, which leaves little room to lean along the edge
+	float planarLength = sqrtf( normal.x * normal.x + normal.y * normal.y );
+	if ( planarLength < sinTolerance )
+	{
+		return false;
 	}
 
 	float lower = B3_PI;
@@ -461,7 +479,14 @@ static bool IsGhost( const GhostCollisionsData* data, b3Vec3 normal, float xMin,
 	}
 
 	float angle = atan2f( normal.y, normal.x );
-	return angle < lower - tolerance || upper + tolerance < angle;
+	float deviation = b3MaxFloat( lower - angle, angle - upper );
+	if ( deviation <= 0.0f )
+	{
+		return false;
+	}
+
+	// Measure the lean outside the span in 3D so a steep side normal is not over counted
+	return deviation > 0.5f * B3_PI || planarLength * sinf( deviation ) > sinTolerance;
 }
 
 int UpdateGhostCollisions( b3WorldId worldId, GhostCollisionsData* data, GhostReport* reports, int capacity )
@@ -516,8 +541,18 @@ int UpdateGhostCollisions( b3WorldId worldId, GhostCollisionsData* data, GhostRe
 				continue;
 			}
 
+			float zMin = FLT_MAX;
+			float zMax = -FLT_MAX;
+			for ( int k = 0; k < manifold->pointCount; ++k )
+			{
+				b3Vec3 anchor = bodyIsA ? manifold->points[k].anchorA : manifold->points[k].anchorB;
+				float z = (float)center.z + anchor.z;
+				zMin = b3MinFloat( zMin, z );
+				zMax = b3MaxFloat( zMax, z );
+			}
+
 			b3Vec3 normal = bodyIsA ? b3Neg( manifold->normal ) : manifold->normal;
-			if ( IsGhost( data, normal, xMin, xMax ) == false )
+			if ( IsGhost( data, normal, xMin, xMax, zMin, zMax ) == false )
 			{
 				continue;
 			}

@@ -10,7 +10,6 @@
 #include "box3d/types.h"
 
 #define B3_FORCE_GHOST_COLLISIONS 0
-#define B3_VALIDATE_NEIGHBOR_NORMALS 1
 
 typedef struct b3Shape b3Shape;
 typedef struct b3World b3World;
