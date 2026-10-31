@@ -666,26 +666,37 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 	float linearSlop = B3_LINEAR_SLOP;
 	int nearEdges[3];
 	int nearCount = 0;
+	bool inwardTilt = false;
+	bool alongEdge = false;
 	for ( int i = 0; i < 3; ++i )
 	{
 		b3Vec3 vertex = vertices[i];
-		b3Vec3 edge = b3Sub( vertices[i < 2 ? i + 1 : 0], vertex );
-		b3Vec3 inward = b3Normalize( b3Cross( triangleNormal, edge ) );
+		b3Vec3 edge = b3Normalize( b3Sub( vertices[i < 2 ? i + 1 : 0], vertex ) );
+		b3Vec3 inward = b3Cross( triangleNormal, edge );
 		if ( b3Dot( inward, b3Sub( point, vertex ) ) <= linearSlop )
 		{
 			nearEdges[nearCount] = i;
 			nearCount += 1;
+
+			// An edge or vertex normal cone tilts outward from the triangle and an edge cone is perpendicular to the edge, a hull face normal need be neither.
+			inwardTilt = inwardTilt || b3Dot( normal, inward ) > tolerance;
+			alongEdge = alongEdge || b3AbsFloat( b3Dot( normal, edge ) ) > tolerance;
 		}
 	}
 
 	b3TriangleFeature feature;
-	if ( nearCount == 0 )
+	if ( nearCount == 0 || inwardTilt )
 	{
 		// A tilted hull face over the triangle interior, the triangle face owns the normal.
 		return b3_neighborSnap;
 	}
 	else if ( nearCount == 1 )
 	{
+		if ( alongEdge )
+		{
+			return b3_neighborSnap;
+		}
+
 		b3TriangleFeature edgeFeatures[3] = { b3_featureEdge1, b3_featureEdge2, b3_featureEdge3 };
 		feature = edgeFeatures[nearEdges[0]];
 	}
