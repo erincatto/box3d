@@ -22,21 +22,21 @@ extern "C"
 typedef enum GhostScene
 {
 	e_ghostFlat,
-	e_ghostConcaveRamp,
+	e_ghostConcave,
 	e_ghostCliff,
 	e_ghostCrest,
 	e_ghostBumps,
 	e_ghostTJunction,
-	e_ghostShapeSeam,
-	e_ghostInternalEdges,
+	e_ghostSeam,
+	e_ghostInternal,
 	e_ghostSceneCount
 } GhostScene;
 
 typedef enum GhostBody
 {
 	e_ghostBox,
-	e_ghostCapsule,
-	e_ghostUprightCapsule,
+	e_ghostHCapsule,
+	e_ghostVCapsule,
 	e_ghostSphere,
 	e_ghostCylinder,
 	e_ghostBodyCount
@@ -91,6 +91,10 @@ typedef struct GhostCollisionsData
 	b3BodyId groundId;
 	b3BodyId bodyId;
 	b3ShapeId shapeId;
+
+	// Body bounds at the start of the step, where the contacts were computed. A fast body can cross a fold
+	// within a step, so the bounds after the step can miss the face a contact came from.
+	b3AABB contactBounds;
 
 	// Steps in the current run
 	int runSteps;

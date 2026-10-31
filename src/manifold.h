@@ -54,6 +54,9 @@ void b3CollideHullsAtWidth( b3LocalManifold* manifold, int capacity, const b3Hul
 void b3BuildTriangleAndCapsuleFaceContact( b3LocalManifold* manifold, const b3Vec3* triangle, b3Plane plane,
 										   const b3Capsule* capsule );
 
+void b3BuildTriangleAndHullFaceContact( b3LocalManifold* manifold, int capacity, const b3Vec3* triangle, int triangleFlags,
+										const b3HullData* hull, bool enableSpeculative );
+
 b3AxisQuery b3ComputeSeparatingAxisW4( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB, bool earlyReturn );
 b3AxisQuery b3ComputeSeparatingAxisW8( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB, bool earlyReturn );
 

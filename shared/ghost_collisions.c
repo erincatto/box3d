@@ -28,16 +28,16 @@ static const PeelPreset s_peelPresets[GHOST_PEEL_PRESET_COUNT] = {
 };
 
 const char* g_ghostSceneNames[e_ghostSceneCount] = {
-	"Flat", "Concave Ramp", "Cliff", "Crest", "Bumps", "T-Junction", "Shape Seam", "PEEL Internal Edges",
+	"Flat", "Concave", "Cliff", "Crest", "Bumps", "T-Junction", "Seam", "Internal",
 };
 
-const char* g_ghostBodyNames[e_ghostBodyCount] = { "Box", "Capsule", "Upright Capsule", "Sphere", "Cylinder" };
+const char* g_ghostBodyNames[e_ghostBodyCount] = { "Box", "H Capsule", "V Capsule", "Sphere", "Cylinder" };
 
 const char* g_ghostPeelPresetNames[GHOST_PEEL_PRESET_COUNT] = {
-	"4 x 0.1, start -55",
-	"4 x 0.1, start -54",
-	"4 x 0.01, start -55",
-	"16 x 0.01, start -54",
+	"4.1:-55",
+	"4.1:-54",
+	"4.01:-55",
+	"16.01:-54",
 };
 
 GhostSettings GetDefaultGhostSettings( void )
@@ -207,7 +207,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 
 	switch ( settings->scene )
 	{
-		case e_ghostConcaveRamp:
+		case e_ghostConcave:
 		{
 			float slope = 8.0f * B3_PI / 180.0f;
 			PushProfile( data, -h, h * tanf( slope ) );
@@ -241,7 +241,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 			}
 			break;
 
-		case e_ghostInternalEdges:
+		case e_ghostInternal:
 			// PEEL's curved mesh: 32 rows 4 m apart, each step up 1.25 times the last, sliding toward +x
 			for ( int i = 31; i >= 0; --i )
 			{
@@ -268,7 +268,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 		AddStrip( &builder, right, 2, cellSize, cellSize, mirror );
 		AddMesh( data, &builder, false );
 	}
-	else if ( settings->scene == e_ghostShapeSeam )
+	else if ( settings->scene == e_ghostSeam )
 	{
 		// Two mesh shapes meeting at x = 0, so the seam spans two contacts
 		AddStrip( &builder, left, 2, cellSize, cellSize, mirror );
@@ -276,7 +276,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 		AddStrip( &builder, right, 2, cellSize, cellSize, mirror );
 		AddMesh( data, &builder, false );
 	}
-	else if ( settings->scene == e_ghostInternalEdges )
+	else if ( settings->scene == e_ghostInternal )
 	{
 		// The mesh has no friction and the ground plane under it does, as in PEEL
 		PeelPreset preset = s_peelPresets[settings->peelPreset];
@@ -309,7 +309,7 @@ void LaunchGhostBody( b3WorldId worldId, GhostCollisionsData* data )
 	const GhostSettings* settings = &data->settings;
 
 	// PEEL drops its bodies from rest, sized in meters rather than tenths
-	bool peel = settings->scene == e_ghostInternalEdges;
+	bool peel = settings->scene == e_ghostInternal;
 	float boxHalf = peel ? 1.0f : 0.2f;
 	float capsuleRadius = peel ? 1.0f : 0.2f;
 	float capsuleHalf = peel ? 2.0f : 0.4f;
@@ -348,7 +348,7 @@ void LaunchGhostBody( b3WorldId worldId, GhostCollisionsData* data )
 		{
 			lift = sphereRadius;
 		}
-		else if ( settings->body == e_ghostUprightCapsule )
+		else if ( settings->body == e_ghostVCapsule )
 		{
 			lift = capsuleHalf + capsuleRadius;
 		}
@@ -380,14 +380,14 @@ void LaunchGhostBody( b3WorldId worldId, GhostCollisionsData* data )
 		}
 		break;
 
-		case e_ghostCapsule:
+		case e_ghostHCapsule:
 		{
 			b3Capsule capsule = { { 0.0f, 0.0f, -capsuleHalf }, { 0.0f, 0.0f, capsuleHalf }, capsuleRadius };
 			data->shapeId = b3CreateCapsuleShape( data->bodyId, &shapeDef, &capsule );
 		}
 		break;
 
-		case e_ghostUprightCapsule:
+		case e_ghostVCapsule:
 		{
 			b3Capsule capsule = { { 0.0f, -capsuleHalf, 0.0f }, { 0.0f, capsuleHalf, 0.0f }, capsuleRadius };
 			data->shapeId = b3CreateCapsuleShape( data->bodyId, &shapeDef, &capsule );
@@ -406,6 +406,7 @@ void LaunchGhostBody( b3WorldId worldId, GhostCollisionsData* data )
 			break;
 	}
 
+	data->contactBounds = b3Shape_GetAABB( data->shapeId );
 	data->runGhostCount = 0;
 	data->runSteps = 0;
 }
@@ -467,7 +468,7 @@ int UpdateGhostCollisions( b3WorldId worldId, GhostCollisionsData* data, GhostRe
 {
 	b3Pos center = b3Body_GetWorldCenter( data->bodyId );
 	bool done = center.x > GHOST_HALF_LENGTH - 1.0f || center.y < -3.0f;
-	if ( data->settings.scene == e_ghostInternalEdges )
+	if ( data->settings.scene == e_ghostInternal )
 	{
 		// Run out onto the ground plane, or give up on a body knocked off the side
 		done = center.x > 100.0f || center.y < -3.0f || data->runSteps > 900;
@@ -482,9 +483,10 @@ int UpdateGhostCollisions( b3WorldId worldId, GhostCollisionsData* data, GhostRe
 
 	data->runSteps += 1;
 
-	b3AABB bounds = b3Shape_GetAABB( data->shapeId );
+	b3AABB bounds = data->contactBounds;
 	float xMin = (float)bounds.lowerBound.x - 0.1f;
 	float xMax = (float)bounds.upperBound.x + 0.1f;
+	data->contactBounds = b3Shape_GetAABB( data->shapeId );
 
 	int ghostCount = 0;
 	b3ContactData contacts[8];

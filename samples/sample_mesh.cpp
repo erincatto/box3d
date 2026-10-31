@@ -1688,7 +1688,7 @@ public:
 			settings.scene = (GhostScene)scene;
 			rebuild = true;
 
-			if ( settings.scene == e_ghostInternalEdges )
+			if ( settings.scene == e_ghostInternal )
 			{
 				m_camera->SetView( 60.0f, 20.0f, 160.0f, { 0.0f, 30.0f, 0.0f } );
 			}
@@ -1698,7 +1698,7 @@ public:
 			}
 		}
 
-		if ( settings.scene == e_ghostInternalEdges )
+		if ( settings.scene == e_ghostInternal )
 		{
 			rebuild |= ImGui::Combo( "Preset", &settings.peelPreset, g_ghostPeelPresetNames, GHOST_PEEL_PRESET_COUNT );
 		}

@@ -636,6 +636,86 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 	return convex ? b3_neighborSkip : b3_neighborSnap;
 }
 
+// Voronoi test of neighbors based on deepest point.
+static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int triangleIndex,
+												 const b3Vec3* vertices, b3Matrix3 meshToLocal,
+												 const b3LocalManifold* manifold )
+{
+	b3Vec3 normal = manifold->normal;
+	b3Vec3 triangleNormal = b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] );
+	float tolerance = B3_NEIGHBOR_TOLERANCE;
+	if ( b3Dot( normal, triangleNormal ) > 0.0f &&
+		 b3Length( b3Cross( normal, triangleNormal ) ) <= tolerance )
+	{
+		return b3_neighborAdmit;
+	}
+
+	int deepest = 0;
+	for ( int i = 1; i < manifold->pointCount; ++i )
+	{
+		if ( manifold->points[i].separation < manifold->points[deepest].separation )
+		{
+			deepest = i;
+		}
+	}
+
+	// Clip points were moved onto the hull face, step back along the normal to the triangle.
+	const b3LocalManifoldPoint* deepestPoint = manifold->points + deepest;
+	b3Vec3 point = b3MulSub( deepestPoint->point, deepestPoint->separation, normal );
+
+	float linearSlop = B3_LINEAR_SLOP;
+	int nearEdges[3];
+	int nearCount = 0;
+	for ( int i = 0; i < 3; ++i )
+	{
+		b3Vec3 vertex = vertices[i];
+		b3Vec3 edge = b3Sub( vertices[i < 2 ? i + 1 : 0], vertex );
+		b3Vec3 inward = b3Normalize( b3Cross( triangleNormal, edge ) );
+		if ( b3Dot( inward, b3Sub( point, vertex ) ) <= linearSlop )
+		{
+			nearEdges[nearCount] = i;
+			nearCount += 1;
+		}
+	}
+
+	b3TriangleFeature feature;
+	if ( nearCount == 0 )
+	{
+		// A tilted hull face over the triangle interior, the triangle face owns the normal.
+		return b3_neighborSnap;
+	}
+	else if ( nearCount == 1 )
+	{
+		b3TriangleFeature edgeFeatures[3] = { b3_featureEdge1, b3_featureEdge2, b3_featureEdge3 };
+		feature = edgeFeatures[nearEdges[0]];
+	}
+	else if ( nearCount == 2 )
+	{
+		if ( nearEdges[0] == 0 && nearEdges[1] == 1 )
+		{
+			feature = b3_featureVertex2;
+		}
+		else if ( nearEdges[0] == 1 )
+		{
+			feature = b3_featureVertex3;
+		}
+		else
+		{
+			feature = b3_featureVertex1;
+		}
+	}
+	else
+	{
+		return b3_neighborUnknown;
+	}
+
+	// Never skip a hull face, its normal can miss the whole vertex cone so every triangle would
+	// skip, the face contact is empty when the hull is off this triangle.
+	b3NeighborResult result =
+		b3TestNeighbors( shape, triangleIndex, vertices, meshToLocal, feature, normal );
+	return result == b3_neighborSkip ? b3_neighborSnap : result;
+}
+
 bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact,
 							 const b3Shape* shapeA, const uint16_t* materialMap,
 							 b3WorldTransform xfA, const b3Shape* shapeB, b3WorldTransform xfB,
@@ -838,8 +918,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	b3LocalManifold* manifoldBuffer = b3Bump( &arena, survivorCount * sizeof( b3LocalManifold ) );
 	int manifoldCount = 0;
 
-	bool validateNeighbors = B3_VALIDATE_NEIGHBOR_NORMALS && B3_FORCE_GHOST_COLLISIONS == 0 &&
-							 ( shapeB->type == b3_sphereShape || shapeB->type == b3_capsuleShape );
+	bool validateNeighbors = B3_VALIDATE_NEIGHBOR_NORMALS && B3_FORCE_GHOST_COLLISIONS == 0;
 
 	for ( int survivorIndex = 0;
 		  survivorIndex < survivorCount && totalPointCount + 3 < pointBufferCapacity;
@@ -903,10 +982,14 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 			 manifold->feature != b3_featureTriangleFace )
 		{
 			b3NeighborResult result =
-				b3TestNeighbors( shapeA, triangleIndex, vertices, relativeMatrix, manifold->feature,
-								 manifold->normal );
+				manifold->feature == b3_featureHullFace
+					? b3TestHullFaceNeighbors( shapeA, triangleIndex, vertices, relativeMatrix,
+											   manifold )
+					: b3TestNeighbors( shapeA, triangleIndex, vertices, relativeMatrix,
+									   manifold->feature, manifold->normal );
 
-			if ( result == b3_neighborSkip )
+			bool deep = false;
+			if ( result == b3_neighborSkip || result == b3_neighborSnap )
 			{
 				float minSeparation = manifold->points[0].separation;
 				for ( int i = 1; i < manifold->pointCount; ++i )
@@ -914,12 +997,25 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 					minSeparation = b3MinFloat( minSeparation, manifold->points[i].separation );
 				}
 
-				if ( minSeparation < -2.0f * linearSlop )
-				{
-					// In deep overlap the owning neighbor may apply backside culling. Experiments
-					// show the that in this case the neighbor should snap the normal.
-					result = shapeB->type == b3_capsuleShape ? b3_neighborSnap : b3_neighborUnknown;
-				}
+				deep = minSeparation < -2.0f * linearSlop;
+			}
+
+			if ( result == b3_neighborSkip && deep )
+			{
+				// In deep overlap the owning neighbor may apply backside culling. Experiments
+				// show the that in this case the neighbor should snap the normal.
+				result = shapeB->type == b3_sphereShape ? b3_neighborUnknown : b3_neighborSnap;
+			}
+
+			b3LocalManifold deepManifold = { 0 };
+			b3LocalManifoldPoint deepPoints[B3_MAX_CLIP_POINTS];
+			bool keepDeep = deep && result == b3_neighborSnap && shapeB->type == b3_hullShape;
+			if ( keepDeep )
+			{
+				B3_ASSERT( manifold->pointCount <= B3_MAX_CLIP_POINTS );
+				deepManifold = *manifold;
+				memcpy( deepPoints, manifold->points,
+						manifold->pointCount * sizeof( b3LocalManifoldPoint ) );
 			}
 
 			if ( result == b3_neighborSkip || result == b3_neighborSnap )
@@ -933,6 +1029,19 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 				// Snap clips the segment to the triangle for a face contact. May clip all points.
 				b3Plane plane = b3MakePlaneFromPoints( vertices[0], vertices[1], vertices[2] );
 				b3BuildTriangleAndCapsuleFaceContact( manifold, vertices, plane, &shapeB->capsule );
+			}
+			else if ( result == b3_neighborSnap && shapeB->type == b3_hullShape )
+			{
+				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices,
+												   triangle.flags, hullB, enableSpeculative );
+
+				if ( keepDeep && manifold->pointCount == 0 )
+				{
+					// A deep hull off the triangle face keeps its own manifold.
+					*manifold = deepManifold;
+					memcpy( manifold->points, deepPoints,
+							manifold->pointCount * sizeof( b3LocalManifoldPoint ) );
+				}
 			}
 		}
 

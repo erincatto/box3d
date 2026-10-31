@@ -118,7 +118,7 @@ static void RunConfig( Config* config, GhostSettings settings, int stepCount, bo
 
 static void FormatRow( char* buffer, size_t size, const Config* config )
 {
-	if ( config->scene == e_ghostInternalEdges )
+	if ( config->scene == e_ghostInternal )
 	{
 		snprintf( buffer, size, "%s %d%s", s_sceneKeys[config->scene], config->preset, config->mirror ? " mirror" : "" );
 	}
@@ -289,10 +289,10 @@ int main( int argc, char** argv )
 			continue;
 		}
 
-		int presetCount = scene == e_ghostInternalEdges ? GHOST_PEEL_PRESET_COUNT : 1;
+		int presetCount = scene == e_ghostInternal ? GHOST_PEEL_PRESET_COUNT : 1;
 		for ( int preset = 0; preset < presetCount; ++preset )
 		{
-			if ( scene == e_ghostInternalEdges && presetFilter >= 0 && preset != presetFilter )
+			if ( scene == e_ghostInternal && presetFilter >= 0 && preset != presetFilter )
 			{
 				continue;
 			}
