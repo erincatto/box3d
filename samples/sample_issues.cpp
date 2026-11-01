@@ -732,10 +732,9 @@ public:
 			m_camera->SetView( 90.0f, 25.0f, 10.0f, { 0.0f, 1.0f, 0.0f } );
 		}
 
-		// Two chunks meeting at x = 0, each its own body and mesh shape, so seam contacts live
-		// in separate contact pairs like s&box world mesh chunks. A beam top straddles the seam.
-		CreateFloorChunk( 0, -(float)m_halfLengthU, 0.0f );
-		CreateFloorChunk( 1, 0.0f, (float)m_halfLengthU );
+		m_fixWinding = true;
+		m_fixWellJunctions = true;
+		CreateFloor();
 
 		// Character
 		{
@@ -749,6 +748,7 @@ public:
 			bodyDef.enableContactRecycling = false;
 			bodyDef.gravityScale = 2.03f; // s&box gravity: 800 inch/s^2
 			bodyDef.name = "character";
+			bodyDef.safetyFactor = 0.05f;
 			m_characterId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -780,6 +780,25 @@ public:
 	{
 		b3DestroyMesh( m_chunkMesh[0] );
 		b3DestroyMesh( m_chunkMesh[1] );
+	}
+
+	void CreateFloor()
+	{
+		// Two chunks meeting at x = 0, each its own body and mesh shape, so seam contacts live
+		// in separate contact pairs like s&box world mesh chunks. A beam top straddles the seam.
+		CreateFloorChunk( 0, -(float)m_halfLengthU, 0.0f );
+		CreateFloorChunk( 1, 0.0f, (float)m_halfLengthU );
+	}
+
+	void DestroyFloor()
+	{
+		for ( int i = 0; i < 2; ++i )
+		{
+			b3DestroyBody( m_chunkBodyIds[i] );
+			b3DestroyMesh( m_chunkMesh[i] );
+			m_chunkBodyIds[i] = b3_nullBodyId;
+			m_chunkMesh[i] = nullptr;
+		}
 	}
 
 	// Deterministic integer hash for tile tessellation selection
@@ -847,8 +866,11 @@ public:
 
 	// Sloped strip from edge (xLow, yLow) to edge (xHigh, yHigh) spanning the full z width
 	static void EmitSlope( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float xLow, float yLow, float xHigh,
-						   float yHigh, float zCell )
+						   float yHigh, float zCell, bool fixWinding )
 	{
+		// The original winding only faces out for a slope rising toward +x
+		bool flip = fixWinding && xHigh < xLow;
+
 		int countZ = (int)( 2.0f * (float)m_halfWidthU / zCell + 0.99f );
 		for ( int iz = 0; iz < countZ; ++iz )
 		{
@@ -860,15 +882,26 @@ public:
 			b3Vec3 h0 = { SRC * xHigh, SRC * yHigh, SRC * z0 };
 			b3Vec3 h1 = { SRC * xHigh, SRC * yHigh, SRC * z1 };
 
-			EmitTriangle( vertices, indices, l0, l1, h1 );
-			EmitTriangle( vertices, indices, l0, h1, h0 );
+			if ( flip )
+			{
+				EmitTriangle( vertices, indices, l0, h1, l1 );
+				EmitTriangle( vertices, indices, l0, h0, h1 );
+			}
+			else
+			{
+				EmitTriangle( vertices, indices, l0, l1, h1 );
+				EmitTriangle( vertices, indices, l0, h1, h0 );
+			}
 		}
 	}
 
 	// Vertical wall at x from y0 (bottom) to y1 (top). facing = +1 faces +x, -1 faces -x
 	static void EmitWall( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float x, float y0, float y1, int facing,
-						  float zCell )
+						  float zCell, bool fixWinding )
 	{
+		// The original winding faced every wall into the solid
+		bool faceNegativeX = fixWinding ? facing < 0 : facing > 0;
+
 		int countZ = (int)( 2.0f * (float)m_halfWidthU / zCell + 0.99f );
 		for ( int iz = 0; iz < countZ; ++iz )
 		{
@@ -880,7 +913,7 @@ public:
 			b3Vec3 t0 = { SRC * x, SRC * y1, SRC * z0 };
 			b3Vec3 t1 = { SRC * x, SRC * y1, SRC * z1 };
 
-			if ( facing > 0 )
+			if ( faceNegativeX )
 			{
 				EmitTriangle( vertices, indices, b0, b1, t1 );
 				EmitTriangle( vertices, indices, b0, t1, t0 );
@@ -936,6 +969,9 @@ public:
 		float pitTop = -m_chamferDropU;
 		float pitBottom = -m_pitDepthU;
 
+		// Coarse walls and pit floors leave t-junctions against the 8 inch chamfer cells
+		float wellCell = m_fixWellJunctions ? 8.0f : 16.0f;
+
 		for ( int k = 0; k < m_beamCount; ++k )
 		{
 			float bx = m_beamRegion0 + m_beamPitchU * (float)k;
@@ -953,11 +989,12 @@ public:
 			// Chamfers sloping below the walkable plane
 			if ( pitLeft && bx >= x0U && bx < x1U )
 			{
-				EmitSlope( vertices, indices, bx, pitTop, bx + m_chamferWidthU, 0.0f, 8.0f );
+				EmitSlope( vertices, indices, bx, pitTop, bx + m_chamferWidthU, 0.0f, 8.0f, m_fixWinding );
 			}
 			if ( pitRight && bx + m_beamWidthU > x0U && bx + m_beamWidthU <= x1U )
 			{
-				EmitSlope( vertices, indices, bx + m_beamWidthU, pitTop, bx + m_beamWidthU - m_chamferWidthU, 0.0f, 8.0f );
+				EmitSlope( vertices, indices, bx + m_beamWidthU, pitTop, bx + m_beamWidthU - m_chamferWidthU, 0.0f, 8.0f,
+						   m_fixWinding );
 			}
 
 			// Pit to the right of this beam
@@ -967,15 +1004,15 @@ public:
 				float pitR = bx + m_beamPitchU;
 				if ( pitL >= x0U && pitL < x1U )
 				{
-					EmitWall( vertices, indices, pitL, pitBottom, pitTop, +1, 16.0f );
+					EmitWall( vertices, indices, pitL, pitBottom, pitTop, +1, wellCell, m_fixWinding );
 				}
 				if ( pitR > x0U && pitR <= x1U )
 				{
-					EmitWall( vertices, indices, pitR, pitBottom, pitTop, -1, 16.0f );
+					EmitWall( vertices, indices, pitR, pitBottom, pitTop, -1, wellCell, m_fixWinding );
 				}
 				if ( ClipSpan( pitL, pitR, x0U, x1U, &s0, &s1 ) )
 				{
-					EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU, pitBottom, 16.0f );
+					EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU, pitBottom, wellCell );
 				}
 			}
 		}
@@ -992,10 +1029,10 @@ public:
 		m_chunkMesh[chunk] = b3CreateMesh( &meshDef, nullptr, 0 );
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
-		b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
+		m_chunkBodyIds[chunk] = b3CreateBody( m_worldId, &bodyDef );
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		b3CreateMeshShape( body, &shapeDef, m_chunkMesh[chunk], b3Vec3_one );
+		b3CreateMeshShape( m_chunkBodyIds[chunk], &shapeDef, m_chunkMesh[chunk], b3Vec3_one );
 	}
 
 	void Step() override
@@ -1079,7 +1116,15 @@ public:
 			m_walkSpeedZ = speedUZ * SRC;
 		}
 
-		if ( ImGui::Button( "Reset Counters" ) )
+		bool rebuild = ImGui::Checkbox( "Fix Winding", &m_fixWinding );
+		rebuild = ImGui::Checkbox( "Fix Well T-Junctions", &m_fixWellJunctions ) || rebuild;
+		if ( rebuild )
+		{
+			DestroyFloor();
+			CreateFloor();
+		}
+
+		if ( ImGui::Button( "Reset Counters" ) || rebuild )
 		{
 			m_launchCount = 0;
 			m_maxLaunchSpeed = 0.0f;
@@ -1101,6 +1146,9 @@ public:
 	static constexpr int m_markerCapacity = 64;
 
 	b3MeshData* m_chunkMesh[2] = {};
+	b3BodyId m_chunkBodyIds[2] = { b3_nullBodyId, b3_nullBodyId };
+	bool m_fixWinding;
+	bool m_fixWellJunctions;
 	b3BodyId m_characterId;
 	float m_walkDirectionX;
 	float m_walkDirectionZ;
