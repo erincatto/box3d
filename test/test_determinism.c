@@ -32,14 +32,14 @@
 #else
 #define RAGDOLL_SLEEP_STEP 289
 #define RAGDOLL_HASH 0xF290ED4B
-#define WAVE_PILE_SLEEP_STEP 291
-#define WAVE_PILE_HASH 0x3137D79A
+#define WAVE_PILE_SLEEP_STEP 296
+#define WAVE_PILE_HASH 0x8A4A5802
 #define QUERY_SPAWN_SLEEP_STEP 242
 #define QUERY_SPAWN_HASH 0xF3AD9BA6
 #define QUERY_SPAWN_HIT_COUNT 59
 #define QUERY_SPAWN_QUERY_HASH 0xE3271F3D
 #define MESH_DROP_SLEEP_STEP 197
-#define MESH_DROP_HASH 0xA4184C4B
+#define MESH_DROP_HASH 0x70483620
 #endif
 
 // The goldens above pin exact values for the default four point manifold. A build that

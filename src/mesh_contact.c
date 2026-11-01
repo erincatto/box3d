@@ -1088,8 +1088,8 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 			}
 			else if ( result == b3_neighborSnap && shapeB->type == b3_hullShape )
 			{
-				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices,
-												   triangle.flags, hullB, enableSpeculative );
+				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices, triangle.flags, hullB,
+												   &cache->satCache, enableSpeculative );
 
 				if ( keepDeep && manifold->pointCount == 0 )
 				{

@@ -955,7 +955,7 @@ static void b3CollideTriangleAndHullEdges( b3LocalManifold* manifold, int capaci
 
 // Triangle face contact wrapper.
 void b3BuildTriangleAndHullFaceContact( b3LocalManifold* manifold, int capacity, const b3Vec3* triangle, int triangleFlags,
-										const b3HullData* hull, bool enableSpeculative )
+										const b3HullData* hull, b3SATCache* cache, bool enableSpeculative )
 {
 	manifold->pointCount = 0;
 
@@ -971,8 +971,13 @@ void b3BuildTriangleAndHullFaceContact( b3LocalManifold* manifold, int capacity,
 	};
 
 	b3SeparatingAxis query = b3QueryTriangleFace( &triangleData, hull );
-	b3SATCache cache = { 0 };
-	b3CollideTriangleFace( manifold, capacity, &triangleData, hull, query, &cache, enableSpeculative );
+	b3SATCache faceCache = { 0 };
+	b3CollideTriangleFace( manifold, capacity, &triangleData, hull, query, &faceCache, enableSpeculative );
+
+	if ( manifold->pointCount > 0 )
+	{
+		*cache = faceCache;
+	}
 }
 
 b3AtomicInt b3_triangleConvexCalls;
