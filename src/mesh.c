@@ -1144,34 +1144,6 @@ int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex 
 	return vertexFlags[indices[vertexIndex]];
 }
 
-#define NAME b3EdgeMap
-#define KEY_TY uint64_t
-#define VAL_TY int
-#define HASH_FN vt_hash_integer
-#define CMPR_FN vt_cmpr_integer
-#define MALLOC_FN b3Alloc
-#define FREE_FN b3Free
-#include "verstable.h"
-
-#if 0
-// todo this is for testing other hash tables
-struct b3TestHash
-{
-	size_t operator()( uint64_t key ) const
-	{
-		key ^= key >> 23;
-		key *= 0x2127599bf4325c37ull;
-		key ^= key >> 47;
-		return (size_t)key;
-	}
-};
-#endif
-
-// Results for MeshCreationBenchmark
-// eastl::hash_map : 4.9703 ms and 5.1445ms with FastHash function
-// std::unordered_map : 4.8755 ms and 4.4780ms with FastHash function
-// verstable : 3.3968 ms with default FastHash
-// no edge identification : 1.7396 ms
 static void b3IdentifyEdges( b3MeshData* mesh )
 {
 	b3MeshTriangle* triangles = b3GetMeshTrianglesWrite( mesh );
@@ -1233,27 +1205,61 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 		normals[i] = b3Normalize( n );
 	}
 
-	b3EdgeMap map;
-	b3EdgeMap_init( &map );
-	b3EdgeMap_reserve( &map, edgeCount );
+	// Counting sort for edges. Faster than a hashtable.
+	int vertexCount = mesh->vertexCount;
+	int* edgeStarts = B3_ALLOC( int, ( vertexCount + 1 ) );
+	int* sortedEdges = B3_ALLOC( int, edgeCount );
+	int* stamps = B3_ALLOC( int, vertexCount );
+	int* firstEdges = B3_ALLOC( int, vertexCount );
 
-	uint64_t key = (uint64_t)edges[0].vertex1 << 32 | (uint64_t)edges[0].vertex2;
-	b3EdgeMap_insert( &map, key, 0 );
+	for ( int i = 0; i <= vertexCount; ++i )
+	{
+		edgeStarts[i] = 0;
+	}
+
+	for ( int i = 0; i < vertexCount; ++i )
+	{
+		stamps[i] = B3_NULL_INDEX;
+	}
+
+	for ( int i = 0; i < edgeCount; ++i )
+	{
+		B3_ASSERT( 0 <= edges[i].vertex1 && edges[i].vertex2 < vertexCount );
+		edgeStarts[edges[i].vertex1 + 1] += 1;
+	}
+
+	for ( int i = 0; i < vertexCount; ++i )
+	{
+		edgeStarts[i + 1] += edgeStarts[i];
+	}
+
+	for ( int i = 0; i < edgeCount; ++i )
+	{
+		int vertex1 = edges[i].vertex1;
+		sortedEdges[edgeStarts[vertex1]] = i;
+		edgeStarts[vertex1] += 1;
+	}
 
 	// Find unique edges and assign adjacency
-	for ( int i = 1; i < edgeCount; ++i )
+	int begin = 0;
+	for ( int vertex1 = 0; vertex1 < vertexCount; ++vertex1 )
 	{
-		b3MeshEdge* edge = edges + i;
-		key = (uint64_t)edge->vertex1 << 32 | (uint64_t)edge->vertex2;
-		b3EdgeMap_itr itr = b3EdgeMap_get( &map, key );
+		int end = edgeStarts[vertex1];
+		for ( int j = begin; j < end; ++j )
+		{
+			int i = sortedEdges[j];
+			b3MeshEdge* edge = edges + i;
+			int vertex2 = edge->vertex2;
 
-		if ( b3EdgeMap_is_end( itr ) )
-		{
-			b3EdgeMap_insert( &map, key, i );
-		}
-		else
-		{
-			int otherIndex = itr.data->val;
+			// Establish twin.
+			if ( stamps[vertex2] != vertex1 )
+			{
+				stamps[vertex2] = vertex1;
+				firstEdges[vertex2] = i;
+				continue;
+			}
+
+			int otherIndex = firstEdges[vertex2];
 			B3_ASSERT( otherIndex < i );
 
 			b3MeshEdge* base = edges + otherIndex;
@@ -1265,9 +1271,14 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 
 			base->triangleCount += 1;
 		}
+
+		begin = end;
 	}
 
-	b3EdgeMap_cleanup( &map );
+	B3_FREE( firstEdges, int, vertexCount );
+	B3_FREE( stamps, int, vertexCount );
+	B3_FREE( sortedEdges, int, edgeCount );
+	B3_FREE( edgeStarts, int, ( vertexCount + 1 ) );
 
 	for ( int i = 0; i < edgeCount; ++i )
 	{

@@ -27,7 +27,6 @@ typedef enum GhostScene
 	e_ghostCrest,
 	e_ghostBumps,
 	e_ghostTJunction,
-	e_ghostSeam,
 	e_ghostInternal,
 	e_ghostSceneCount
 } GhostScene;

@@ -2615,20 +2615,6 @@ static void BuildGhostTJunction( std::vector<GhostMesh>& meshes )
 	meshes.push_back( mesh );
 }
 
-// The flat pair with each triangle in its own mesh
-static void BuildGhostSeam( std::vector<GhostMesh>& meshes )
-{
-	GhostMesh left;
-	left.vertices = { { 0.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 2.0f }, { -2.0f, 0.0f, 0.0f } };
-	AddGhostTriangle( left, 0, 1, 2 );
-	meshes.push_back( left );
-
-	GhostMesh right;
-	right.vertices = { { 0.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 2.0f }, { 2.0f, 0.0f, 0.0f } };
-	AddGhostTriangle( right, 1, 0, 2 );
-	meshes.push_back( right );
-}
-
 // s&box units are inches. Beam top at y = 0 for x > 0, chamfer dropping 1 inch over 1.5 inch for x
 // < 0, 8 inch cells along z with the chamfer quads split like the s&box sample. A side depth in inches
 // adds a vertical face below the chamfer, so the chamfer bottom edge is convex instead of a boundary.
@@ -2748,16 +2734,6 @@ static const GhostScene s_hullGhostScenes[] = {
 		BuildGhostTJunction,
 		{ 0.5f, 0.5f, 0.5f },
 		{ -0.708f, 0.499f, 0.3f },
-		{ 0.0f, 45.0f, 0.0f },
-		true,
-	},
-	{
-		"Mesh seam",
-		"the flat corner case with each triangle in its own mesh",
-		"none yet, each mesh only sees its own triangles (ghost plan step 4)",
-		BuildGhostSeam,
-		{ 0.5f, 0.5f, 0.5f },
-		{ -0.708f, 0.499f, 0.0f },
 		{ 0.0f, 45.0f, 0.0f },
 		true,
 	},

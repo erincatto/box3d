@@ -621,28 +621,17 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 	b3TriangleFeature feature = b3_featureNone;
 	if ( nearCount == 2 )
 	{
-		int vertexIndex;
 		if ( nearEdges[0] == 0 && nearEdges[1] == 1 )
 		{
 			feature = b3_featureVertex2;
-			vertexIndex = 1;
 		}
 		else if ( nearEdges[0] == 1 )
 		{
 			feature = b3_featureVertex3;
-			vertexIndex = 2;
 		}
 		else
 		{
 			feature = b3_featureVertex1;
-			vertexIndex = 0;
-		}
-
-		// Test vertex.
-		if ( b3AdmitsVertexNormal( shape, triangleIndex, vertices, vertexIndex, normal ) )
-		{
-			*nearFeature = feature;
-			return b3_neighborAdmit;
 		}
 	}
 
@@ -766,10 +755,7 @@ static bool b3ShouldBlockNormal( const b3Vec3* vertices, b3BlockTarget target, b
 {
 	b3Vec3 triangleNormal = target.normal;
 	float distanceTolerance = target.distanceTolerance;
-	if ( b3AbsFloat( b3Dot( triangleNormal, b3Sub( point, vertices[0] ) ) ) > distanceTolerance )
-	{
-		return false;
-	}
+	B3_ASSERT( b3AbsFloat( b3Dot( triangleNormal, b3Sub( point, vertices[0] ) ) ) <= distanceTolerance );
 
 	if ( b3Dot( normal, triangleNormal ) < -0.01f )
 	{
@@ -864,12 +850,14 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 	const b3Vec3* meshVertices = NULL;
 	b3Vec3 meshScale = b3Vec3_one;
 	bool meshFlipped = false;
+	bool unitScale = true;
 	if ( shapeA->type == b3_meshShape )
 	{
 		meshTriangles = b3GetMeshTriangles( shapeA->mesh.data );
 		meshVertices = b3GetMeshVertices( shapeA->mesh.data );
 		meshScale = shapeA->mesh.scale;
 		meshFlipped = meshScale.x * meshScale.y * meshScale.z < 0.0f;
+		unitScale = meshScale.x == 1.0f && meshScale.y == 1.0f && meshScale.z == 1.0f;
 	}
 
 	b3FloatW4 cxx = b3SplatW4( relativeMatrix.cx.x );
@@ -907,13 +895,21 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			if ( meshVertices != NULL )
 			{
 				b3MeshTriangle meshTriangle = meshTriangles[triangleIndex];
-				lanes[0][lane] = b3Mul( meshScale, meshVertices[meshTriangle.index1] );
-				lanes[1][lane] =
-					b3Mul( meshScale,
-						   meshVertices[meshFlipped ? meshTriangle.index3 : meshTriangle.index2] );
-				lanes[2][lane] =
-					b3Mul( meshScale,
-						   meshVertices[meshFlipped ? meshTriangle.index2 : meshTriangle.index3] );
+				b3Vec3 v1 = meshVertices[meshTriangle.index1];
+				b3Vec3 v2 = meshVertices[meshFlipped ? meshTriangle.index3 : meshTriangle.index2];
+				b3Vec3 v3 = meshVertices[meshFlipped ? meshTriangle.index2 : meshTriangle.index3];
+
+				// todo comment
+				if ( unitScale == false )
+				{
+					v1 = b3Mul( meshScale, v1 );
+					v2 = b3Mul( meshScale, v2 );
+					v3 = b3Mul( meshScale, v3 );
+				}
+
+				lanes[0][lane] = v1;
+				lanes[1][lane] = v2;
+				lanes[2][lane] = v3;
 			}
 			else
 			{
@@ -1205,7 +1201,15 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 					continue;
 				}
 
-				if ( b3ShouldBlockNormal( survivorVertices + 3 * j, blockTargets[j], source->point, normal ) )
+				// todo comment
+				const b3Vec3* targetVertices = survivorVertices + 3 * j;
+				float planeDistance = b3Dot( blockTargets[j].normal, b3Sub( source->point, targetVertices[0] ) );
+				if ( b3AbsFloat( planeDistance ) > blockTargets[j].distanceTolerance )
+				{
+					continue;
+				}
+
+				if ( b3ShouldBlockNormal( targetVertices, blockTargets[j], source->point, normal ) )
 				{
 					// todo explain this better
 					float alignment = b3Dot( normal, blockTargets[j].normal );

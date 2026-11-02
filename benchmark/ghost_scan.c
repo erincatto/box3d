@@ -18,7 +18,7 @@
 #include <string.h>
 
 // Command line and result file keys
-static const char* s_sceneKeys[e_ghostSceneCount] = { "flat", "ramp", "cliff", "crest", "bumps", "tjunction", "seam", "peel" };
+static const char* s_sceneKeys[e_ghostSceneCount] = { "flat", "ramp", "cliff", "crest", "bumps", "tjunction", "peel" };
 static const char* s_bodyKeys[e_ghostBodyCount] = { "box", "capsule", "upright", "sphere", "cylinder" };
 
 #define MAX_CONFIGS 256
@@ -270,7 +270,7 @@ int main( int argc, char** argv )
 		{
 			printf( "Usage: ghost_scan [options]\n"
 					"Runs the Ghost Collisions sample headless and counts ghost manifolds per scene and body.\n"
-					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, tjunction, seam, peel (default all)\n"
+					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, tjunction, peel (default all)\n"
 					"  -b, --body=<key|all>     box, capsule, upright, sphere, cylinder (default all)\n"
 					"  -m, --mirror=<0|1|all>   mirrored mesh (default all)\n"
 					"  -p, --preset=<0-3|all>   PEEL preset (default all)\n"

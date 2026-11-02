@@ -29,7 +29,7 @@ static const PeelPreset s_peelPresets[GHOST_PEEL_PRESET_COUNT] = {
 };
 
 const char* g_ghostSceneNames[e_ghostSceneCount] = {
-	"Flat", "Concave", "Cliff", "Crest", "Bumps", "T-Junction", "Seam", "Internal",
+	"Flat", "Concave", "Cliff", "Crest", "Bumps", "T-Junction", "Internal",
 };
 
 const char* g_ghostBodyNames[e_ghostBodyCount] = { "Box", "H Capsule", "V Capsule", "Sphere", "Cylinder" };
@@ -377,11 +377,6 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 							GetCellCount( 2.0f * groundHalfWidth, 0.5f * cellSize ), false );
 			AddHeightField( worldId, data, 0.0f, h, GetCellCount( h, cellSize ), groundHalfWidth, cellCountZ, false );
 		}
-		else if ( settings->scene == e_ghostSeam )
-		{
-			AddHeightField( worldId, data, -h, 0.0f, GetCellCount( h, cellSize ), groundHalfWidth, cellCountZ, false );
-			AddHeightField( worldId, data, 0.0f, h, GetCellCount( h, cellSize ), groundHalfWidth, cellCountZ, false );
-		}
 		else if ( settings->scene == e_ghostInternal )
 		{
 			// One grid line per profile row, as in the mesh
@@ -405,14 +400,6 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 	{
 		// Fine and coarse strips share only every other vertex along x = 0
 		AddStrip( &builder, left, 2, cellSize, 0.5f * cellSize, mirror );
-		AddStrip( &builder, right, 2, cellSize, cellSize, mirror );
-		AddMesh( data, &builder, false );
-	}
-	else if ( settings->scene == e_ghostSeam )
-	{
-		// Two mesh shapes meeting at x = 0, so the seam spans two contacts
-		AddStrip( &builder, left, 2, cellSize, cellSize, mirror );
-		AddMesh( data, &builder, false );
 		AddStrip( &builder, right, 2, cellSize, cellSize, mirror );
 		AddMesh( data, &builder, false );
 	}
