@@ -4,6 +4,7 @@
 #include "gfx/draw.h"
 #include "imgui.h"
 #include "mesh_loader.h"
+#include "meshoptimizer.h"
 #include "sample.h"
 
 #include "box3d/box3d.h"
@@ -134,7 +135,8 @@ public:
 	}
 };
 
-static int sampleMultiplePrismatic = RegisterSample( "Issues", "Multiple Prismatic", MultiplePrismatic::Create );
+static int sampleMultiplePrismatic =
+	RegisterSample( "Issues", "Multiple Prismatic", MultiplePrismatic::Create );
 
 // bad hull SM_Waterfall_MED_Wide_01
 static const b3Vec3 waterfallPoints[] = {
@@ -351,7 +353,8 @@ public:
 
 		b3AABB bounds = b3MakeAABB( m_points.data(), (int)m_points.size(), 0.0f );
 		float radius = b3Length( b3AABB_Extents( bounds ) );
-		m_camera->SetView( 0.0f, 15.0f, b3MaxFloat( 3.0f * radius, 1.0f ), b3ToPos( b3AABB_Center( bounds ) ) );
+		m_camera->SetView( 0.0f, 15.0f, b3MaxFloat( 3.0f * radius, 1.0f ),
+						   b3ToPos( b3AABB_Center( bounds ) ) );
 	}
 
 	bool DrawControls() override
@@ -360,8 +363,8 @@ public:
 
 		if ( m_hull != nullptr )
 		{
-			DrawTextLine( "hull: vertices = %d, edges = %d, faces = %d", m_hull->vertexCount, m_hull->edgeCount / 2,
-						  m_hull->faceCount );
+			DrawTextLine( "hull: vertices = %d, edges = %d, faces = %d", m_hull->vertexCount,
+						  m_hull->edgeCount / 2, m_hull->faceCount );
 		}
 		else
 		{
@@ -733,7 +736,10 @@ public:
 		}
 
 		m_fixWinding = true;
-		m_fixWellJunctions = true;
+		m_combineChunks = true;
+		m_remesh = true;
+		m_simplifyErrorMillimeters = 10.0f;
+		m_repeatSimplify = true;
 		CreateFloor();
 
 		// Character
@@ -778,12 +784,26 @@ public:
 
 	~SBoxGhostCollisions() override
 	{
-		b3DestroyMesh( m_chunkMesh[0] );
-		b3DestroyMesh( m_chunkMesh[1] );
+		for ( int i = 0; i < 2; ++i )
+		{
+			if ( m_chunkMesh[i] != nullptr )
+			{
+				b3DestroyMesh( m_chunkMesh[i] );
+			}
+		}
 	}
 
 	void CreateFloor()
 	{
+		m_chunkTriangleCount[1] = 0;
+		m_simplifyPassCount[1] = 0;
+
+		if ( m_combineChunks )
+		{
+			CreateFloorChunk( 0, -(float)m_halfLengthU, (float)m_halfLengthU );
+			return;
+		}
+
 		// Two chunks meeting at x = 0, each its own body and mesh shape, so seam contacts live
 		// in separate contact pairs like s&box world mesh chunks. A beam top straddles the seam.
 		CreateFloorChunk( 0, -(float)m_halfLengthU, 0.0f );
@@ -794,8 +814,12 @@ public:
 	{
 		for ( int i = 0; i < 2; ++i )
 		{
-			b3DestroyBody( m_chunkBodyIds[i] );
-			b3DestroyMesh( m_chunkMesh[i] );
+			if ( B3_IS_NON_NULL( m_chunkBodyIds[i] ) )
+			{
+				b3DestroyBody( m_chunkBodyIds[i] );
+				b3DestroyMesh( m_chunkMesh[i] );
+			}
+
 			m_chunkBodyIds[i] = b3_nullBodyId;
 			m_chunkMesh[i] = nullptr;
 		}
@@ -812,7 +836,8 @@ public:
 		return x;
 	}
 
-	static void EmitTriangle( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, b3Vec3 a, b3Vec3 b, b3Vec3 c )
+	static void EmitTriangle( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices,
+							  b3Vec3 a, b3Vec3 b, b3Vec3 c )
 	{
 		int32_t base = (int32_t)vertices.size();
 		vertices.push_back( a );
@@ -824,8 +849,8 @@ public:
 	}
 
 	// Horizontal patch at height y spanning [x0,x1]x[z0,z1] (inches), normal +y
-	static void EmitPatch( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float x0, float x1, float z0, float z1,
-						   float y, float cell )
+	static void EmitPatch( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float x0,
+						   float x1, float z0, float z1, float y, float cell )
 	{
 		if ( x1 - x0 < 0.01f )
 		{
@@ -865,8 +890,8 @@ public:
 	}
 
 	// Sloped strip from edge (xLow, yLow) to edge (xHigh, yHigh) spanning the full z width
-	static void EmitSlope( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float xLow, float yLow, float xHigh,
-						   float yHigh, float zCell, bool fixWinding )
+	static void EmitSlope( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float xLow,
+						   float yLow, float xHigh, float yHigh, float zCell, bool fixWinding )
 	{
 		// The original winding only faces out for a slope rising toward +x
 		bool flip = fixWinding && xHigh < xLow;
@@ -874,8 +899,10 @@ public:
 		int countZ = (int)( 2.0f * (float)m_halfWidthU / zCell + 0.99f );
 		for ( int iz = 0; iz < countZ; ++iz )
 		{
-			float z0 = -(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)iz / (float)countZ;
-			float z1 = -(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)( iz + 1 ) / (float)countZ;
+			float z0 =
+				-(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)iz / (float)countZ;
+			float z1 = -(float)m_halfWidthU +
+					   2.0f * (float)m_halfWidthU * (float)( iz + 1 ) / (float)countZ;
 
 			b3Vec3 l0 = { SRC * xLow, SRC * yLow, SRC * z0 };
 			b3Vec3 l1 = { SRC * xLow, SRC * yLow, SRC * z1 };
@@ -896,8 +923,8 @@ public:
 	}
 
 	// Vertical wall at x from y0 (bottom) to y1 (top). facing = +1 faces +x, -1 faces -x
-	static void EmitWall( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float x, float y0, float y1, int facing,
-						  float zCell, bool fixWinding )
+	static void EmitWall( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float x,
+						  float y0, float y1, int facing, float zCell, bool fixWinding )
 	{
 		// The original winding faced every wall into the solid
 		bool faceNegativeX = fixWinding ? facing < 0 : facing > 0;
@@ -905,8 +932,10 @@ public:
 		int countZ = (int)( 2.0f * (float)m_halfWidthU / zCell + 0.99f );
 		for ( int iz = 0; iz < countZ; ++iz )
 		{
-			float z0 = -(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)iz / (float)countZ;
-			float z1 = -(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)( iz + 1 ) / (float)countZ;
+			float z0 =
+				-(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)iz / (float)countZ;
+			float z1 = -(float)m_halfWidthU +
+					   2.0f * (float)m_halfWidthU * (float)( iz + 1 ) / (float)countZ;
 
 			b3Vec3 b0 = { SRC * x, SRC * y0, SRC * z0 };
 			b3Vec3 b1 = { SRC * x, SRC * y0, SRC * z1 };
@@ -934,6 +963,60 @@ public:
 		return *o1 - *o0 > 0.01f;
 	}
 
+	// Weld exact duplicates, then let meshoptimizer collapse every edge that leaves the surface in
+	// place. A t-junction vertex sits on an open border, so it can slide along that border onto a
+	// corner, which closes the seam. Flat collapses still cost a little from the simplifier's
+	// vertex regularization, so the error limit has to clear that while staying far below the inch
+	// scale cost of collapsing a real crease. Regularize options raise that cost. Vertex kinds are
+	// fixed per call, so a corner locked by a t-junction stays locked after its seam closes.
+	// Repeating reclassifies, but the error limit applies per pass, so deviation can accumulate.
+	// Winding is not repaired. Returns the number of passes.
+	static int Remesh( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices,
+					   float errorLimit, unsigned int options, bool repeat )
+	{
+		size_t indexCount = indices.size();
+		const unsigned int* sourceIndices = reinterpret_cast<const unsigned int*>( indices.data() );
+
+		std::vector<unsigned int> remap( vertices.size() );
+		size_t vertexCount =
+			meshopt_generateVertexRemap( remap.data(), sourceIndices, indexCount, vertices.data(),
+										 vertices.size(), sizeof( b3Vec3 ) );
+
+		std::vector<unsigned int> welded( indexCount );
+		meshopt_remapIndexBuffer( welded.data(), sourceIndices, indexCount, remap.data() );
+
+		std::vector<b3Vec3> positions( vertexCount );
+		meshopt_remapVertexBuffer( positions.data(), vertices.data(), vertices.size(),
+								   sizeof( b3Vec3 ), remap.data() );
+
+		std::vector<unsigned int> simplified( indexCount );
+		int passCount = 0;
+		for ( ;; )
+		{
+			size_t simplifiedCount = meshopt_simplify(
+				simplified.data(), welded.data(), welded.size(), &positions[0].x, vertexCount,
+				sizeof( b3Vec3 ), 0, errorLimit, meshopt_SimplifyErrorAbsolute | options, nullptr );
+			passCount += 1;
+
+			bool reduced = simplifiedCount < welded.size();
+			welded.assign( simplified.begin(), simplified.begin() + simplifiedCount );
+
+			if ( repeat == false || reduced == false )
+			{
+				break;
+			}
+		}
+
+		size_t usedCount =
+			meshopt_optimizeVertexFetch( positions.data(), welded.data(), welded.size(),
+										 positions.data(), vertexCount, sizeof( b3Vec3 ) );
+		positions.resize( usedCount );
+
+		vertices = positions;
+		indices.assign( welded.begin(), welded.end() );
+		return passCount;
+	}
+
 	void CreateFloorChunk( int chunk, float x0U, float x1U )
 	{
 		std::vector<b3Vec3> vertices;
@@ -944,7 +1027,8 @@ public:
 		// --- Concrete slabs at y = 0 outside the beam region ---
 		// Tiles tessellate at a hash-picked resolution so neighbors meet with T-junctions,
 		// like cooked s&box map collision.
-		float slabSpans[2][2] = { { -(float)m_halfLengthU, m_beamRegion0 }, { m_beamRegion1, (float)m_halfLengthU } };
+		float slabSpans[2][2] = { { -(float)m_halfLengthU, m_beamRegion0 },
+								  { m_beamRegion1, (float)m_halfLengthU } };
 		for ( int i = 0; i < 2; ++i )
 		{
 			if ( ClipSpan( slabSpans[i][0], slabSpans[i][1], x0U, x1U, &s0, &s1 ) == false )
@@ -957,10 +1041,15 @@ public:
 				float tx1 = b3MinFloat( tx + (float)m_tileSizeU, s1 );
 				for ( int tz = -m_halfWidthU; tz < m_halfWidthU; tz += m_tileSizeU )
 				{
-					uint32_t h = Hash( (uint32_t)( (int)tx * 73856093 ) ^ (uint32_t)( tz * 19349663 ) ^
-									   (uint32_t)( chunk * 2654435761u ) );
+					// Seeded by side rather than chunk so combined and split floors tessellate the
+					// same
+					uint32_t side = tx < 0.0f ? 0u : 1u;
+					uint32_t h =
+						Hash( (uint32_t)( (int)tx * 73856093 ) ^ (uint32_t)( tz * 19349663 ) ^
+							  (uint32_t)( side * 2654435761u ) );
 					float cells[3] = { 4.0f, 8.0f, 16.0f };
-					EmitPatch( vertices, indices, tx, tx1, (float)tz, (float)( tz + m_tileSizeU ), 0.0f, cells[h % 3] );
+					EmitPatch( vertices, indices, tx, tx1, (float)tz, (float)( tz + m_tileSizeU ),
+							   0.0f, cells[h % 3] );
 				}
 			}
 		}
@@ -970,7 +1059,7 @@ public:
 		float pitBottom = -m_pitDepthU;
 
 		// Coarse walls and pit floors leave t-junctions against the 8 inch chamfer cells
-		float wellCell = m_fixWellJunctions ? 8.0f : 16.0f;
+		float wellCell = 16.0f;
 
 		for ( int k = 0; k < m_beamCount; ++k )
 		{
@@ -983,18 +1072,20 @@ public:
 			float top1 = pitRight ? bx + m_beamWidthU - m_chamferWidthU : bx + m_beamWidthU;
 			if ( ClipSpan( top0, top1, x0U, x1U, &s0, &s1 ) )
 			{
-				EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU, 0.0f, 8.0f );
+				EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU,
+						   0.0f, 8.0f );
 			}
 
 			// Chamfers sloping below the walkable plane
 			if ( pitLeft && bx >= x0U && bx < x1U )
 			{
-				EmitSlope( vertices, indices, bx, pitTop, bx + m_chamferWidthU, 0.0f, 8.0f, m_fixWinding );
+				EmitSlope( vertices, indices, bx, pitTop, bx + m_chamferWidthU, 0.0f, 8.0f,
+						   m_fixWinding );
 			}
 			if ( pitRight && bx + m_beamWidthU > x0U && bx + m_beamWidthU <= x1U )
 			{
-				EmitSlope( vertices, indices, bx + m_beamWidthU, pitTop, bx + m_beamWidthU - m_chamferWidthU, 0.0f, 8.0f,
-						   m_fixWinding );
+				EmitSlope( vertices, indices, bx + m_beamWidthU, pitTop,
+						   bx + m_beamWidthU - m_chamferWidthU, 0.0f, 8.0f, m_fixWinding );
 			}
 
 			// Pit to the right of this beam
@@ -1004,18 +1095,29 @@ public:
 				float pitR = bx + m_beamPitchU;
 				if ( pitL >= x0U && pitL < x1U )
 				{
-					EmitWall( vertices, indices, pitL, pitBottom, pitTop, +1, wellCell, m_fixWinding );
+					EmitWall( vertices, indices, pitL, pitBottom, pitTop, +1, wellCell,
+							  m_fixWinding );
 				}
 				if ( pitR > x0U && pitR <= x1U )
 				{
-					EmitWall( vertices, indices, pitR, pitBottom, pitTop, -1, wellCell, m_fixWinding );
+					EmitWall( vertices, indices, pitR, pitBottom, pitTop, -1, wellCell,
+							  m_fixWinding );
 				}
 				if ( ClipSpan( pitL, pitR, x0U, x1U, &s0, &s1 ) )
 				{
-					EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU, pitBottom, wellCell );
+					EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU,
+							   pitBottom, wellCell );
 				}
 			}
 		}
+
+		if ( m_remesh )
+		{
+			m_simplifyPassCount[chunk] = Remesh(
+				vertices, indices, 0.001f * m_simplifyErrorMillimeters, 0, m_repeatSimplify );
+		}
+
+		m_chunkTriangleCount[chunk] = (int)( indices.size() / 3 );
 
 		b3MeshDef meshDef = {};
 		meshDef.vertices = vertices.data();
@@ -1097,9 +1199,25 @@ public:
 		}
 
 		b3Vec3 currentVelocity = b3Body_GetLinearVelocity( m_characterId );
-		DrawTextLine( "ghost launches: %d, worst: %.2f m/s (%.0f inch/s)", m_launchCount, m_maxLaunchSpeed,
-					  m_maxLaunchSpeed / SRC );
+		DrawTextLine( "ghost launches: %d, worst: %.2f m/s (%.0f inch/s)", m_launchCount,
+					  m_maxLaunchSpeed, m_maxLaunchSpeed / SRC );
 		DrawTextLine( "vertical velocity: %.2f m/s", currentVelocity.y );
+		if ( m_combineChunks )
+		{
+			DrawTextLine( "floor triangles: %d", m_chunkTriangleCount[0] );
+		}
+		else
+		{
+			DrawTextLine( "floor triangles: %d (chunks %d + %d)",
+						  m_chunkTriangleCount[0] + m_chunkTriangleCount[1],
+						  m_chunkTriangleCount[0], m_chunkTriangleCount[1] );
+		}
+
+		if ( m_remesh )
+		{
+			DrawTextLine( m_combineChunks ? "simplify passes: %d" : "simplify passes: %d + %d",
+						  m_simplifyPassCount[0], m_simplifyPassCount[1] );
+		}
 	}
 
 	bool DrawControls() override
@@ -1117,7 +1235,17 @@ public:
 		}
 
 		bool rebuild = ImGui::Checkbox( "Fix Winding", &m_fixWinding );
-		rebuild = ImGui::Checkbox( "Fix Well T-Junctions", &m_fixWellJunctions ) || rebuild;
+		rebuild = ImGui::Checkbox( "Combine Chunks", &m_combineChunks ) || rebuild;
+		rebuild = ImGui::Checkbox( "Remesh (meshoptimizer)", &m_remesh ) || rebuild;
+
+		ImGui::SliderFloat( "Simplify Error (mm)", &m_simplifyErrorMillimeters, 0.1f, 50.0f, "%.1f",
+							ImGuiSliderFlags_Logarithmic );
+		rebuild = ( ImGui::IsItemDeactivatedAfterEdit() && m_remesh ) || rebuild;
+
+		const char* regularizeNames[] = { "None", "Light", "Full" };
+		rebuild =
+			( ImGui::Checkbox( "Repeat Simplify", &m_repeatSimplify ) && m_remesh ) || rebuild;
+
 		if ( rebuild )
 		{
 			DestroyFloor();
@@ -1140,15 +1268,21 @@ public:
 		return new SBoxGhostCollisions( context );
 	}
 
-	static constexpr float m_walkRangeX = 3.5f;		 // turn around beyond +/- this x (meters)
-	static constexpr float m_walkRangeZ = 0.5f;		 // turn around beyond +/- this x (meters)
-	static constexpr float m_launchThreshold = 0.5f; // upward m/s counted as a ghost launch (~20 inch/s)
+	static constexpr float m_walkRangeX = 3.5f; // turn around beyond +/- this x (meters)
+	static constexpr float m_walkRangeZ = 0.5f; // turn around beyond +/- this x (meters)
+	static constexpr float m_launchThreshold =
+		0.5f; // upward m/s counted as a ghost launch (~20 inch/s)
 	static constexpr int m_markerCapacity = 64;
 
 	b3MeshData* m_chunkMesh[2] = {};
 	b3BodyId m_chunkBodyIds[2] = { b3_nullBodyId, b3_nullBodyId };
 	bool m_fixWinding;
-	bool m_fixWellJunctions;
+	bool m_combineChunks;
+	bool m_remesh;
+	float m_simplifyErrorMillimeters;
+	bool m_repeatSimplify;
+	int m_simplifyPassCount[2] = {};
+	int m_chunkTriangleCount[2] = {};
 	b3BodyId m_characterId;
 	float m_walkDirectionX;
 	float m_walkDirectionZ;
@@ -1161,115 +1295,169 @@ public:
 	int m_launchMarkerCount;
 };
 
-static int sampleSBoxGhostCollisions = RegisterSample( "Issues", "s&box Ghost Collisions", SBoxGhostCollisions::Create );
+static int sampleSBoxGhostCollisions =
+	RegisterSample( "Issues", "s&box Ghost Collisions", SBoxGhostCollisions::Create );
 
 static const b3Vec3 s_metalWheel1Verts[317] = {
-	{ 0.010279f, 0.086341f, 0.051768f },	{ -0.010314f, -0.084708f, 0.051804f },	{ 0.010279f, -0.084708f, 0.051768f },
-	{ -0.010314f, 0.086341f, 0.051804f },	{ 0.029138f, -0.084708f, -0.043911f },	{ 0.043724f, -0.084708f, -0.029376f },
-	{ 0.010098f, -0.084708f, -0.051759f },	{ -0.010494f, -0.084708f, -0.051723f }, { 0.051638f, -0.084708f, -0.010364f },
-	{ 0.051674f, -0.084708f, 0.010229f },	{ 0.043827f, -0.084708f, 0.029268f },	{ 0.029291f, -0.084708f, 0.043855f },
-	{ -0.029353f, -0.084708f, 0.043957f },	{ -0.051889f, -0.084708f, -0.010183f }, { -0.051853f, -0.084708f, 0.010409f },
-	{ -0.043939f, -0.084708f, 0.029421f },	{ -0.029506f, -0.084708f, -0.043809f }, { -0.044042f, -0.084708f, -0.029222f },
-	{ -0.029353f, 0.086341f, 0.043957f },	{ 0.043724f, 0.086341f, -0.029376f },	{ 0.029138f, 0.086341f, -0.043911f },
-	{ 0.010098f, 0.086341f, -0.051759f },	{ 0.051638f, 0.086341f, -0.010364f },	{ 0.051674f, 0.086341f, 0.010229f },
-	{ -0.044042f, 0.086341f, -0.029222f },	{ 0.043827f, 0.086341f, 0.029268f },	{ -0.051889f, 0.086341f, -0.010183f },
-	{ -0.043939f, 0.086341f, 0.029421f },	{ -0.029506f, 0.086341f, -0.043809f },	{ 0.035354f, 0.070897f, 0.035658f },
-	{ 0.035354f, -0.069397f, 0.035658f },	{ -0.035498f, 0.070897f, 0.035658f },	{ -0.035498f, -0.069397f, 0.035658f },
-	{ 0.035354f, -0.069397f, 0.365503f },	{ 0.035354f, 0.070897f, 0.365503f },	{ -0.035498f, 0.070897f, 0.365503f },
-	{ -0.035498f, -0.069397f, 0.365503f },	{ 0.035354f, 0.070897f, -0.365033f },	{ 0.035354f, -0.069397f, -0.365033f },
-	{ -0.035498f, 0.070897f, -0.365033f },	{ -0.035498f, -0.069397f, -0.365033f }, { 0.035354f, -0.069397f, -0.035187f },
-	{ 0.035354f, 0.070897f, -0.035187f },	{ -0.035498f, 0.070897f, -0.035187f },	{ -0.035498f, -0.069397f, -0.035187f },
-	{ -0.035494f, -0.069397f, -0.035191f }, { -0.365340f, -0.069397f, -0.035191f }, { -0.035494f, 0.070897f, -0.035191f },
-	{ -0.365340f, 0.070897f, -0.035191f },	{ -0.365340f, -0.069397f, 0.035661f },	{ -0.035494f, -0.069397f, 0.035661f },
-	{ -0.035494f, 0.070897f, 0.035661f },	{ -0.365340f, 0.070897f, 0.035661f },	{ 0.035350f, 0.070897f, -0.035191f },
-	{ 0.365196f, 0.070897f, -0.035191f },	{ 0.035350f, -0.069397f, -0.035191f },	{ 0.365196f, -0.069397f, -0.035191f },
-	{ 0.365196f, 0.070897f, 0.035661f },	{ 0.035350f, 0.070897f, 0.035661f },	{ 0.035350f, -0.069397f, 0.035661f },
-	{ 0.365196f, -0.069397f, 0.035661f },	{ -0.070802f, 0.086337f, 0.355420f },	{ -0.070802f, -0.084705f, 0.355420f },
-	{ -0.097081f, 0.086335f, 0.487537f },	{ -0.097081f, -0.084704f, 0.487537f },	{ -0.000108f, 0.086337f, 0.362383f },
-	{ -0.000108f, 0.086335f, 0.497088f },	{ -0.000108f, -0.084704f, 0.497088f },	{ -0.000108f, -0.084705f, 0.362383f },
-	{ -0.138787f, -0.084705f, 0.334799f },	{ -0.138787f, 0.086337f, 0.334799f },	{ -0.070810f, -0.084705f, 0.355419f },
-	{ -0.070810f, 0.086337f, 0.355419f },	{ -0.097090f, 0.086335f, 0.487536f },	{ -0.190336f, 0.086335f, 0.459250f },
-	{ -0.190336f, -0.084704f, 0.459250f },	{ -0.097090f, -0.084704f, 0.487536f },	{ -0.138795f, 0.086337f, 0.334796f },
-	{ -0.138795f, -0.084705f, 0.334796f },	{ -0.201442f, 0.086337f, 0.301310f },	{ -0.201442f, -0.084705f, 0.301310f },
-	{ -0.276280f, -0.084704f, 0.413313f },	{ -0.276280f, 0.086335f, 0.413313f },	{ -0.190344f, 0.086335f, 0.459247f },
-	{ -0.190344f, -0.084704f, 0.459247f },	{ -0.201450f, -0.084705f, 0.301306f },	{ -0.256361f, -0.084705f, 0.256241f },
-	{ -0.201450f, 0.086337f, 0.301306f },	{ -0.256361f, 0.086337f, 0.256241f },	{ -0.351612f, 0.086335f, 0.351492f },
-	{ -0.351612f, -0.084704f, 0.351492f },	{ -0.276288f, 0.086335f, 0.413309f },	{ -0.276288f, -0.084704f, 0.413309f },
-	{ -0.301431f, -0.084705f, 0.201325f },	{ -0.413435f, -0.084704f, 0.276163f },	{ -0.413435f, 0.086335f, 0.276163f },
-	{ -0.301431f, 0.086337f, 0.201325f },	{ -0.256367f, -0.084705f, 0.256236f },	{ -0.256367f, 0.086337f, 0.256236f },
-	{ -0.351618f, 0.086335f, 0.351487f },	{ -0.351618f, -0.084704f, 0.351487f },	{ -0.334922f, -0.084705f, 0.138670f },
-	{ -0.459374f, -0.084704f, 0.190220f },	{ -0.459374f, 0.086335f, 0.190220f },	{ -0.334922f, 0.086337f, 0.138670f },
-	{ -0.301436f, 0.086337f, 0.201318f },	{ -0.301436f, -0.084705f, 0.201318f },	{ -0.413440f, 0.086335f, 0.276156f },
-	{ -0.413440f, -0.084704f, 0.276156f },	{ -0.487663f, -0.084704f, 0.096966f },	{ -0.355546f, -0.084705f, 0.070686f },
-	{ -0.459377f, -0.084704f, 0.190212f },	{ -0.334926f, -0.084705f, 0.138663f },	{ -0.355546f, 0.086337f, 0.070686f },
-	{ -0.334926f, 0.086337f, 0.138663f },	{ -0.487663f, 0.086335f, 0.096966f },	{ -0.459377f, 0.086335f, 0.190212f },
-	{ -0.362511f, -0.084705f, -0.000016f }, { -0.355549f, -0.084705f, 0.070678f },	{ -0.497217f, -0.084704f, -0.000016f },
-	{ -0.487665f, -0.084704f, 0.096957f },	{ -0.497217f, 0.086335f, -0.000016f },	{ -0.362511f, 0.086337f, -0.000016f },
-	{ -0.355549f, 0.086337f, 0.070678f },	{ -0.487665f, 0.086335f, 0.096957f },	{ -0.362512f, 0.086337f, -0.000024f },
-	{ -0.362512f, -0.084705f, -0.000024f }, { -0.355549f, 0.086337f, -0.070717f },	{ -0.355549f, -0.084705f, -0.070717f },
-	{ -0.497217f, -0.084704f, -0.000024f }, { -0.487666f, -0.084704f, -0.096997f }, { -0.497217f, 0.086335f, -0.000024f },
-	{ -0.487666f, 0.086335f, -0.096997f },	{ -0.334927f, -0.084705f, -0.138702f }, { -0.355548f, 0.086337f, -0.070726f },
-	{ -0.355548f, -0.084705f, -0.070726f }, { -0.334927f, 0.086337f, -0.138702f },	{ -0.487665f, -0.084704f, -0.097005f },
-	{ -0.459379f, -0.084704f, -0.190252f }, { -0.487665f, 0.086335f, -0.097005f },	{ -0.459379f, 0.086335f, -0.190252f },
-	{ -0.413442f, -0.084704f, -0.276196f }, { -0.301439f, -0.084705f, -0.201358f }, { -0.334925f, -0.084705f, -0.138710f },
-	{ -0.459376f, -0.084704f, -0.190260f }, { -0.334925f, 0.086337f, -0.138710f },	{ -0.301439f, 0.086337f, -0.201358f },
-	{ -0.459376f, 0.086335f, -0.190260f },	{ -0.413442f, 0.086335f, -0.276196f },	{ -0.256370f, -0.084705f, -0.256276f },
-	{ -0.301434f, 0.086337f, -0.201365f },	{ -0.301434f, -0.084705f, -0.201365f }, { -0.256370f, 0.086337f, -0.256276f },
-	{ -0.413438f, 0.086335f, -0.276203f },	{ -0.351621f, 0.086335f, -0.351527f },	{ -0.413438f, -0.084704f, -0.276203f },
-	{ -0.351621f, -0.084704f, -0.351527f }, { -0.256364f, -0.084705f, -0.256283f }, { -0.201453f, 0.086337f, -0.301347f },
-	{ -0.256364f, 0.086337f, -0.256283f },	{ -0.201453f, -0.084705f, -0.301347f }, { -0.276292f, -0.084704f, -0.413350f },
-	{ -0.351615f, -0.084704f, -0.351534f }, { -0.351615f, 0.086335f, -0.351534f },	{ -0.276292f, 0.086335f, -0.413350f },
-	{ -0.201447f, -0.084705f, -0.301352f }, { -0.276285f, -0.084704f, -0.413355f }, { -0.138799f, -0.084705f, -0.334838f },
-	{ -0.190349f, -0.084704f, -0.459289f }, { -0.276285f, 0.086335f, -0.413355f },	{ -0.201447f, 0.086337f, -0.301352f },
-	{ -0.190349f, 0.086335f, -0.459289f },	{ -0.138799f, 0.086337f, -0.334838f },	{ -0.190341f, 0.086335f, -0.459293f },
-	{ -0.190341f, -0.084704f, -0.459293f }, { -0.138791f, -0.084705f, -0.334842f }, { -0.138791f, 0.086337f, -0.334842f },
-	{ -0.070815f, 0.086337f, -0.355462f },	{ -0.070815f, -0.084705f, -0.355462f }, { -0.097095f, 0.086335f, -0.487579f },
-	{ -0.097095f, -0.084704f, -0.487579f }, { -0.070807f, 0.086337f, -0.355464f },	{ -0.097086f, 0.086335f, -0.487581f },
-	{ -0.097086f, -0.084704f, -0.487581f }, { -0.070807f, -0.084705f, -0.355464f }, { -0.000113f, -0.084705f, -0.362427f },
-	{ -0.000113f, 0.086337f, -0.362427f },	{ -0.000113f, 0.086335f, -0.497132f },	{ -0.000113f, -0.084704f, -0.497132f },
-	{ 0.070588f, 0.086337f, -0.355465f },	{ 0.096868f, -0.084704f, -0.487582f },	{ 0.096868f, 0.086335f, -0.487582f },
-	{ 0.070588f, -0.084705f, -0.355465f },	{ -0.000105f, 0.086337f, -0.362427f },	{ -0.000105f, 0.086335f, -0.497133f },
-	{ -0.000105f, -0.084704f, -0.497133f }, { -0.000105f, -0.084705f, -0.362427f }, { 0.190123f, -0.084704f, -0.459294f },
-	{ 0.190123f, 0.086335f, -0.459294f },	{ 0.138573f, -0.084705f, -0.334843f },	{ 0.138573f, 0.086337f, -0.334843f },
-	{ 0.070597f, 0.086337f, -0.355463f },	{ 0.070597f, -0.084705f, -0.355463f },	{ 0.096876f, -0.084704f, -0.487580f },
-	{ 0.096876f, 0.086335f, -0.487580f },	{ 0.201229f, -0.084705f, -0.301354f },	{ 0.276067f, -0.084704f, -0.413358f },
-	{ 0.201229f, 0.086337f, -0.301354f },	{ 0.138581f, -0.084705f, -0.334840f },	{ 0.138581f, 0.086337f, -0.334840f },
-	{ 0.190131f, 0.086335f, -0.459292f },	{ 0.276067f, 0.086335f, -0.413358f },	{ 0.190131f, -0.084704f, -0.459292f },
-	{ 0.201236f, 0.086337f, -0.301350f },	{ 0.256147f, -0.084705f, -0.256286f },	{ 0.256147f, 0.086337f, -0.256286f },
-	{ 0.201236f, -0.084705f, -0.301350f },	{ 0.351398f, -0.084704f, -0.351537f },	{ 0.351398f, 0.086335f, -0.351537f },
-	{ 0.276074f, -0.084704f, -0.413353f },	{ 0.276074f, 0.086335f, -0.413353f },	{ 0.301218f, -0.084705f, -0.201369f },
-	{ 0.301218f, 0.086337f, -0.201369f },	{ 0.256154f, -0.084705f, -0.256280f },	{ 0.256154f, 0.086337f, -0.256280f },
-	{ 0.413221f, 0.086335f, -0.276207f },	{ 0.413221f, -0.084704f, -0.276207f },	{ 0.351405f, 0.086335f, -0.351531f },
-	{ 0.351405f, -0.084704f, -0.351531f },	{ 0.334709f, 0.086337f, -0.138715f },	{ 0.301223f, 0.086337f, -0.201362f },
-	{ 0.334709f, -0.084705f, -0.138715f },	{ 0.301223f, -0.084705f, -0.201362f },	{ 0.459160f, -0.084704f, -0.190264f },
-	{ 0.459160f, 0.086335f, -0.190264f },	{ 0.413226f, 0.086335f, -0.276200f },	{ 0.413226f, -0.084704f, -0.276200f },
-	{ 0.334713f, -0.084705f, -0.138707f },	{ 0.355333f, -0.084705f, -0.070731f },	{ 0.334713f, 0.086337f, -0.138707f },
-	{ 0.355333f, 0.086337f, -0.070731f },	{ 0.459164f, 0.086335f, -0.190257f },	{ 0.487450f, 0.086335f, -0.097010f },
-	{ 0.487450f, -0.084704f, -0.097010f },	{ 0.459164f, -0.084704f, -0.190257f },	{ 0.355335f, -0.084705f, -0.070722f },
-	{ 0.362298f, -0.084705f, -0.000029f },	{ 0.355335f, 0.086337f, -0.070722f },	{ 0.362298f, 0.086337f, -0.000029f },
-	{ 0.497003f, -0.084704f, -0.000029f },	{ 0.497003f, 0.086335f, -0.000029f },	{ 0.487452f, 0.086335f, -0.097002f },
-	{ 0.487452f, -0.084704f, -0.097002f },	{ 0.362298f, -0.084705f, -0.000021f },	{ 0.497003f, -0.084704f, -0.000021f },
-	{ 0.355336f, -0.084705f, 0.070673f },	{ 0.487453f, -0.084704f, 0.096952f },	{ 0.497003f, 0.086335f, -0.000021f },
-	{ 0.362298f, 0.086337f, -0.000021f },	{ 0.355336f, 0.086337f, 0.070673f },	{ 0.487453f, 0.086335f, 0.096952f },
-	{ 0.355334f, -0.084705f, 0.070681f },	{ 0.355334f, 0.086337f, 0.070681f },	{ 0.487451f, 0.086335f, 0.096961f },
-	{ 0.487451f, -0.084704f, 0.096961f },	{ 0.334714f, -0.084705f, 0.138658f },	{ 0.459165f, -0.084704f, 0.190207f },
-	{ 0.334714f, 0.086337f, 0.138658f },	{ 0.459165f, 0.086335f, 0.190207f },	{ 0.334711f, 0.086337f, 0.138666f },
-	{ 0.301225f, 0.086337f, 0.201313f },	{ 0.459163f, 0.086335f, 0.190215f },	{ 0.413229f, 0.086335f, 0.276151f },
-	{ 0.334711f, -0.084705f, 0.138666f },	{ 0.301225f, -0.084705f, 0.201313f },	{ 0.413229f, -0.084704f, 0.276151f },
-	{ 0.459163f, -0.084704f, 0.190215f },	{ 0.301221f, -0.084705f, 0.201321f },	{ 0.256157f, -0.084705f, 0.256232f },
-	{ 0.301221f, 0.086337f, 0.201321f },	{ 0.256157f, 0.086337f, 0.256232f },	{ 0.413224f, -0.084704f, 0.276159f },
-	{ 0.413224f, 0.086335f, 0.276159f },	{ 0.351408f, 0.086335f, 0.351483f },	{ 0.351408f, -0.084704f, 0.351483f },
-	{ 0.201240f, -0.084705f, 0.301302f },	{ 0.201240f, 0.086337f, 0.301302f },	{ 0.256151f, -0.084705f, 0.256238f },
-	{ 0.256151f, 0.086337f, 0.256238f },	{ 0.351402f, 0.086335f, 0.351489f },	{ 0.351402f, -0.084704f, 0.351489f },
-	{ 0.276078f, 0.086335f, 0.413305f },	{ 0.276078f, -0.084704f, 0.413305f },	{ 0.138586f, -0.084705f, 0.334793f },
-	{ 0.201233f, -0.084705f, 0.301307f },	{ 0.190135f, -0.084704f, 0.459244f },	{ 0.276071f, -0.084704f, 0.413311f },
-	{ 0.201233f, 0.086337f, 0.301307f },	{ 0.138586f, 0.086337f, 0.334793f },	{ 0.276071f, 0.086335f, 0.413311f },
-	{ 0.190135f, 0.086335f, 0.459244f },	{ 0.138578f, -0.084705f, 0.334797f },	{ 0.070602f, -0.084705f, 0.355417f },
-	{ 0.138578f, 0.086337f, 0.334797f },	{ 0.070602f, 0.086337f, 0.355417f },	{ 0.190127f, 0.086335f, 0.459248f },
-	{ 0.190127f, -0.084704f, 0.459248f },	{ 0.096881f, 0.086335f, 0.487534f },	{ 0.096881f, -0.084704f, 0.487534f },
-	{ 0.070593f, -0.084705f, 0.355419f },	{ 0.096873f, 0.086335f, 0.487536f },	{ 0.096873f, -0.084704f, 0.487536f },
-	{ 0.070593f, 0.086337f, 0.355419f },	{ -0.000100f, 0.086337f, 0.362382f },	{ -0.000100f, 0.086335f, 0.497087f },
-	{ -0.000100f, -0.084704f, 0.497087f },	{ -0.000100f, -0.084705f, 0.362382f },
+	{ 0.010279f, 0.086341f, 0.051768f },	{ -0.010314f, -0.084708f, 0.051804f },
+	{ 0.010279f, -0.084708f, 0.051768f },	{ -0.010314f, 0.086341f, 0.051804f },
+	{ 0.029138f, -0.084708f, -0.043911f },	{ 0.043724f, -0.084708f, -0.029376f },
+	{ 0.010098f, -0.084708f, -0.051759f },	{ -0.010494f, -0.084708f, -0.051723f },
+	{ 0.051638f, -0.084708f, -0.010364f },	{ 0.051674f, -0.084708f, 0.010229f },
+	{ 0.043827f, -0.084708f, 0.029268f },	{ 0.029291f, -0.084708f, 0.043855f },
+	{ -0.029353f, -0.084708f, 0.043957f },	{ -0.051889f, -0.084708f, -0.010183f },
+	{ -0.051853f, -0.084708f, 0.010409f },	{ -0.043939f, -0.084708f, 0.029421f },
+	{ -0.029506f, -0.084708f, -0.043809f }, { -0.044042f, -0.084708f, -0.029222f },
+	{ -0.029353f, 0.086341f, 0.043957f },	{ 0.043724f, 0.086341f, -0.029376f },
+	{ 0.029138f, 0.086341f, -0.043911f },	{ 0.010098f, 0.086341f, -0.051759f },
+	{ 0.051638f, 0.086341f, -0.010364f },	{ 0.051674f, 0.086341f, 0.010229f },
+	{ -0.044042f, 0.086341f, -0.029222f },	{ 0.043827f, 0.086341f, 0.029268f },
+	{ -0.051889f, 0.086341f, -0.010183f },	{ -0.043939f, 0.086341f, 0.029421f },
+	{ -0.029506f, 0.086341f, -0.043809f },	{ 0.035354f, 0.070897f, 0.035658f },
+	{ 0.035354f, -0.069397f, 0.035658f },	{ -0.035498f, 0.070897f, 0.035658f },
+	{ -0.035498f, -0.069397f, 0.035658f },	{ 0.035354f, -0.069397f, 0.365503f },
+	{ 0.035354f, 0.070897f, 0.365503f },	{ -0.035498f, 0.070897f, 0.365503f },
+	{ -0.035498f, -0.069397f, 0.365503f },	{ 0.035354f, 0.070897f, -0.365033f },
+	{ 0.035354f, -0.069397f, -0.365033f },	{ -0.035498f, 0.070897f, -0.365033f },
+	{ -0.035498f, -0.069397f, -0.365033f }, { 0.035354f, -0.069397f, -0.035187f },
+	{ 0.035354f, 0.070897f, -0.035187f },	{ -0.035498f, 0.070897f, -0.035187f },
+	{ -0.035498f, -0.069397f, -0.035187f }, { -0.035494f, -0.069397f, -0.035191f },
+	{ -0.365340f, -0.069397f, -0.035191f }, { -0.035494f, 0.070897f, -0.035191f },
+	{ -0.365340f, 0.070897f, -0.035191f },	{ -0.365340f, -0.069397f, 0.035661f },
+	{ -0.035494f, -0.069397f, 0.035661f },	{ -0.035494f, 0.070897f, 0.035661f },
+	{ -0.365340f, 0.070897f, 0.035661f },	{ 0.035350f, 0.070897f, -0.035191f },
+	{ 0.365196f, 0.070897f, -0.035191f },	{ 0.035350f, -0.069397f, -0.035191f },
+	{ 0.365196f, -0.069397f, -0.035191f },	{ 0.365196f, 0.070897f, 0.035661f },
+	{ 0.035350f, 0.070897f, 0.035661f },	{ 0.035350f, -0.069397f, 0.035661f },
+	{ 0.365196f, -0.069397f, 0.035661f },	{ -0.070802f, 0.086337f, 0.355420f },
+	{ -0.070802f, -0.084705f, 0.355420f },	{ -0.097081f, 0.086335f, 0.487537f },
+	{ -0.097081f, -0.084704f, 0.487537f },	{ -0.000108f, 0.086337f, 0.362383f },
+	{ -0.000108f, 0.086335f, 0.497088f },	{ -0.000108f, -0.084704f, 0.497088f },
+	{ -0.000108f, -0.084705f, 0.362383f },	{ -0.138787f, -0.084705f, 0.334799f },
+	{ -0.138787f, 0.086337f, 0.334799f },	{ -0.070810f, -0.084705f, 0.355419f },
+	{ -0.070810f, 0.086337f, 0.355419f },	{ -0.097090f, 0.086335f, 0.487536f },
+	{ -0.190336f, 0.086335f, 0.459250f },	{ -0.190336f, -0.084704f, 0.459250f },
+	{ -0.097090f, -0.084704f, 0.487536f },	{ -0.138795f, 0.086337f, 0.334796f },
+	{ -0.138795f, -0.084705f, 0.334796f },	{ -0.201442f, 0.086337f, 0.301310f },
+	{ -0.201442f, -0.084705f, 0.301310f },	{ -0.276280f, -0.084704f, 0.413313f },
+	{ -0.276280f, 0.086335f, 0.413313f },	{ -0.190344f, 0.086335f, 0.459247f },
+	{ -0.190344f, -0.084704f, 0.459247f },	{ -0.201450f, -0.084705f, 0.301306f },
+	{ -0.256361f, -0.084705f, 0.256241f },	{ -0.201450f, 0.086337f, 0.301306f },
+	{ -0.256361f, 0.086337f, 0.256241f },	{ -0.351612f, 0.086335f, 0.351492f },
+	{ -0.351612f, -0.084704f, 0.351492f },	{ -0.276288f, 0.086335f, 0.413309f },
+	{ -0.276288f, -0.084704f, 0.413309f },	{ -0.301431f, -0.084705f, 0.201325f },
+	{ -0.413435f, -0.084704f, 0.276163f },	{ -0.413435f, 0.086335f, 0.276163f },
+	{ -0.301431f, 0.086337f, 0.201325f },	{ -0.256367f, -0.084705f, 0.256236f },
+	{ -0.256367f, 0.086337f, 0.256236f },	{ -0.351618f, 0.086335f, 0.351487f },
+	{ -0.351618f, -0.084704f, 0.351487f },	{ -0.334922f, -0.084705f, 0.138670f },
+	{ -0.459374f, -0.084704f, 0.190220f },	{ -0.459374f, 0.086335f, 0.190220f },
+	{ -0.334922f, 0.086337f, 0.138670f },	{ -0.301436f, 0.086337f, 0.201318f },
+	{ -0.301436f, -0.084705f, 0.201318f },	{ -0.413440f, 0.086335f, 0.276156f },
+	{ -0.413440f, -0.084704f, 0.276156f },	{ -0.487663f, -0.084704f, 0.096966f },
+	{ -0.355546f, -0.084705f, 0.070686f },	{ -0.459377f, -0.084704f, 0.190212f },
+	{ -0.334926f, -0.084705f, 0.138663f },	{ -0.355546f, 0.086337f, 0.070686f },
+	{ -0.334926f, 0.086337f, 0.138663f },	{ -0.487663f, 0.086335f, 0.096966f },
+	{ -0.459377f, 0.086335f, 0.190212f },	{ -0.362511f, -0.084705f, -0.000016f },
+	{ -0.355549f, -0.084705f, 0.070678f },	{ -0.497217f, -0.084704f, -0.000016f },
+	{ -0.487665f, -0.084704f, 0.096957f },	{ -0.497217f, 0.086335f, -0.000016f },
+	{ -0.362511f, 0.086337f, -0.000016f },	{ -0.355549f, 0.086337f, 0.070678f },
+	{ -0.487665f, 0.086335f, 0.096957f },	{ -0.362512f, 0.086337f, -0.000024f },
+	{ -0.362512f, -0.084705f, -0.000024f }, { -0.355549f, 0.086337f, -0.070717f },
+	{ -0.355549f, -0.084705f, -0.070717f }, { -0.497217f, -0.084704f, -0.000024f },
+	{ -0.487666f, -0.084704f, -0.096997f }, { -0.497217f, 0.086335f, -0.000024f },
+	{ -0.487666f, 0.086335f, -0.096997f },	{ -0.334927f, -0.084705f, -0.138702f },
+	{ -0.355548f, 0.086337f, -0.070726f },	{ -0.355548f, -0.084705f, -0.070726f },
+	{ -0.334927f, 0.086337f, -0.138702f },	{ -0.487665f, -0.084704f, -0.097005f },
+	{ -0.459379f, -0.084704f, -0.190252f }, { -0.487665f, 0.086335f, -0.097005f },
+	{ -0.459379f, 0.086335f, -0.190252f },	{ -0.413442f, -0.084704f, -0.276196f },
+	{ -0.301439f, -0.084705f, -0.201358f }, { -0.334925f, -0.084705f, -0.138710f },
+	{ -0.459376f, -0.084704f, -0.190260f }, { -0.334925f, 0.086337f, -0.138710f },
+	{ -0.301439f, 0.086337f, -0.201358f },	{ -0.459376f, 0.086335f, -0.190260f },
+	{ -0.413442f, 0.086335f, -0.276196f },	{ -0.256370f, -0.084705f, -0.256276f },
+	{ -0.301434f, 0.086337f, -0.201365f },	{ -0.301434f, -0.084705f, -0.201365f },
+	{ -0.256370f, 0.086337f, -0.256276f },	{ -0.413438f, 0.086335f, -0.276203f },
+	{ -0.351621f, 0.086335f, -0.351527f },	{ -0.413438f, -0.084704f, -0.276203f },
+	{ -0.351621f, -0.084704f, -0.351527f }, { -0.256364f, -0.084705f, -0.256283f },
+	{ -0.201453f, 0.086337f, -0.301347f },	{ -0.256364f, 0.086337f, -0.256283f },
+	{ -0.201453f, -0.084705f, -0.301347f }, { -0.276292f, -0.084704f, -0.413350f },
+	{ -0.351615f, -0.084704f, -0.351534f }, { -0.351615f, 0.086335f, -0.351534f },
+	{ -0.276292f, 0.086335f, -0.413350f },	{ -0.201447f, -0.084705f, -0.301352f },
+	{ -0.276285f, -0.084704f, -0.413355f }, { -0.138799f, -0.084705f, -0.334838f },
+	{ -0.190349f, -0.084704f, -0.459289f }, { -0.276285f, 0.086335f, -0.413355f },
+	{ -0.201447f, 0.086337f, -0.301352f },	{ -0.190349f, 0.086335f, -0.459289f },
+	{ -0.138799f, 0.086337f, -0.334838f },	{ -0.190341f, 0.086335f, -0.459293f },
+	{ -0.190341f, -0.084704f, -0.459293f }, { -0.138791f, -0.084705f, -0.334842f },
+	{ -0.138791f, 0.086337f, -0.334842f },	{ -0.070815f, 0.086337f, -0.355462f },
+	{ -0.070815f, -0.084705f, -0.355462f }, { -0.097095f, 0.086335f, -0.487579f },
+	{ -0.097095f, -0.084704f, -0.487579f }, { -0.070807f, 0.086337f, -0.355464f },
+	{ -0.097086f, 0.086335f, -0.487581f },	{ -0.097086f, -0.084704f, -0.487581f },
+	{ -0.070807f, -0.084705f, -0.355464f }, { -0.000113f, -0.084705f, -0.362427f },
+	{ -0.000113f, 0.086337f, -0.362427f },	{ -0.000113f, 0.086335f, -0.497132f },
+	{ -0.000113f, -0.084704f, -0.497132f }, { 0.070588f, 0.086337f, -0.355465f },
+	{ 0.096868f, -0.084704f, -0.487582f },	{ 0.096868f, 0.086335f, -0.487582f },
+	{ 0.070588f, -0.084705f, -0.355465f },	{ -0.000105f, 0.086337f, -0.362427f },
+	{ -0.000105f, 0.086335f, -0.497133f },	{ -0.000105f, -0.084704f, -0.497133f },
+	{ -0.000105f, -0.084705f, -0.362427f }, { 0.190123f, -0.084704f, -0.459294f },
+	{ 0.190123f, 0.086335f, -0.459294f },	{ 0.138573f, -0.084705f, -0.334843f },
+	{ 0.138573f, 0.086337f, -0.334843f },	{ 0.070597f, 0.086337f, -0.355463f },
+	{ 0.070597f, -0.084705f, -0.355463f },	{ 0.096876f, -0.084704f, -0.487580f },
+	{ 0.096876f, 0.086335f, -0.487580f },	{ 0.201229f, -0.084705f, -0.301354f },
+	{ 0.276067f, -0.084704f, -0.413358f },	{ 0.201229f, 0.086337f, -0.301354f },
+	{ 0.138581f, -0.084705f, -0.334840f },	{ 0.138581f, 0.086337f, -0.334840f },
+	{ 0.190131f, 0.086335f, -0.459292f },	{ 0.276067f, 0.086335f, -0.413358f },
+	{ 0.190131f, -0.084704f, -0.459292f },	{ 0.201236f, 0.086337f, -0.301350f },
+	{ 0.256147f, -0.084705f, -0.256286f },	{ 0.256147f, 0.086337f, -0.256286f },
+	{ 0.201236f, -0.084705f, -0.301350f },	{ 0.351398f, -0.084704f, -0.351537f },
+	{ 0.351398f, 0.086335f, -0.351537f },	{ 0.276074f, -0.084704f, -0.413353f },
+	{ 0.276074f, 0.086335f, -0.413353f },	{ 0.301218f, -0.084705f, -0.201369f },
+	{ 0.301218f, 0.086337f, -0.201369f },	{ 0.256154f, -0.084705f, -0.256280f },
+	{ 0.256154f, 0.086337f, -0.256280f },	{ 0.413221f, 0.086335f, -0.276207f },
+	{ 0.413221f, -0.084704f, -0.276207f },	{ 0.351405f, 0.086335f, -0.351531f },
+	{ 0.351405f, -0.084704f, -0.351531f },	{ 0.334709f, 0.086337f, -0.138715f },
+	{ 0.301223f, 0.086337f, -0.201362f },	{ 0.334709f, -0.084705f, -0.138715f },
+	{ 0.301223f, -0.084705f, -0.201362f },	{ 0.459160f, -0.084704f, -0.190264f },
+	{ 0.459160f, 0.086335f, -0.190264f },	{ 0.413226f, 0.086335f, -0.276200f },
+	{ 0.413226f, -0.084704f, -0.276200f },	{ 0.334713f, -0.084705f, -0.138707f },
+	{ 0.355333f, -0.084705f, -0.070731f },	{ 0.334713f, 0.086337f, -0.138707f },
+	{ 0.355333f, 0.086337f, -0.070731f },	{ 0.459164f, 0.086335f, -0.190257f },
+	{ 0.487450f, 0.086335f, -0.097010f },	{ 0.487450f, -0.084704f, -0.097010f },
+	{ 0.459164f, -0.084704f, -0.190257f },	{ 0.355335f, -0.084705f, -0.070722f },
+	{ 0.362298f, -0.084705f, -0.000029f },	{ 0.355335f, 0.086337f, -0.070722f },
+	{ 0.362298f, 0.086337f, -0.000029f },	{ 0.497003f, -0.084704f, -0.000029f },
+	{ 0.497003f, 0.086335f, -0.000029f },	{ 0.487452f, 0.086335f, -0.097002f },
+	{ 0.487452f, -0.084704f, -0.097002f },	{ 0.362298f, -0.084705f, -0.000021f },
+	{ 0.497003f, -0.084704f, -0.000021f },	{ 0.355336f, -0.084705f, 0.070673f },
+	{ 0.487453f, -0.084704f, 0.096952f },	{ 0.497003f, 0.086335f, -0.000021f },
+	{ 0.362298f, 0.086337f, -0.000021f },	{ 0.355336f, 0.086337f, 0.070673f },
+	{ 0.487453f, 0.086335f, 0.096952f },	{ 0.355334f, -0.084705f, 0.070681f },
+	{ 0.355334f, 0.086337f, 0.070681f },	{ 0.487451f, 0.086335f, 0.096961f },
+	{ 0.487451f, -0.084704f, 0.096961f },	{ 0.334714f, -0.084705f, 0.138658f },
+	{ 0.459165f, -0.084704f, 0.190207f },	{ 0.334714f, 0.086337f, 0.138658f },
+	{ 0.459165f, 0.086335f, 0.190207f },	{ 0.334711f, 0.086337f, 0.138666f },
+	{ 0.301225f, 0.086337f, 0.201313f },	{ 0.459163f, 0.086335f, 0.190215f },
+	{ 0.413229f, 0.086335f, 0.276151f },	{ 0.334711f, -0.084705f, 0.138666f },
+	{ 0.301225f, -0.084705f, 0.201313f },	{ 0.413229f, -0.084704f, 0.276151f },
+	{ 0.459163f, -0.084704f, 0.190215f },	{ 0.301221f, -0.084705f, 0.201321f },
+	{ 0.256157f, -0.084705f, 0.256232f },	{ 0.301221f, 0.086337f, 0.201321f },
+	{ 0.256157f, 0.086337f, 0.256232f },	{ 0.413224f, -0.084704f, 0.276159f },
+	{ 0.413224f, 0.086335f, 0.276159f },	{ 0.351408f, 0.086335f, 0.351483f },
+	{ 0.351408f, -0.084704f, 0.351483f },	{ 0.201240f, -0.084705f, 0.301302f },
+	{ 0.201240f, 0.086337f, 0.301302f },	{ 0.256151f, -0.084705f, 0.256238f },
+	{ 0.256151f, 0.086337f, 0.256238f },	{ 0.351402f, 0.086335f, 0.351489f },
+	{ 0.351402f, -0.084704f, 0.351489f },	{ 0.276078f, 0.086335f, 0.413305f },
+	{ 0.276078f, -0.084704f, 0.413305f },	{ 0.138586f, -0.084705f, 0.334793f },
+	{ 0.201233f, -0.084705f, 0.301307f },	{ 0.190135f, -0.084704f, 0.459244f },
+	{ 0.276071f, -0.084704f, 0.413311f },	{ 0.201233f, 0.086337f, 0.301307f },
+	{ 0.138586f, 0.086337f, 0.334793f },	{ 0.276071f, 0.086335f, 0.413311f },
+	{ 0.190135f, 0.086335f, 0.459244f },	{ 0.138578f, -0.084705f, 0.334797f },
+	{ 0.070602f, -0.084705f, 0.355417f },	{ 0.138578f, 0.086337f, 0.334797f },
+	{ 0.070602f, 0.086337f, 0.355417f },	{ 0.190127f, 0.086335f, 0.459248f },
+	{ 0.190127f, -0.084704f, 0.459248f },	{ 0.096881f, 0.086335f, 0.487534f },
+	{ 0.096881f, -0.084704f, 0.487534f },	{ 0.070593f, -0.084705f, 0.355419f },
+	{ 0.096873f, 0.086335f, 0.487536f },	{ 0.096873f, -0.084704f, 0.487536f },
+	{ 0.070593f, 0.086337f, 0.355419f },	{ -0.000100f, 0.086337f, 0.362382f },
+	{ -0.000100f, 0.086335f, 0.497087f },	{ -0.000100f, -0.084704f, 0.497087f },
+	{ -0.000100f, -0.084705f, 0.362382f },
 };
 
 typedef struct WheelHullSpan
@@ -1278,10 +1466,11 @@ typedef struct WheelHullSpan
 	int count;
 } WheelHullSpan;
 static const WheelHullSpan s_metalWheel1Hulls[37] = {
-	{ 0, 29 },	{ 29, 8 },	{ 37, 8 },	{ 45, 8 },	{ 53, 8 },	{ 61, 8 },	{ 69, 8 },	{ 77, 8 },	{ 85, 8 },	{ 93, 8 },
-	{ 101, 8 }, { 109, 8 }, { 117, 8 }, { 125, 8 }, { 133, 8 }, { 141, 8 }, { 149, 8 }, { 157, 8 }, { 165, 8 }, { 173, 8 },
-	{ 181, 8 }, { 189, 8 }, { 197, 8 }, { 205, 8 }, { 213, 8 }, { 221, 8 }, { 229, 8 }, { 237, 8 }, { 245, 8 }, { 253, 8 },
-	{ 261, 8 }, { 269, 8 }, { 277, 8 }, { 285, 8 }, { 293, 8 }, { 301, 8 }, { 309, 8 },
+	{ 0, 29 },	{ 29, 8 },	{ 37, 8 },	{ 45, 8 },	{ 53, 8 },	{ 61, 8 },	{ 69, 8 },	{ 77, 8 },
+	{ 85, 8 },	{ 93, 8 },	{ 101, 8 }, { 109, 8 }, { 117, 8 }, { 125, 8 }, { 133, 8 }, { 141, 8 },
+	{ 149, 8 }, { 157, 8 }, { 165, 8 }, { 173, 8 }, { 181, 8 }, { 189, 8 }, { 197, 8 }, { 205, 8 },
+	{ 213, 8 }, { 221, 8 }, { 229, 8 }, { 237, 8 }, { 245, 8 }, { 253, 8 }, { 261, 8 }, { 269, 8 },
+	{ 277, 8 }, { 285, 8 }, { 293, 8 }, { 301, 8 }, { 309, 8 },
 };
 #define s_metalWheel1HullCount 37
 
@@ -1363,14 +1552,14 @@ public:
 		b3Profile p = b3World_GetProfile( m_worldId );
 		float substepRate = m_context->hertz * m_context->subStepCount;
 
-		DrawTextLine( "wheels %d, hull pieces/wheel %d (%d total shapes)", m_wheelCount, s_metalWheel1HullCount,
-					  m_wheelCount * s_metalWheel1HullCount );
-		DrawTextLine( "step %.0f hz, sub-steps %d -> substep rate %.0f hz", m_context->hertz, m_context->subStepCount,
-					  substepRate );
+		DrawTextLine( "wheels %d, hull pieces/wheel %d (%d total shapes)", m_wheelCount,
+					  s_metalWheel1HullCount, m_wheelCount * s_metalWheel1HullCount );
+		DrawTextLine( "step %.0f hz, sub-steps %d -> substep rate %.0f hz", m_context->hertz,
+					  m_context->subStepCount, substepRate );
 		DrawTextLine( "eff contact hz = min(240, %.0f) = %.0f", 0.125f * substepRate,
 					  b3MinFloat( 240.0f, 0.125f * substepRate ) );
-		DrawTextLine( "step %.3f ms | collide %.3f ms (%.0f%%) | solve %.3f ms (%.0f%%)", p.step, p.collide,
-					  p.step > 0.0f ? 100.0f * p.collide / p.step : 0.0f, p.solve,
+		DrawTextLine( "step %.3f ms | collide %.3f ms (%.0f%%) | solve %.3f ms (%.0f%%)", p.step,
+					  p.collide, p.step > 0.0f ? 100.0f * p.collide / p.step : 0.0f, p.solve,
 					  p.step > 0.0f ? 100.0f * p.solve / p.step : 0.0f );
 	}
 
@@ -1385,7 +1574,8 @@ public:
 
 static int sampleWheelStack = RegisterSample( "Issues", "GMod Wheel Stack", WheelStack::Create );
 
-// There was a problem where this bouncing box could gain energy. This has been fixed by the deferred restitution update.
+// There was a problem where this bouncing box could gain energy. This has been fixed by the
+// deferred restitution update.
 class RestitutionOvershoot : public Sample
 {
 public:
@@ -1465,9 +1655,9 @@ public:
 		b3Pos markerPoint = { 0.0f, m_dropHeight + m_boxHalf, 0.0f };
 		DrawPlane( b3Vec3_axisY, markerPoint, MakeColor( b3_colorYellow ) );
 
-		// Perfect restitution and no friction, so the total energy may only decrease. It is the honest
-		// invariant here: the height check cannot tell a bounce that gained potential energy from one
-		// that converted it into spin, and this drop does both.
+		// Perfect restitution and no friction, so the total energy may only decrease. It is the
+		// honest invariant here: the height check cannot tell a bounce that gained potential energy
+		// from one that converted it into spin, and this drop does both.
 		MechanicalEnergy energy = MeasureEnergy( m_worldId, &m_boxBody, 1 );
 		float total = energy.Total();
 
@@ -1484,10 +1674,11 @@ public:
 		DrawTextLine( "drop height = %.2f m", m_dropHeight );
 		DrawTextLine( "current y   = %.2f m", m_currentY );
 		DrawTextLine( "max bounce  = %.2f m", m_maxBounceY );
-		DrawTextLine( "kinetic     = %.0f J linear + %.0f J angular", energy.linear, energy.angular );
+		DrawTextLine( "kinetic     = %.0f J linear + %.0f J angular", energy.linear,
+					  energy.angular );
 		DrawTextLine( "potential   = %.0f J", energy.potential );
-		DrawTextLine( "total       = %.0f J (%.2f%% of start, peak %.2f%%)", total, 100.0f * total / m_startEnergy,
-					  100.0f * m_maxEnergy / m_startEnergy );
+		DrawTextLine( "total       = %.0f J (%.2f%% of start, peak %.2f%%)", total,
+					  100.0f * total / m_startEnergy, 100.0f * m_maxEnergy / m_startEnergy );
 
 		if ( m_bounced == false )
 		{
@@ -1529,7 +1720,8 @@ public:
 	bool m_energyFailed = false;
 };
 
-static int sampleRestitutionOvershoot = RegisterSample( "Issues", "Restitution Overshoot", RestitutionOvershoot::Create );
+static int sampleRestitutionOvershoot =
+	RegisterSample( "Issues", "Restitution Overshoot", RestitutionOvershoot::Create );
 
 class SlideTwistOffCenterShape : public Sample
 {
@@ -1753,8 +1945,10 @@ public:
 		float interiorRestX = -m_wallHalfThickness - m_moverHalfExtent;
 		float exteriorRestX = m_wallHalfThickness + m_moverHalfExtent;
 
-		b3Vec3 lower = { interiorRestX - m_moverHalfExtent, m_wallHalfHeight - m_moverHalfExtent, -m_moverHalfExtent };
-		b3Vec3 upper = { interiorRestX + m_moverHalfExtent, m_wallHalfHeight + m_moverHalfExtent, m_moverHalfExtent };
+		b3Vec3 lower = { interiorRestX - m_moverHalfExtent, m_wallHalfHeight - m_moverHalfExtent,
+						 -m_moverHalfExtent };
+		b3Vec3 upper = { interiorRestX + m_moverHalfExtent, m_wallHalfHeight + m_moverHalfExtent,
+						 m_moverHalfExtent };
 		DrawAabb( lower, upper, MakeColor( b3_colorLime ) );
 
 		float x = (float)b3Body_GetPosition( m_moverId ).x;
@@ -1785,4 +1979,5 @@ public:
 	float m_startX = 0.2f;
 };
 
-static int sampleThinWallPushOut = RegisterSample( "Issues", "Thin Wall Push Out", ThinWallPushOut::Create );
+static int sampleThinWallPushOut =
+	RegisterSample( "Issues", "Thin Wall Push Out", ThinWallPushOut::Create );
