@@ -58,6 +58,11 @@ typedef struct GhostSettings
 	GhostBody body;
 	int peelPreset;
 	bool mirror;
+
+	// Build the ground from height fields instead of meshes. Each height field is its own shape, so the
+	// T-junction scene becomes a seam between a fine and a coarse tile.
+	bool heightField;
+
 	float cellSize;
 	float speed;
 
@@ -89,6 +94,11 @@ typedef struct GhostCollisionsData
 	float halfWidth;
 	b3MeshData* meshes[2];
 	int meshCount;
+
+	// A height field shape has no local transform, so each one gets its own static body
+	b3HeightFieldData* heightFields[2];
+	b3BodyId heightBodyIds[2];
+	int heightFieldCount;
 	b3HullData* cylinder;
 	b3HullData* peelCylinder;
 	b3BodyId groundId;
@@ -112,7 +122,7 @@ typedef struct GhostCollisionsData
 // Creates the ground and launches the body
 GhostCollisionsData CreateGhostCollisions( b3WorldId worldId, GhostSettings settings );
 
-// Rebuild the ground after a scene, preset, mirror or cell size change. Relaunch after this.
+// Rebuild the ground after a scene, preset, mirror, height field or cell size change. Relaunch after this.
 void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data );
 
 // Launch a new body from the start, after a body, speed, yaw, friction or rotation change

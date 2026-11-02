@@ -2294,6 +2294,13 @@ typedef struct b3MeshTriangle
 // Indicates an isolated edge.
 #define B3_BOUNDARY_EDGE_ANGLE ( -128 )
 
+// Mesh vertex flags. Used for ghost collision handling.
+typedef enum b3MeshVertexFlags
+{
+	b3_flatVertex = 0x01,
+	b3_concaveVertex = 0x02,
+} b3MeshVertexFlags;
+
 /// A mesh BVH node.
 typedef struct b3MeshNode
 {
@@ -2384,6 +2391,9 @@ typedef struct b3MeshData
 
 	// Offset to the array of neighbor quantized normal offsets.
 	int32_t edgeAngleOffset;
+
+	/// Offset of the vertex flag array in bytes from the struct address.
+	int32_t vertexFlagOffset;
 } b3MeshData;
 
 /// This allows mesh data to be re-used with different scales.

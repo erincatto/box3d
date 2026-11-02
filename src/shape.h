@@ -199,6 +199,19 @@ static inline bool b3GetNeighborNormal( const b3Shape* shape, int triangleIndex,
 	return b3GetHeightFieldNeighborNormal( shape->heightField, triangleIndex, edgeIndex, normal );
 }
 
+int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex );
+
+static inline int b3GetVertexFlag( const b3Shape* shape, int triangleIndex, int vertexIndex )
+{
+	if ( shape->type == b3_meshShape )
+	{
+		return b3GetMeshVertexFlag( &shape->mesh, triangleIndex, vertexIndex );
+	}
+
+	B3_ASSERT( shape->type == b3_heightShape );
+	return b3_flatVertex;
+}
+
 bool b3IsValidMesh( const b3MeshData* meshData );
 
 static inline bool b3ShouldShapesCollide( b3Filter filterA, b3Filter filterB )

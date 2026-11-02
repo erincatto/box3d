@@ -445,6 +445,28 @@ static bool b3GetNeighborDirection( const b3Shape* shape, int triangleIndex, con
 	return true;
 }
 
+// Is the normal in the vertex Voronoi region?
+static bool b3IsInVertexRegion( const b3Vec3* vertices, int vertexIndex, b3Vec3 normal )
+{
+	b3Vec3 vertex = vertices[vertexIndex];
+	b3Vec3 next = vertices[vertexIndex < 2 ? vertexIndex + 1 : 0];
+	b3Vec3 previous = vertices[vertexIndex > 0 ? vertexIndex - 1 : 2];
+	return b3Dot( normal, b3Sub( next, vertex ) ) <= 0.0f && b3Dot( normal, b3Sub( previous, vertex ) ) <= 0.0f;
+}
+
+// Check the vertex flags to determined if this normal is admissible.
+static bool b3AdmitsVertexNormal( const b3Shape* shape, int triangleIndex, const b3Vec3* vertices, int vertexIndex,
+								  b3Vec3 normal )
+{
+	if ( b3IsInVertexRegion( vertices, vertexIndex, normal ) == false )
+	{
+		return false;
+	}
+
+	int flags = b3GetVertexFlag( shape, triangleIndex, vertexIndex );
+	return ( flags & ( b3_flatVertex | b3_concaveVertex ) ) == 0;
+}
+
 // Voronoi test of an edge or vertex normal against the neighbor normals.
 static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex,
 										 const b3Vec3* vertices, b3Matrix3 meshToLocal,
@@ -452,6 +474,7 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 {
 	int edges[2] = { 0, 0 };
 	int edgeCount = 1;
+	int vertexIndex = B3_NULL_INDEX;
 
 	switch ( feature )
 	{
@@ -471,18 +494,21 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 			edges[0] = 0;
 			edges[1] = 2;
 			edgeCount = 2;
+			vertexIndex = 0;
 			break;
 
 		case b3_featureVertex2:
 			edges[0] = 0;
 			edges[1] = 1;
 			edgeCount = 2;
+			vertexIndex = 1;
 			break;
 
 		case b3_featureVertex3:
 			edges[0] = 1;
 			edges[1] = 2;
 			edgeCount = 2;
+			vertexIndex = 2;
 			break;
 
 		default:
@@ -514,7 +540,18 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 		return b3_neighborAdmit;
 	}
 
-	return convex ? b3_neighborSkip : b3_neighborSnap;
+	if ( convex )
+	{
+		return b3_neighborSkip;
+	}
+
+	// Check vertex.
+	if ( vertexIndex != B3_NULL_INDEX && b3AdmitsVertexNormal( shape, triangleIndex, vertices, vertexIndex, normal ) )
+	{
+		return b3_neighborAdmit;
+	}
+
+	return b3_neighborSnap;
 }
 
 // Voronoi test of neighbors based on deepest point.
@@ -539,6 +576,20 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 		if ( manifold->points[i].separation < manifold->points[deepest].separation )
 		{
 			deepest = i;
+		}
+	}
+
+	// Test vertices.
+	if ( manifold->points[deepest].separation < 0.0f )
+	{
+		for ( int i = 0; i < 3; ++i )
+		{
+			if ( b3AdmitsVertexNormal( shape, triangleIndex, vertices, i, normal ) )
+			{
+				b3TriangleFeature vertexFeatures[3] = { b3_featureVertex1, b3_featureVertex2, b3_featureVertex3 };
+				*nearFeature = vertexFeatures[i];
+				return b3_neighborAdmit;
+			}
 		}
 	}
 
@@ -567,7 +618,34 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 		}
 	}
 
-	b3TriangleFeature feature;
+	b3TriangleFeature feature = b3_featureNone;
+	if ( nearCount == 2 )
+	{
+		int vertexIndex;
+		if ( nearEdges[0] == 0 && nearEdges[1] == 1 )
+		{
+			feature = b3_featureVertex2;
+			vertexIndex = 1;
+		}
+		else if ( nearEdges[0] == 1 )
+		{
+			feature = b3_featureVertex3;
+			vertexIndex = 2;
+		}
+		else
+		{
+			feature = b3_featureVertex1;
+			vertexIndex = 0;
+		}
+
+		// Test vertex.
+		if ( b3AdmitsVertexNormal( shape, triangleIndex, vertices, vertexIndex, normal ) )
+		{
+			*nearFeature = feature;
+			return b3_neighborAdmit;
+		}
+	}
+
 	if ( nearCount == 0 || inwardTilt )
 	{
 		// A tilted hull face over the triangle interior, the triangle face owns the normal.
@@ -583,22 +661,7 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 		b3TriangleFeature edgeFeatures[3] = { b3_featureEdge1, b3_featureEdge2, b3_featureEdge3 };
 		feature = edgeFeatures[nearEdges[0]];
 	}
-	else if ( nearCount == 2 )
-	{
-		if ( nearEdges[0] == 0 && nearEdges[1] == 1 )
-		{
-			feature = b3_featureVertex2;
-		}
-		else if ( nearEdges[0] == 1 )
-		{
-			feature = b3_featureVertex3;
-		}
-		else
-		{
-			feature = b3_featureVertex1;
-		}
-	}
-	else
+	else if ( nearCount == 3 )
 	{
 		return b3_neighborUnknown;
 	}
@@ -1134,6 +1197,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 		{
 			b3BlockSource* source = blockSources + i;
 			b3Vec3 normal = manifoldBuffer[source->manifoldIndex].normal;
+			float bestAlignment = -FLT_MAX;
 			for ( int j = 0; j < survivorCount; ++j )
 			{
 				if ( j == source->survivorIndex )
@@ -1143,13 +1207,22 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 				if ( b3ShouldBlockNormal( survivorVertices + 3 * j, blockTargets[j], source->point, normal ) )
 				{
-					source->blockerIndex = j;
-					int blockerManifold = survivorManifolds[j];
-					if ( blockerManifold != B3_NULL_INDEX )
+					// todo explain this better
+					float alignment = b3Dot( normal, blockTargets[j].normal );
+					if ( alignment > bestAlignment )
 					{
-						usedAsBlocker[blockerManifold] = true;
+						bestAlignment = alignment;
+						source->blockerIndex = j;
 					}
-					break;
+				}
+			}
+
+			if ( source->blockerIndex != B3_NULL_INDEX )
+			{
+				int blockerManifold = survivorManifolds[source->blockerIndex];
+				if ( blockerManifold != B3_NULL_INDEX )
+				{
+					usedAsBlocker[blockerManifold] = true;
 				}
 			}
 		}

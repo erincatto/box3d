@@ -2092,12 +2092,12 @@ struct GhostScene
 	bool speculative;
 };
 
-// Every surface in these scenes faces up, so wind each triangle upward
-static void AddGhostTriangle( GhostMesh& mesh, int a, int b, int c )
+// Most surfaces in these scenes face up, so wind each triangle upward unless told otherwise
+static void AddGhostTriangle( GhostMesh& mesh, int a, int b, int c, b3Vec3 facing = b3Vec3_axisY )
 {
 	b3Vec3 va = mesh.vertices[a];
 	b3Vec3 normal = b3Cross( b3Sub( mesh.vertices[b], va ), b3Sub( mesh.vertices[c], va ) );
-	if ( normal.y < 0.0f )
+	if ( b3Dot( normal, facing ) < 0.0f )
 	{
 		int temp = b;
 		b = c;
@@ -2630,29 +2630,54 @@ static void BuildGhostSeam( std::vector<GhostMesh>& meshes )
 }
 
 // s&box units are inches. Beam top at y = 0 for x > 0, chamfer dropping 1 inch over 1.5 inch for x
-// < 0, 8 inch cells along z with the chamfer quads split like the s&box sample.
-static void BuildGhostChamfer( std::vector<GhostMesh>& meshes )
+// < 0, 8 inch cells along z with the chamfer quads split like the s&box sample. A side depth in inches
+// adds a vertical face below the chamfer, so the chamfer bottom edge is convex instead of a boundary.
+static void BuildChamferBeam( std::vector<GhostMesh>& meshes, float sideDepth )
 {
 	float inch = 0.0254f;
+	bool hasSide = sideDepth > 0.0f;
+	int rowSize = hasSide ? 4 : 3;
 	GhostMesh mesh;
 	for ( int k = 0; k <= 4; ++k )
 	{
-		float z = ( -16.0f + 8.0f * k ) * inch;
+		float z = 4.0f * ( -16.0f + 8.0f * k ) * inch;
 		mesh.vertices.push_back( { -1.5f * inch, -1.0f * inch, z } );
 		mesh.vertices.push_back( { 0.0f, 0.0f, z } );
-		mesh.vertices.push_back( { 24.0f * inch, 0.0f, z } );
+		mesh.vertices.push_back( { 48.0f * inch, 0.0f, z } );
+		if ( hasSide )
+		{
+			mesh.vertices.push_back( { -1.5f * inch, ( -1.0f - sideDepth ) * inch, z } );
+		}
 	}
 
 	for ( int k = 0; k < 4; ++k )
 	{
-		int low0 = 3 * k, top0 = 3 * k + 1, far0 = 3 * k + 2;
-		int low1 = low0 + 3, top1 = top0 + 3, far1 = far0 + 3;
+		int low0 = rowSize * k, top0 = low0 + 1, far0 = low0 + 2;
+		int low1 = low0 + rowSize, top1 = top0 + rowSize, far1 = far0 + rowSize;
 		AddGhostTriangle( mesh, low0, low1, top1 );
 		AddGhostTriangle( mesh, low0, top1, top0 );
 		AddGhostTriangle( mesh, top0, top1, far1 );
 		AddGhostTriangle( mesh, top0, far1, far0 );
+
+		if ( hasSide )
+		{
+			int side0 = low0 + 3, side1 = low1 + 3;
+			b3Vec3 facing = { -1.0f, 0.0f, 0.0f };
+			AddGhostTriangle( mesh, side0, side1, low1, facing );
+			AddGhostTriangle( mesh, side0, low1, low0, facing );
+		}
 	}
 	meshes.push_back( mesh );
+}
+
+static void BuildGhostChamfer( std::vector<GhostMesh>& meshes )
+{
+	BuildChamferBeam( meshes, 0.0f );
+}
+
+static void BuildGhostChamferExtended( std::vector<GhostMesh>& meshes )
+{
+	BuildChamferBeam( meshes, 6.0f );
 }
 
 static const float s_inch = 0.0254f;
@@ -2737,12 +2762,22 @@ static const GhostScene s_hullGhostScenes[] = {
 		true,
 	},
 	{
-		"s&box chamfer",
+		"Chamfer",
 		"none without handling, SAT picks the box bottom for the chamfer triangles, 0.07 inch deep",
 		"causes the ghost, the deepest point is on a flat chamfer vertex or diagonal next to the "
 		"convex top edge so the "
 		"hull face snaps to the 34 degree chamfer normal (ghost plan step 2c)",
 		BuildGhostChamfer,
+		{ 16.0f * s_inch, 36.0f * s_inch, 16.0f * s_inch },
+		{ 4.0f * s_inch, 36.0f * s_inch - 0.073f * s_inch, 3.0f * s_inch },
+		{ 0.0f, 0.0f, 0.0f },
+		false,
+	},
+	{
+		"Chamfer extended",
+		"the chamfer scene with 6 inches of vertical beam side below the chamfer, 0.07 inch deep",
+		"the chamfer bottom edge is convex instead of a boundary",
+		BuildGhostChamferExtended,
 		{ 16.0f * s_inch, 36.0f * s_inch, 16.0f * s_inch },
 		{ 4.0f * s_inch, 36.0f * s_inch - 0.073f * s_inch, 3.0f * s_inch },
 		{ 0.0f, 0.0f, 0.0f },

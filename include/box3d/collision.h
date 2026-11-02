@@ -353,6 +353,17 @@ B3_INLINE const int8_t* b3GetMeshEdgeAngles( const b3MeshData* mesh )
 	return (const int8_t*)( (intptr_t)mesh + mesh->edgeAngleOffset );
 }
 
+// Get read only vertex flags.
+B3_INLINE const uint8_t* b3GetMeshVertexFlags( const b3MeshData* mesh )
+{
+	if ( mesh->vertexFlagOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (const uint8_t*)( (intptr_t)mesh + mesh->vertexFlagOffset );
+}
+
 /// Create a grid mesh along the x and z axes.
 /// @param xCount the number of rows in the x direction
 /// @param zCount the number of rows in the z direction

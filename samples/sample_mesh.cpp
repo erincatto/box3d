@@ -1710,7 +1710,8 @@ public:
 			relaunch = true;
 		}
 
-		rebuild |= ImGui::Checkbox( "Mirror Mesh", &settings.mirror );
+		rebuild |= ImGui::Checkbox( "Mirror", &settings.mirror );
+		rebuild |= ImGui::Checkbox( "Height Field", &settings.heightField );
 		rebuild |= ImGui::SliderFloat( "Cell Size", &settings.cellSize, 0.1f, 1.0f, "%.2f m" );
 		relaunch |= ImGui::SliderFloat( "Speed", &settings.speed, 0.0f, 15.0f, "%.1f m/s" );
 		relaunch |= ImGui::SliderFloat( "Yaw", &settings.yaw, 0.0f, 45.0f, "%.0f deg" );

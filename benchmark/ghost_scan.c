@@ -253,6 +253,10 @@ int main( int argc, char** argv )
 		{
 			settings.speculative = false;
 		}
+		else if ( strcmp( arg, "--height-field" ) == 0 )
+		{
+			settings.heightField = true;
+		}
 		else if ( strcmp( arg, "-v" ) == 0 || strcmp( arg, "--verbose" ) == 0 )
 		{
 			verbose = true;
@@ -274,6 +278,7 @@ int main( int argc, char** argv )
 					"  -w, --write=<file>       write results as csv\n"
 					"  -c, --compare=<file>     compare with a written csv, fail if any count grew\n"
 					"  --speed=, --yaw=, --friction=, --cell=, --fixed-rotation, --no-speculative\n"
+					"  --height-field           height field ground, the t-junction becomes a fine and coarse tile seam\n"
 					"  -v, --verbose            print every ghost\n"
 					"Exit code is 1 when a compared count grew, 0 otherwise.\n" );
 			return 2;
@@ -328,8 +333,8 @@ int main( int argc, char** argv )
 		return 2;
 	}
 
-	printf( "ghost scan: %d configs, %d steps, speed %.1f, yaw %.0f, friction %.2f, cell %.2f\n", configCount, stepCount,
-			settings.speed, settings.yaw, settings.friction, settings.cellSize );
+	printf( "ghost scan: %d configs, %d steps, speed %.1f, yaw %.0f, friction %.2f, cell %.2f%s\n", configCount, stepCount,
+			settings.speed, settings.yaw, settings.friction, settings.cellSize, settings.heightField ? ", height field" : "" );
 	fflush( stdout );
 
 	uint64_t ticks = b3GetTicks();

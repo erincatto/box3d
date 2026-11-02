@@ -48,6 +48,7 @@ GhostSettings GetDefaultGhostSettings( void )
 		.body = e_ghostBox,
 		.peelPreset = 0,
 		.mirror = false,
+		.heightField = false,
 		.cellSize = 0.25f,
 		.speed = 6.0f,
 		.yaw = 0.0f,
@@ -173,7 +174,8 @@ static void AddMesh( GhostCollisionsData* data, MeshBuilder* builder, bool frict
 	builder->indexCount = 0;
 }
 
-static void DestroyGhostMeshes( GhostCollisionsData* data )
+// The bodies holding height field shapes must go first
+static void DestroyGhostGroundData( GhostCollisionsData* data )
 {
 	for ( int i = 0; i < data->meshCount; ++i )
 	{
@@ -181,6 +183,13 @@ static void DestroyGhostMeshes( GhostCollisionsData* data )
 		data->meshes[i] = NULL;
 	}
 	data->meshCount = 0;
+
+	for ( int i = 0; i < data->heightFieldCount; ++i )
+	{
+		b3DestroyHeightField( data->heightFields[i] );
+		data->heightFields[i] = NULL;
+	}
+	data->heightFieldCount = 0;
 }
 
 static void PushProfile( GhostCollisionsData* data, float x, float y )
@@ -191,13 +200,107 @@ static void PushProfile( GhostCollisionsData* data, float x, float y )
 	}
 }
 
+// The profile is a function of x, a vertical step has two points at the same x
+static float EvaluateProfile( const GhostCollisionsData* data, float x )
+{
+	const b3Vec2* profile = data->profile;
+	int count = data->profileCount;
+	for ( int k = 0; k + 1 < count; ++k )
+	{
+		if ( x <= profile[k + 1].x )
+		{
+			float dx = profile[k + 1].x - profile[k].x;
+			float t = dx > 0.0f ? b3ClampFloat( ( x - profile[k].x ) / dx, 0.0f, 1.0f ) : 1.0f;
+			return profile[k].y + t * ( profile[k + 1].y - profile[k].y );
+		}
+	}
+
+	return profile[count - 1].y;
+}
+
+static int GetCellCount( float length, float cellSize )
+{
+	return b3MaxInt( 1, (int)ceilf( length / cellSize - 0.01f ) );
+}
+
+// Samples the profile on a grid spanning x0 to x1. The mirror samples in reverse and turns the body half
+// way around y, so the world geometry is the same either way. All tiles of a scene share one height range
+// so their quantized heights line up at a seam.
+static void AddHeightField( b3WorldId worldId, GhostCollisionsData* data, float x0, float x1, int cellCountX, float halfWidth,
+							int cellCountZ, bool frictionless )
+{
+	float minHeight = FLT_MAX;
+	float maxHeight = -FLT_MAX;
+	for ( int k = 0; k < data->profileCount; ++k )
+	{
+		minHeight = b3MinFloat( minHeight, data->profile[k].y );
+		maxHeight = b3MaxFloat( maxHeight, data->profile[k].y );
+	}
+
+	bool mirror = data->settings.mirror;
+	int countX = cellCountX + 1;
+	int countZ = cellCountZ + 1;
+	float cellX = ( x1 - x0 ) / (float)cellCountX;
+	float cellZ = 2.0f * halfWidth / (float)cellCountZ;
+
+	float* heights = malloc( countX * countZ * sizeof( float ) );
+	for ( int row = 0; row < countZ; ++row )
+	{
+		for ( int column = 0; column < countX; ++column )
+		{
+			float x = mirror ? x1 - cellX * (float)column : x0 + cellX * (float)column;
+			heights[row * countX + column] = EvaluateProfile( data, x );
+		}
+	}
+
+	b3HeightFieldDef def = { 0 };
+	def.heights = heights;
+	def.scale = (b3Vec3){ cellX, 1.0f, cellZ };
+	def.countX = countX;
+	def.countZ = countZ;
+	def.globalMinimumHeight = minHeight;
+	def.globalMaximumHeight = maxHeight;
+	b3HeightFieldData* heightField = b3CreateHeightField( &def );
+	free( heights );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	if ( mirror )
+	{
+		bodyDef.position = (b3Pos){ x1, 0.0f, halfWidth };
+		bodyDef.rotation = (b3Quat){ { 0.0f, 1.0f, 0.0f }, 0.0f };
+	}
+	else
+	{
+		bodyDef.position = (b3Pos){ x0, 0.0f, -halfWidth };
+	}
+
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	if ( frictionless )
+	{
+		shapeDef.baseMaterial.friction = 0.0f;
+	}
+	b3CreateHeightFieldShape( bodyId, &shapeDef, heightField );
+
+	data->heightFields[data->heightFieldCount] = heightField;
+	data->heightBodyIds[data->heightFieldCount] = bodyId;
+	data->heightFieldCount += 1;
+}
+
 void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 {
 	if ( B3_IS_NON_NULL( data->groundId ) )
 	{
 		b3DestroyBody( data->groundId );
 	}
-	DestroyGhostMeshes( data );
+
+	for ( int i = 0; i < data->heightFieldCount; ++i )
+	{
+		b3DestroyBody( data->heightBodyIds[i] );
+	}
+
+	DestroyGhostGroundData( data );
 
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	data->groundId = b3CreateBody( worldId, &bodyDef );
@@ -219,9 +322,10 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 		break;
 
 		case e_ghostCliff:
+			// A height field cannot hold a vertical wall, so there the drop takes one cell
 			PushProfile( data, -h, 3.0f );
 			PushProfile( data, 0.0f, 3.0f );
-			PushProfile( data, 0.0f, 0.0f );
+			PushProfile( data, settings->heightField ? settings->cellSize : 0.0f, 0.0f );
 			PushProfile( data, h, 0.0f );
 			break;
 
@@ -262,8 +366,42 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 	b3Vec2 right[2] = { { 0.0f, 0.0f }, { h, 0.0f } };
 	float cellSize = settings->cellSize;
 	bool mirror = settings->mirror;
+	float groundHalfWidth = GHOST_HALF_WIDTH;
+	int cellCountZ = GetCellCount( 2.0f * groundHalfWidth, cellSize );
 
-	if ( settings->scene == e_ghostTJunction )
+	if ( settings->heightField )
+	{
+		if ( settings->scene == e_ghostTJunction )
+		{
+			AddHeightField( worldId, data, -h, 0.0f, GetCellCount( h, cellSize ), groundHalfWidth,
+							GetCellCount( 2.0f * groundHalfWidth, 0.5f * cellSize ), false );
+			AddHeightField( worldId, data, 0.0f, h, GetCellCount( h, cellSize ), groundHalfWidth, cellCountZ, false );
+		}
+		else if ( settings->scene == e_ghostSeam )
+		{
+			AddHeightField( worldId, data, -h, 0.0f, GetCellCount( h, cellSize ), groundHalfWidth, cellCountZ, false );
+			AddHeightField( worldId, data, 0.0f, h, GetCellCount( h, cellSize ), groundHalfWidth, cellCountZ, false );
+		}
+		else if ( settings->scene == e_ghostInternal )
+		{
+			// One grid line per profile row, as in the mesh
+			PeelPreset preset = s_peelPresets[settings->peelPreset];
+			int zCount = preset.columnCount - 1;
+			data->halfWidth = 20.0f * preset.scaleX * (float)zCount;
+			float x0 = data->profile[0].x;
+			float x1 = data->profile[data->profileCount - 1].x;
+			AddHeightField( worldId, data, x0, x1, data->profileCount - 1, data->halfWidth, zCount, true );
+
+			b3BoxHull box = b3MakeOffsetBoxHull( 140.0f, 1.0f, 30.0f, ( b3Vec3 ){ 65.0f, -1.0f, 0.0f } );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateHullShape( data->groundId, &shapeDef, &box.base );
+		}
+		else
+		{
+			AddHeightField( worldId, data, -h, h, GetCellCount( 2.0f * h, cellSize ), groundHalfWidth, cellCountZ, false );
+		}
+	}
+	else if ( settings->scene == e_ghostTJunction )
 	{
 		// Fine and coarse strips share only every other vertex along x = 0
 		AddStrip( &builder, left, 2, cellSize, 0.5f * cellSize, mirror );
@@ -520,7 +658,8 @@ int UpdateGhostCollisions( b3WorldId worldId, GhostCollisionsData* data, GhostRe
 	{
 		bool bodyIsA = B3_ID_EQUALS( contacts[i].shapeIdA, data->shapeId );
 		b3ShapeId otherId = bodyIsA ? contacts[i].shapeIdB : contacts[i].shapeIdA;
-		if ( b3Shape_GetType( otherId ) != b3_meshShape )
+		b3ShapeType otherType = b3Shape_GetType( otherId );
+		if ( otherType != b3_meshShape && otherType != b3_heightShape )
 		{
 			continue;
 		}
@@ -579,7 +718,7 @@ int UpdateGhostCollisions( b3WorldId worldId, GhostCollisionsData* data, GhostRe
 
 void DestroyGhostCollisions( GhostCollisionsData* data )
 {
-	DestroyGhostMeshes( data );
+	DestroyGhostGroundData( data );
 	b3DestroyHull( data->cylinder );
 	b3DestroyHull( data->peelCylinder );
 	data->cylinder = NULL;

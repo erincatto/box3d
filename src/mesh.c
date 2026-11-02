@@ -138,6 +138,16 @@ static int8_t* b3GetMeshEdgeAnglesWrite( b3MeshData* mesh )
 	return (int8_t*)( (intptr_t)mesh + mesh->edgeAngleOffset );
 }
 
+static uint8_t* b3GetMeshVertexFlagsWrite( b3MeshData* mesh )
+{
+	if ( mesh->vertexFlagOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (uint8_t*)( (intptr_t)mesh + mesh->vertexFlagOffset );
+}
+
 static int b3GetNodeHeight( const b3MeshNode* node )
 {
 	if ( b3IsLeaf( node ) )
@@ -1110,6 +1120,30 @@ bool b3GetMeshNeighborNormal( const b3Mesh* mesh, int triangleIndex, int edgeInd
 	return true;
 }
 
+int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex )
+{
+	const b3MeshData* data = mesh->data;
+	B3_ASSERT( 0 <= triangleIndex && triangleIndex < data->triangleCount );
+	B3_ASSERT( 0 <= vertexIndex && vertexIndex < 3 );
+
+	const uint8_t* vertexFlags = b3GetMeshVertexFlags( data );
+	if ( vertexFlags == NULL )
+	{
+		return b3_flatVertex;
+	}
+
+	b3Vec3 scale = mesh->scale;
+	if ( scale.x * scale.y * scale.z < 0.0f )
+	{
+		// Handle reflection.
+		vertexIndex = ( 3 - vertexIndex ) % 3;
+	}
+
+	b3MeshTriangle triangle = b3GetMeshTriangles( data )[triangleIndex];
+	int indices[3] = { triangle.index1, triangle.index2, triangle.index3 };
+	return vertexFlags[indices[vertexIndex]];
+}
+
 #define NAME b3EdgeMap
 #define KEY_TY uint64_t
 #define VAL_TY int
@@ -1317,6 +1351,40 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 			int edgeFlags[3] = { b3_inverseConcaveEdge1, b3_inverseConcaveEdge2, b3_inverseConcaveEdge3 };
 			*flag1 |= edgeFlags[edge->triangleEdgeIndex1];
 			*flag2 |= edgeFlags[edge->triangleEdgeIndex2];
+		}
+	}
+
+	uint8_t* vertexFlags = b3GetMeshVertexFlagsWrite( mesh );
+	B3_ASSERT( vertexFlags != NULL );
+
+	for ( int i = 0; i < mesh->vertexCount; ++i )
+	{
+		vertexFlags[i] = b3_flatVertex;
+	}
+
+	// Vertex flags for ghost collision handling.
+	for ( int i = 0; i < triangleCount; ++i )
+	{
+		int indices[3] = { triangles[i].index1, triangles[i].index2, triangles[i].index3 };
+		for ( int k = 0; k < 3; ++k )
+		{
+			int8_t angle = edgeAngles[3 * i + k];
+			int a = indices[k];
+			int b = indices[k < 2 ? k + 1 : 0];
+
+			// Edge not flat?
+			if ( angle != 0 )
+			{
+				vertexFlags[a] = (uint8_t)( vertexFlags[a] & ~b3_flatVertex );
+				vertexFlags[b] = (uint8_t)( vertexFlags[b] & ~b3_flatVertex );
+			}
+
+			// Edge concave?
+			if ( angle < 0 && angle != B3_BOUNDARY_EDGE_ANGLE )
+			{
+				vertexFlags[a] |= b3_concaveVertex;
+				vertexFlags[b] |= b3_concaveVertex;
+			}
 		}
 	}
 
@@ -1841,10 +1909,13 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	int flagsOffset = (int)byteCount;
 	byteCount += b3AlignUp8( triangleCount * sizeof( uint8_t ) );
 	int edgeAngleOffset = 0;
+	int vertexFlagOffset = 0;
 	if ( def->identifyEdges )
 	{
 		edgeAngleOffset = (int)byteCount;
 		byteCount += b3AlignUp8( 3 * triangleCount * sizeof( int8_t ) );
+		vertexFlagOffset = (int)byteCount;
+		byteCount += b3AlignUp8( vertexCount * sizeof( uint8_t ) );
 	}
 
 	b3MeshData* mesh = b3Alloc( byteCount );
@@ -1868,6 +1939,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	mesh->materialCount = materialCount;
 	mesh->flagsOffset = flagsOffset;
 	mesh->edgeAngleOffset = edgeAngleOffset;
+	mesh->vertexFlagOffset = vertexFlagOffset;
 
 	b3MeshNode* nodes = b3GetMeshNodesWrite( mesh );
 	b3MeshTriangle* triangles = b3GetMeshTrianglesWrite( mesh );
