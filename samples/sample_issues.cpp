@@ -751,7 +751,10 @@ public:
 			bodyDef.motionLocks.angularY = true;
 			bodyDef.motionLocks.angularZ = true;
 			bodyDef.enableSleep = false;
+
+			// With current ghost mitigation this seems unnecessary
 			//bodyDef.enableContactRecycling = false;
+
 			bodyDef.gravityScale = 2.03f; // s&box gravity: 800 inch/s^2
 			bodyDef.name = "character";
 			bodyDef.safetyFactor = 0.05f;
@@ -764,6 +767,8 @@ public:
 
 			float volume = 8.0f * m_bodyHalfWidth * m_bodyHalfHeight * m_bodyHalfWidth;
 			shapeDef.density = m_characterMass / volume;
+
+			// With current ghost mitigation this seems unnecessary
 			//shapeDef.enableSpeculativeContact = false;
 
 			b3BoxHull box = b3MakeBoxHull( m_bodyHalfWidth, m_bodyHalfHeight, m_bodyHalfWidth );
