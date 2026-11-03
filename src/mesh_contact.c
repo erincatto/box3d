@@ -426,6 +426,7 @@ typedef enum b3NeighborResult
 	b3_neighborSnap,
 } b3NeighborResult;
 
+// 1.0027 degrees
 #define B3_NEIGHBOR_TOLERANCE 0.0175f
 
 static bool b3GetNeighborDirection( const b3Shape* shape, int triangleIndex, const b3Vec3* vertices,
@@ -463,8 +464,7 @@ static bool b3AdmitsVertexNormal( const b3Shape* shape, int triangleIndex, const
 		return false;
 	}
 
-	int flags = b3GetVertexFlag( shape, triangleIndex, vertexIndex );
-	return ( flags & ( b3_flatVertex | b3_concaveVertex ) ) == 0;
+	return b3IsConvexVertex( shape, triangleIndex, vertexIndex );
 }
 
 // Voronoi test of an edge or vertex normal against the neighbor normals.
@@ -564,8 +564,8 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 	b3Vec3 normal = manifold->normal;
 	b3Vec3 triangleNormal = b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] );
 	float tolerance = B3_NEIGHBOR_TOLERANCE;
-	if ( b3Dot( normal, triangleNormal ) > 0.0f &&
-		 b3Length( b3Cross( normal, triangleNormal ) ) <= tolerance )
+	float cosAngle = b3Dot( normal, triangleNormal );
+	if ( cosAngle > 0.0f && cosAngle * cosAngle >= 1.0f - tolerance * tolerance )
 	{
 		return b3_neighborAdmit;
 	}
@@ -838,7 +838,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 	float restOffset = B3_MESH_REST_OFFSET;
 
 	const b3HullData* hullB = shapeB->type == b3_hullShape ? shapeB->hull : NULL;
-	float hullSpeculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : 0.0f;
+	float hullSpeculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : restOffset;
 	b3Vec3 hullMargin = { hullSpeculativeDistance, hullSpeculativeDistance,
 						  hullSpeculativeDistance };
 
@@ -899,7 +899,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				b3Vec3 v2 = meshVertices[meshFlipped ? meshTriangle.index3 : meshTriangle.index2];
 				b3Vec3 v3 = meshVertices[meshFlipped ? meshTriangle.index2 : meshTriangle.index3];
 
-				// todo comment
+				// This bool gets predicted, so worth it.
 				if ( unitScale == false )
 				{
 					v1 = b3Mul( meshScale, v1 );
@@ -1078,12 +1078,17 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 		if ( validateNeighbors && manifold->pointCount > 0 &&
 			 manifold->feature != b3_featureTriangleFace )
 		{
-			b3NeighborResult result =
-				manifold->feature == b3_featureHullFace
-					? b3TestHullFaceNeighbors( shapeA, triangleIndex, vertices, relativeMatrix,
-											   manifold, &nearFeature )
-					: b3TestNeighbors( shapeA, triangleIndex, vertices, relativeMatrix,
-									   manifold->feature, manifold->normal );
+			b3NeighborResult result;
+			if ( manifold->feature == b3_featureHullFace )
+			{
+				result = b3TestHullFaceNeighbors( shapeA, triangleIndex, vertices,
+												  relativeMatrix, manifold, &nearFeature );
+			}
+			else
+			{
+				result = b3TestNeighbors( shapeA, triangleIndex, vertices, relativeMatrix,
+								  manifold->feature, manifold->normal );
+			}
 
 			// A vertex test only sees the two edges of this triangle at the vertex, so an admitted
 			// vertex normal can still lean across another edge at the vertex, as out of a sliver tip.
@@ -1201,7 +1206,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 					continue;
 				}
 
-				// todo comment
+				// todo explain this better
 				const b3Vec3* targetVertices = survivorVertices + 3 * j;
 				float planeDistance = b3Dot( blockTargets[j].normal, b3Sub( source->point, targetVertices[0] ) );
 				if ( b3AbsFloat( planeDistance ) > blockTargets[j].distanceTolerance )
@@ -1260,6 +1265,53 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				manifold->normal = blockerNormal;
 				manifold->triangleNormal = blockerNormal;
 				manifold->feature = b3_featureTriangleFace;
+			}
+		}
+	}
+
+	if ( hullB != NULL && validateNeighbors )
+	{
+		// Cull contacts below hull face when it rests on a triangle.
+		float tolerance = B3_NEIGHBOR_TOLERANCE;
+		float cosSquaredTolerance = 1.0f - tolerance * tolerance;
+		const b3LocalManifold* resting = NULL;
+		for ( int i = 0; i < manifoldCount && resting == NULL; ++i )
+		{
+			const b3LocalManifold* manifold = manifoldBuffer + i;
+			float cosAngle = b3Dot( manifold->normal, manifold->triangleNormal );
+			if ( manifold->pointCount > 0 && manifold->feature == b3_featureHullFace && cosAngle > 0.0f &&
+				 cosAngle * cosAngle >= cosSquaredTolerance )
+			{
+				resting = manifold;
+			}
+		}
+
+		if ( resting != NULL )
+		{
+			b3Vec3 normal = resting->triangleNormal;
+			const b3Vec3* hullPoints = b3GetHullPoints( hullB );
+			float hullBottom = FLT_MAX;
+			for ( int i = 0; i < hullB->vertexCount; ++i )
+			{
+				hullBottom = b3MinFloat( hullBottom, b3Dot( normal, hullPoints[i] ) );
+			}
+
+			for ( int i = 0; i < survivorCount; ++i )
+			{
+				if ( survivorManifolds[i] == B3_NULL_INDEX )
+				{
+					continue;
+				}
+
+				b3LocalManifold* manifold = manifoldBuffer + survivorManifolds[i];
+				const b3Vec3* vertices = survivorVertices + 3 * i;
+				float cosAngle = b3Dot( manifold->normal, normal );
+				float height = b3MaxFloat( b3Dot( normal, vertices[0] ),
+										   b3MaxFloat( b3Dot( normal, vertices[1] ), b3Dot( normal, vertices[2] ) ) );
+				if ( ( cosAngle <= 0.0f || cosAngle * cosAngle < cosSquaredTolerance ) && height < hullBottom )
+				{
+					manifold->pointCount = 0;
+				}
 			}
 		}
 	}

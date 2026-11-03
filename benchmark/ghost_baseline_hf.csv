@@ -54,7 +54,7 @@ tjunction,0,0,capsule,0,2
 tjunction,0,0,upright,0,2
 tjunction,0,0,sphere,0,2
 tjunction,0,0,cylinder,3,2
-tjunction,0,1,box,2,0
+tjunction,0,1,box,1,0
 tjunction,0,1,capsule,0,2
 tjunction,0,1,upright,0,2
 tjunction,0,1,sphere,0,2
@@ -99,3 +99,7 @@ peel,3,1,capsule,0,2
 peel,3,1,upright,0,2
 peel,3,1,sphere,0,2
 peel,3,1,cylinder,0,2
+chamfer,0,0,box,0,2
+chamfer,0,0,cylinder,0,2
+chamfer,0,1,box,0,2
+chamfer,0,1,cylinder,0,2

@@ -28,6 +28,7 @@ typedef enum GhostScene
 	e_ghostBumps,
 	e_ghostTJunction,
 	e_ghostInternal,
+	e_ghostChamfer,
 	e_ghostSceneCount
 } GhostScene;
 
@@ -44,8 +45,8 @@ typedef enum GhostBody
 // Mesh variants of the PEEL InternalEdges presets
 #define GHOST_PEEL_PRESET_COUNT 4
 
-// Bumps has the longest profile
-#define GHOST_MAX_PROFILE_POINTS 96
+// Chamfer has the longest profile
+#define GHOST_MAX_PROFILE_POINTS 128
 
 extern const char* g_ghostSceneNames[e_ghostSceneCount];
 extern const char* g_ghostBodyNames[e_ghostBodyCount];

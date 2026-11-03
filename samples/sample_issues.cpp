@@ -751,7 +751,7 @@ public:
 			bodyDef.motionLocks.angularY = true;
 			bodyDef.motionLocks.angularZ = true;
 			bodyDef.enableSleep = false;
-			bodyDef.enableContactRecycling = false;
+			//bodyDef.enableContactRecycling = false;
 			bodyDef.gravityScale = 2.03f; // s&box gravity: 800 inch/s^2
 			bodyDef.name = "character";
 			bodyDef.safetyFactor = 0.05f;
@@ -764,7 +764,7 @@ public:
 
 			float volume = 8.0f * m_bodyHalfWidth * m_bodyHalfHeight * m_bodyHalfWidth;
 			shapeDef.density = m_characterMass / volume;
-			shapeDef.enableSpeculativeContact = false;
+			//shapeDef.enableSpeculativeContact = false;
 
 			b3BoxHull box = b3MakeBoxHull( m_bodyHalfWidth, m_bodyHalfHeight, m_bodyHalfWidth );
 			b3CreateHullShape( m_characterId, &shapeDef, &box.base );
@@ -1981,3 +1981,284 @@ public:
 
 static int sampleThinWallPushOut =
 	RegisterSample( "Issues", "Thin Wall Push Out", ThinWallPushOut::Create );
+
+// Two crates resting on a rolling deck, one each side of the roll axis: the orange crate with
+// contact recycling (the default), the blue crate with it off for its body.
+//
+// A recycled contact keeps the normal and anchors it was made with, fixed in the world, while each
+// body turns less than B3_CONTACT_RECYCLE_ANGULAR_DISTANCE (10 degrees) from where the contact was
+// made and the two stay within the recycle distance (5 cm). Only the separation is updated. A deck
+// and the cargo resting on it turn together, so their contact is recycled through the roll. Its
+// normal stays the deck's up as it was, and its anchors stay at the same world offsets from each
+// body's center of mass, so the orange crate moves as the deck moves at that fixed spot in space,
+// not as the deck under it moves. It goes straight up and down instead of along its arc, and slides
+// out across the deck by about offset * (1 - cos(roll)). While that stays under the recycle
+// distance the crate sways out and back. Past it (8 m and 8 degrees here, 78 mm) the contact is
+// made again partway through, at the deck's angle then, and frozen there, so the crate walks off
+// across the deck roll by roll. The angular tolerance doesn't stop that: at 12 or 15 degrees the
+// contact is made again more often and the crate walks all the same. The blue crate rides with the
+// deck. The slide arrows on the deck are drawn ten times longer.
+class RollingDeck : public Sample
+{
+public:
+	static constexpr float m_deckHalfLength = 2.0f;
+	static constexpr float m_deckHalfWidth = 10.0f;
+	static constexpr float m_deckHalfThickness = 0.25f;
+	static constexpr float m_crateHalf = 0.5f;
+	static constexpr float m_crateOffset = 8.0f;
+	static constexpr float m_friction = 1.0f;
+	static constexpr float m_settleTime = 1.0f;
+	static constexpr float m_slideScale = 10.0f;
+
+	explicit RollingDeck( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 75.0f, 15.0f, 32.0f, { 0.0f, 0.5f, 0.0f } );
+		}
+
+		m_rollDegrees = 8.0f;
+		m_period = 6.0f;
+		m_deckId = {};
+		m_crateIds[0] = {};
+		m_crateIds[1] = {};
+
+		CreateScene();
+	}
+
+	void CreateScene()
+	{
+		if ( B3_IS_NON_NULL( m_deckId ) )
+		{
+			b3DestroyBody( m_deckId );
+			b3DestroyBody( m_crateIds[0] );
+			b3DestroyBody( m_crateIds[1] );
+		}
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = m_friction;
+
+		// The deck rolls about the world x axis through its center
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_kinematicBody;
+			m_deckId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3BoxHull box = b3MakeBoxHull( m_deckHalfLength, m_deckHalfThickness, m_deckHalfWidth );
+			shapeDef.baseMaterial.customColor = b3_colorSlateGray;
+			b3CreateHullShape( m_deckId, &shapeDef, &box.base );
+		}
+
+		// The crates rest on the level deck, m_crateOffset either side of the roll axis
+		b3BoxHull box = b3MakeBoxHull( m_crateHalf, m_crateHalf, m_crateHalf );
+		for ( int i = 0; i < 2; ++i )
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { 0.0f, m_deckHalfThickness + m_crateHalf,
+								 i == 0 ? m_crateOffset : -m_crateOffset };
+
+			// The orange crate recycles its contact with the deck, the blue crate doesn't. Both
+			// stay awake, so a small roll can't put them to sleep.
+			bodyDef.enableContactRecycling = i == 0;
+			bodyDef.enableSleep = false;
+			m_crateIds[i] = b3CreateBody( m_worldId, &bodyDef );
+
+			shapeDef.baseMaterial.customColor = i == 0 ? b3_colorOrange : b3_colorDodgerBlue;
+			b3CreateHullShape( m_crateIds[i], &shapeDef, &box.base );
+
+			m_start[i] = b3Vec3_zero;
+			m_maxSlide[i] = 0.0f;
+			m_maxNormalError[i] = 0.0f;
+		}
+
+		m_time = 0.0f;
+		m_started = false;
+	}
+
+	// The roll angle in radians at a time since the start: still while the crates settle, then
+	// rolling, eased in over the first quarter roll so the crates aren't jolted by a deck starting
+	// at full speed.
+	float RollAngle( float time ) const
+	{
+		float t = time - m_settleTime;
+		if ( t <= 0.0f )
+		{
+			return 0.0f;
+		}
+
+		float ease = 1.0f;
+		if ( t < 0.25f * m_period )
+		{
+			float u = t / ( 0.25f * m_period );
+			ease = u * u * ( 3.0f - 2.0f * u );
+		}
+
+		return ease * m_rollDegrees * B3_PI / 180.0f * sinf( 2.0f * B3_PI * t / m_period );
+	}
+
+	bool DrawControls() override
+	{
+		// Changing the roll starts the scene again, so the contacts are made with the deck level.
+		ImGui::SliderFloat( "Roll (deg)", &m_rollDegrees, 0.0f, 15.0f, "%.1f" );
+		if ( ImGui::IsItemDeactivatedAfterEdit() )
+		{
+			CreateScene();
+		}
+
+		ImGui::SliderFloat( "Period (s)", &m_period, 2.0f, 12.0f, "%.1f" );
+		if ( ImGui::IsItemDeactivatedAfterEdit() )
+		{
+			CreateScene();
+		}
+
+		if ( ImGui::Button( "Reset" ) )
+		{
+			CreateScene();
+		}
+
+		return true;
+	}
+
+	void Step() override
+	{
+		float timeStep = m_context->hertz > 0.0f ? 1.0f / m_context->hertz : 0.0f;
+		if ( m_context->pause && m_context->singleStep == 0 )
+		{
+			timeStep = 0.0f;
+		}
+
+		if ( timeStep > 0.0f )
+		{
+			b3Quat rotation =
+				b3MakeQuatFromAxisAngle( b3Vec3_axisX, RollAngle( m_time + timeStep ) );
+			b3Body_SetTargetTransform( m_deckId, { { 0.0f, 0.0f, 0.0f }, rotation }, timeStep,
+									   true );
+		}
+
+		Sample::Step();
+
+		m_time += timeStep;
+
+		// Where the crates settled, in the deck's frame, measured from as the deck starts to roll
+		if ( m_started == false && m_time >= m_settleTime )
+		{
+			for ( int i = 0; i < 2; ++i )
+			{
+				m_start[i] = b3Body_GetLocalPoint( m_deckId, b3Body_GetPosition( m_crateIds[i] ) );
+			}
+			m_started = true;
+		}
+
+		b3Vec3 deckUp = b3Body_GetWorldVector( m_deckId, b3Vec3_axisY );
+		float slide[2] = { 0.0f, 0.0f };
+		float normalError[2] = { 0.0f, 0.0f };
+
+		for ( int i = 0; i < 2; ++i )
+		{
+			Vec4 color = i == 0 ? MakeColor( b3_colorOrange ) : MakeColor( b3_colorDodgerBlue );
+			b3Pos center = b3Body_GetPosition( m_crateIds[i] );
+
+			// The deck's up (white) and the crate's contact normal (in the crate's color), from the
+			// crate's center
+			DrawArrow( center, b3OffsetPos( center, b3MulSV( 2.5f, deckUp ) ),
+					   MakeColor( b3_colorWhite ) );
+
+			b3ContactData contactData;
+			if ( b3Body_GetContactData( m_crateIds[i], &contactData, 1 ) == 1 &&
+				 contactData.manifoldCount > 0 )
+			{
+				b3Vec3 normal = contactData.manifolds[0].normal;
+				if ( b3Dot( normal, deckUp ) < 0.0f )
+				{
+					normal = b3Neg( normal );
+				}
+
+				DrawArrow( center, b3OffsetPos( center, b3MulSV( 2.5f, normal ) ), color );
+				normalError[i] =
+					acosf( b3MinFloat( b3Dot( normal, deckUp ), 1.0f ) ) * 180.0f / B3_PI;
+			}
+
+			DrawString3D( b3OffsetPos( center, b3MulSV( 3.0f, deckUp ) ), color, "%s",
+						  i == 0 ? "recycling on" : "recycling off" );
+
+			if ( m_started == false )
+			{
+				continue;
+			}
+
+			// Where the crate settled, outlined on the deck's top, and how far it has slid from
+			// there across the deck, drawn m_slideScale times longer
+			b3Vec3 local = b3Body_GetLocalPoint( m_deckId, center );
+			b3Vec3 offset = b3Sub( local, m_start[i] );
+			offset.y = 0.0f;
+			slide[i] = b3Length( offset );
+
+			float top = m_deckHalfThickness + 0.01f;
+			b3Vec3 mark = { m_start[i].x, top, m_start[i].z };
+			b3Vec3 corners[4] = {
+				{ mark.x - m_crateHalf, top, mark.z - m_crateHalf },
+				{ mark.x + m_crateHalf, top, mark.z - m_crateHalf },
+				{ mark.x + m_crateHalf, top, mark.z + m_crateHalf },
+				{ mark.x - m_crateHalf, top, mark.z + m_crateHalf },
+			};
+			for ( int j = 0; j < 4; ++j )
+			{
+				DrawLine( b3Body_GetWorldPoint( m_deckId, corners[j] ),
+						  b3Body_GetWorldPoint( m_deckId, corners[( j + 1 ) % 4] ), color );
+			}
+
+			b3Vec3 tip = b3MulAdd( mark, m_slideScale, offset );
+			DrawArrow( b3Body_GetWorldPoint( m_deckId, mark ),
+					   b3Body_GetWorldPoint( m_deckId, tip ), color );
+
+			m_maxSlide[i] = b3MaxFloat( m_maxSlide[i], slide[i] );
+			m_maxNormalError[i] = b3MaxFloat( m_maxNormalError[i], normalError[i] );
+		}
+
+		float roll = RollAngle( m_time ) * 180.0f / B3_PI;
+		float expected = m_crateOffset * ( 1.0f - cosf( m_rollDegrees * B3_PI / 180.0f ) );
+
+		DrawTextLine( "deck rolls %.1f deg each way every %.1f s (now %+.1f deg), crates %.0f m "
+					  "from the roll axis, friction %.0f",
+					  m_rollDegrees, m_period, roll, m_crateOffset, m_friction );
+		DrawTextLine( "a contact is recycled while each body turns < 10 deg from where it was made "
+					  "(B3_CONTACT_RECYCLE_ANGULAR_DISTANCE)" );
+		DrawTextLine( "contacts recycled this step: %d (only the orange crate's can be)",
+					  b3World_GetCounters( m_worldId ).recycledContactCount );
+		DrawTextLine( "orange, recycling on : normal %4.1f deg off the deck's up (most %4.1f), "
+					  "slid %5.1f mm (most %5.1f)",
+					  normalError[0], m_maxNormalError[0], 1000.0f * slide[0],
+					  1000.0f * m_maxSlide[0] );
+		DrawTextLine( "blue,   recycling off: normal %4.1f deg off the deck's up (most %4.1f), "
+					  "slid %5.1f mm (most %5.1f)",
+					  normalError[1], m_maxNormalError[1], 1000.0f * slide[1],
+					  1000.0f * m_maxSlide[1] );
+		DrawTextLine(
+			"recycled, the crate moves straight up and down: offset * (1 - cos(roll)) = %.1f mm at "
+			"each end; past the "
+			"%.0f cm recycle distance the contact is made again tilted and the crate walks off",
+			1000.0f * expected, 100.0f * b3World_GetContactRecycleDistance( m_worldId ) );
+		DrawTextLine( "arrows: white is the deck's up, colored is the contact normal; slide arrows "
+					  "on the deck are drawn %.0fx",
+					  m_slideScale );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new RollingDeck( context );
+	}
+
+	b3BodyId m_deckId;
+	b3BodyId m_crateIds[2];
+	b3Vec3 m_start[2];
+	float m_maxSlide[2];
+	float m_maxNormalError[2];
+	float m_rollDegrees;
+	float m_period;
+	float m_time;
+	bool m_started;
+};
+
+static int sampleRollingDeck = RegisterSample( "Issues", "Rolling Deck", RollingDeck::Create );

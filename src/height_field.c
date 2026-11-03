@@ -99,6 +99,53 @@
 	   21  3  22
  */
 
+static b3Vec3 b3GetGridPoint( const float* heights, int columnCount, b3Vec3 scale, int row, int column )
+{
+	return b3Mul( scale, (b3Vec3){ (float)column, heights[row * columnCount + column], (float)row } );
+}
+
+static b3Vec3 b3GetGridTriangleNormal( const float* heights, int columnCount, b3Vec3 scale, int row, int column, bool odd )
+{
+	b3Vec3 point11 = b3GetGridPoint( heights, columnCount, scale, row, column );
+	b3Vec3 point12 = b3GetGridPoint( heights, columnCount, scale, row, column + 1 );
+	b3Vec3 point21 = b3GetGridPoint( heights, columnCount, scale, row + 1, column );
+	b3Vec3 point22 = b3GetGridPoint( heights, columnCount, scale, row + 1, column + 1 );
+
+	b3Vec3 v1 = odd ? point22 : point11;
+	b3Vec3 v2 = odd ? point12 : point21;
+	b3Vec3 v3 = odd ? point21 : point12;
+	return b3Normalize( b3Cross( b3Sub( v2, v1 ), b3Sub( v3, v1 ) ) );
+}
+
+// Mark vertices as flat or concave.
+static void b3MarkGridEdge( uint8_t* vertexFlags, int index1, int index2, b3Vec3 point1, b3Vec3 point2, b3Vec3 normal1,
+							b3Vec3 normal2, bool clockwise )
+{
+	b3Vec3 outward = b3Cross( b3Normalize( b3Sub( point2, point1 ) ), normal1 );
+	float angle = b3Atan2( b3Dot( normal2, outward ), b3Dot( normal2, normal1 ) );
+
+	// Quantize to match the mesh rule.
+	int8_t quantized = b3QuantizeEdgeAngle( clockwise ? -angle : angle );
+
+	if ( quantized != 0 )
+	{
+		vertexFlags[index1] = (uint8_t)( vertexFlags[index1] & ~b3_flatVertex );
+		vertexFlags[index2] = (uint8_t)( vertexFlags[index2] & ~b3_flatVertex );
+	}
+
+	if ( quantized < 0 )
+	{
+		vertexFlags[index1] |= b3_concaveVertex;
+		vertexFlags[index2] |= b3_concaveVertex;
+	}
+}
+
+static void b3MarkGridBoundary( uint8_t* vertexFlags, int index1, int index2 )
+{
+	vertexFlags[index1] = (uint8_t)( vertexFlags[index1] & ~b3_flatVertex );
+	vertexFlags[index2] = (uint8_t)( vertexFlags[index2] & ~b3_flatVertex );
+}
+
 b3HeightFieldData* b3CreateHeightField( const b3HeightFieldDef* data )
 {
 	int columnCount = data->countX;
@@ -119,6 +166,8 @@ b3HeightFieldData* b3CreateHeightField( const b3HeightFieldDef* data )
 	byteCount += b3AlignUp8( cellCount * sizeof( uint8_t ) );
 	int flagsOffset = (int)byteCount;
 	byteCount += b3AlignUp8( triangleCount * sizeof( uint8_t ) );
+	int vertexFlagOffset = (int)byteCount;
+	byteCount += b3AlignUp8( (size_t)( ( heightCount + 7 ) / 8 ) );
 
 	// Zero the whole blob so alignment padding is defined. The construction-time hash
 	// sweeps raw bytes and would otherwise pick up uninitialized padding.
@@ -133,6 +182,7 @@ b3HeightFieldData* b3CreateHeightField( const b3HeightFieldDef* data )
 	hf->heightsOffset = heightsOffset;
 	hf->materialOffset = materialOffset;
 	hf->flagsOffset = flagsOffset;
+	hf->vertexFlagOffset = vertexFlagOffset;
 	hf->clockwise = data->clockwiseWinding;
 
 	uint16_t* compressedHeights = (uint16_t*)( (intptr_t)hf + heightsOffset );
@@ -466,6 +516,79 @@ b3HeightFieldData* b3CreateHeightField( const b3HeightFieldDef* data )
 
 	B3_ASSERT( triangleIndex == triangleCount );
 
+	// b3MeshVertexFlags
+	uint8_t* vertexFlags = (uint8_t*)b3Alloc( heightCount * sizeof( uint8_t ) );
+	memset( vertexFlags, b3_flatVertex, heightCount * sizeof( uint8_t ) );
+
+	bool clockwise = hf->clockwise != 0;
+	int cellColumnCount = columnCount - 1;
+	int cellRowCount = rowCount - 1;
+
+	for ( int row = 0; row < rowCount; ++row )
+	{
+		for ( int column = 0; column < columnCount; ++column )
+		{
+			int index = row * columnCount + column;
+			b3Vec3 point = b3GetGridPoint( heights, columnCount, scale, row, column );
+
+			if ( column < cellColumnCount )
+			{
+				bool below = row < cellRowCount && materialIndices[row * cellColumnCount + column] != B3_HEIGHT_FIELD_HOLE;
+				bool above =
+					row > 0 && materialIndices[( row - 1 ) * cellColumnCount + column] != B3_HEIGHT_FIELD_HOLE;
+				if ( below && above )
+				{
+					b3Vec3 next = b3GetGridPoint( heights, columnCount, scale, row, column + 1 );
+					b3Vec3 normal1 = b3GetGridTriangleNormal( heights, columnCount, scale, row, column, false );
+					b3Vec3 normal2 = b3GetGridTriangleNormal( heights, columnCount, scale, row - 1, column, true );
+					b3MarkGridEdge( vertexFlags, index + 1, index, next, point, normal1, normal2, clockwise );
+				}
+				else if ( below || above )
+				{
+					b3MarkGridBoundary( vertexFlags, index, index + 1 );
+				}
+			}
+
+			if ( row < cellRowCount )
+			{
+				bool right =
+					column < cellColumnCount && materialIndices[row * cellColumnCount + column] != B3_HEIGHT_FIELD_HOLE;
+				bool left = column > 0 && materialIndices[row * cellColumnCount + column - 1] != B3_HEIGHT_FIELD_HOLE;
+				if ( right && left )
+				{
+					b3Vec3 next = b3GetGridPoint( heights, columnCount, scale, row + 1, column );
+					b3Vec3 normal1 = b3GetGridTriangleNormal( heights, columnCount, scale, row, column, false );
+					b3Vec3 normal2 = b3GetGridTriangleNormal( heights, columnCount, scale, row, column - 1, true );
+					b3MarkGridEdge( vertexFlags, index, index + columnCount, point, next, normal1, normal2, clockwise );
+				}
+				else if ( right || left )
+				{
+					b3MarkGridBoundary( vertexFlags, index, index + columnCount );
+				}
+			}
+
+			if ( row < cellRowCount && column < cellColumnCount &&
+				 materialIndices[row * cellColumnCount + column] != B3_HEIGHT_FIELD_HOLE )
+			{
+				b3Vec3 point21 = b3GetGridPoint( heights, columnCount, scale, row + 1, column );
+				b3Vec3 point12 = b3GetGridPoint( heights, columnCount, scale, row, column + 1 );
+				b3Vec3 normal1 = b3GetGridTriangleNormal( heights, columnCount, scale, row, column, false );
+				b3Vec3 normal2 = b3GetGridTriangleNormal( heights, columnCount, scale, row, column, true );
+				b3MarkGridEdge( vertexFlags, index + columnCount, index + 1, point21, point12, normal1, normal2, clockwise );
+			}
+		}
+	}
+
+	uint8_t* vertexBits = (uint8_t*)( (intptr_t)hf + vertexFlagOffset );
+	for ( int i = 0; i < heightCount; ++i )
+	{
+		if ( vertexFlags[i] == 0 )
+		{
+			vertexBits[i >> 3] |= (uint8_t)( 1 << ( i & 7 ) );
+		}
+	}
+
+	b3Free( vertexFlags, heightCount * sizeof( uint8_t ) );
 	b3Free( decompressedHeights, heightCount * sizeof( float ) );
 
 	hf->hash = 0;
@@ -631,6 +754,36 @@ bool b3GetHeightFieldNeighborNormal( const b3HeightFieldData* heightField, int t
 	b3Vec3 e2 = b3Sub( neighbor.vertices[2], neighbor.vertices[0] );
 	*normal = b3Normalize( b3Cross( e1, e2 ) );
 	return true;
+}
+
+bool b3IsHeightFieldVertexConvex( const b3HeightFieldData* heightField, int triangleIndex, int vertexIndex )
+{
+	B3_ASSERT( 0 <= triangleIndex && triangleIndex < b3GetHeightFieldTriangleCount( heightField ) );
+	B3_ASSERT( 0 <= vertexIndex && vertexIndex < 3 );
+
+	if ( heightField->vertexFlagOffset == 0 )
+	{
+		return false;
+	}
+
+	if ( heightField->clockwise )
+	{
+		vertexIndex = ( 3 - vertexIndex ) % 3;
+	}
+
+	int columnCount = heightField->columnCount;
+	int cellIndex = triangleIndex >> 1;
+	int row = cellIndex / ( columnCount - 1 );
+	int column = cellIndex - row * ( columnCount - 1 );
+
+	int offsets[2][3] = {
+		{ 0, columnCount, 1 },
+		{ columnCount + 1, 1, columnCount },
+	};
+
+	int index = row * columnCount + column + offsets[triangleIndex & 1][vertexIndex];
+	const uint8_t* vertexBits = (const uint8_t*)( (intptr_t)heightField + heightField->vertexFlagOffset );
+	return ( vertexBits[index >> 3] & ( 1 << ( index & 7 ) ) ) != 0;
 }
 
 b3AABB b3ComputeHeightFieldAABB( const b3HeightFieldData* shape, b3Transform transform )

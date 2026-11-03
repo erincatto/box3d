@@ -83,6 +83,10 @@
 		</Expand>
 	</Type>
 
+	<Type Name="b3LocalManifoldPoint">
+		<DisplayString>s: {separation}</DisplayString>
+	</Type>
+
 	<Type Name="b3SeparationFunction">
 		<DisplayString>type: {type}</DisplayString>
 		<Expand>

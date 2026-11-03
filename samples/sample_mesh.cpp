@@ -1631,14 +1631,14 @@ public:
 	static constexpr int m_markerCapacity = 256;
 
 	explicit GhostCollisions( SampleContext* context )
-		: Sample( context )
+		: Sample(context), m_markers{}
 	{
-		if ( m_context->restart == false )
+		if (m_context->restart == false)
 		{
-			m_camera->SetView( 90.0f, 20.0f, 30.0f, { 0.0f, 1.0f, 0.0f } );
+			m_camera->SetView(90.0f, 20.0f, 30.0f, {0.0f, 1.0f, 0.0f});
 		}
 
-		m_data = CreateGhostCollisions( m_worldId, GetDefaultGhostSettings() );
+		m_data = CreateGhostCollisions(m_worldId, GetDefaultGhostSettings());
 	}
 
 	~GhostCollisions() override
@@ -1687,6 +1687,18 @@ public:
 		{
 			settings.scene = (GhostScene)scene;
 			rebuild = true;
+
+			// The chamfer ghost needs the s&box character, a fixed rotation hull without speculative contact
+			if ( settings.scene == e_ghostChamfer )
+			{
+				settings.fixedRotation = true;
+				settings.speculative = false;
+				if ( settings.body != e_ghostBox && settings.body != e_ghostCylinder )
+				{
+					settings.body = e_ghostBox;
+				}
+				relaunch = true;
+			}
 
 			if ( settings.scene == e_ghostInternal )
 			{

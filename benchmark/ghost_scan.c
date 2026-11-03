@@ -18,7 +18,7 @@
 #include <string.h>
 
 // Command line and result file keys
-static const char* s_sceneKeys[e_ghostSceneCount] = { "flat", "ramp", "cliff", "crest", "bumps", "tjunction", "peel" };
+static const char* s_sceneKeys[e_ghostSceneCount] = { "flat", "ramp", "cliff", "crest", "bumps", "tjunction", "peel", "chamfer" };
 static const char* s_bodyKeys[e_ghostBodyCount] = { "box", "capsule", "upright", "sphere", "cylinder" };
 
 #define MAX_CONFIGS 256
@@ -85,6 +85,14 @@ static void RunConfig( Config* config, GhostSettings settings, int stepCount, bo
 	settings.peelPreset = config->preset;
 	settings.mirror = config->mirror;
 	settings.body = config->body;
+
+	// The s&box character is a fixed rotation hull without speculative contact. Speculative contact or
+	// rotation hide the ghost.
+	if ( config->scene == e_ghostChamfer )
+	{
+		settings.fixedRotation = true;
+		settings.speculative = false;
+	}
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	b3WorldId worldId = b3CreateWorld( &worldDef );
@@ -270,7 +278,8 @@ int main( int argc, char** argv )
 		{
 			printf( "Usage: ghost_scan [options]\n"
 					"Runs the Ghost Collisions sample headless and counts ghost manifolds per scene and body.\n"
-					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, tjunction, peel (default all)\n"
+					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, tjunction, peel, chamfer (default all)\n"
+					"                           chamfer runs only the box and cylinder, fixed rotation without speculative\n"
 					"  -b, --body=<key|all>     box, capsule, upright, sphere, cylinder (default all)\n"
 					"  -m, --mirror=<0|1|all>   mirrored mesh (default all)\n"
 					"  -p, --preset=<0-3|all>   PEEL preset (default all)\n"
@@ -312,6 +321,12 @@ int main( int argc, char** argv )
 				for ( int body = 0; body < e_ghostBodyCount; ++body )
 				{
 					if ( bodyFilter >= 0 && body != bodyFilter )
+					{
+						continue;
+					}
+
+					// Only a flat bottom can rest on the chamfer edges
+					if ( scene == e_ghostChamfer && body != e_ghostBox && body != e_ghostCylinder )
 					{
 						continue;
 					}
@@ -365,6 +380,7 @@ int main( int argc, char** argv )
 	int totalGhosts = 0;
 	int grewCount = 0;
 	int shrankCount = 0;
+	int column = 0;
 	for ( int i = 0; i < configCount; ++i )
 	{
 		const Config* c = configs + i;
@@ -375,7 +391,17 @@ int main( int argc, char** argv )
 			char row[64];
 			FormatRow( row, sizeof( row ), c );
 			printf( "%s%-18s", i == 0 ? "" : "\n", row );
+			column = 0;
 		}
+
+		// A scene that skips a body leaves its column empty
+		int bodyColumn = bodyFilter >= 0 ? 0 : (int)c->body;
+		while ( column < bodyColumn )
+		{
+			printf( "%10s", "-" );
+			column += 1;
+		}
+		column += 1;
 
 		char cell[32];
 		if ( c->baseGhostCount >= 0 && c->baseGhostCount != c->ghostCount )

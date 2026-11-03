@@ -2506,7 +2506,10 @@ typedef struct b3HeightFieldData
 	uint8_t clockwise;
 
 	/// Explicit padding.
-	uint8_t padding[7];
+	uint8_t padding[3];
+
+	// Offet to the vertex ghost collision flag. Array of bits.
+	int32_t vertexFlagOffset;
 } b3HeightFieldData;
 
 /**@}*/ // height_field

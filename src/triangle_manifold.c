@@ -747,7 +747,7 @@ static float b3CollideHullFace( b3LocalManifold* manifold, int pointCapacity, co
 		b3ClipVertex* clipPoint = input + i;
 		minSeparation = b3MinFloat( minSeparation, clipPoint->separation );
 
-		if ( enableSpeculative == false && clipPoint->separation > 0.0f )
+		if ( enableSpeculative == false && clipPoint->separation > B3_MESH_REST_OFFSET )
 		{
 			continue;
 		}
@@ -763,7 +763,7 @@ static float b3CollideHullFace( b3LocalManifold* manifold, int pointCapacity, co
 		finalPointCount += 1;
 	}
 
-	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : 0.0f;
+	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : B3_MESH_REST_OFFSET;
 	if ( minSeparation > speculativeDistance )
 	{
 		// This can occur with a stale SAT cache
@@ -863,7 +863,7 @@ static float b3CollideTriangleFace( b3LocalManifold* manifold, int pointCapacity
 		b3ClipVertex* clipPoint = input + i;
 		minSeparation = b3MinFloat( minSeparation, clipPoint->separation );
 
-		if ( enableSpeculative == false && clipPoint->separation > 0.0f )
+		if ( enableSpeculative == false && clipPoint->separation > B3_MESH_REST_OFFSET )
 		{
 			continue;
 		}
@@ -880,7 +880,7 @@ static float b3CollideTriangleFace( b3LocalManifold* manifold, int pointCapacity
 		finalPointCount += 1;
 	}
 
-	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : 0.0f;
+	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : B3_MESH_REST_OFFSET;
 	if ( minSeparation >= speculativeDistance )
 	{
 		// This can happens if the objects move a part while re-using a cached axis
@@ -1036,7 +1036,7 @@ void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v
 	const b3Plane* hullPlanes = b3GetHullPlanes( hullB );
 	const b3Vec3* hullPoints = b3GetHullPoints( hullB );
 
-	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : 0.0f;
+	float speculativeDistance = enableSpeculative ? B3_SPECULATIVE_DISTANCE : B3_MESH_REST_OFFSET;
 	cache->hit = 1;
 
 	// Attempt to use the cache to speed up collision
@@ -1340,7 +1340,7 @@ void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v
 		b3SimplexCache simplexCache = { 0 };
 		b3DistanceOutput output = b3ShapeDistance( &input, &simplexCache, NULL, 0 );
 
-		if ( output.distance > 0.0f )
+		if ( 0.0f < output.distance && output.distance <= speculativeDistance )
 		{
 			B3_ASSERT( 0 < simplexCache.count && simplexCache.count <= 3 );
 

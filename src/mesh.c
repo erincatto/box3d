@@ -1056,7 +1056,7 @@ typedef struct
 
 #define B3_EDGE_ANGLE_STEPS 127.0f
 
-static int8_t b3QuantizeEdgeAngle( float radians )
+int8_t b3QuantizeEdgeAngle( float radians )
 {
 	float scaled = radians * ( B3_EDGE_ANGLE_STEPS / B3_PI );
 	int quantized = scaled >= 0.0f ? (int)( scaled + 0.5f ) : -(int)( 0.5f - scaled );

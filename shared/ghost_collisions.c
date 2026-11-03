@@ -14,6 +14,10 @@
 #define GHOST_HALF_WIDTH 3.0f
 #define GHOST_START_X -16.0f
 
+// A 34 degree chamfer like the s&box beams
+#define GHOST_CHAMFER_WIDTH 0.05f
+#define GHOST_CHAMFER_DROP ( GHOST_CHAMFER_WIDTH / 1.5f )
+
 typedef struct PeelPreset
 {
 	int columnCount;
@@ -29,7 +33,7 @@ static const PeelPreset s_peelPresets[GHOST_PEEL_PRESET_COUNT] = {
 };
 
 const char* g_ghostSceneNames[e_ghostSceneCount] = {
-	"Flat", "Concave", "Cliff", "Crest", "Bumps", "T-Junction", "Internal",
+	"Flat", "Concave", "Cliff", "Crest", "Bumps", "T-Junction", "Internal", "Chamfer",
 };
 
 const char* g_ghostBodyNames[e_ghostBodyCount] = { "Box", "H Capsule", "V Capsule", "Sphere", "Cylinder" };
@@ -355,6 +359,21 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 			}
 			break;
 
+		case e_ghostChamfer:
+			// Flat tops at y = 0 with a chamfered notch every meter. A body crossing a notch overhangs both
+			// chamfers while its bottom rests on the convex top edges.
+			PushProfile( data, -h, 0.0f );
+			for ( int i = 0; i < 30; ++i )
+			{
+				float x = -8.0f + (float)i;
+				PushProfile( data, x, 0.0f );
+				PushProfile( data, x + GHOST_CHAMFER_WIDTH, -GHOST_CHAMFER_DROP );
+				PushProfile( data, x + 2.0f * GHOST_CHAMFER_WIDTH, -GHOST_CHAMFER_DROP );
+				PushProfile( data, x + 3.0f * GHOST_CHAMFER_WIDTH, 0.0f );
+			}
+			PushProfile( data, h, 0.0f );
+			break;
+
 		default:
 			PushProfile( data, -h, 0.0f );
 			PushProfile( data, h, 0.0f );
@@ -390,6 +409,12 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 			b3BoxHull box = b3MakeOffsetBoxHull( 140.0f, 1.0f, 30.0f, ( b3Vec3 ){ 65.0f, -1.0f, 0.0f } );
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			b3CreateHullShape( data->groundId, &shapeDef, &box.base );
+		}
+		else if ( settings->scene == e_ghostChamfer )
+		{
+			// One cell per chamfer puts every notch vertex on the grid
+			AddHeightField( worldId, data, -h, h, GetCellCount( 2.0f * h, GHOST_CHAMFER_WIDTH ), groundHalfWidth, cellCountZ,
+							false );
 		}
 		else
 		{
@@ -445,6 +470,7 @@ void LaunchGhostBody( b3WorldId worldId, GhostCollisionsData* data )
 
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
+	bodyDef.enableContactRecycling = false;
 	b3Quat yaw = b3MakeQuatFromAxisAngle( b3Vec3_axisY, settings->yaw * B3_PI / 180.0f );
 
 	if ( peel )
@@ -586,6 +612,9 @@ static bool IsGhost( const GhostCollisionsData* data, b3Vec3 normal, float xMin,
 		return false;
 	}
 
+	GhostBody body = data->settings.body;
+	bool chamferHull = data->settings.scene == e_ghostChamfer && ( body == e_ghostBox || body == e_ghostCylinder );
+
 	float lower = B3_PI;
 	float upper = -B3_PI;
 	int segmentCount = data->profileCount - 1;
@@ -594,6 +623,13 @@ static bool IsGhost( const GhostCollisionsData* data, b3Vec3 normal, float xMin,
 		float x0 = b3MinFloat( data->profile[k].x, data->profile[k + 1].x );
 		float x1 = b3MaxFloat( data->profile[k].x, data->profile[k + 1].x );
 		if ( x1 < xMin || xMax < x0 )
+		{
+			continue;
+		}
+
+		// A flat hull bottom resting on the top edges must keep its own normal, so for a hull only the tops
+		// count. A round body's normal comes from the closest ground feature, which can be a top edge.
+		if ( chamferHull && ( data->profile[k].y < 0.0f || data->profile[k + 1].y < 0.0f ) )
 		{
 			continue;
 		}

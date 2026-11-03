@@ -130,6 +130,7 @@ b3Triangle b3GetHeightFieldTriangle( const b3HeightFieldData* heightField, int t
 int b3GetHeightFieldMaterial( const b3HeightFieldData* heightField, int triangleIndex );
 
 bool b3GetHeightFieldNeighborNormal( const b3HeightFieldData* heightField, int triangleIndex, int edgeIndex, b3Vec3* normal );
+bool b3IsHeightFieldVertexConvex( const b3HeightFieldData* heightField, int triangleIndex, int vertexIndex );
 
 static inline int b3GetHeightFieldTriangleCount( const b3HeightFieldData* heightField )
 {
@@ -200,16 +201,18 @@ static inline bool b3GetNeighborNormal( const b3Shape* shape, int triangleIndex,
 }
 
 int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex );
+int8_t b3QuantizeEdgeAngle( float radians );
 
-static inline int b3GetVertexFlag( const b3Shape* shape, int triangleIndex, int vertexIndex )
+static inline bool b3IsConvexVertex( const b3Shape* shape, int triangleIndex, int vertexIndex )
 {
 	if ( shape->type == b3_meshShape )
 	{
-		return b3GetMeshVertexFlag( &shape->mesh, triangleIndex, vertexIndex );
+		int flags = b3GetMeshVertexFlag( &shape->mesh, triangleIndex, vertexIndex );
+		return ( flags & ( b3_flatVertex | b3_concaveVertex ) ) == 0;
 	}
 
 	B3_ASSERT( shape->type == b3_heightShape );
-	return b3_flatVertex;
+	return b3IsHeightFieldVertexConvex( shape->heightField, triangleIndex, vertexIndex );
 }
 
 bool b3IsValidMesh( const b3MeshData* meshData );
