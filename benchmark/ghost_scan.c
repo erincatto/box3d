@@ -18,7 +18,7 @@
 #include <string.h>
 
 // Command line and result file keys
-static const char* s_sceneKeys[e_ghostSceneCount] = { "flat", "ramp", "cliff", "crest", "bumps", "tjunction", "peel", "chamfer" };
+static const char* s_sceneKeys[e_ghostSceneCount] = { "flat", "ramp", "cliff", "crest", "bumps", "tjunction", "peel", "chamfer", "rail" };
 static const char* s_bodyKeys[e_ghostBodyCount] = { "box", "capsule", "upright", "sphere", "cylinder" };
 
 #define MAX_CONFIGS 256

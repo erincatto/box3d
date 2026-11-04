@@ -29,6 +29,7 @@ typedef enum GhostScene
 	e_ghostTJunction,
 	e_ghostInternal,
 	e_ghostChamfer,
+	e_ghostRail,
 	e_ghostSceneCount
 } GhostScene;
 

@@ -2666,6 +2666,45 @@ static void BuildGhostChamferExtended( std::vector<GhostMesh>& meshes )
 	BuildChamferBeam( meshes, 6.0f );
 }
 
+// A conveyor side rail running along x, from the Conveyor Circuit sample. The upper half of the inner
+// wall facing -z and the 8 cm rail top meet at a convex edge, two cells along x so the vertex at x = 0
+// is interior. Quad diagonals alternate as in the conveyor mesh.
+static void BuildGhostRail( std::vector<GhostMesh>& meshes )
+{
+	GhostMesh mesh;
+	b3Vec2 section[3] = { { 0.0f, 0.175f }, { 0.0f, 0.35f }, { 0.08f, 0.35f } };
+	for ( int row = 0; row < 3; ++row )
+	{
+		for ( int column = 0; column < 3; ++column )
+		{
+			mesh.vertices.push_back( { -0.25f + 0.25f * column, section[row].y, section[row].x } );
+		}
+	}
+
+	b3Vec3 facings[2] = { { 0.0f, 0.0f, -1.0f }, b3Vec3_axisY };
+	for ( int row = 0; row < 2; ++row )
+	{
+		for ( int column = 0; column < 2; ++column )
+		{
+			int a = 3 * row + column;
+			int b = a + 1;
+			int c = a + 4;
+			int d = a + 3;
+			if ( ( row + column ) & 1 )
+			{
+				AddGhostTriangle( mesh, a, d, b, facings[row] );
+				AddGhostTriangle( mesh, d, c, b, facings[row] );
+			}
+			else
+			{
+				AddGhostTriangle( mesh, a, d, c, facings[row] );
+				AddGhostTriangle( mesh, c, b, a, facings[row] );
+			}
+		}
+	}
+	meshes.push_back( mesh );
+}
+
 static const float s_inch = 0.0254f;
 
 static const GhostScene s_hullGhostScenes[] = {
@@ -2758,6 +2797,19 @@ static const GhostScene s_hullGhostScenes[] = {
 		{ 4.0f * s_inch, 36.0f * s_inch - 0.073f * s_inch, 3.0f * s_inch },
 		{ 0.0f, 0.0f, 0.0f },
 		false,
+	},
+	{
+		"Rail edge",
+		"box pitched 60 degrees across the rail, its face cuts the convex rail edge 7 cm past the x = 0 "
+		"vertex, the real contact is edge on edge and perpendicular to the rail",
+		"the edge pair is shallower than the hull face and the hull face normal crosses the rail edge, so "
+		"SAT takes the edge pair. Without that the hull face is admitted at a rail edge vertex and leans 60 "
+		"degrees along the rail.",
+		BuildGhostRail,
+		{ 0.4f, 0.2f, 0.4f },
+		{ 0.1f, 0.77f, -0.15f },
+		{ -15.0f, 0.0f, 60.0f },
+		true,
 	},
 };
 

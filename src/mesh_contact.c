@@ -1075,10 +1075,11 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 		bool blockSource = false;
 		b3TriangleFeature nearFeature = manifold->feature;
+		b3NeighborResult result = b3_neighborAdmit;
+		uint8_t meshFlags = manifold->feature == b3_featureHullFace ? b3_meshContactHullFace : 0;
 		if ( validateNeighbors && manifold->pointCount > 0 &&
 			 manifold->feature != b3_featureTriangleFace )
 		{
-			b3NeighborResult result;
 			if ( manifold->feature == b3_featureHullFace )
 			{
 				result = b3TestHullFaceNeighbors( shapeA, triangleIndex, vertices,
@@ -1113,6 +1114,15 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				// In deep overlap the owning neighbor may apply backside culling. Experiments
 				// show the that in this case the neighbor should snap the normal.
 				result = shapeB->type == b3_sphereShape ? b3_neighborUnknown : b3_neighborSnap;
+			}
+
+			if ( result == b3_neighborUnknown )
+			{
+				meshFlags |= b3_meshContactUnverified;
+			}
+			else if ( result == b3_neighborSnap )
+			{
+				meshFlags = b3_meshContactSnapped;
 			}
 
 			b3LocalManifold deepManifold = { 0 };
@@ -1152,6 +1162,11 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 					// The kept manifold failed the neighbor test, so it is unverified like a boundary contact.
 					blockSource = true;
+					meshFlags = b3_meshContactDeep | b3_meshContactUnverified;
+					if ( manifold->feature == b3_featureHullFace )
+					{
+						meshFlags |= b3_meshContactHullFace;
+					}
 				}
 			}
 		}
@@ -1161,6 +1176,22 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 		if ( manifoldPointCount > 0 )
 		{
 			B3_ASSERT( manifold->feature != b3_featureNone );
+
+			b3TriangleFeature pointFeature = manifold->feature;
+			if ( pointFeature == b3_featureHullFace && nearFeature != b3_featureHullFace && nearFeature != b3_featureNone )
+			{
+				pointFeature = nearFeature;
+			}
+			else if ( pointFeature == b3_featureHullFace && nearFeature == b3_featureNone && result == b3_neighborAdmit )
+			{
+				pointFeature = b3_featureTriangleFace;
+			}
+
+			for ( int i = 0; i < manifoldPointCount; ++i )
+			{
+				manifold->points[i].triangleFeature = (uint8_t)pointFeature;
+				manifold->points[i].meshFlags = meshFlags;
+			}
 
 			manifold->triangleIndex = triangleIndex;
 			manifold->triangleNormal =
@@ -1265,6 +1296,11 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				manifold->normal = blockerNormal;
 				manifold->triangleNormal = blockerNormal;
 				manifold->feature = b3_featureTriangleFace;
+				for ( int j = 0; j < manifold->pointCount; ++j )
+				{
+					manifold->points[j].triangleFeature = b3_featureTriangleFace;
+					manifold->points[j].meshFlags |= b3_meshContactBlocked;
+				}
 			}
 		}
 	}
@@ -1426,6 +1462,8 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			cp->point = ap->point;
 			cp->separation = ap->separation;
 			cp->pair = ap->pair;
+			cp->triangleFeature = ap->triangleFeature;
+			cp->meshFlags = ap->meshFlags;
 			cm->pointCount += 1;
 		}
 	}
@@ -1563,6 +1601,8 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 			target->separation = source->separation - restOffset;
 			target->featureId = b3MakeFeatureId( source->pair );
 			target->triangleIndex = source->triangleIndex;
+			target->triangleFeature = source->triangleFeature;
+			target->meshFlags = source->meshFlags;
 
 			// Preserve normal impulse if possible
 			if ( matchedManifold != NULL )
@@ -1762,6 +1802,8 @@ int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mes
 			target->separation = source->separation - restOffset;
 			target->featureId = b3MakeFeatureId( source->pair );
 			target->triangleIndex = source->triangleIndex;
+			target->triangleFeature = source->triangleFeature;
+			target->meshFlags = source->meshFlags;
 		}
 	}
 

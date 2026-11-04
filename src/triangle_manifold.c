@@ -13,6 +13,10 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
+
+// cosine of hull normal versus edge axis tolerance.
+#define B3_CROSSING_TOLERANCE 0.1f
 
 typedef struct b3TriangleData
 {
@@ -1311,14 +1315,29 @@ void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v
 		// If a face axis has positive separation there may be no points.
 		float maxFaceSeparation = b3MaxFloat( faceQueryA.separation, faceQueryB.separation );
 
+		// The edge axis can win if the hull face axis is significantly aligned with the edge axis.
+		bool crossesEdge = false;
+		if ( manifold->pointCount >= 1 && manifold->feature == b3_featureHullFace && edgeQuery.separation > clipSeparation )
+		{
+			b3Vec3 edgeAxis = b3Normalize( triangleEdges[edgeQuery.indexA] );
+
+			// Is the angle less than ~84 degrees?
+			crossesEdge = b3AbsFloat( b3Dot( faceQueryB.normal, edgeAxis ) ) > B3_CROSSING_TOLERANCE;
+		}
+
 		if ( ( manifold->pointCount == 0 && edgeQuery.separation > maxFaceSeparation ) ||
-			 ( manifold->pointCount == 1 && edgeQuery.separation > clipSeparation + linearSlop ) )
+			 ( manifold->pointCount == 1 && edgeQuery.separation > clipSeparation + linearSlop ) || crossesEdge )
 		{
 			B3_ASSERT( 0 <= edgeQuery.indexA && edgeQuery.indexA < 3 );
 			b3Vec3 trianglePoint = trianglePoints[edgeQuery.indexA];
 			b3Vec3 triangleEdge = triangleEdges[edgeQuery.indexA];
 			manifold->pointCount = 0;
 			b3CollideTriangleAndHullEdges( manifold, capacity, trianglePoint, triangleEdge, hullB, edgeQuery, cache );
+
+			if ( crossesEdge && manifold->pointCount == 0 )
+			{
+				b3CollideHullFace( manifold, capacity, &triangle, hullB, faceQueryB, cache, enableSpeculative );
+			}
 		}
 	}
 

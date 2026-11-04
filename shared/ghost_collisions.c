@@ -18,6 +18,11 @@
 #define GHOST_CHAMFER_WIDTH 0.05f
 #define GHOST_CHAMFER_DROP ( GHOST_CHAMFER_WIDTH / 1.5f )
 
+// A conveyor side rail along x, the floor is on the -z side
+#define GHOST_RAIL_HEIGHT 0.35f
+#define GHOST_RAIL_THICKNESS 0.08f
+#define GHOST_RAIL_SKIRT 0.4f
+
 typedef struct PeelPreset
 {
 	int columnCount;
@@ -33,7 +38,7 @@ static const PeelPreset s_peelPresets[GHOST_PEEL_PRESET_COUNT] = {
 };
 
 const char* g_ghostSceneNames[e_ghostSceneCount] = {
-	"Flat", "Concave", "Cliff", "Crest", "Bumps", "T-Junction", "Internal", "Chamfer",
+	"Flat", "Concave", "Cliff", "Crest", "Bumps", "T-Junction", "Internal", "Chamfer", "Rail",
 };
 
 const char* g_ghostBodyNames[e_ghostBodyCount] = { "Box", "H Capsule", "V Capsule", "Sphere", "Cylinder" };
@@ -152,6 +157,92 @@ static void AddStrip( MeshBuilder* builder, const b3Vec2* profile, int count, fl
 	free( points );
 }
 
+// The rail cross section is a profile in zy extruded along x. Each quad side is its edge direction along
+// the section crossed with x, which is the outward normal for a section traversed with air on the left.
+static void AddRail( MeshBuilder* builder, const b3Vec2* section, int count, float cellSize, bool mirror )
+{
+	float sign = mirror ? -1.0f : 1.0f;
+	int xCount = b3MaxInt( 1, (int)ceilf( 2.0f * GHOST_HALF_LENGTH / cellSize - 0.01f ) );
+	int stride = xCount + 1;
+
+	int pointCount = 1;
+	for ( int k = 0; k + 1 < count; ++k )
+	{
+		float dz = section[k + 1].x - section[k].x;
+		float dy = section[k + 1].y - section[k].y;
+		pointCount += b3MaxInt( 1, (int)ceilf( sqrtf( dz * dz + dy * dy ) / cellSize - 0.01f ) );
+	}
+
+	builder->vertices = realloc( builder->vertices, pointCount * stride * sizeof( b3Vec3 ) );
+	int index = 0;
+	for ( int k = 0; k < count; ++k )
+	{
+		int n = 1;
+		if ( k + 1 < count )
+		{
+			float dz = section[k + 1].x - section[k].x;
+			float dy = section[k + 1].y - section[k].y;
+			n = b3MaxInt( 1, (int)ceilf( sqrtf( dz * dz + dy * dy ) / cellSize - 0.01f ) );
+		}
+
+		// The last point only closes the final segment
+		int last = k + 1 < count ? n : 1;
+		for ( int s = 0; s < last; ++s )
+		{
+			float t = k + 1 < count ? (float)s / (float)n : 0.0f;
+			b3Vec2 a = section[k];
+			b3Vec2 b = k + 1 < count ? section[k + 1] : a;
+			float z = a.x + t * ( b.x - a.x );
+			float y = a.y + t * ( b.y - a.y );
+			for ( int j = 0; j <= xCount; ++j )
+			{
+				float x = -GHOST_HALF_LENGTH + 2.0f * GHOST_HALF_LENGTH * (float)j / (float)xCount;
+				builder->vertices[index++] = (b3Vec3){ sign * x, y, z };
+			}
+		}
+	}
+
+	builder->vertexCount = index;
+
+	int triangleCount = 2 * ( pointCount - 1 ) * xCount;
+	builder->indices = realloc( builder->indices, 3 * triangleCount * sizeof( int32_t ) );
+	builder->indexCount = 0;
+	for ( int i = 0; i + 1 < pointCount; ++i )
+	{
+		for ( int j = 0; j < xCount; ++j )
+		{
+			int a = i * stride + j;
+			int b = a + 1;
+			int c = a + stride + 1;
+			int d = a + stride;
+
+			int corners[6] = { a, d, c, c, b, a };
+			if ( ( i + j ) & 1 )
+			{
+				int flipped[6] = { a, d, b, d, c, b };
+				memcpy( corners, flipped, sizeof( corners ) );
+			}
+
+			for ( int k = 0; k < 6; k += 3 )
+			{
+				builder->indices[builder->indexCount++] = corners[k];
+				builder->indices[builder->indexCount++] = mirror ? corners[k + 2] : corners[k + 1];
+				builder->indices[builder->indexCount++] = mirror ? corners[k + 1] : corners[k + 2];
+			}
+		}
+	}
+}
+
+static float EvaluateRail( float z, float cellZ )
+{
+	if ( z < -0.5f * cellZ )
+	{
+		return 0.0f;
+	}
+
+	return z < 0.5f * cellZ ? GHOST_RAIL_HEIGHT : -GHOST_RAIL_SKIRT;
+}
+
 static void AddMesh( GhostCollisionsData* data, MeshBuilder* builder, bool frictionless )
 {
 	b3MeshDef meshDef = { 0 };
@@ -247,13 +338,16 @@ static void AddHeightField( b3WorldId worldId, GhostCollisionsData* data, float 
 	float cellX = ( x1 - x0 ) / (float)cellCountX;
 	float cellZ = 2.0f * halfWidth / (float)cellCountZ;
 
+	// The mirror turns the body half way around y, which also reverses z
+	bool rail = data->settings.scene == e_ghostRail;
 	float* heights = malloc( countX * countZ * sizeof( float ) );
 	for ( int row = 0; row < countZ; ++row )
 	{
+		float z = mirror ? halfWidth - cellZ * (float)row : -halfWidth + cellZ * (float)row;
 		for ( int column = 0; column < countX; ++column )
 		{
 			float x = mirror ? x1 - cellX * (float)column : x0 + cellX * (float)column;
-			heights[row * countX + column] = EvaluateProfile( data, x );
+			heights[row * countX + column] = rail ? EvaluateRail( z, cellZ ) : EvaluateProfile( data, x );
 		}
 	}
 
@@ -374,6 +468,15 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 			PushProfile( data, h, 0.0f );
 			break;
 
+		case e_ghostRail:
+			// Cross section in zy, from the floor up the inner wall, over the top and down the outer skirt
+			PushProfile( data, -GHOST_HALF_WIDTH, 0.0f );
+			PushProfile( data, 0.0f, 0.0f );
+			PushProfile( data, 0.0f, GHOST_RAIL_HEIGHT );
+			PushProfile( data, GHOST_RAIL_THICKNESS, GHOST_RAIL_HEIGHT );
+			PushProfile( data, GHOST_RAIL_THICKNESS, -GHOST_RAIL_SKIRT );
+			break;
+
 		default:
 			PushProfile( data, -h, 0.0f );
 			PushProfile( data, h, 0.0f );
@@ -420,6 +523,11 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 		{
 			AddHeightField( worldId, data, -h, h, GetCellCount( 2.0f * h, cellSize ), groundHalfWidth, cellCountZ, false );
 		}
+	}
+	else if ( settings->scene == e_ghostRail )
+	{
+		AddRail( &builder, data->profile, data->profileCount, cellSize, mirror );
+		AddMesh( data, &builder, false );
 	}
 	else if ( settings->scene == e_ghostTJunction )
 	{
@@ -477,6 +585,16 @@ void LaunchGhostBody( b3WorldId worldId, GhostCollisionsData* data )
 	{
 		bodyDef.position = (b3Pos){ s_peelPresets[settings->peelPreset].startZ, 80.0f, 0.0f };
 		bodyDef.rotation = yaw;
+	}
+	else if ( settings->scene == e_ghostRail )
+	{
+		// Dropped across the rail top, pitched so a box face sweeps into the rail edge at an angle. The real
+		// contact is edge on edge and perpendicular to the rail, a face normal there leans along the rail
+		// and catches the body. Found in the Conveyor Circuit sample.
+		b3Quat pitch = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 60.0f * B3_PI / 180.0f );
+		bodyDef.position = (b3Pos){ GHOST_START_X, GHOST_RAIL_HEIGHT + 0.45f, -0.15f };
+		bodyDef.rotation = b3MulQuat( pitch, yaw );
+		bodyDef.linearVelocity = (b3Vec3){ settings->speed, 0.0f, 0.0f };
 	}
 	else
 	{
@@ -714,7 +832,15 @@ int UpdateGhostCollisions( b3WorldId worldId, GhostCollisionsData* data, GhostRe
 			}
 
 			b3Vec3 normal = bodyIsA ? b3Neg( manifold->normal ) : manifold->normal;
-			if ( IsGhost( data, normal, xMin, xMax, zMin, zMax ) == false )
+			if ( data->settings.scene == e_ghostRail )
+			{
+				// The rail is the same all along x, so no valid normal leans along it
+				if ( b3AbsFloat( normal.x ) <= sinf( 5.0f * B3_PI / 180.0f ) )
+				{
+					continue;
+				}
+			}
+			else if ( IsGhost( data, normal, xMin, xMax, zMin, zMax ) == false )
 			{
 				continue;
 			}

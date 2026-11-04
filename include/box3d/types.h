@@ -1628,7 +1628,6 @@ typedef struct b3SimplexCache
 	/// Value use to compare length, area, volume of two simplexes.
 	float metric;
 
-	// todo use an index of 0xFF as a sentinel and remove the count
 	/// The number of stored simplex points
 	uint16_t count;
 
@@ -2813,6 +2812,12 @@ typedef struct b3ManifoldPoint
 
 	/// Did this contact point exist in the previous step?
 	bool persisted;
+
+	// b3TriangleFeature
+	uint8_t triangleFeature;
+
+	// b3MeshContactFlags
+	uint8_t meshFlags;
 } b3ManifoldPoint;
 
 /// A contact manifold describes the contact points between colliding shapes.
@@ -2840,7 +2845,7 @@ typedef struct b3Manifold
 } b3Manifold;
 
 /// Cached separating axis feature.
-typedef enum
+typedef enum b3SeparatingFeature
 {
 	b3_invalidAxis = 0,
 	b3_backsideAxis,
@@ -2856,7 +2861,7 @@ typedef enum
 } b3SeparatingFeature;
 
 /// Cached triangle feature.
-typedef enum
+typedef enum b3TriangleFeature
 {
 	b3_featureNone = 0,
 	b3_featureTriangleFace,
@@ -2871,6 +2876,16 @@ typedef enum
 	b3_featureVertex2,
 	b3_featureVertex3
 } b3TriangleFeature;
+
+/// This gives debug information about how a contact point was generated.
+typedef enum b3MeshContactFlags
+{
+	b3_meshContactHullFace = 0x01,
+	b3_meshContactSnapped = 0x02,
+	b3_meshContactUnverified = 0x04,
+	b3_meshContactDeep = 0x08,
+	b3_meshContactBlocked = 0x10,
+} b3MeshContactFlags;
 
 /// Separating axis test cache. Provides temporal acceleration of collision routines.
 typedef struct
@@ -2923,6 +2938,12 @@ typedef struct b3LocalManifoldPoint
 
 	/// The triangle index when collide with a mesh or height-field.
 	int triangleIndex;
+
+	// b3TriangleFeature
+	uint8_t triangleFeature;
+
+	// b3MeshContactFlags
+	uint8_t meshFlags;
 } b3LocalManifoldPoint;
 
 /// A local manifold with no dynamic information. Used by b3Collide functions.

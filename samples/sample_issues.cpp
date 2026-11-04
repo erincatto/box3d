@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "gfx/draw.h"
+#include "gfx/keycodes.h"
 #include "imgui.h"
 #include "mesh_loader.h"
 #include "meshoptimizer.h"
@@ -2267,3 +2268,317 @@ public:
 };
 
 static int sampleRollingDeck = RegisterSample( "Issues", "Rolling Deck", RollingDeck::Create );
+
+// A car made of one dynamic box (the chassis) and four ray cast 'wheels'.
+// There are no wheel bodies and no joints.
+
+// W/S to drive, A/D to steer and Space to brake. T toggles a camera that follows the car.
+
+// Each step every wheel casts a ray down the chassis' own down axis. Where a ray hits the ground
+// the wheel applies two forces to the chassis at the contact point:
+// - a spring and damper force along the contact normal, which holds the chassis up
+// - a tyre force in the contact plane, which drives, brakes and stops the wheel sliding sideways
+// The tyre force is limited by friction times the spring force, so a wheel that is lightly loaded
+// grips less. Weight transfer, body roll and rollover come from where these forces are applied.
+class RaycastVehicle : public Sample
+{
+public:
+	static constexpr int m_wheelCount = 4;
+	static constexpr uint64_t m_vehicleBit = 0x2;
+
+	struct Wheel
+	{
+		b3Vec3 localMount;
+		bool steered;
+
+		// Distance from the mount down to the wheel's center
+		float suspensionLength;
+		bool grounded;
+
+		// Rotation about the axle, for drawing only
+		float spinAngle;
+		float spinSpeed;
+	};
+
+	explicit RaycastVehicle( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 25.0f, 20.0f, 12.0f, { 0.0f, 1.0f, 0.0f } );
+		}
+
+		m_suspensionHertz = 1.5f;
+		m_suspensionDampingRatio = 0.45f;
+		m_friction = 1.0f;
+		m_wheelRadius = 0.35f;
+		m_suspensionTravel = 0.3f;
+		m_engineAcceleration = 5.0f;
+		m_brakeDeceleration = 8.0f;
+		m_maxSteeringAngle = 0.15f * B3_PI;
+		m_steeringAngle = 0.0f;
+
+		AddGroundBox( 100.0f );
+
+		// A ramp to show the suspension working
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = { 15.0f, -0.5f, 0.0f };
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 0.1f );
+			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3BoxHull box = b3MakeBoxHull( 6.0f, 0.5f, 4.0f );
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+		}
+
+		// The chassis is the only body. Its shape has its own category so the wheel rays can skip
+		// it.
+		float halfLength = 2.2f;
+		float halfHeight = 0.7f;
+		float halfWidth = 0.9f;
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { 0.0f, 1.2f, 0.0f };
+			m_chassisId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.density = 130.0f;
+			shapeDef.filter.categoryBits = m_vehicleBit;
+			b3BoxHull box = b3MakeBoxHull( halfLength, halfHeight, halfWidth );
+			b3CreateHullShape( m_chassisId, &shapeDef, &box.base );
+
+			// A car tips over when its lateral acceleration exceeds half the track width divided by
+			// the height of its center of mass. At the middle of this box the center of mass would
+			// be about as high as the half track, and the car would roll before its tyres slide.
+			// Lower it to near the floor, where the heavy parts of a car are.
+			b3MassData massData = b3Body_GetMassData( m_chassisId );
+			massData.center = { 0.0f, -0.45f, 0.0f };
+			b3Body_SetMassData( m_chassisId, massData );
+		}
+
+		// The mounts are the top of each wheel's travel, inside the chassis at the sides. +x is
+		// forward.
+		float axle = 0.75f * halfLength;
+		float mountHeight = -0.3f;
+		m_wheels[0] = { { axle, mountHeight, halfWidth }, true, m_suspensionTravel };
+		m_wheels[1] = { { axle, mountHeight, -halfWidth }, true, m_suspensionTravel };
+		m_wheels[2] = { { -axle, mountHeight, halfWidth }, false, m_suspensionTravel };
+		m_wheels[3] = { { -axle, mountHeight, -halfWidth }, false, m_suspensionTravel };
+
+		// A cylinder along its y axis, centered, for drawing the wheels
+		float wheelWidth = 0.25f;
+		m_wheelHull = b3CreateCylinder( wheelWidth, m_wheelRadius, -0.5f * wheelWidth, 12 );
+	}
+
+	~RaycastVehicle() override
+	{
+		b3DestroyHull( m_wheelHull );
+
+		if ( m_camera->m_thirdPerson )
+		{
+			ToggleThirdPerson();
+		}
+	}
+
+	void Keyboard( int key, int action, int mods ) override
+	{
+		if ( key == KEY_T && action == ACTION_PRESS )
+		{
+			ToggleThirdPerson();
+		}
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::SliderFloat( "Suspension Hertz", &m_suspensionHertz, 0.5f, 5.0f, "%.1f" );
+		ImGui::SliderFloat( "Suspension Damping", &m_suspensionDampingRatio, 0.0f, 2.0f, "%.2f" );
+		ImGui::SliderFloat( "Tyre Friction", &m_friction, 0.0f, 2.0f, "%.2f" );
+
+		bool thirdPerson = m_camera->m_thirdPerson;
+		if ( ImGui::Checkbox( "Third Person (T)", &thirdPerson ) )
+		{
+			ToggleThirdPerson();
+		}
+
+		return true;
+	}
+
+	// Apply the forces of every wheel to the chassis for the coming step
+	void UpdateWheels( float timeStep, float throttle, float brake, float steer )
+	{
+		b3WorldTransform transform = b3Body_GetTransform( m_chassisId );
+		b3Vec3 forward = b3RotateVector( transform.q, b3Vec3_axisX );
+
+		// The acceleration the driver asks for along the chassis' nose. The brake opposes the
+		// chassis' motion and is capped at what stops it this step, so it never drives it
+		// backwards.
+		float speed = b3Dot( b3Body_GetLinearVelocity( m_chassisId ), forward );
+		float acceleration = m_engineAcceleration * throttle;
+		float stopping = b3MinFloat( m_brakeDeceleration * brake, b3AbsFloat( speed ) / timeStep );
+		acceleration -= speed > 0.0f ? stopping : -stopping;
+
+		for ( int i = 0; i < m_wheelCount; ++i )
+		{
+			UpdateWheel( m_wheels[i], transform, timeStep, acceleration, steer );
+		}
+	}
+
+	// Cast one wheel's ray and apply its suspension and tyre forces to the chassis
+	void UpdateWheel( Wheel& wheel, b3WorldTransform transform, float timeStep, float acceleration,
+					  float steer )
+	{
+		b3Vec3 up = b3RotateVector( transform.q, b3Vec3_axisY );
+		b3Vec3 forward = b3RotateVector( transform.q, b3Vec3_axisX );
+
+		// The ray reaches from the mount down through the spring's travel and the wheel's radius
+		float reach = m_suspensionTravel + m_wheelRadius;
+		b3Vec3 translation = b3MulSV( -reach, up );
+
+		b3QueryFilter filter = b3DefaultQueryFilter();
+		filter.categoryBits = m_vehicleBit;
+		filter.maskBits = ~m_vehicleBit;
+
+		b3Pos mount = b3TransformWorldPoint( transform, wheel.localMount );
+		b3RayResult hit = b3World_CastRayClosest( m_worldId, mount, translation, filter );
+		wheel.grounded = hit.hit;
+		float fraction = hit.hit ? hit.fraction : 1.0f;
+		wheel.suspensionLength = fraction * reach - m_wheelRadius;
+
+		// A wheel turns at the speed of the ground under it, and keeps that speed in the air
+		wheel.spinAngle = b3UnwindAngle( wheel.spinAngle + wheel.spinSpeed * timeStep );
+
+		if ( hit.hit == false )
+		{
+			return;
+		}
+
+		// Each wheel carries an equal share of the mass. The spring rate gives that share the
+		// requested natural frequency.
+		float share = b3Body_GetMass( m_chassisId ) / m_wheelCount;
+		float omega = 2.0f * B3_PI * m_suspensionHertz;
+		float stiffness = share * omega * omega;
+		float damping = 2.0f * m_suspensionDampingRatio * share * omega;
+
+		// Suspension. A spring only pushes: a negative load would pull the chassis onto the
+		// ground and hold it there through a jump.
+		float compression = ( 1.0f - hit.fraction ) * reach;
+		float compressionSpeed = -b3Dot( b3Body_GetWorldPointVelocity( m_chassisId, mount ), up );
+		float load = b3MaxFloat( stiffness * compression + damping * compressionSpeed, 0.0f );
+		b3Body_ApplyForce( m_chassisId, b3MulSV( load, hit.normal ), hit.point, true );
+
+		// The wheel's rolling direction in the contact plane, and the direction across it
+		b3Vec3 heading = forward;
+		if ( wheel.steered )
+		{
+			heading = b3RotateVector( b3MakeQuatFromAxisAngle( up, steer ), forward );
+		}
+		b3Vec3 rolling =
+			b3Normalize( b3MulAdd( heading, -b3Dot( heading, hit.normal ), hit.normal ) );
+		b3Vec3 lateral = b3Cross( hit.normal, rolling );
+
+		// The lateral force cancels the contact point's sideways sliding in one step. The rolling
+		// force gives this wheel's share of the mass the requested acceleration, resolved onto the
+		// wheel, so a steered wheel puts less of it into the nose direction.
+		b3Vec3 contactVelocity = b3Body_GetWorldPointVelocity( m_chassisId, hit.point );
+		float lateralForce = -share * b3Dot( contactVelocity, lateral ) / timeStep;
+		float rollingForce = share * acceleration * b3Dot( forward, rolling );
+
+		// Rolling forward along +x turns the wheel backwards about its axle, the chassis' +z
+		wheel.spinSpeed = -b3Dot( contactVelocity, rolling ) / m_wheelRadius;
+
+		// Friction circle: the tyre cannot give more than friction times the load on it
+		float maxForce = m_friction * load;
+		float magnitude = sqrtf( lateralForce * lateralForce + rollingForce * rollingForce );
+		if ( magnitude > maxForce )
+		{
+			lateralForce *= maxForce / magnitude;
+			rollingForce *= maxForce / magnitude;
+		}
+
+		b3Vec3 tyreForce =
+			b3Add( b3MulSV( rollingForce, rolling ), b3MulSV( lateralForce, lateral ) );
+		b3Body_ApplyForce( m_chassisId, tyreForce, hit.point, true );
+	}
+
+	void Step() override
+	{
+		float throttle = 0.0f;
+		throttle += IsKeyDown( KEY_W ) ? 1.0f : 0.0f;
+		throttle -= IsKeyDown( KEY_S ) ? 1.0f : 0.0f;
+		float brake = IsKeyDown( KEY_SPACE ) ? 1.0f : 0.0f;
+
+		m_steeringAngle = 0.0f;
+		m_steeringAngle += IsKeyDown( KEY_A ) ? m_maxSteeringAngle : 0.0f;
+		m_steeringAngle -= IsKeyDown( KEY_D ) ? m_maxSteeringAngle : 0.0f;
+
+		// Forces accumulate until the world steps, so apply them only on a step that runs
+		bool stepping = m_context->pause == false || m_context->singleStep > 0;
+		if ( stepping && m_context->hertz > 0.0f )
+		{
+			UpdateWheels( 1.0f / m_context->hertz, throttle, brake, m_steeringAngle );
+		}
+
+		if ( m_camera->m_thirdPerson )
+		{
+			m_camera->m_pivot = b3Body_GetPosition( m_chassisId );
+			m_camera->UpdateTransform();
+		}
+
+		Sample::Step();
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+
+		b3WorldTransform transform = b3Body_GetTransform( m_chassisId );
+		b3Vec3 down = b3RotateVector( transform.q, b3Neg( b3Vec3_axisY ) );
+
+		// The wheel cylinder is along y. This turns it onto the axle, the chassis' z.
+		b3Quat cylinderToAxle = b3MakeQuatFromAxisAngle( b3Vec3_axisX, 0.5f * B3_PI );
+
+		for ( int i = 0; i < m_wheelCount; ++i )
+		{
+			const Wheel& wheel = m_wheels[i];
+			b3Pos mount = b3TransformWorldPoint( transform, wheel.localMount );
+			b3Pos center = b3OffsetPos( mount, b3MulSV( wheel.suspensionLength, down ) );
+
+			float steer = wheel.steered ? m_steeringAngle : 0.0f;
+			b3Quat q = b3MulQuat( transform.q, b3MakeQuatFromAxisAngle( b3Vec3_axisY, steer ) );
+			q = b3MulQuat( q, b3MakeQuatFromAxisAngle( b3Vec3_axisZ, wheel.spinAngle ) );
+			q = b3MulQuat( q, cylinderToAxle );
+
+			b3HexColor color = wheel.grounded ? b3_colorGreen : b3_colorRed;
+			DrawLine( mount, center, MakeColor( color ) );
+			DrawHull( { center, q }, m_wheelHull, MakeColor( b3_colorGray ) );
+		}
+
+		b3Vec3 forward = b3RotateVector( b3Body_GetRotation( m_chassisId ), b3Vec3_axisX );
+		float speed = b3Dot( b3Body_GetLinearVelocity( m_chassisId ), forward );
+		DrawTextLine( "speed = %.1f m/s", speed );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new RaycastVehicle( context );
+	}
+
+	b3BodyId m_chassisId;
+	Wheel m_wheels[m_wheelCount];
+	b3HullData* m_wheelHull;
+
+	float m_suspensionHertz;
+	float m_suspensionDampingRatio;
+	float m_friction;
+	float m_wheelRadius;
+	float m_suspensionTravel;
+	float m_engineAcceleration;
+	float m_brakeDeceleration;
+	float m_maxSteeringAngle;
+	float m_steeringAngle;
+};
+
+static int sampleRaycastVehicle =
+	RegisterSample( "Vehicle", "Raycast Vehicle", RaycastVehicle::Create );
