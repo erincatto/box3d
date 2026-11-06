@@ -1966,14 +1966,14 @@ public:
 		// m_triangle[1] = { 1.00000000, 0, 0.00000000 };
 		// m_triangle[2] = { 0.00000000, 0, 0.00000000 };
 
-		m_triangle[0] = { 0.299769998f, -1.01549578f, -0.744717002f };
-		m_triangle[1] = { 0.299769998f, -1.01549578f, 1.28728306f };
-		m_triangle[2] = { 0.299769998f, -0.913895786f, 0.271283031f };
+		// Deep overlap where the hull face normal crosses the triangle edge, so SAT tries the edge pair,
+		// but the edge closest points fall outside the segments. Only the hull face clip keeps a contact,
+		// GJK sees overlap and returns nothing.
+		m_triangle[0] = { 0.259390f, -0.178787f, -0.292602f };
+		m_triangle[1] = { 0.861452f, 0.228978f, 0.393873f };
+		m_triangle[2] = { -0.539058f, 0.127502f, 0.225728f };
 
-		float bodyHalfWidth = 0.304800004f;
-		float bodyHalfHeight = 0.914399981f;
-
-		m_boxHull = b3MakeBoxHull( bodyHalfWidth, bodyHalfHeight, bodyHalfWidth );
+		m_boxHull = b3MakeBoxHull( 0.4f, 0.2f, 0.4f );
 
 		m_transformA = b3WorldTransform_identity;
 		m_transformB = b3WorldTransform_identity;

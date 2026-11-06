@@ -2453,7 +2453,7 @@ typedef struct b3HeightFieldDef
 #define B3_HEIGHT_FIELD_HOLE 0xFF
 
 /// 64-bit height-field version. Useful for validating serialized data.
-#define B3_HEIGHT_FIELD_VERSION 0x8E41E5FB084848F8ull
+#define B3_HEIGHT_FIELD_VERSION 0x5A69A297D7ACE1CDull
 
 /// A height field with compressed storage.
 /// @note This data structure has data hanging off the end and cannot be directly copied.

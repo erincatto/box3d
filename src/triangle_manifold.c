@@ -13,7 +13,6 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdlib.h>
 
 // cosine of hull normal versus edge axis tolerance.
 #define B3_CROSSING_TOLERANCE 0.1f

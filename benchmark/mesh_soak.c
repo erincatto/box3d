@@ -25,8 +25,6 @@
 
 #define MAX_REPORTED_FAILURES 32
 #define MAX_THREADS 64
-#define MAX_BASELINE_ROWS 64
-#define BASELINE_ROW_SIZE 512
 
 typedef enum FailureKind
 {
@@ -261,25 +259,17 @@ static void WriteBaseline( const Soak* soak, const char* path )
 	GetBaselineKey( soak, key, sizeof( key ) );
 	size_t keyLength = strlen( key );
 
-	char* rows = malloc( MAX_BASELINE_ROWS * BASELINE_ROW_SIZE );
-	int rowCount = 0;
-
-	FILE* file = fopen( path, "r" );
+	// Read the whole file so neither a row count nor a row length can drop a row
+	char* text = NULL;
+	FILE* file = fopen( path, "rb" );
 	if ( file != NULL )
 	{
-		char line[BASELINE_ROW_SIZE];
-		bool header = true;
-		while ( fgets( line, sizeof( line ), file ) != NULL )
-		{
-			if ( header == false && strncmp( line, key, keyLength ) != 0 && rowCount < MAX_BASELINE_ROWS )
-			{
-				snprintf( rows + rowCount * BASELINE_ROW_SIZE, BASELINE_ROW_SIZE, "%s", line );
-				rowCount += 1;
-			}
-
-			header = false;
-		}
-
+		fseek( file, 0, SEEK_END );
+		long textLength = ftell( file );
+		fseek( file, 0, SEEK_SET );
+		text = malloc( textLength + 1 );
+		textLength = (long)fread( text, 1, textLength, file );
+		text[textLength] = '\0';
 		fclose( file );
 	}
 
@@ -287,7 +277,7 @@ static void WriteBaseline( const Soak* soak, const char* path )
 	if ( file == NULL )
 	{
 		printf( "cannot write %s\n", path );
-		free( rows );
+		free( text );
 		return;
 	}
 
@@ -298,12 +288,30 @@ static void WriteBaseline( const Soak* soak, const char* path )
 	}
 	fprintf( file, "\n" );
 
-	for ( int i = 0; i < rowCount; ++i )
+	if ( text != NULL )
 	{
-		fputs( rows + i * BASELINE_ROW_SIZE, file );
-	}
+		bool header = true;
+		char* line = text;
+		while ( *line != '\0' )
+		{
+			char* next = strchr( line, '\n' );
+			size_t lineLength = next != NULL ? (size_t)( next - line ) : strlen( line );
+			if ( lineLength > 0 && line[lineLength - 1] == '\r' )
+			{
+				lineLength -= 1;
+			}
 
-	free( rows );
+			if ( header == false && lineLength > 0 && strncmp( line, key, keyLength ) != 0 )
+			{
+				fprintf( file, "%.*s\n", (int)lineLength, line );
+			}
+
+			header = false;
+			line = next != NULL ? next + 1 : line + strlen( line );
+		}
+
+		free( text );
+	}
 
 	for ( int shape = 0; shape < e_meshDropShapeCount; ++shape )
 	{

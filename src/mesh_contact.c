@@ -452,7 +452,9 @@ static bool b3IsInVertexRegion( const b3Vec3* vertices, int vertexIndex, b3Vec3 
 	b3Vec3 vertex = vertices[vertexIndex];
 	b3Vec3 next = vertices[vertexIndex < 2 ? vertexIndex + 1 : 0];
 	b3Vec3 previous = vertices[vertexIndex > 0 ? vertexIndex - 1 : 2];
-	return b3Dot( normal, b3Sub( next, vertex ) ) <= 0.0f && b3Dot( normal, b3Sub( previous, vertex ) ) <= 0.0f;
+	b3Vec3 e1 = b3Sub( next, vertex );
+	b3Vec3 e2 = b3Sub( previous, vertex );
+	return b3Dot( normal, e1 ) <= 0.0f && b3Dot( normal, e2 ) <= 0.0f;
 }
 
 // Check the vertex flags to determined if this normal is admissible.
@@ -461,6 +463,7 @@ static bool b3AdmitsVertexNormal( const b3Shape* shape, int triangleIndex, const
 {
 	if ( b3IsInVertexRegion( vertices, vertexIndex, normal ) == false )
 	{
+		// Not in the vertex region so this vertex cannot admit the normal.
 		return false;
 	}
 
@@ -567,6 +570,7 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 	float cosAngle = b3Dot( normal, triangleNormal );
 	if ( cosAngle > 0.0f && cosAngle * cosAngle >= 1.0f - tolerance * tolerance )
 	{
+		// Face normal (flipped to point from A to B) is parallel to triangle normal.
 		return b3_neighborAdmit;
 	}
 
@@ -579,13 +583,27 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 		}
 	}
 
-	// Test vertices.
-	if ( manifold->points[deepest].separation < 0.0f )
+	// Clip points were moved onto the hull face, step back along the normal to the triangle.
+	const b3LocalManifoldPoint* deepestPoint = manifold->points + deepest;
+	b3Vec3 point = b3MulSub( deepestPoint->point, deepestPoint->separation, normal );
+
+	float linearSlop = B3_LINEAR_SLOP;
+
+	// If the hull overlaps this triangle then determine if the deepest point
+	// is close to a vertex.
+	if ( deepestPoint->separation < 0.0f )
 	{
 		for ( int i = 0; i < 3; ++i )
 		{
-			if ( b3AdmitsVertexNormal( shape, triangleIndex, vertices, i, normal ) )
+			if ( b3DistanceSquared( point, vertices[i] ) > linearSlop * linearSlop )
 			{
+				continue;
+			}
+
+			bool admit = b3AdmitsVertexNormal( shape, triangleIndex, vertices, i, normal );
+			if ( admit )
+			{
+				// This vertex tentatively accepts the normal.
 				b3TriangleFeature vertexFeatures[3] = { b3_featureVertex1, b3_featureVertex2, b3_featureVertex3 };
 				*nearFeature = vertexFeatures[i];
 				return b3_neighborAdmit;
@@ -593,11 +611,6 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 		}
 	}
 
-	// Clip points were moved onto the hull face, step back along the normal to the triangle.
-	const b3LocalManifoldPoint* deepestPoint = manifold->points + deepest;
-	b3Vec3 point = b3MulSub( deepestPoint->point, deepestPoint->separation, normal );
-
-	float linearSlop = B3_LINEAR_SLOP;
 	int nearEdges[3];
 	int nearCount = 0;
 	bool inwardTilt = false;
@@ -728,7 +741,10 @@ static b3Vec3 b3GetFeaturePoint( const b3LocalManifold* manifold, const b3Vec3* 
 
 typedef struct b3BlockTarget
 {
+	// Triangle normal
 	b3Vec3 normal;
+
+	// Tolerance scaled by maximum edge length.
 	float distanceTolerance;
 } b3BlockTarget;
 
@@ -757,7 +773,8 @@ static bool b3ShouldBlockNormal( const b3Vec3* vertices, b3BlockTarget target, b
 	float distanceTolerance = target.distanceTolerance;
 	B3_ASSERT( b3AbsFloat( b3Dot( triangleNormal, b3Sub( point, vertices[0] ) ) ) <= distanceTolerance );
 
-	if ( b3Dot( normal, triangleNormal ) < -0.01f )
+	float normalDot = b3Dot( normal, triangleNormal );
+	if ( normalDot < -0.01f )
 	{
 		return false;
 	}
@@ -1216,8 +1233,12 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 	if ( blockSourceCount > 0 )
 	{
-		bool* usedAsBlocker = b3Bump( arena, manifoldCount * sizeof( bool ) );
-		memset( usedAsBlocker, 0, manifoldCount * sizeof( bool ) );
+		int* survivorSources = b3Bump( arena, survivorCount * sizeof( int ) );
+		memset( survivorSources, 0xFF, survivorCount * sizeof( int ) );
+		for ( int i = 0; i < blockSourceCount; ++i )
+		{
+			survivorSources[blockSources[i].survivorIndex] = i;
+		}
 
 		b3BlockTarget* blockTargets = b3Bump( arena, survivorCount * sizeof( b3BlockTarget ) );
 		for ( int i = 0; i < survivorCount; ++i )
@@ -1237,15 +1258,21 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 					continue;
 				}
 
-				// todo explain this better
+				// Compute the distance of the block source point from the target plane.
 				const b3Vec3* targetVertices = survivorVertices + 3 * j;
 				float planeDistance = b3Dot( blockTargets[j].normal, b3Sub( source->point, targetVertices[0] ) );
+
+				// Is the absolute plane distance greater than the target tolerance?
 				if ( b3AbsFloat( planeDistance ) > blockTargets[j].distanceTolerance )
 				{
 					continue;
 				}
 
-				if ( b3ShouldBlockNormal( targetVertices, blockTargets[j], source->point, normal ) )
+				// The source point is in the plane of the target.
+				// 
+				bool shouldBlock =
+					b3ShouldBlockNormal( targetVertices, blockTargets[j], source->point, normal );
+				if ( shouldBlock )
 				{
 					// todo explain this better
 					float alignment = b3Dot( normal, blockTargets[j].normal );
@@ -1256,14 +1283,95 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 					}
 				}
 			}
+		}
 
-			if ( source->blockerIndex != B3_NULL_INDEX )
+		bool* separated = b3Bump( arena, blockSourceCount * sizeof( bool ) );
+		for ( int i = 0; i < blockSourceCount; ++i )
+		{
+			const b3LocalManifold* manifold = manifoldBuffer + blockSources[i].manifoldIndex;
+			float minSeparation = manifold->points[0].separation;
+			for ( int j = 1; j < manifold->pointCount; ++j )
 			{
-				int blockerManifold = survivorManifolds[source->blockerIndex];
-				if ( blockerManifold != B3_NULL_INDEX )
+				minSeparation = b3MinFloat( minSeparation, manifold->points[j].separation );
+			}
+
+			separated[i] = minSeparation >= restOffset;
+		}
+
+		// From Bepu, drop when the blocker has its own contact unless the two block each
+		// other as when wedged in a crease, otherwise correct to the blocker face normal if touching.
+		// todo comment
+		enum
+		{
+			b3_blockUnvisited,
+			b3_blockOnPath,
+			b3_blockResolved,
+		};
+
+		uint8_t* states = b3Bump( arena, blockSourceCount * sizeof( uint8_t ) );
+		memset( states, b3_blockUnvisited, blockSourceCount * sizeof( uint8_t ) );
+		bool* dropped = b3Bump( arena, blockSourceCount * sizeof( bool ) );
+		int* path = b3Bump( arena, blockSourceCount * sizeof( int ) );
+
+		for ( int i = 0; i < blockSourceCount; ++i )
+		{
+			int pathCount = 0;
+			int k = i;
+			while ( k != B3_NULL_INDEX && states[k] == b3_blockUnvisited )
+			{
+				states[k] = b3_blockOnPath;
+				path[pathCount++] = k;
+
+				int blocker = blockSources[k].blockerIndex;
+				if ( blocker == B3_NULL_INDEX )
 				{
-					usedAsBlocker[blockerManifold] = true;
+					dropped[k] = false;
+					states[k] = b3_blockResolved;
+					k = B3_NULL_INDEX;
 				}
+				else if ( survivorManifolds[blocker] == B3_NULL_INDEX )
+				{
+					dropped[k] = separated[k];
+					states[k] = b3_blockResolved;
+					k = B3_NULL_INDEX;
+				}
+				else if ( survivorSources[blocker] == B3_NULL_INDEX )
+				{
+					dropped[k] = true;
+					states[k] = b3_blockResolved;
+					k = B3_NULL_INDEX;
+				}
+				else
+				{
+					k = survivorSources[blocker];
+				}
+			}
+
+			// todo comment
+			if ( k != B3_NULL_INDEX && states[k] == b3_blockOnPath )
+			{
+				int m = k;
+				do
+				{
+					dropped[m] = separated[m];
+					states[m] = b3_blockResolved;
+					m = survivorSources[blockSources[m].blockerIndex];
+				}
+				while ( m != k );
+			}
+
+			for ( int p = pathCount - 1; p >= 0; --p )
+			{
+				int s = path[p];
+				if ( states[s] == b3_blockResolved )
+				{
+					continue;
+				}
+
+				int next = survivorSources[blockSources[s].blockerIndex];
+				B3_ASSERT( states[next] == b3_blockResolved );
+				dropped[s] = separated[s] || dropped[next] == false;
+				states[s] = b3_blockResolved;
 			}
 		}
 
@@ -1276,17 +1384,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			}
 
 			b3LocalManifold* manifold = manifoldBuffer + source->manifoldIndex;
-			float minSeparation = manifold->points[0].separation;
-			for ( int j = 1; j < manifold->pointCount; ++j )
-			{
-				minSeparation = b3MinFloat( minSeparation, manifold->points[j].separation );
-			}
-
-			// From Bepu, drop when the blocker has its own contact unless the two block each
-			// other as when wedged in a crease, otherwise correct to the blocker face normal if touching.
-			bool blockerHasManifold = survivorManifolds[source->blockerIndex] != B3_NULL_INDEX;
-			bool wedged = usedAsBlocker[source->manifoldIndex];
-			if ( ( blockerHasManifold && wedged == false ) || minSeparation >= restOffset )
+			if ( dropped[i] )
 			{
 				manifold->pointCount = 0;
 			}
@@ -1307,7 +1405,9 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 	if ( hullB != NULL && validateNeighbors )
 	{
-		// Cull contacts below hull face when it rests on a triangle.
+		// Cull triangles fully below the hull face when it rests on a triangle and has
+		// a tilted manifold normal. This helps when a box slides across a chamfered
+		// channel.
 		float tolerance = B3_NEIGHBOR_TOLERANCE;
 		float cosSquaredTolerance = 1.0f - tolerance * tolerance;
 		const b3LocalManifold* resting = NULL;
@@ -1487,10 +1587,6 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 							 bool isFast, b3Arena arena )
 {
 	B3_ASSERT( shapeA->type == b3_meshShape || shapeA->type == b3_heightShape );
-	B3_UNUSED( workerIndex );
-	B3_UNUSED( isFast );
-	B3_UNUSED( materialMap );
-
 	b3TaskContext* context = b3Array_Get( world->taskContexts, workerIndex );
 
 	b3RefreshCache( contact, shapeA, xfA, &shapeB->aabb, arena );

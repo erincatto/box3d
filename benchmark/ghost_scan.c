@@ -34,6 +34,7 @@ typedef struct Config
 
 	// From the compare file, -1 when absent
 	int baseGhostCount;
+	int baseRunCount;
 } Config;
 
 static const char* MatchValue( const char* arg, const char* shortName, const char* longName )
@@ -136,25 +137,65 @@ static void FormatRow( char* buffer, size_t size, const Config* config )
 	}
 }
 
-static bool WriteResults( const char* path, const Config* configs, int configCount )
+static bool SameConfig( const Config* a, const Config* b )
 {
-	FILE* file = fopen( path, "w" );
-	if ( file == NULL )
+	return a->scene == b->scene && a->preset == b->preset && a->mirror == b->mirror && a->body == b->body;
+}
+
+// Filters are -1 for all
+static int BuildConfigs( Config* configs, int sceneFilter, int presetFilter, int mirrorFilter, int bodyFilter )
+{
+	int configCount = 0;
+	for ( int scene = 0; scene < e_ghostSceneCount; ++scene )
 	{
-		printf( "cannot write %s\n", path );
-		return false;
+		if ( sceneFilter >= 0 && scene != sceneFilter )
+		{
+			continue;
+		}
+
+		int presetCount = scene == e_ghostInternal ? GHOST_PEEL_PRESET_COUNT : 1;
+		for ( int preset = 0; preset < presetCount; ++preset )
+		{
+			if ( scene == e_ghostInternal && presetFilter >= 0 && preset != presetFilter )
+			{
+				continue;
+			}
+
+			for ( int mirror = 0; mirror < 2; ++mirror )
+			{
+				if ( mirrorFilter >= 0 && mirror != mirrorFilter )
+				{
+					continue;
+				}
+
+				for ( int body = 0; body < e_ghostBodyCount; ++body )
+				{
+					if ( bodyFilter >= 0 && body != bodyFilter )
+					{
+						continue;
+					}
+
+					// Only a flat bottom can rest on the chamfer edges
+					if ( scene == e_ghostChamfer && body != e_ghostBox && body != e_ghostCylinder )
+					{
+						continue;
+					}
+
+					B3_ASSERT( configCount < MAX_CONFIGS );
+					configs[configCount++] = (Config){
+						.scene = (GhostScene)scene,
+						.preset = preset,
+						.mirror = mirror != 0,
+						.body = (GhostBody)body,
+						.baseGhostCount = -1,
+						.baseRunCount = -1,
+					};
+				}
+			}
+		}
 	}
 
-	fprintf( file, "scene,preset,mirror,body,ghosts,runs\n" );
-	for ( int i = 0; i < configCount; ++i )
-	{
-		const Config* c = configs + i;
-		fprintf( file, "%s,%d,%d,%s,%d,%d\n", s_sceneKeys[c->scene], c->preset, c->mirror ? 1 : 0, s_bodyKeys[c->body], c->ghostCount,
-				 c->runCount );
-	}
-
-	fclose( file );
-	return true;
+	return configCount;
 }
 
 static bool ReadBaseline( const char* path, Config* configs, int configCount )
@@ -184,8 +225,61 @@ static bool ReadBaseline( const char* path, Config* configs, int configCount )
 			if ( (int)c->scene == scene && c->preset == preset && c->mirror == ( mirror != 0 ) && (int)c->body == body )
 			{
 				c->baseGhostCount = ghosts;
+				c->baseRunCount = runs;
 			}
 		}
+	}
+
+	fclose( file );
+	return true;
+}
+
+// Replaces only the rows of this run and keeps the rest of an existing file, in canonical order
+static bool WriteResults( const char* path, const Config* configs, int configCount )
+{
+	Config allConfigs[MAX_CONFIGS];
+	int allCount = BuildConfigs( allConfigs, -1, -1, -1, -1 );
+
+	FILE* existing = fopen( path, "r" );
+	if ( existing != NULL )
+	{
+		fclose( existing );
+		if ( ReadBaseline( path, allConfigs, allCount ) == false )
+		{
+			return false;
+		}
+	}
+
+	FILE* file = fopen( path, "w" );
+	if ( file == NULL )
+	{
+		printf( "cannot write %s\n", path );
+		return false;
+	}
+
+	fprintf( file, "scene,preset,mirror,body,ghosts,runs\n" );
+	for ( int i = 0; i < allCount; ++i )
+	{
+		const Config* c = allConfigs + i;
+		int ghostCount = c->baseGhostCount;
+		int runCount = c->baseRunCount;
+		for ( int j = 0; j < configCount; ++j )
+		{
+			if ( SameConfig( c, configs + j ) )
+			{
+				ghostCount = configs[j].ghostCount;
+				runCount = configs[j].runCount;
+				break;
+			}
+		}
+
+		if ( ghostCount < 0 )
+		{
+			continue;
+		}
+
+		fprintf( file, "%s,%d,%d,%s,%d,%d\n", s_sceneKeys[c->scene], c->preset, c->mirror ? 1 : 0, s_bodyKeys[c->body], ghostCount,
+				 runCount );
 	}
 
 	fclose( file );
@@ -278,70 +372,24 @@ int main( int argc, char** argv )
 		{
 			printf( "Usage: ghost_scan [options]\n"
 					"Runs the Ghost Collisions sample headless and counts ghost manifolds per scene and body.\n"
-					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, tjunction, peel, chamfer (default all)\n"
+					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, tjunction, peel, chamfer, rail (default all)\n"
 					"                           chamfer runs only the box and cylinder, fixed rotation without speculative\n"
 					"  -b, --body=<key|all>     box, capsule, upright, sphere, cylinder (default all)\n"
 					"  -m, --mirror=<0|1|all>   mirrored mesh (default all)\n"
 					"  -p, --preset=<0-3|all>   PEEL preset (default all)\n"
 					"  -n, --steps=<int>        steps per config (default 900)\n"
-					"  -w, --write=<file>       write results as csv\n"
-					"  -c, --compare=<file>     compare with a written csv, fail if any count grew\n"
+					"  -w, --write=<file>       write results as csv, replacing only the rows of this run\n"
+					"  -c, --compare=<file>     compare with a written csv, fail if any count grew or has no row\n"
 					"  --speed=, --yaw=, --friction=, --cell=, --fixed-rotation, --no-speculative\n"
 					"  --height-field           height field ground, the t-junction becomes a fine and coarse tile seam\n"
 					"  -v, --verbose            print every ghost\n"
-					"Exit code is 1 when a compared count grew, 0 otherwise.\n" );
+					"Exit code is 1 when a compared count grew or has no row, 0 otherwise.\n" );
 			return 2;
 		}
 	}
 
 	Config configs[MAX_CONFIGS];
-	int configCount = 0;
-	for ( int scene = 0; scene < e_ghostSceneCount; ++scene )
-	{
-		if ( sceneFilter >= 0 && scene != sceneFilter )
-		{
-			continue;
-		}
-
-		int presetCount = scene == e_ghostInternal ? GHOST_PEEL_PRESET_COUNT : 1;
-		for ( int preset = 0; preset < presetCount; ++preset )
-		{
-			if ( scene == e_ghostInternal && presetFilter >= 0 && preset != presetFilter )
-			{
-				continue;
-			}
-
-			for ( int mirror = 0; mirror < 2; ++mirror )
-			{
-				if ( mirrorFilter >= 0 && mirror != mirrorFilter )
-				{
-					continue;
-				}
-
-				for ( int body = 0; body < e_ghostBodyCount; ++body )
-				{
-					if ( bodyFilter >= 0 && body != bodyFilter )
-					{
-						continue;
-					}
-
-					// Only a flat bottom can rest on the chamfer edges
-					if ( scene == e_ghostChamfer && body != e_ghostBox && body != e_ghostCylinder )
-					{
-						continue;
-					}
-
-					configs[configCount++] = (Config){
-						.scene = (GhostScene)scene,
-						.preset = preset,
-						.mirror = mirror != 0,
-						.body = (GhostBody)body,
-						.baseGhostCount = -1,
-					};
-				}
-			}
-		}
-	}
+	int configCount = BuildConfigs( configs, sceneFilter, presetFilter, mirrorFilter, bodyFilter );
 
 	if ( comparePath != NULL && ReadBaseline( comparePath, configs, configCount ) == false )
 	{
@@ -380,6 +428,7 @@ int main( int argc, char** argv )
 	int totalGhosts = 0;
 	int grewCount = 0;
 	int shrankCount = 0;
+	int missingCount = 0;
 	int column = 0;
 	for ( int i = 0; i < configCount; ++i )
 	{
@@ -404,7 +453,11 @@ int main( int argc, char** argv )
 		column += 1;
 
 		char cell[32];
-		if ( c->baseGhostCount >= 0 && c->baseGhostCount != c->ghostCount )
+		if ( comparePath != NULL && c->baseGhostCount < 0 )
+		{
+			snprintf( cell, sizeof( cell ), "?>%d", c->ghostCount );
+		}
+		else if ( c->baseGhostCount >= 0 && c->baseGhostCount != c->ghostCount )
 		{
 			snprintf( cell, sizeof( cell ), "%d>%d", c->baseGhostCount, c->ghostCount );
 		}
@@ -417,6 +470,7 @@ int main( int argc, char** argv )
 		totalGhosts += c->ghostCount;
 		grewCount += c->baseGhostCount >= 0 && c->ghostCount > c->baseGhostCount;
 		shrankCount += c->baseGhostCount >= 0 && c->ghostCount < c->baseGhostCount;
+		missingCount += c->baseGhostCount < 0;
 	}
 
 	printf( "\n\ntotal ghosts %d, time %.1f s\n", totalGhosts, seconds );
@@ -428,9 +482,10 @@ int main( int argc, char** argv )
 
 	if ( comparePath != NULL )
 	{
-		printf( "compared with %s: %d grew, %d shrank\n", comparePath, grewCount, shrankCount );
-		printf( grewCount == 0 ? "PASS\n" : "FAIL\n" );
-		return grewCount == 0 ? 0 : 1;
+		bool pass = grewCount == 0 && missingCount == 0;
+		printf( "compared with %s: %d grew, %d shrank, %d missing\n", comparePath, grewCount, shrankCount, missingCount );
+		printf( pass ? "PASS\n" : "FAIL\n" );
+		return pass ? 0 : 1;
 	}
 
 	return 0;
