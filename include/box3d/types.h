@@ -2259,7 +2259,7 @@ typedef struct b3MeshDef
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.
-#define B3_MESH_VERSION 0x7C41E9B2D3058F6Aull
+#define B3_MESH_VERSION 0x2E94C7A1F05B3D68ull
 
 /// Triangle mesh edge flags.
 typedef enum b3MeshEdgeFlags
@@ -2336,7 +2336,8 @@ typedef struct b3MeshNode
 	uint32_t triangleOffset;
 } b3MeshNode;
 
-/// This is a sorted triangle collision bounding volume hierarchy.
+/// This is a sorted triangle collision bounding volume hierarchy. Offsets are a byte
+/// count offset from the struct address.
 /// @note This struct has data hanging off the end and cannot be directly copied.
 typedef struct b3MeshData
 {
@@ -2361,41 +2362,41 @@ typedef struct b3MeshData
 	/// The number of degenerate triangles. Diagnostic.
 	int32_t degenerateCount;
 
-	/// Offset of the node array in bytes from the struct address.
+	/// Offset of the node array.
 	int32_t nodeOffset;
 
 	/// The number of BVH nodes.
 	int32_t nodeCount;
 
-	/// Offset of the vertex array in bytes from the struct address.
+	/// Offset of the vertex array.
 	int32_t vertexOffset;
 
 	/// The number of vertices.
 	int32_t vertexCount;
 
-	/// Offset of the triangle array in bytes from the struct address.
+	/// Offset of the triangle array.
 	int32_t triangleOffset;
 
 	/// The number of triangles.
 	int32_t triangleCount;
 
-	/// Offset of the material array in bytes from the struct address.
+	/// Offset of the material array.
 	int32_t materialOffset;
 
 	/// The number of materials.
 	int32_t materialCount;
 
-	/// Offset of the triangle flag array in bytes from the struct address.
+	/// Offset of the triangle flag array.
 	int32_t flagsOffset;
 
-	// Offset to the array of neighbor quantized normal offsets.
+	// Offset to the edge neighbor angles.
 	int32_t edgeAngleOffset;
 
-	/// Offset of the vertex flag array in bytes from the struct address.
+	/// Offset of the vertex flag array.
 	int32_t vertexFlagOffset;
 
-	// todo comment
-	int32_t vertexTriangleOffset;
+	/// Offset the vertex neighbor angle ring.
+	int32_t vertexRingOffset;
 } b3MeshData;
 
 /// This allows mesh data to be re-used with different scales.

@@ -794,7 +794,6 @@ int b3GetHeightFieldVertexTriangles( const b3HeightFieldData* heightField, int v
 	int row = vertex / columnCount;
 	int column = vertex - row * columnCount;
 
-	// todo comment
 	int rowOffsets[4] = { 0, 0, -1, -1 };
 	int columnOffsets[4] = { 0, -1, 0, -1 };
 	int firstParity[4] = { 0, 0, 0, 1 };

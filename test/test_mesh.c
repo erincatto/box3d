@@ -1157,6 +1157,172 @@ static int MeshPeelCylinder( void )
 	return 0;
 }
 
+// Exact vertex cone from every triangle at the vertex. Returns the largest lean of the normal past
+// an edge at the vertex or past the wall below a boundary edge.
+static float ExactVertexLean( const b3Mesh* mesh, int vertex, b3Vec3 normal )
+{
+	float lean = -FLT_MAX;
+	for ( int i = 0; i < mesh->data->triangleCount; ++i )
+	{
+		b3Triangle triangle = b3GetMeshTriangle( mesh, i );
+		int indices[3] = { triangle.i1, triangle.i2, triangle.i3 };
+		int k = indices[0] == vertex ? 0 : ( indices[1] == vertex ? 1 : ( indices[2] == vertex ? 2 : -1 ) );
+		if ( k < 0 )
+		{
+			continue;
+		}
+
+		int next = ( k + 1 ) % 3;
+		int previous = ( k + 2 ) % 3;
+		b3Vec3 edges[2] = { b3Sub( triangle.vertices[next], triangle.vertices[k] ),
+							b3Sub( triangle.vertices[previous], triangle.vertices[k] ) };
+		int edgeIndices[2] = { k, previous };
+		b3Vec3 faceNormal = b3MakeNormalFromPoints( triangle.vertices[0], triangle.vertices[1], triangle.vertices[2] );
+
+		for ( int j = 0; j < 2; ++j )
+		{
+			lean = b3MaxFloat( lean, b3Dot( normal, b3Normalize( edges[j] ) ) );
+
+			b3Vec3 neighborNormal;
+			if ( b3GetMeshNeighborNormal( mesh, i, edgeIndices[j], &neighborNormal ) == false )
+			{
+				lean = b3MaxFloat( lean, -b3Dot( normal, faceNormal ) );
+			}
+		}
+	}
+
+	return lean;
+}
+
+static uint32_t NextRandom( uint32_t* state )
+{
+	*state = *state * 1664525u + 1013904223u;
+	return *state;
+}
+
+static float RandomFloat( uint32_t* state )
+{
+	return (float)( NextRandom( state ) >> 8 ) / (float)( 1 << 24 ) * 2.0f - 1.0f;
+}
+
+// The quantized ring must admit normals well inside the exact cone and reject normals well outside.
+// The band between is quantization noise. A non-uniform scale stretches it.
+static bool VertexRingMatches( const b3MeshData* data, b3Vec3 scale, int* insideCount, int* outsideCount )
+{
+	b3Mesh mesh = { .data = data, .scale = scale };
+
+	b3Vec3 s = b3Abs( scale );
+	float spread = b3MaxFloat( s.x, b3MaxFloat( s.y, s.z ) ) / b3MinFloat( s.x, b3MinFloat( s.y, s.z ) );
+	float tolerance = 0.0175f;
+	float margin = 0.025f * spread;
+	uint32_t state = 12345;
+
+	for ( int i = 0; i < data->triangleCount; ++i )
+	{
+		b3Triangle triangle = b3GetMeshTriangle( &mesh, i );
+		int indices[3] = { triangle.i1, triangle.i2, triangle.i3 };
+		b3Vec3 faceNormal = b3MakeNormalFromPoints( triangle.vertices[0], triangle.vertices[1], triangle.vertices[2] );
+
+		for ( int k = 0; k < 3; ++k )
+		{
+			b3Vec3 samples[24];
+			int sampleCount = 0;
+			samples[sampleCount++] = faceNormal;
+
+			// Fan normals and their blends land near the cone
+			for ( int j = 0; j < data->triangleCount && sampleCount < 12; ++j )
+			{
+				b3Triangle other = b3GetMeshTriangle( &mesh, j );
+				if ( j == i || ( other.i1 != indices[k] && other.i2 != indices[k] && other.i3 != indices[k] ) )
+				{
+					continue;
+				}
+
+				b3Vec3 otherNormal = b3MakeNormalFromPoints( other.vertices[0], other.vertices[1], other.vertices[2] );
+				samples[sampleCount++] = otherNormal;
+				samples[sampleCount++] = b3Normalize( b3Add( faceNormal, otherNormal ) );
+			}
+
+			while ( sampleCount < 24 )
+			{
+				b3Vec3 tilt = { RandomFloat( &state ), RandomFloat( &state ), RandomFloat( &state ) };
+				float amount = sampleCount % 2 == 0 ? 0.1f : 1.0f;
+				samples[sampleCount++] = b3Normalize( b3MulAdd( faceNormal, amount, tilt ) );
+			}
+
+			for ( int j = 0; j < sampleCount; ++j )
+			{
+				b3Vec3 normal = samples[j];
+				float lean = ExactVertexLean( &mesh, indices[k], normal );
+				bool admit = b3IsInMeshVertexRing( &mesh, i, k, normal, tolerance );
+
+				if ( lean <= tolerance - margin )
+				{
+					*insideCount += 1;
+					if ( admit == false )
+					{
+						return false;
+					}
+				}
+				else if ( lean > tolerance + margin )
+				{
+					*outsideCount += 1;
+					if ( admit )
+					{
+						return false;
+					}
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
+static int MeshVertexRing( void )
+{
+	b3Vec3 vertices[VALLEY_VERTEX_COUNT];
+	int32_t indices[3 * VALLEY_TRIANGLE_COUNT];
+	MakeValley( vertices, indices );
+	b3MeshDef def = MakeValleyDef( vertices, indices );
+
+	b3MeshData* meshes[] = {
+		b3CreateMesh( &def, NULL, 0 ),
+		b3CreateBoxMesh( b3Vec3_zero, (b3Vec3){ 1.0f, 2.0f, 3.0f }, true ),
+		b3CreateWaveMesh( 8, 8, 1.0f, 0.5f, 0.2f, 0.15f ),
+		b3CreateTorusMesh( 8, 6, 2.0f, 0.5f ),
+		b3CreateGridMesh( 4, 4, 1.0f, 0, true ),
+	};
+
+	b3Vec3 scales[] = {
+		{ 1.0f, 1.0f, 1.0f },    { 3.0f, 3.0f, 3.0f },  { -1.0f, 1.0f, 1.0f },
+		{ 2.0f, 0.5f, 1.5f },    { 0.5f, -2.0f, 1.0f }, { -1.0f, -1.0f, -1.0f },
+	};
+
+	for ( int i = 0; i < ARRAY_COUNT( meshes ); ++i )
+	{
+		ENSURE( meshes[i] != NULL );
+
+		for ( int j = 0; j < ARRAY_COUNT( scales ); ++j )
+		{
+			int insideCount = 0;
+			int outsideCount = 0;
+			ENSURE( VertexRingMatches( meshes[i], scales[j], &insideCount, &outsideCount ) );
+			ENSURE( insideCount > 0 && outsideCount > 0 );
+		}
+
+		b3DestroyMesh( meshes[i] );
+	}
+
+	// Without edge data every normal passes
+	b3MeshData* bare = b3CreateGridMesh( 4, 4, 1.0f, 0, false );
+	b3Mesh mesh = { .data = bare, .scale = b3Vec3_one };
+	ENSURE( b3IsInMeshVertexRing( &mesh, 0, 0, (b3Vec3){ 1.0f, 0.0f, 0.0f }, 0.0175f ) );
+	b3DestroyMesh( bare );
+
+	return 0;
+}
+
 int MeshTest( void )
 {
 	RUN_SUBTEST( MeshDenseStride );
@@ -1170,6 +1336,7 @@ int MeshTest( void )
 	RUN_SUBTEST( MeshManyTriangles );
 	RUN_SUBTEST( MeshMirroredFlags );
 	RUN_SUBTEST( MeshEdgeAngles );
+	RUN_SUBTEST( MeshVertexRing );
 	RUN_SUBTEST( MeshSphereOnRidge );
 	RUN_SUBTEST( MeshCapsuleOverCrest );
 	RUN_SUBTEST( MeshApexContact );

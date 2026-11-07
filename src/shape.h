@@ -202,7 +202,7 @@ static inline bool b3GetNeighborNormal( const b3Shape* shape, int triangleIndex,
 }
 
 int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex );
-int b3GetMeshVertexTriangles( const b3MeshData* mesh, int vertex, const int** triangles );
+bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexIndex, b3Vec3 normal, float tolerance );
 int8_t b3QuantizeEdgeAngle( float radians );
 
 static inline bool b3IsConvexVertex( const b3Shape* shape, int triangleIndex, int vertexIndex )

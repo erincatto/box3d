@@ -148,16 +148,6 @@ static uint8_t* b3GetMeshVertexFlagsWrite( b3MeshData* mesh )
 	return (uint8_t*)( (intptr_t)mesh + mesh->vertexFlagOffset );
 }
 
-static int* b3GetMeshVertexTrianglesWrite( b3MeshData* mesh )
-{
-	if ( mesh->vertexTriangleOffset == 0 )
-	{
-		return NULL;
-	}
-
-	return (int*)( (intptr_t)mesh + mesh->vertexTriangleOffset );
-}
-
 static int b3GetNodeHeight( const b3MeshNode* node )
 {
 	if ( b3IsLeaf( node ) )
@@ -1066,11 +1056,191 @@ typedef struct
 
 #define B3_EDGE_ANGLE_STEPS 127.0f
 
+// Lookup table for 8-bit compressed triangle neighbor angles.
+static const b3CosSin s_quantizedCosSin[255] = {
+	{ 1.0f, 0.0f }, { 0.9999235f, 0.012368159f }, { 0.99969405f, 0.024734428f },
+	{ 0.9993117f, 0.03709691f }, { 0.99877644f, 0.04945372f }, { 0.99808836f, 0.061802965f },
+	{ 0.99724764f, 0.074142754f }, { 0.9962543f, 0.0864712f }, { 0.99510866f, 0.09878642f },
+	{ 0.9938107f, 0.111086525f }, { 0.9923608f, 0.12336964f }, { 0.990759f, 0.13563387f },
+	{ 0.9890057f, 0.14787737f }, { 0.9871011f, 0.16009824f }, { 0.9850455f, 0.17229462f },
+	{ 0.98283917f, 0.18446463f }, { 0.98048246f, 0.19660644f }, { 0.97797585f, 0.20871817f },
+	{ 0.97531956f, 0.22079796f }, { 0.9725141f, 0.23284398f }, { 0.96955985f, 0.24485438f },
+	{ 0.9664573f, 0.25682732f }, { 0.9632069f, 0.26876098f }, { 0.9598091f, 0.2806535f },
+	{ 0.95626456f, 0.29250312f }, { 0.9525737f, 0.304308f }, { 0.9487371f, 0.3160663f },
+	{ 0.9447554f, 0.32777625f }, { 0.9406291f, 0.33943605f }, { 0.936359f, 0.35104394f },
+	{ 0.9319456f, 0.36259815f }, { 0.9273896f, 0.37409684f }, { 0.9226918f, 0.38553834f },
+	{ 0.9178528f, 0.39692086f }, { 0.91287345f, 0.40824264f }, { 0.9077544f, 0.419502f },
+	{ 0.9024965f, 0.43069714f }, { 0.89710057f, 0.44182643f }, { 0.89156735f, 0.4528881f },
+	{ 0.88589776f, 0.4638805f }, { 0.8800927f, 0.47480196f }, { 0.8741529f, 0.48565078f },
+	{ 0.8680794f, 0.4964253f }, { 0.8618732f, 0.5071239f }, { 0.8555351f, 0.51774484f },
+	{ 0.8490661f, 0.52828664f }, { 0.8424672f, 0.5387476f }, { 0.83573943f, 0.5491262f },
+	{ 0.8288838f, 0.55942076f }, { 0.82190144f, 0.5696297f }, { 0.8147933f, 0.57975155f },
+	{ 0.8075605f, 0.58978474f }, { 0.8002042f, 0.59972763f }, { 0.79272544f, 0.60957885f },
+	{ 0.78512543f, 0.6193367f }, { 0.7774054f, 0.62899995f }, { 0.7695663f, 0.6385669f },
+	{ 0.76160955f, 0.6480362f }, { 0.7535363f, 0.65740633f }, { 0.74534774f, 0.66667587f },
+	{ 0.73704517f, 0.6758435f }, { 0.7286299f, 0.6849077f }, { 0.7201031f, 0.6938671f },
+	{ 0.71146613f, 0.70272034f }, { 0.70272034f, 0.71146613f }, { 0.6938671f, 0.7201031f },
+	{ 0.6849077f, 0.7286299f }, { 0.6758435f, 0.73704517f }, { 0.66667587f, 0.74534774f },
+	{ 0.65740633f, 0.7535363f }, { 0.6480362f, 0.76160955f }, { 0.6385669f, 0.7695663f },
+	{ 0.62899995f, 0.7774054f }, { 0.6193367f, 0.78512543f }, { 0.60957885f, 0.79272544f },
+	{ 0.59972763f, 0.8002042f }, { 0.58978474f, 0.8075605f }, { 0.57975155f, 0.8147933f },
+	{ 0.5696297f, 0.82190144f }, { 0.55942076f, 0.8288838f }, { 0.5491262f, 0.83573943f },
+	{ 0.5387476f, 0.8424672f }, { 0.52828664f, 0.8490661f }, { 0.51774484f, 0.8555351f },
+	{ 0.5071239f, 0.8618732f }, { 0.4964253f, 0.8680794f }, { 0.48565078f, 0.8741529f },
+	{ 0.47480196f, 0.8800927f }, { 0.4638805f, 0.88589776f }, { 0.4528881f, 0.89156735f },
+	{ 0.44182643f, 0.89710057f }, { 0.43069714f, 0.9024965f }, { 0.419502f, 0.9077544f },
+	{ 0.40824264f, 0.91287345f }, { 0.39692086f, 0.9178528f }, { 0.38553834f, 0.9226918f },
+	{ 0.37409684f, 0.9273896f }, { 0.36259815f, 0.9319456f }, { 0.35104394f, 0.936359f },
+	{ 0.33943605f, 0.9406291f }, { 0.32777625f, 0.9447554f }, { 0.3160663f, 0.9487371f },
+	{ 0.304308f, 0.9525737f }, { 0.29250312f, 0.95626456f }, { 0.2806535f, 0.9598091f },
+	{ 0.26876098f, 0.9632069f }, { 0.25682732f, 0.9664573f }, { 0.24485438f, 0.96955985f },
+	{ 0.23284398f, 0.9725141f }, { 0.22079796f, 0.97531956f }, { 0.20871817f, 0.97797585f },
+	{ 0.19660644f, 0.98048246f }, { 0.18446463f, 0.98283917f }, { 0.17229462f, 0.9850455f },
+	{ 0.16009824f, 0.9871011f }, { 0.14787737f, 0.9890057f }, { 0.13563387f, 0.990759f },
+	{ 0.12336964f, 0.9923608f }, { 0.111086525f, 0.9938107f }, { 0.09878642f, 0.99510866f },
+	{ 0.0864712f, 0.9962543f }, { 0.074142754f, 0.99724764f }, { 0.061802965f, 0.99808836f },
+	{ 0.04945372f, 0.99877644f }, { 0.03709691f, 0.9993117f }, { 0.024734428f, 0.99969405f },
+	{ 0.012368159f, 0.9999235f }, { 0.0f, 1.0f }, { -0.012368159f, 0.9999235f },
+	{ -0.024734428f, 0.99969405f }, { -0.03709691f, 0.9993117f }, { -0.04945372f, 0.99877644f },
+	{ -0.061802965f, 0.99808836f }, { -0.074142754f, 0.99724764f }, { -0.0864712f, 0.9962543f },
+	{ -0.09878642f, 0.99510866f }, { -0.111086525f, 0.9938107f }, { -0.12336964f, 0.9923608f },
+	{ -0.13563387f, 0.990759f }, { -0.14787737f, 0.9890057f }, { -0.16009824f, 0.9871011f },
+	{ -0.17229462f, 0.9850455f }, { -0.18446463f, 0.98283917f }, { -0.19660644f, 0.98048246f },
+	{ -0.20871817f, 0.97797585f }, { -0.22079796f, 0.97531956f }, { -0.23284398f, 0.9725141f },
+	{ -0.24485438f, 0.96955985f }, { -0.25682732f, 0.9664573f }, { -0.26876098f, 0.9632069f },
+	{ -0.2806535f, 0.9598091f }, { -0.29250312f, 0.95626456f }, { -0.304308f, 0.9525737f },
+	{ -0.3160663f, 0.9487371f }, { -0.32777625f, 0.9447554f }, { -0.33943605f, 0.9406291f },
+	{ -0.35104394f, 0.936359f }, { -0.36259815f, 0.9319456f }, { -0.37409684f, 0.9273896f },
+	{ -0.38553834f, 0.9226918f }, { -0.39692086f, 0.9178528f }, { -0.40824264f, 0.91287345f },
+	{ -0.419502f, 0.9077544f }, { -0.43069714f, 0.9024965f }, { -0.44182643f, 0.89710057f },
+	{ -0.4528881f, 0.89156735f }, { -0.4638805f, 0.88589776f }, { -0.47480196f, 0.8800927f },
+	{ -0.48565078f, 0.8741529f }, { -0.4964253f, 0.8680794f }, { -0.5071239f, 0.8618732f },
+	{ -0.51774484f, 0.8555351f }, { -0.52828664f, 0.8490661f }, { -0.5387476f, 0.8424672f },
+	{ -0.5491262f, 0.83573943f }, { -0.55942076f, 0.8288838f }, { -0.5696297f, 0.82190144f },
+	{ -0.57975155f, 0.8147933f }, { -0.58978474f, 0.8075605f }, { -0.59972763f, 0.8002042f },
+	{ -0.60957885f, 0.79272544f }, { -0.6193367f, 0.78512543f }, { -0.62899995f, 0.7774054f },
+	{ -0.6385669f, 0.7695663f }, { -0.6480362f, 0.76160955f }, { -0.65740633f, 0.7535363f },
+	{ -0.66667587f, 0.74534774f }, { -0.6758435f, 0.73704517f }, { -0.6849077f, 0.7286299f },
+	{ -0.6938671f, 0.7201031f }, { -0.70272034f, 0.71146613f }, { -0.71146613f, 0.70272034f },
+	{ -0.7201031f, 0.6938671f }, { -0.7286299f, 0.6849077f }, { -0.73704517f, 0.6758435f },
+	{ -0.74534774f, 0.66667587f }, { -0.7535363f, 0.65740633f }, { -0.76160955f, 0.6480362f },
+	{ -0.7695663f, 0.6385669f }, { -0.7774054f, 0.62899995f }, { -0.78512543f, 0.6193367f },
+	{ -0.79272544f, 0.60957885f }, { -0.8002042f, 0.59972763f }, { -0.8075605f, 0.58978474f },
+	{ -0.8147933f, 0.57975155f }, { -0.82190144f, 0.5696297f }, { -0.8288838f, 0.55942076f },
+	{ -0.83573943f, 0.5491262f }, { -0.8424672f, 0.5387476f }, { -0.8490661f, 0.52828664f },
+	{ -0.8555351f, 0.51774484f }, { -0.8618732f, 0.5071239f }, { -0.8680794f, 0.4964253f },
+	{ -0.8741529f, 0.48565078f }, { -0.8800927f, 0.47480196f }, { -0.88589776f, 0.4638805f },
+	{ -0.89156735f, 0.4528881f }, { -0.89710057f, 0.44182643f }, { -0.9024965f, 0.43069714f },
+	{ -0.9077544f, 0.419502f }, { -0.91287345f, 0.40824264f }, { -0.9178528f, 0.39692086f },
+	{ -0.9226918f, 0.38553834f }, { -0.9273896f, 0.37409684f }, { -0.9319456f, 0.36259815f },
+	{ -0.936359f, 0.35104394f }, { -0.9406291f, 0.33943605f }, { -0.9447554f, 0.32777625f },
+	{ -0.9487371f, 0.3160663f }, { -0.9525737f, 0.304308f }, { -0.95626456f, 0.29250312f },
+	{ -0.9598091f, 0.2806535f }, { -0.9632069f, 0.26876098f }, { -0.9664573f, 0.25682732f },
+	{ -0.96955985f, 0.24485438f }, { -0.9725141f, 0.23284398f }, { -0.97531956f, 0.22079796f },
+	{ -0.97797585f, 0.20871817f }, { -0.98048246f, 0.19660644f }, { -0.98283917f, 0.18446463f },
+	{ -0.9850455f, 0.17229462f }, { -0.9871011f, 0.16009824f }, { -0.9890057f, 0.14787737f },
+	{ -0.990759f, 0.13563387f }, { -0.9923608f, 0.12336964f }, { -0.9938107f, 0.111086525f },
+	{ -0.99510866f, 0.09878642f }, { -0.9962543f, 0.0864712f }, { -0.99724764f, 0.074142754f },
+	{ -0.99808836f, 0.061802965f }, { -0.99877644f, 0.04945372f }, { -0.9993117f, 0.03709691f },
+	{ -0.99969405f, 0.024734428f }, { -0.9999235f, 0.012368159f }, { -1.0f, 0.0f },
+};
+
+static b3CosSin b3GetQuantizedCosSin( int code )
+{
+	B3_ASSERT( -254 <= code && code <= 254 );
+	b3CosSin cs = s_quantizedCosSin[code < 0 ? -code : code];
+	if ( code < 0 )
+	{
+		cs.sine = -cs.sine;
+	}
+
+	return cs;
+}
+
 int8_t b3QuantizeEdgeAngle( float radians )
 {
 	float scaled = radians * ( B3_EDGE_ANGLE_STEPS / B3_PI );
 	int quantized = scaled >= 0.0f ? (int)( scaled + 0.5f ) : -(int)( 0.5f - scaled );
 	return (int8_t)b3ClampInt( quantized, -127, 127 );
+}
+
+typedef struct b3VertexRing
+{
+	uint16_t axis;
+	uint16_t wallCount;
+} b3VertexRing;
+
+typedef struct b3VertexRingEntry
+{
+	int8_t yaw;
+	int8_t tilt;
+} b3VertexRingEntry;
+
+static b3Vec3 b3FoldOctahedral( float x, float y )
+{
+	return ( b3Vec3 ){
+		( 1.0f - b3AbsFloat( y ) ) * ( x >= 0.0f ? 1.0f : -1.0f ),
+		( 1.0f - b3AbsFloat( x ) ) * ( y >= 0.0f ? 1.0f : -1.0f ),
+		0.0f,
+	};
+}
+
+static uint16_t b3EncodeRingAxis( b3Vec3 axis )
+{
+	float sum = b3AbsFloat( axis.x ) + b3AbsFloat( axis.y ) + b3AbsFloat( axis.z );
+	float x = axis.x / sum;
+	float y = axis.y / sum;
+	if ( axis.z < 0.0f )
+	{
+		b3Vec3 folded = b3FoldOctahedral( x, y );
+		x = folded.x;
+		y = folded.y;
+	}
+
+	int u = b3ClampInt( (int)( 127.5f * ( x + 1.0f ) + 0.5f ), 0, 255 );
+	int v = b3ClampInt( (int)( 127.5f * ( y + 1.0f ) + 0.5f ), 0, 255 );
+	return (uint16_t)( u | ( v << 8 ) );
+}
+
+static b3Vec3 b3DecodeRingAxis( uint16_t code )
+{
+	float x = (float)( code & 0xFF ) * ( 2.0f / 255.0f ) - 1.0f;
+	float y = (float)( code >> 8 ) * ( 2.0f / 255.0f ) - 1.0f;
+	float z = 1.0f - b3AbsFloat( x ) - b3AbsFloat( y );
+	if ( z < 0.0f )
+	{
+		b3Vec3 folded = b3FoldOctahedral( x, y );
+		x = folded.x;
+		y = folded.y;
+	}
+
+	return b3Normalize( ( b3Vec3 ){ x, y, z } );
+}
+
+static void b3MakeRingFrame( b3Vec3 axis, b3Vec3* tangent1, b3Vec3* tangent2 )
+{
+	*tangent1 = b3Perp( axis );
+	*tangent2 = b3Cross( axis, *tangent1 );
+}
+
+static b3VertexRingEntry b3EncodeRingEntry( b3Vec3 direction, b3Vec3 tangent1, b3Vec3 tangent2, b3Vec3 axis )
+{
+	float x = b3Dot( direction, tangent1 );
+	float y = b3Dot( direction, tangent2 );
+	float z = b3Dot( direction, axis );
+	float yaw = b3Atan2( y, x );
+	float tilt = b3Atan2( z, sqrtf( x * x + y * y ) );
+
+	// todo comment
+	return ( b3VertexRingEntry ){ b3QuantizeEdgeAngle( yaw ), b3QuantizeEdgeAngle( 2.0f * tilt ) };
+}
+
+// todo comment
+static b3Vec3 b3DecodeRingEntry( b3VertexRingEntry entry )
+{
+	b3CosSin yaw = b3GetQuantizedCosSin( 2 * entry.yaw );
+	b3CosSin tilt = b3GetQuantizedCosSin( entry.tilt );
+	return ( b3Vec3 ){ tilt.cosine * yaw.cosine, tilt.cosine * yaw.sine, tilt.sine };
 }
 
 bool b3GetMeshNeighborNormal( const b3Mesh* mesh, int triangleIndex, int edgeIndex, b3Vec3* normal )
@@ -1109,7 +1279,7 @@ bool b3GetMeshNeighborNormal( const b3Mesh* mesh, int triangleIndex, int edgeInd
 	b3Vec3 n = b3Normalize( b3Cross( b3Sub( b, a ), b3Sub( c, a ) ) );
 	b3Vec3 outward = b3Cross( b3Normalize( b3Sub( b, a ) ), n );
 
-	b3CosSin cs = b3ComputeCosSin( (float)quantized * ( B3_PI / B3_EDGE_ANGLE_STEPS ) );
+	b3CosSin cs = b3GetQuantizedCosSin( 2 * quantized );
 	b3Vec3 unscaled = b3Add( b3MulSV( cs.cosine, n ), b3MulSV( cs.sine, outward ) );
 
 	b3Vec3 absScale = b3Abs( scale );
@@ -1130,6 +1300,19 @@ bool b3GetMeshNeighborNormal( const b3Mesh* mesh, int triangleIndex, int edgeInd
 	return true;
 }
 
+static int b3GetMeshVertexIndex( const b3Mesh* mesh, b3MeshTriangle triangle, int vertexIndex )
+{
+	b3Vec3 scale = mesh->scale;
+	if ( scale.x * scale.y * scale.z < 0.0f )
+	{
+		// Handle reflection.
+		vertexIndex = ( 3 - vertexIndex ) % 3;
+	}
+
+	int indices[3] = { triangle.index1, triangle.index2, triangle.index3 };
+	return indices[vertexIndex];
+}
+
 int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex )
 {
 	const b3MeshData* data = mesh->data;
@@ -1142,31 +1325,87 @@ int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex 
 		return b3_flatVertex;
 	}
 
-	b3Vec3 scale = mesh->scale;
-	if ( scale.x * scale.y * scale.z < 0.0f )
+	b3MeshTriangle triangle = b3GetMeshTriangles( data )[triangleIndex];
+	return vertexFlags[b3GetMeshVertexIndex( mesh, triangle, vertexIndex )];
+}
+
+bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexIndex, b3Vec3 normal, float tolerance )
+{
+	const b3MeshData* data = mesh->data;
+	B3_ASSERT( 0 <= triangleIndex && triangleIndex < data->triangleCount );
+	B3_ASSERT( 0 <= vertexIndex && vertexIndex < 3 );
+
+	if ( data->vertexRingOffset == 0 )
 	{
-		// Handle reflection.
-		vertexIndex = ( 3 - vertexIndex ) % 3;
+		return true;
 	}
 
 	b3MeshTriangle triangle = b3GetMeshTriangles( data )[triangleIndex];
-	int indices[3] = { triangle.index1, triangle.index2, triangle.index3 };
-	return vertexFlags[indices[vertexIndex]];
-}
+	int vertex = b3GetMeshVertexIndex( mesh, triangle, vertexIndex );
 
-int b3GetMeshVertexTriangles( const b3MeshData* mesh, int vertex, const int** triangles )
-{
-	B3_ASSERT( 0 <= vertex && vertex < mesh->vertexCount );
-
-	if ( mesh->vertexTriangleOffset == 0 )
+	// todo comment
+	b3Vec3 scale = mesh->scale;
+	b3Vec3 edgeScale, wallScale;
+	b3Vec3 absScale = b3Abs( scale );
+	bool uniform = absScale.y == absScale.x && absScale.z == absScale.x;
+	if ( uniform )
 	{
-		*triangles = NULL;
-		return 0;
+		edgeScale = ( b3Vec3 ){ scale.x < 0.0f ? -1.0f : 1.0f, scale.y < 0.0f ? -1.0f : 1.0f, scale.z < 0.0f ? -1.0f : 1.0f };
+		wallScale = edgeScale;
+	}
+	else
+	{
+		edgeScale = scale;
+		wallScale = ( b3Vec3 ){ 1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z };
 	}
 
-	const int* starts = (const int*)( (intptr_t)mesh + mesh->vertexTriangleOffset );
-	*triangles = starts + mesh->vertexCount + 1 + starts[vertex];
-	return starts[vertex + 1] - starts[vertex];
+	const int* starts = (const int*)( (intptr_t)data + data->vertexRingOffset );
+	int byteCount = starts[vertex + 1] - starts[vertex];
+	if ( byteCount == 0 )
+	{
+		// todo comment
+		const b3Vec3* vertices = b3GetMeshVertices( data );
+		b3Vec3 faceNormal =
+			b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2], vertices[triangle.index3] );
+		faceNormal = b3Normalize( b3Mul( wallScale, faceNormal ) );
+		float cosAngle = b3Dot( normal, faceNormal );
+		return cosAngle > 0.0f && cosAngle * cosAngle >= 1.0f - tolerance * tolerance;
+	}
+
+	const b3VertexRing* ring = (const b3VertexRing*)( (intptr_t)data + starts[vertex] );
+	const b3VertexRingEntry* entries = (const b3VertexRingEntry*)( ring + 1 );
+	int entryCount = ( byteCount - (int)sizeof( b3VertexRing ) ) / (int)sizeof( b3VertexRingEntry );
+	int edgeCount = entryCount - ring->wallCount;
+
+	b3Vec3 axis = b3DecodeRingAxis( ring->axis );
+	b3Vec3 tangent1, tangent2;
+	b3MakeRingFrame( axis, &tangent1, &tangent2 );
+
+	b3Vec3 edgeNormal = b3Mul( edgeScale, normal );
+	b3Vec3 wallNormal = b3Mul( wallScale, normal );
+	b3Vec3 localEdgeNormal = { b3Dot( edgeNormal, tangent1 ), b3Dot( edgeNormal, tangent2 ), b3Dot( edgeNormal, axis ) };
+	b3Vec3 localWallNormal = { b3Dot( wallNormal, tangent1 ), b3Dot( wallNormal, tangent2 ), b3Dot( wallNormal, axis ) };
+
+	for ( int i = 0; i < entryCount; ++i )
+	{
+		bool isWall = i >= edgeCount;
+		b3Vec3 direction = b3DecodeRingEntry( entries[i] );
+		float lean = b3Dot( isWall ? localWallNormal : localEdgeNormal, direction );
+
+		float limit = tolerance;
+		if ( uniform == false )
+		{
+			b3Vec3 meshDirection = b3MulAdd( b3MulAdd( b3MulSV( direction.x, tangent1 ), direction.y, tangent2 ), direction.z, axis );
+			limit *= b3Length( b3Mul( isWall ? wallScale : edgeScale, meshDirection ) );
+		}
+
+		if ( lean > limit )
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 static void b3IdentifyEdges( b3MeshData* mesh )
@@ -1424,35 +1663,203 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 		}
 	}
 
-	int* vertexStarts = b3GetMeshVertexTrianglesWrite( mesh );
-	B3_ASSERT( vertexStarts != NULL );
-	int* vertexTriangles = vertexStarts + vertexCount + 1;
+	B3_FREE( normals, b3Vec3, triangleCount );
+	B3_FREE( edges, b3MeshEdge, edgeCount );
+}
 
+// todo comment
+static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCount, int vertex, int* stamps, int stamp,
+							  b3VertexRing* ring )
+{
+	const b3MeshTriangle* triangles = b3GetMeshTriangles( mesh );
+	const b3Vec3* vertices = b3GetMeshVertices( mesh );
+	const int8_t* edgeAngles = b3GetMeshEdgeAngles( mesh );
+
+	b3Vec3 axis = b3Vec3_zero;
+	b3Vec3 tangent1 = b3Vec3_zero;
+	b3Vec3 tangent2 = b3Vec3_zero;
+	b3VertexRingEntry* entries = NULL;
+	if ( ring != NULL )
+	{
+		b3Vec3 normalSum = b3Vec3_zero;
+		for ( int i = 0; i < fanCount; ++i )
+		{
+			b3MeshTriangle triangle = triangles[fan[i]];
+			b3Vec3 normal =
+				b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2], vertices[triangle.index3] );
+			normalSum = b3Add( normalSum, normal );
+		}
+
+		float length;
+		axis = b3GetLengthAndNormalize( &length, normalSum );
+		if ( length == 0.0f )
+		{
+			axis = ( b3Vec3 ){ 0.0f, 1.0f, 0.0f };
+		}
+
+		ring->axis = b3EncodeRingAxis( axis );
+		axis = b3DecodeRingAxis( ring->axis );
+		b3MakeRingFrame( axis, &tangent1, &tangent2 );
+		entries = (b3VertexRingEntry*)( ring + 1 );
+	}
+
+	int entryCount = 0;
+	for ( int i = 0; i < fanCount; ++i )
+	{
+		b3MeshTriangle triangle = triangles[fan[i]];
+		int indices[3] = { triangle.index1, triangle.index2, triangle.index3 };
+		int k = indices[0] == vertex ? 0 : ( indices[1] == vertex ? 1 : 2 );
+		int others[2] = { indices[k < 2 ? k + 1 : 0], indices[k > 0 ? k - 1 : 2] };
+
+		for ( int j = 0; j < 2; ++j )
+		{
+			int other = others[j];
+			if ( stamps[other] == stamp )
+			{
+				continue;
+			}
+
+			stamps[other] = stamp;
+			if ( entries != NULL )
+			{
+				b3Vec3 direction = b3Normalize( b3Sub( vertices[other], vertices[vertex] ) );
+				entries[entryCount] = b3EncodeRingEntry( direction, tangent1, tangent2, axis );
+			}
+
+			entryCount += 1;
+		}
+	}
+
+	int wallCount = 0;
+	for ( int i = 0; i < fanCount; ++i )
+	{
+		int triangleIndex = fan[i];
+		b3MeshTriangle triangle = triangles[triangleIndex];
+		int indices[3] = { triangle.index1, triangle.index2, triangle.index3 };
+		int k = indices[0] == vertex ? 0 : ( indices[1] == vertex ? 1 : 2 );
+		int edgeIndices[2] = { k, k > 0 ? k - 1 : 2 };
+
+		for ( int j = 0; j < 2; ++j )
+		{
+			if ( edgeAngles[3 * triangleIndex + edgeIndices[j]] != B3_BOUNDARY_EDGE_ANGLE )
+			{
+				continue;
+			}
+
+			if ( entries != NULL )
+			{
+				b3Vec3 normal =
+					b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2], vertices[triangle.index3] );
+				entries[entryCount] = b3EncodeRingEntry( b3Neg( normal ), tangent1, tangent2, axis );
+			}
+
+			entryCount += 1;
+			wallCount += 1;
+		}
+	}
+
+	if ( ring != NULL )
+	{
+		B3_ASSERT( wallCount <= UINT16_MAX );
+		ring->wallCount = (uint16_t)wallCount;
+	}
+
+	return (int)( sizeof( b3VertexRing ) + entryCount * sizeof( b3VertexRingEntry ) );
+}
+
+// Build a neighbor angle ring for each vertex. Used to mitigate ghost collisions with minimal tolerances
+// and fudge factors.
+static b3MeshData* b3AppendVertexRings( b3MeshData* mesh )
+{
+	const b3MeshTriangle* triangles = b3GetMeshTriangles( mesh );
+	const uint8_t* vertexFlags = b3GetMeshVertexFlags( mesh );
+	B3_ASSERT( vertexFlags != NULL );
+
+	int vertexCount = mesh->vertexCount;
+	int triangleCount = mesh->triangleCount;
+
+	int* fanStarts = B3_ALLOC( int, ( vertexCount + 1 ) );
+	int* fans = B3_ALLOC( int, ( 3 * triangleCount ) );
+	int* cursors = B3_ALLOC( int, vertexCount );
+	int* stamps = B3_ALLOC( int, vertexCount );
+	int* ringStarts = B3_ALLOC( int, ( vertexCount + 1 ) );
+
+	memset( fanStarts, 0, ( vertexCount + 1 ) * sizeof( int ) );
 	for ( int i = 0; i < triangleCount; ++i )
 	{
-		vertexStarts[triangles[i].index1 + 1] += 1;
-		vertexStarts[triangles[i].index2 + 1] += 1;
-		vertexStarts[triangles[i].index3 + 1] += 1;
+		fanStarts[triangles[i].index1 + 1] += 1;
+		fanStarts[triangles[i].index2 + 1] += 1;
+		fanStarts[triangles[i].index3 + 1] += 1;
 	}
 
 	for ( int i = 0; i < vertexCount; ++i )
 	{
-		vertexStarts[i + 1] += vertexStarts[i];
+		fanStarts[i + 1] += fanStarts[i];
 	}
 
-	int* cursors = B3_ALLOC( int, vertexCount );
-	memcpy( cursors, vertexStarts, vertexCount * sizeof( int ) );
-
+	memcpy( cursors, fanStarts, vertexCount * sizeof( int ) );
 	for ( int i = 0; i < triangleCount; ++i )
 	{
-		vertexTriangles[cursors[triangles[i].index1]++] = i;
-		vertexTriangles[cursors[triangles[i].index2]++] = i;
-		vertexTriangles[cursors[triangles[i].index3]++] = i;
+		fans[cursors[triangles[i].index1]++] = i;
+		fans[cursors[triangles[i].index2]++] = i;
+		fans[cursors[triangles[i].index3]++] = i;
 	}
 
+	for ( int i = 0; i < vertexCount; ++i )
+	{
+		stamps[i] = B3_NULL_INDEX;
+	}
+
+	size_t startsOffset = mesh->byteCount;
+	size_t ringOffset = startsOffset + b3AlignUp8( ( vertexCount + 1 ) * sizeof( int ) );
+	size_t offset = ringOffset;
+	for ( int i = 0; i < vertexCount; ++i )
+	{
+		ringStarts[i] = (int)offset;
+		if ( vertexFlags[i] & b3_flatVertex )
+		{
+			continue;
+		}
+
+		const int* fan = fans + fanStarts[i];
+		int fanCount = fanStarts[i + 1] - fanStarts[i];
+		offset += b3BuildVertexRing( mesh, fan, fanCount, i, stamps, i, NULL );
+	}
+
+	ringStarts[vertexCount] = (int)offset;
+
+	size_t byteCount = ringOffset + b3AlignUp8( offset - ringOffset );
+	b3MeshData* result = b3Alloc( byteCount );
+	memset( result, 0, byteCount );
+	memcpy( result, mesh, mesh->byteCount );
+	b3Free( mesh, mesh->byteCount );
+
+	result->byteCount = (int)byteCount;
+	result->vertexRingOffset = (int)startsOffset;
+	memcpy( (uint8_t*)result + startsOffset, ringStarts, ( vertexCount + 1 ) * sizeof( int ) );
+
+	for ( int i = 0; i < vertexCount; ++i )
+	{
+		if ( ringStarts[i + 1] == ringStarts[i] )
+		{
+			continue;
+		}
+
+		const int* fan = fans + fanStarts[i];
+		int fanCount = fanStarts[i + 1] - fanStarts[i];
+		b3VertexRing* ring = (b3VertexRing*)( (uint8_t*)result + ringStarts[i] );
+		int ringByteCount = b3BuildVertexRing( result, fan, fanCount, i, stamps, vertexCount + i, ring );
+		B3_ASSERT( ringByteCount == ringStarts[i + 1] - ringStarts[i] );
+		B3_UNUSED( ringByteCount );
+	}
+
+	B3_FREE( ringStarts, int, ( vertexCount + 1 ) );
+	B3_FREE( stamps, int, vertexCount );
 	B3_FREE( cursors, int, vertexCount );
-	B3_FREE( normals, b3Vec3, triangleCount );
-	B3_FREE( edges, b3MeshEdge, edgeCount );
+	B3_FREE( fans, int, ( 3 * triangleCount ) );
+	B3_FREE( fanStarts, int, ( vertexCount + 1 ) );
+
+	return result;
 }
 
 b3MeshData* b3CreateGridMesh( int xCount, int zCount, float cellWidth, int materialCount, bool identifyEdges )
@@ -1973,15 +2380,12 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	byteCount += b3AlignUp8( triangleCount * sizeof( uint8_t ) );
 	int edgeAngleOffset = 0;
 	int vertexFlagOffset = 0;
-	int vertexTriangleOffset = 0;
 	if ( def->identifyEdges )
 	{
 		edgeAngleOffset = (int)byteCount;
 		byteCount += b3AlignUp8( 3 * triangleCount * sizeof( int8_t ) );
 		vertexFlagOffset = (int)byteCount;
 		byteCount += b3AlignUp8( vertexCount * sizeof( uint8_t ) );
-		vertexTriangleOffset = (int)byteCount;
-		byteCount += b3AlignUp8( ( vertexCount + 1 + 3 * triangleCount ) * sizeof( int ) );
 	}
 
 	b3MeshData* mesh = b3Alloc( byteCount );
@@ -2006,7 +2410,6 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	mesh->flagsOffset = flagsOffset;
 	mesh->edgeAngleOffset = edgeAngleOffset;
 	mesh->vertexFlagOffset = vertexFlagOffset;
-	mesh->vertexTriangleOffset = vertexTriangleOffset;
 
 	b3MeshNode* nodes = b3GetMeshNodesWrite( mesh );
 	b3MeshTriangle* triangles = b3GetMeshTrianglesWrite( mesh );
@@ -2059,6 +2462,8 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	if ( def->identifyEdges )
 	{
 		b3IdentifyEdges( mesh );
+
+		mesh = b3AppendVertexRings( mesh );
 	}
 
 	B3_VALIDATE( b3IsNonDegenerate( mesh, minArea ) );
