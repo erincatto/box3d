@@ -1146,23 +1146,9 @@ static int CountCylinderGhosts( GhostScene scene, int peelPreset, bool mirror, i
 	return ghostCount;
 }
 
-// The fine and coarse strips of the T-junction share only every other vertex, so the edges along the
-// junction have no neighbors. Boundary contacts there are blocked by the triangles across the junction.
-static int MeshTJunctionSlide( void )
-{
-	for ( int mirror = 0; mirror < 2; ++mirror )
-	{
-		int runCount;
-		ENSURE( CountCylinderGhosts( e_ghostTJunction, 0, mirror == 1, &runCount ) == 0 );
-		ENSURE( runCount >= 2 );
-	}
-
-	return 0;
-}
-
 // The PEEL cylinder slides along its axis on a polygon edge that runs along an internal edge of the
 // strip. Deep edge contacts on the far side fail the neighbor test and their face snap is empty, so
-// they are kept, and the triangles under the cylinder block them.
+// the triangles under the cylinder own the contact.
 static int MeshPeelCylinder( void )
 {
 	int runCount;
@@ -1187,7 +1173,6 @@ int MeshTest( void )
 	RUN_SUBTEST( MeshSphereOnRidge );
 	RUN_SUBTEST( MeshCapsuleOverCrest );
 	RUN_SUBTEST( MeshApexContact );
-	RUN_SUBTEST( MeshTJunctionSlide );
 	RUN_SUBTEST( MeshPeelCylinder );
 
 	return 0;

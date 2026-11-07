@@ -2129,6 +2129,9 @@ public:
 	{
 		GhostMesh source;
 		std::vector<EdgeType> edgeTypes;
+
+		// By engine triangle index, which differs from the source order
+		std::vector<b3Vec3> triangleCenters;
 		b3MeshData* data;
 	};
 
@@ -2152,6 +2155,7 @@ public:
 		m_handleGhosts = true;
 		m_speculative = true;
 		m_drawTriangleManifolds = false;
+		m_drawTriangleIndices = false;
 		m_cullDistance = 0.5f;
 		m_showGizmo = false;
 		m_gizmoLocal = false;
@@ -2220,6 +2224,21 @@ public:
 			mesh.source = source;
 			mesh.data = b3CreateMesh( &meshDef, nullptr, 0 );
 			ClassifyEdges( mesh );
+
+			b3AABB bounds = { source.vertices[0], source.vertices[0] };
+			for ( b3Vec3 vertex : source.vertices )
+			{
+				bounds.lowerBound = b3Min( bounds.lowerBound, vertex );
+				bounds.upperBound = b3Max( bounds.upperBound, vertex );
+			}
+
+			b3Vec3 margin = { 0.1f, 0.1f, 0.1f };
+			bounds.lowerBound = b3Sub( bounds.lowerBound, margin );
+			bounds.upperBound = b3Add( bounds.upperBound, margin );
+
+			mesh.triangleCenters.assign( meshDef.triangleCount, b3Vec3_zero );
+			b3Mesh query = { mesh.data, b3Vec3_one };
+			b3QueryMesh( &query, bounds, StoreTriangleCenter, &mesh.triangleCenters );
 			m_meshes.push_back( mesh );
 		}
 
@@ -2280,6 +2299,16 @@ public:
 				}
 			}
 		}
+	}
+
+	static bool StoreTriangleCenter( b3Vec3 a, b3Vec3 b, b3Vec3 c, int triangleIndex, void* context )
+	{
+		std::vector<b3Vec3>* centers = (std::vector<b3Vec3>*)context;
+		if ( triangleIndex < (int)centers->size() )
+		{
+			( *centers )[triangleIndex] = b3MulSV( 1.0f / 3.0f, b3Add( a, b3Add( b, c ) ) );
+		}
+		return true;
 	}
 
 	static bool CollectTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, int triangleIndex, void* context )
@@ -2395,6 +2424,27 @@ public:
 			}
 		}
 
+		if ( m_drawTriangleIndices )
+		{
+			bool multipleMeshes = m_meshes.size() > 1;
+			for ( int i = 0; i < (int)m_meshes.size(); ++i )
+			{
+				const std::vector<b3Vec3>& centers = m_meshes[i].triangleCenters;
+				for ( int t = 0; t < (int)centers.size(); ++t )
+				{
+					b3Pos center = b3OffsetPos( b3Pos_zero, centers[t] );
+					if ( multipleMeshes )
+					{
+						DrawString3D( center, MakeColor( b3_colorLightGray ), "m%d t%d", i, t );
+					}
+					else
+					{
+						DrawString3D( center, MakeColor( b3_colorLightGray ), "t%d", t );
+					}
+				}
+			}
+		}
+
 		DrawShape( m_transform );
 
 		float length = 0.3f * b3GetLengthUnitsPerMeter();
@@ -2485,6 +2535,7 @@ public:
 		ImGui::Checkbox( "Ghost Handling", &m_handleGhosts );
 		ImGui::Checkbox( "Speculative", &m_speculative );
 		ImGui::Checkbox( "Triangle Manifolds", &m_drawTriangleManifolds );
+		ImGui::Checkbox( "Triangle Indices", &m_drawTriangleIndices );
 		ImGui::SliderFloat( "Cull Distance", &m_cullDistance, 0.0f, 200.0f, "%0.1f cm" );
 		if ( ImGui::Button( "Reset Pose" ) )
 		{
@@ -2539,6 +2590,7 @@ public:
 	float m_cullDistance;
 	bool m_speculative;
 	bool m_drawTriangleManifolds;
+	bool m_drawTriangleIndices;
 	bool m_showGizmo;
 	bool m_gizmoLocal;
 
@@ -2612,6 +2664,70 @@ static void BuildGhostTJunction( std::vector<GhostMesh>& meshes )
 	AddGhostTriangle( mesh, 0, 1, 2 );
 	AddGhostTriangle( mesh, 4, 1, 3 );
 	AddGhostTriangle( mesh, 0, 4, 3 );
+	meshes.push_back( mesh );
+}
+
+// A 90 degree convex ridge along z, two cells along the ridge
+static void BuildGhostRidge( std::vector<GhostMesh>& meshes )
+{
+	GhostMesh mesh;
+	b3Vec2 profile[3] = { { -1.5f, -1.5f }, { 0.0f, 0.0f }, { 1.5f, -1.5f } };
+	b3Vec3 facings[2] = { { -1.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 0.0f } };
+	for ( int k = 0; k < 3; ++k )
+	{
+		for ( int i = 0; i < 3; ++i )
+		{
+			mesh.vertices.push_back( { profile[i].x, profile[i].y, -1.0f + k } );
+		}
+	}
+
+	for ( int k = 0; k < 2; ++k )
+	{
+		for ( int i = 0; i < 2; ++i )
+		{
+			int a = 3 * k + i;
+			int b = a + 1;
+			int c = a + 4;
+			int d = a + 3;
+			AddGhostTriangle( mesh, a, b, c, facings[i] );
+			AddGhostTriangle( mesh, a, c, d, facings[i] );
+		}
+	}
+	meshes.push_back( mesh );
+}
+
+// A welded strip with an open boundary along x = 0, like a PEEL slab lying on other ground
+static void BuildGhostStrip( std::vector<GhostMesh>& meshes )
+{
+	GhostMesh mesh;
+	for ( int row = 0; row < 5; ++row )
+	{
+		for ( int column = 0; column < 3; ++column )
+		{
+			mesh.vertices.push_back( { 0.5f * column, 0.0f, -1.0f + 0.5f * row } );
+		}
+	}
+
+	for ( int row = 0; row < 4; ++row )
+	{
+		for ( int column = 0; column < 2; ++column )
+		{
+			int a = 3 * row + column;
+			int b = a + 1;
+			int c = a + 4;
+			int d = a + 3;
+			if ( ( row + column ) & 1 )
+			{
+				AddGhostTriangle( mesh, a, d, b );
+				AddGhostTriangle( mesh, d, c, b );
+			}
+			else
+			{
+				AddGhostTriangle( mesh, a, d, c );
+				AddGhostTriangle( mesh, c, b, a );
+			}
+		}
+	}
 	meshes.push_back( mesh );
 }
 
@@ -2765,6 +2881,30 @@ static const GhostScene s_hullGhostScenes[] = {
 		true,
 	},
 	{
+		"Concave edge, deep",
+		"box on the left slope tilted 18 degrees and 2 cm deep, the right triangle picks the box side "
+		"face 11 mm deep",
+		"concave edge, snap to the triangle face, which has no points here, so the left triangle owns "
+		"the contact",
+		BuildGhostValley,
+		{ 0.5f, 0.5f, 0.5f },
+		{ -0.314f, 0.61f, 0.0f },
+		{ 0.0f, 0.0f, -18.0f },
+		true,
+	},
+	{
+		"Ridge, deep",
+		"box corner jammed on a 90 degree ridge, the apex is 3 cm inside the box, 28 mm into the left "
+		"slope and 34 mm into the right",
+		"deep, the right triangle picks an edge pair, a convex skip, and its snapped face contact is "
+		"empty. The left triangles keep their own normal, which pushes the box off the apex",
+		BuildGhostRidge,
+		{ 0.5f, 0.5f, 0.5f },
+		{ -0.564f, 0.579f, -0.016f },
+		{ -32.0f, -20.0f, 8.0f },
+		true,
+	},
+	{
 		"T-junction",
 		"a vertex in the middle of the left triangle edge, no edge matches so all are boundary "
 		"edges",
@@ -2774,6 +2914,18 @@ static const GhostScene s_hullGhostScenes[] = {
 		{ 0.5f, 0.5f, 0.5f },
 		{ -0.708f, 0.499f, 0.3f },
 		{ 0.0f, 45.0f, 0.0f },
+		true,
+	},
+	{
+		"Open boundary",
+		"box hanging over the open edge of a welded strip, yawed 5 degrees and 1 cm deep, its leading "
+		"face 5 mm past the row edge at the boundary vertex",
+		"unknown, the boundary edge has no neighbor, the next row triangle at the vertex blocks the "
+		"normal and has its own contact so it is dropped",
+		BuildGhostStrip,
+		{ 0.5f, 0.5f, 0.5f },
+		{ -0.25f, 0.49f, 0.019f },
+		{ 0.0f, 5.0f, 0.0f },
 		true,
 	},
 	{

@@ -829,7 +829,7 @@ static bool b3ShouldBlockNormal( const b3Vec3* vertices, b3BlockTarget target, b
 		}
 	}
 
-	return onEdge == false || ( infringed && allInfringed );
+	return onEdge && infringed && allInfringed;
 }
 
 static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shapeA, const b3Shape* shapeB,
@@ -1027,6 +1027,8 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 	int* survivorManifolds = b3Bump( arena, survivorCount * sizeof( int ) );
 	memset( survivorManifolds, 0xFF, survivorCount * sizeof( int ) );
+	bool* snappedEmpty = b3Bump( arena, survivorCount * sizeof( bool ) );
+	memset( snappedEmpty, 0, survivorCount * sizeof( bool ) );
 	b3BlockSource* blockSources = b3Bump( arena, survivorCount * sizeof( b3BlockSource ) );
 	int blockSourceCount = 0;
 
@@ -1142,17 +1144,6 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				meshFlags = b3_meshContactSnapped;
 			}
 
-			b3LocalManifold deepManifold = { 0 };
-			b3LocalManifoldPoint deepPoints[B3_MAX_CLIP_POINTS];
-			bool keepDeep = deep && result == b3_neighborSnap && shapeB->type == b3_hullShape;
-			if ( keepDeep )
-			{
-				B3_ASSERT( manifold->pointCount <= B3_MAX_CLIP_POINTS );
-				deepManifold = *manifold;
-				memcpy( deepPoints, manifold->points,
-						manifold->pointCount * sizeof( b3LocalManifoldPoint ) );
-			}
-
 			if ( result == b3_neighborSkip || result == b3_neighborSnap )
 			{
 				// Skip leaves the normal to the neighbor. A sphere off the face cannot snap.
@@ -1169,23 +1160,10 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			{
 				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices, triangle.flags, hullB,
 												   &cache->satCache, enableSpeculative );
-
-				if ( keepDeep && manifold->pointCount == 0 )
-				{
-					// A deep hull off the triangle face keeps its own manifold.
-					*manifold = deepManifold;
-					memcpy( manifold->points, deepPoints,
-							manifold->pointCount * sizeof( b3LocalManifoldPoint ) );
-
-					// The kept manifold failed the neighbor test, so it is unverified like a boundary contact.
-					blockSource = true;
-					meshFlags = b3_meshContactDeep | b3_meshContactUnverified;
-					if ( manifold->feature == b3_featureHullFace )
-					{
-						meshFlags |= b3_meshContactHullFace;
-					}
-				}
 			}
+
+			// todo comment
+			snappedEmpty[survivorIndex] = result == b3_neighborSnap && manifold->pointCount == 0;
 		}
 
 		int manifoldPointCount = manifold->pointCount;
@@ -1390,7 +1368,9 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			}
 			else
 			{
-				b3Vec3 blockerNormal = blockTargets[source->blockerIndex].normal;
+				// todo comment
+				b3Vec3 blockerNormal = snappedEmpty[source->blockerIndex] ? manifold->triangleNormal
+																			: blockTargets[source->blockerIndex].normal;
 				manifold->normal = blockerNormal;
 				manifold->triangleNormal = blockerNormal;
 				manifold->feature = b3_featureTriangleFace;

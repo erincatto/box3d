@@ -1376,8 +1376,52 @@ void Sample::DrawTextLine( const char* text, ... )
 	char buffer[512];
 	vsnprintf( buffer, sizeof( buffer ), text, args );
 	va_end( args );
-	DrawScreenString( m_textX, m_textLine, MakeColor( b3_colorWhite ), buffer );
-	m_textLine += m_textIncrement;
+
+	// The text arena keeps 63 characters per string, so wrap long lines at spaces and indent the rest
+	constexpr int capacity = 63;
+	constexpr int indent = 2;
+	const char* start = buffer;
+	bool first = true;
+	while ( true )
+	{
+		int width = first ? capacity : capacity - indent;
+		int length = (int)strlen( start );
+		int cut = length;
+		if ( length > width )
+		{
+			cut = width;
+			while ( cut > 0 && start[cut] != ' ' )
+			{
+				cut -= 1;
+			}
+
+			if ( cut == 0 )
+			{
+				cut = width;
+			}
+		}
+
+		char line[capacity + 1];
+		int offset = first ? 0 : indent;
+		memset( line, ' ', offset );
+		memcpy( line + offset, start, cut );
+		line[offset + cut] = '\0';
+		DrawScreenString( m_textX, m_textLine, MakeColor( b3_colorWhite ), line );
+		m_textLine += m_textIncrement;
+
+		start += cut;
+		while ( *start == ' ' )
+		{
+			start += 1;
+		}
+
+		if ( *start == '\0' )
+		{
+			break;
+		}
+
+		first = false;
+	}
 }
 
 SampleEntry g_sampleEntries[MAX_SAMPLES];

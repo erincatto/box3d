@@ -38,7 +38,7 @@ static const PeelPreset s_peelPresets[GHOST_PEEL_PRESET_COUNT] = {
 };
 
 const char* g_ghostSceneNames[e_ghostSceneCount] = {
-	"Flat", "Concave", "Cliff", "Crest", "Bumps", "T-Junction", "Internal", "Chamfer", "Rail",
+	"Flat", "Concave", "Cliff", "Crest", "Bumps", "Internal", "Chamfer", "Rail",
 };
 
 const char* g_ghostBodyNames[e_ghostBodyCount] = { "Box", "H Capsule", "V Capsule", "Sphere", "Cylinder" };
@@ -484,8 +484,6 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 	}
 
 	MeshBuilder builder = { 0 };
-	b3Vec2 left[2] = { { -h, 0.0f }, { 0.0f, 0.0f } };
-	b3Vec2 right[2] = { { 0.0f, 0.0f }, { h, 0.0f } };
 	float cellSize = settings->cellSize;
 	bool mirror = settings->mirror;
 	float groundHalfWidth = GHOST_HALF_WIDTH;
@@ -493,13 +491,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 
 	if ( settings->heightField )
 	{
-		if ( settings->scene == e_ghostTJunction )
-		{
-			AddHeightField( worldId, data, -h, 0.0f, GetCellCount( h, cellSize ), groundHalfWidth,
-							GetCellCount( 2.0f * groundHalfWidth, 0.5f * cellSize ), false );
-			AddHeightField( worldId, data, 0.0f, h, GetCellCount( h, cellSize ), groundHalfWidth, cellCountZ, false );
-		}
-		else if ( settings->scene == e_ghostInternal )
+		if ( settings->scene == e_ghostInternal )
 		{
 			// One grid line per profile row, as in the mesh
 			PeelPreset preset = s_peelPresets[settings->peelPreset];
@@ -527,13 +519,6 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 	else if ( settings->scene == e_ghostRail )
 	{
 		AddRail( &builder, data->profile, data->profileCount, cellSize, mirror );
-		AddMesh( data, &builder, false );
-	}
-	else if ( settings->scene == e_ghostTJunction )
-	{
-		// Fine and coarse strips share only every other vertex along x = 0
-		AddStrip( &builder, left, 2, cellSize, 0.5f * cellSize, mirror );
-		AddStrip( &builder, right, 2, cellSize, cellSize, mirror );
 		AddMesh( data, &builder, false );
 	}
 	else if ( settings->scene == e_ghostInternal )

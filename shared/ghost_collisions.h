@@ -26,7 +26,6 @@ typedef enum GhostScene
 	e_ghostCliff,
 	e_ghostCrest,
 	e_ghostBumps,
-	e_ghostTJunction,
 	e_ghostInternal,
 	e_ghostChamfer,
 	e_ghostRail,
@@ -60,8 +59,7 @@ typedef struct GhostSettings
 	int peelPreset;
 	bool mirror;
 
-	// Build the ground from height fields instead of meshes. Each height field is its own shape, so the
-	// T-junction scene becomes a seam between a fine and a coarse tile.
+	// Build the ground from height fields instead of meshes. Each height field is its own shape.
 	bool heightField;
 
 	float cellSize;

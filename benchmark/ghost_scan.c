@@ -18,7 +18,7 @@
 #include <string.h>
 
 // Command line and result file keys
-static const char* s_sceneKeys[e_ghostSceneCount] = { "flat", "ramp", "cliff", "crest", "bumps", "tjunction", "peel", "chamfer", "rail" };
+static const char* s_sceneKeys[e_ghostSceneCount] = { "flat", "ramp", "cliff", "crest", "bumps", "peel", "chamfer", "rail" };
 static const char* s_bodyKeys[e_ghostBodyCount] = { "box", "capsule", "upright", "sphere", "cylinder" };
 
 #define MAX_CONFIGS 256
@@ -372,7 +372,7 @@ int main( int argc, char** argv )
 		{
 			printf( "Usage: ghost_scan [options]\n"
 					"Runs the Ghost Collisions sample headless and counts ghost manifolds per scene and body.\n"
-					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, tjunction, peel, chamfer, rail (default all)\n"
+					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, peel, chamfer, rail (default all)\n"
 					"                           chamfer runs only the box and cylinder, fixed rotation without speculative\n"
 					"  -b, --body=<key|all>     box, capsule, upright, sphere, cylinder (default all)\n"
 					"  -m, --mirror=<0|1|all>   mirrored mesh (default all)\n"
@@ -381,7 +381,7 @@ int main( int argc, char** argv )
 					"  -w, --write=<file>       write results as csv, replacing only the rows of this run\n"
 					"  -c, --compare=<file>     compare with a written csv, fail if any count grew or has no row\n"
 					"  --speed=, --yaw=, --friction=, --cell=, --fixed-rotation, --no-speculative\n"
-					"  --height-field           height field ground, the t-junction becomes a fine and coarse tile seam\n"
+					"  --height-field           height field ground, one static body per height field\n"
 					"  -v, --verbose            print every ghost\n"
 					"Exit code is 1 when a compared count grew or has no row, 0 otherwise.\n" );
 			return 2;
