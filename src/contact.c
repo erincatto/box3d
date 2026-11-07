@@ -581,6 +581,8 @@ static bool b3ComputeConvexManifold( b3World* world, int workerIndex, b3Contact*
 		target->separation = source->separation;
 		target->featureId = b3MakeFeatureId( source->pair );
 		target->triangleIndex = B3_NULL_INDEX;
+		target->triangleFeature = b3_featureNone;
+		target->meshFlags = 0;
 		target->normalVelocity = 0.0f;
 	}
 

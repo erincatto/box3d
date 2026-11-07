@@ -1,0 +1,9 @@
+filter,base,generations,shape,tunnels,awake,depth4,depth8,depth16,depth32
+all,12345,1000,box,0,0,1544,220,4,0
+all,12345,1000,capsule,0,0,14505,3487,28,0
+all,12345,1000,cylinder,0,0,11228,2355,37,0
+all,12345,1000,sphere,0,0,56,0,0,0
+all,12345,16000,box,0,0,23648,3205,46,0
+all,12345,16000,capsule,0,0,231483,54547,515,0
+all,12345,16000,cylinder,0,0,179103,37448,485,0
+all,12345,16000,sphere,0,0,987,0,0,0

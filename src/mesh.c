@@ -128,6 +128,36 @@ static uint8_t* b3GetMeshFlagsWrite( b3MeshData* mesh )
 	return (uint8_t*)( (intptr_t)mesh + mesh->flagsOffset );
 }
 
+static int8_t* b3GetMeshEdgeAnglesWrite( b3MeshData* mesh )
+{
+	if ( mesh->edgeAngleOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (int8_t*)( (intptr_t)mesh + mesh->edgeAngleOffset );
+}
+
+static uint8_t* b3GetMeshVertexFlagsWrite( b3MeshData* mesh )
+{
+	if ( mesh->vertexFlagOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (uint8_t*)( (intptr_t)mesh + mesh->vertexFlagOffset );
+}
+
+static int* b3GetMeshVertexTrianglesWrite( b3MeshData* mesh )
+{
+	if ( mesh->vertexTriangleOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (int*)( (intptr_t)mesh + mesh->vertexTriangleOffset );
+}
+
 static int b3GetNodeHeight( const b3MeshNode* node )
 {
 	if ( b3IsLeaf( node ) )
@@ -1034,42 +1064,127 @@ typedef struct
 	uint8_t triangleEdgeIndex2;
 } b3MeshEdge;
 
-#define NAME b3EdgeMap
-#define KEY_TY uint64_t
-#define VAL_TY int
-#define HASH_FN vt_hash_integer
-#define CMPR_FN vt_cmpr_integer
-#define MALLOC_FN b3Alloc
-#define FREE_FN b3Free
-#include "verstable.h"
+#define B3_EDGE_ANGLE_STEPS 127.0f
 
-#if 0
-// todo this is for testing other hash tables
-struct b3TestHash
+int8_t b3QuantizeEdgeAngle( float radians )
 {
-	size_t operator()( uint64_t key ) const
-	{
-		key ^= key >> 23;
-		key *= 0x2127599bf4325c37ull;
-		key ^= key >> 47;
-		return (size_t)key;
-	}
-};
-#endif
+	float scaled = radians * ( B3_EDGE_ANGLE_STEPS / B3_PI );
+	int quantized = scaled >= 0.0f ? (int)( scaled + 0.5f ) : -(int)( 0.5f - scaled );
+	return (int8_t)b3ClampInt( quantized, -127, 127 );
+}
 
-// Results for MeshCreationBenchmark
-// eastl::hash_map : 4.9703 ms and 5.1445ms with FastHash function
-// std::unordered_map : 4.8755 ms and 4.4780ms with FastHash function
-// verstable : 3.3968 ms with default FastHash
-// no edge identification : 1.7396 ms
+bool b3GetMeshNeighborNormal( const b3Mesh* mesh, int triangleIndex, int edgeIndex, b3Vec3* normal )
+{
+	const b3MeshData* data = mesh->data;
+	B3_ASSERT( 0 <= triangleIndex && triangleIndex < data->triangleCount );
+	B3_ASSERT( 0 <= edgeIndex && edgeIndex < 3 );
+
+	const int8_t* edgeAngles = b3GetMeshEdgeAngles( data );
+	if ( edgeAngles == NULL )
+	{
+		return false;
+	}
+
+	b3Vec3 scale = mesh->scale;
+	if ( scale.x * scale.y * scale.z < 0.0f )
+	{
+		// Reflected mesh.
+		edgeIndex = 2 - edgeIndex;
+	}
+
+	int8_t quantized = edgeAngles[3 * triangleIndex + edgeIndex];
+	if ( quantized == B3_BOUNDARY_EDGE_ANGLE )
+	{
+		return false;
+	}
+
+	const b3MeshTriangle* triangles = b3GetMeshTriangles( data );
+	const b3Vec3* vertices = b3GetMeshVertices( data );
+	b3MeshTriangle triangle = triangles[triangleIndex];
+	int indices[3] = { triangle.index1, triangle.index2, triangle.index3 };
+
+	b3Vec3 a = vertices[indices[edgeIndex]];
+	b3Vec3 b = vertices[indices[( edgeIndex + 1 ) % 3]];
+	b3Vec3 c = vertices[indices[( edgeIndex + 2 ) % 3]];
+	b3Vec3 n = b3Normalize( b3Cross( b3Sub( b, a ), b3Sub( c, a ) ) );
+	b3Vec3 outward = b3Cross( b3Normalize( b3Sub( b, a ) ), n );
+
+	b3CosSin cs = b3ComputeCosSin( (float)quantized * ( B3_PI / B3_EDGE_ANGLE_STEPS ) );
+	b3Vec3 unscaled = b3Add( b3MulSV( cs.cosine, n ), b3MulSV( cs.sine, outward ) );
+
+	b3Vec3 absScale = b3Abs( scale );
+	if ( absScale.y == absScale.x && absScale.z == absScale.x )
+	{
+		// Shortcut for uniform scale. Common case.
+		*normal = (b3Vec3){
+			scale.x < 0.0f ? -unscaled.x : unscaled.x,
+			scale.y < 0.0f ? -unscaled.y : unscaled.y,
+			scale.z < 0.0f ? -unscaled.z : unscaled.z,
+		};
+		return true;
+	}
+
+	// Handle non-uniform scale.
+	b3Vec3 invScale = { 1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z };
+	*normal = b3Normalize( b3Mul( invScale, unscaled ) );
+	return true;
+}
+
+int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex )
+{
+	const b3MeshData* data = mesh->data;
+	B3_ASSERT( 0 <= triangleIndex && triangleIndex < data->triangleCount );
+	B3_ASSERT( 0 <= vertexIndex && vertexIndex < 3 );
+
+	const uint8_t* vertexFlags = b3GetMeshVertexFlags( data );
+	if ( vertexFlags == NULL )
+	{
+		return b3_flatVertex;
+	}
+
+	b3Vec3 scale = mesh->scale;
+	if ( scale.x * scale.y * scale.z < 0.0f )
+	{
+		// Handle reflection.
+		vertexIndex = ( 3 - vertexIndex ) % 3;
+	}
+
+	b3MeshTriangle triangle = b3GetMeshTriangles( data )[triangleIndex];
+	int indices[3] = { triangle.index1, triangle.index2, triangle.index3 };
+	return vertexFlags[indices[vertexIndex]];
+}
+
+int b3GetMeshVertexTriangles( const b3MeshData* mesh, int vertex, const int** triangles )
+{
+	B3_ASSERT( 0 <= vertex && vertex < mesh->vertexCount );
+
+	if ( mesh->vertexTriangleOffset == 0 )
+	{
+		*triangles = NULL;
+		return 0;
+	}
+
+	const int* starts = (const int*)( (intptr_t)mesh + mesh->vertexTriangleOffset );
+	*triangles = starts + mesh->vertexCount + 1 + starts[vertex];
+	return starts[vertex + 1] - starts[vertex];
+}
+
 static void b3IdentifyEdges( b3MeshData* mesh )
 {
 	b3MeshTriangle* triangles = b3GetMeshTrianglesWrite( mesh );
 	const b3Vec3* vertices = b3GetMeshVertices( mesh );
 	uint8_t* flags = b3GetMeshFlagsWrite( mesh );
+	int8_t* edgeAngles = b3GetMeshEdgeAnglesWrite( mesh );
+	B3_ASSERT( edgeAngles != NULL );
 
 	int triangleCount = mesh->triangleCount;
 	int edgeCount = 3 * triangleCount;
+
+	for ( int i = 0; i < edgeCount; ++i )
+	{
+		edgeAngles[i] = B3_BOUNDARY_EDGE_ANGLE;
+	}
+
 	b3MeshEdge* edges = B3_ALLOC( b3MeshEdge, edgeCount );
 	b3Vec3* normals = B3_ALLOC( b3Vec3, triangleCount );
 
@@ -1115,27 +1230,61 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 		normals[i] = b3Normalize( n );
 	}
 
-	b3EdgeMap map;
-	b3EdgeMap_init( &map );
-	b3EdgeMap_reserve( &map, edgeCount );
+	// Counting sort for edges. Faster than a hashtable.
+	int vertexCount = mesh->vertexCount;
+	int* edgeStarts = B3_ALLOC( int, ( vertexCount + 1 ) );
+	int* sortedEdges = B3_ALLOC( int, edgeCount );
+	int* stamps = B3_ALLOC( int, vertexCount );
+	int* firstEdges = B3_ALLOC( int, vertexCount );
 
-	uint64_t key = (uint64_t)edges[0].vertex1 << 32 | (uint64_t)edges[0].vertex2;
-	b3EdgeMap_insert( &map, key, 0 );
+	for ( int i = 0; i <= vertexCount; ++i )
+	{
+		edgeStarts[i] = 0;
+	}
+
+	for ( int i = 0; i < vertexCount; ++i )
+	{
+		stamps[i] = B3_NULL_INDEX;
+	}
+
+	for ( int i = 0; i < edgeCount; ++i )
+	{
+		B3_ASSERT( 0 <= edges[i].vertex1 && edges[i].vertex2 < vertexCount );
+		edgeStarts[edges[i].vertex1 + 1] += 1;
+	}
+
+	for ( int i = 0; i < vertexCount; ++i )
+	{
+		edgeStarts[i + 1] += edgeStarts[i];
+	}
+
+	for ( int i = 0; i < edgeCount; ++i )
+	{
+		int vertex1 = edges[i].vertex1;
+		sortedEdges[edgeStarts[vertex1]] = i;
+		edgeStarts[vertex1] += 1;
+	}
 
 	// Find unique edges and assign adjacency
-	for ( int i = 1; i < edgeCount; ++i )
+	int begin = 0;
+	for ( int vertex1 = 0; vertex1 < vertexCount; ++vertex1 )
 	{
-		b3MeshEdge* edge = edges + i;
-		key = (uint64_t)edge->vertex1 << 32 | (uint64_t)edge->vertex2;
-		b3EdgeMap_itr itr = b3EdgeMap_get( &map, key );
+		int end = edgeStarts[vertex1];
+		for ( int j = begin; j < end; ++j )
+		{
+			int i = sortedEdges[j];
+			b3MeshEdge* edge = edges + i;
+			int vertex2 = edge->vertex2;
 
-		if ( b3EdgeMap_is_end( itr ) )
-		{
-			b3EdgeMap_insert( &map, key, i );
-		}
-		else
-		{
-			int otherIndex = itr.data->val;
+			// Establish twin.
+			if ( stamps[vertex2] != vertex1 )
+			{
+				stamps[vertex2] = vertex1;
+				firstEdges[vertex2] = i;
+				continue;
+			}
+
+			int otherIndex = firstEdges[vertex2];
 			B3_ASSERT( otherIndex < i );
 
 			b3MeshEdge* base = edges + otherIndex;
@@ -1147,9 +1296,14 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 
 			base->triangleCount += 1;
 		}
+
+		begin = end;
 	}
 
-	b3EdgeMap_cleanup( &map );
+	B3_FREE( firstEdges, int, vertexCount );
+	B3_FREE( stamps, int, vertexCount );
+	B3_FREE( sortedEdges, int, edgeCount );
+	B3_FREE( edgeStarts, int, ( vertexCount + 1 ) );
 
 	for ( int i = 0; i < edgeCount; ++i )
 	{
@@ -1199,11 +1353,27 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 		b3Vec3 v2 = vertices[i2];
 		b3Vec3 v3 = vertices[i3];
 		b3Vec3 p = vertices[opposite];
+		b3Vec3 n1 = normals[edge->triangle1];
+		b3Vec3 n2 = normals[edge->triangle2];
+
+		// Quantize the angles between neighboring normals.
+		int indices1[3] = { i1, i2, i3 };
+		int indices2[3] = { j1, j2, j3 };
+		int k1 = edge->triangleEdgeIndex1;
+		int k2 = edge->triangleEdgeIndex2;
+		if ( indices1[k1] == indices2[( k2 + 1 ) % 3] )
+		{
+			b3Vec3 a = vertices[indices1[k1]];
+			b3Vec3 b = vertices[indices1[( k1 + 1 ) % 3]];
+			b3Vec3 outward = b3Cross( b3Normalize( b3Sub( b, a ) ), n1 );
+			float angle = b3Atan2( b3Dot( n2, outward ), b3Dot( n2, n1 ) );
+			int8_t quantized = b3QuantizeEdgeAngle( angle );
+			edgeAngles[3 * edge->triangle1 + k1] = quantized;
+			edgeAngles[3 * edge->triangle2 + k2] = quantized;
+		}
 
 		float cos5Deg = 0.9962f;
 		float signedVolume = b3SignedVolume( v1, v2, v3, p );
-		b3Vec3 n1 = normals[edge->triangle1];
-		b3Vec3 n2 = normals[edge->triangle2];
 		float cosAngle = b3Dot( n1, n2 );
 		if ( signedVolume > 0.0f || cosAngle > cos5Deg )
 		{
@@ -1220,6 +1390,67 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 		}
 	}
 
+	uint8_t* vertexFlags = b3GetMeshVertexFlagsWrite( mesh );
+	B3_ASSERT( vertexFlags != NULL );
+
+	for ( int i = 0; i < mesh->vertexCount; ++i )
+	{
+		vertexFlags[i] = b3_flatVertex;
+	}
+
+	// Vertex flags for ghost collision handling.
+	for ( int i = 0; i < triangleCount; ++i )
+	{
+		int indices[3] = { triangles[i].index1, triangles[i].index2, triangles[i].index3 };
+		for ( int k = 0; k < 3; ++k )
+		{
+			int8_t angle = edgeAngles[3 * i + k];
+			int a = indices[k];
+			int b = indices[k < 2 ? k + 1 : 0];
+
+			// Edge not flat?
+			if ( angle != 0 )
+			{
+				vertexFlags[a] = (uint8_t)( vertexFlags[a] & ~b3_flatVertex );
+				vertexFlags[b] = (uint8_t)( vertexFlags[b] & ~b3_flatVertex );
+			}
+
+			// Edge concave?
+			if ( angle < 0 && angle != B3_BOUNDARY_EDGE_ANGLE )
+			{
+				vertexFlags[a] |= b3_concaveVertex;
+				vertexFlags[b] |= b3_concaveVertex;
+			}
+		}
+	}
+
+	int* vertexStarts = b3GetMeshVertexTrianglesWrite( mesh );
+	B3_ASSERT( vertexStarts != NULL );
+	int* vertexTriangles = vertexStarts + vertexCount + 1;
+
+	for ( int i = 0; i < triangleCount; ++i )
+	{
+		vertexStarts[triangles[i].index1 + 1] += 1;
+		vertexStarts[triangles[i].index2 + 1] += 1;
+		vertexStarts[triangles[i].index3 + 1] += 1;
+	}
+
+	for ( int i = 0; i < vertexCount; ++i )
+	{
+		vertexStarts[i + 1] += vertexStarts[i];
+	}
+
+	int* cursors = B3_ALLOC( int, vertexCount );
+	memcpy( cursors, vertexStarts, vertexCount * sizeof( int ) );
+
+	for ( int i = 0; i < triangleCount; ++i )
+	{
+		vertexTriangles[cursors[triangles[i].index1]++] = i;
+		vertexTriangles[cursors[triangles[i].index2]++] = i;
+		vertexTriangles[cursors[triangles[i].index3]++] = i;
+	}
+
+	B3_FREE( cursors, int, vertexCount );
 	B3_FREE( normals, b3Vec3, triangleCount );
 	B3_FREE( edges, b3MeshEdge, edgeCount );
 }
@@ -1740,6 +1971,18 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	byteCount += b3AlignUp8( triangleCount * sizeof( uint8_t ) );
 	int flagsOffset = (int)byteCount;
 	byteCount += b3AlignUp8( triangleCount * sizeof( uint8_t ) );
+	int edgeAngleOffset = 0;
+	int vertexFlagOffset = 0;
+	int vertexTriangleOffset = 0;
+	if ( def->identifyEdges )
+	{
+		edgeAngleOffset = (int)byteCount;
+		byteCount += b3AlignUp8( 3 * triangleCount * sizeof( int8_t ) );
+		vertexFlagOffset = (int)byteCount;
+		byteCount += b3AlignUp8( vertexCount * sizeof( uint8_t ) );
+		vertexTriangleOffset = (int)byteCount;
+		byteCount += b3AlignUp8( ( vertexCount + 1 + 3 * triangleCount ) * sizeof( int ) );
+	}
 
 	b3MeshData* mesh = b3Alloc( byteCount );
 
@@ -1761,6 +2004,9 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	mesh->materialOffset = materialIndicesOffset;
 	mesh->materialCount = materialCount;
 	mesh->flagsOffset = flagsOffset;
+	mesh->edgeAngleOffset = edgeAngleOffset;
+	mesh->vertexFlagOffset = vertexFlagOffset;
+	mesh->vertexTriangleOffset = vertexTriangleOffset;
 
 	b3MeshNode* nodes = b3GetMeshNodesWrite( mesh );
 	b3MeshTriangle* triangles = b3GetMeshTrianglesWrite( mesh );

@@ -342,6 +342,28 @@ B3_INLINE const uint8_t* b3GetMeshFlags( const b3MeshData* mesh )
 	return (const uint8_t*)( (intptr_t)mesh + mesh->flagsOffset );
 }
 
+// Get read only quantized angles between neighboring triangle normals.
+B3_INLINE const int8_t* b3GetMeshEdgeAngles( const b3MeshData* mesh )
+{
+	if ( mesh->edgeAngleOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (const int8_t*)( (intptr_t)mesh + mesh->edgeAngleOffset );
+}
+
+// Get read only vertex flags.
+B3_INLINE const uint8_t* b3GetMeshVertexFlags( const b3MeshData* mesh )
+{
+	if ( mesh->vertexFlagOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (const uint8_t*)( (intptr_t)mesh + mesh->vertexFlagOffset );
+}
+
 /// Create a grid mesh along the x and z axes.
 /// @param xCount the number of rows in the x direction
 /// @param zCount the number of rows in the z direction
@@ -656,6 +678,10 @@ B3_API void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b
 /// Collide a triangle and sphere. Normal points from triangle to sphere.
 B3_API void b3CollideTriangleAndSphere( b3LocalManifold* manifold, int capacity, const b3Vec3* triangleA,
 										const b3Sphere* sphereB );
+
+// Collide a mesh and hull for testing.
+B3_API int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3HullData* hull,
+								 b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts );
 
 /// This is used for computing 2D hulls in service of contact manifold simplification.
 /// Placed here for testing. Internal.

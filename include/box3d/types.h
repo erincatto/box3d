@@ -1628,7 +1628,6 @@ typedef struct b3SimplexCache
 	/// Value use to compare length, area, volume of two simplexes.
 	float metric;
 
-	// todo use an index of 0xFF as a sentinel and remove the count
 	/// The number of stored simplex points
 	uint16_t count;
 
@@ -2260,7 +2259,7 @@ typedef struct b3MeshDef
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.
-#define B3_MESH_VERSION 0xAAAB9A00F1A8AAF7ull
+#define B3_MESH_VERSION 0x7C41E9B2D3058F6Aull
 
 /// Triangle mesh edge flags.
 typedef enum b3MeshEdgeFlags
@@ -2290,6 +2289,16 @@ typedef struct b3MeshTriangle
 	int32_t index2; ///< Index of vertex 2.
 	int32_t index3; ///< Index of vertex 3.
 } b3MeshTriangle;
+
+// Indicates an isolated edge.
+#define B3_BOUNDARY_EDGE_ANGLE ( -128 )
+
+// Mesh vertex flags. Used for ghost collision handling.
+typedef enum b3MeshVertexFlags
+{
+	b3_flatVertex = 0x01,
+	b3_concaveVertex = 0x02,
+} b3MeshVertexFlags;
 
 /// A mesh BVH node.
 typedef struct b3MeshNode
@@ -2379,8 +2388,14 @@ typedef struct b3MeshData
 	/// Offset of the triangle flag array in bytes from the struct address.
 	int32_t flagsOffset;
 
-	/// Explicit padding.
-	int32_t padding;
+	// Offset to the array of neighbor quantized normal offsets.
+	int32_t edgeAngleOffset;
+
+	/// Offset of the vertex flag array in bytes from the struct address.
+	int32_t vertexFlagOffset;
+
+	// todo comment
+	int32_t vertexTriangleOffset;
 } b3MeshData;
 
 /// This allows mesh data to be re-used with different scales.
@@ -2441,7 +2456,7 @@ typedef struct b3HeightFieldDef
 #define B3_HEIGHT_FIELD_HOLE 0xFF
 
 /// 64-bit height-field version. Useful for validating serialized data.
-#define B3_HEIGHT_FIELD_VERSION 0x8E41E5FB084848F8ull
+#define B3_HEIGHT_FIELD_VERSION 0x5A69A297D7ACE1CDull
 
 /// A height field with compressed storage.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -2493,7 +2508,10 @@ typedef struct b3HeightFieldData
 	uint8_t clockwise;
 
 	/// Explicit padding.
-	uint8_t padding[7];
+	uint8_t padding[3];
+
+	// Offet to the vertex ghost collision flag. Array of bits.
+	int32_t vertexFlagOffset;
 } b3HeightFieldData;
 
 /**@}*/ // height_field
@@ -2797,6 +2815,12 @@ typedef struct b3ManifoldPoint
 
 	/// Did this contact point exist in the previous step?
 	bool persisted;
+
+	// b3TriangleFeature
+	uint8_t triangleFeature;
+
+	// b3MeshContactFlags
+	uint8_t meshFlags;
 } b3ManifoldPoint;
 
 /// A contact manifold describes the contact points between colliding shapes.
@@ -2824,7 +2848,7 @@ typedef struct b3Manifold
 } b3Manifold;
 
 /// Cached separating axis feature.
-typedef enum
+typedef enum b3SeparatingFeature
 {
 	b3_invalidAxis = 0,
 	b3_backsideAxis,
@@ -2840,7 +2864,7 @@ typedef enum
 } b3SeparatingFeature;
 
 /// Cached triangle feature.
-typedef enum
+typedef enum b3TriangleFeature
 {
 	b3_featureNone = 0,
 	b3_featureTriangleFace,
@@ -2855,6 +2879,16 @@ typedef enum
 	b3_featureVertex2,
 	b3_featureVertex3
 } b3TriangleFeature;
+
+/// This gives debug information about how a contact point was generated.
+typedef enum b3MeshContactFlags
+{
+	b3_meshContactHullFace = 0x01,
+	b3_meshContactSnapped = 0x02,
+	b3_meshContactUnverified = 0x04,
+	b3_meshContactDeep = 0x08,
+	b3_meshContactBlocked = 0x10,
+} b3MeshContactFlags;
 
 /// Separating axis test cache. Provides temporal acceleration of collision routines.
 typedef struct
@@ -2907,6 +2941,12 @@ typedef struct b3LocalManifoldPoint
 
 	/// The triangle index when collide with a mesh or height-field.
 	int triangleIndex;
+
+	// b3TriangleFeature
+	uint8_t triangleFeature;
+
+	// b3MeshContactFlags
+	uint8_t meshFlags;
 } b3LocalManifoldPoint;
 
 /// A local manifold with no dynamic information. Used by b3Collide functions.
@@ -2927,18 +2967,8 @@ typedef struct b3LocalManifold
 	/// The index of the triangle.
 	int triangleIndex;
 
-	int i1; ///< Vertex 1 index.
-	int i2; ///< Vertex 2 index.
-	int i3; ///< Vertex 3 index.
-
-	/// The squared distance of a sphere from a triangle. For ghost collision reduction.
-	float squaredDistance;
-
 	/// The triangle feature involved.
 	b3TriangleFeature feature;
-
-	/// b3MeshEdgeFlags.
-	int triangleFlags;
 } b3LocalManifold;
 
 /**@}*/ // collision

@@ -34,6 +34,16 @@ FetchContent_Declare(nfd
 )
 FetchContent_MakeAvailable(nfd)
 
+# meshoptimizer for the s&box Ghost Collisions remesh toggle. Static lib, target meshoptimizer.
+set(MESHOPT_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(meshoptimizer
+    GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git
+    GIT_TAG        v1.3
+    GIT_SHALLOW    TRUE
+    GIT_PROGRESS   TRUE
+)
+FetchContent_MakeAvailable(meshoptimizer)
+
 # The shader compiler is only needed when recompiling shaders. A fresh clone
 # with BOX3D_BUILD_SHADERS=OFF builds from the committed headers and skips this.
 if(BOX3D_BUILD_SHADERS)
@@ -220,7 +230,7 @@ target_include_directories(samples PRIVATE
 
 # gfx: the renderer + Draw*/adapter. shared: human, utils (Random*), the
 # benchmark/determinism helpers the samples lean on.
-target_link_libraries(samples PRIVATE gfx shared imgui implot imguizmo sokol nfd)
+target_link_libraries(samples PRIVATE gfx shared imgui implot imguizmo sokol nfd meshoptimizer)
 
 # MSVC auto-links winmm via a #pragma comment in main.cpp. MinGW ignores that
 # pragma, so link the timeBeginPeriod/timeEndPeriod library explicitly.
