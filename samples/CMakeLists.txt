@@ -197,6 +197,7 @@ set(SAMPLE_FILES
     sample_determinism.cpp
     sample_events.cpp
     sample_geometry.cpp
+    sample_ghost.cpp
     sample_issues.cpp
     sample_joint.cpp
     sample_manifold.cpp
