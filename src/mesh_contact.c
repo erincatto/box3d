@@ -418,12 +418,13 @@ typedef enum b3NeighborResult
 {
 	// Admit for flat edges
 	b3_neighborAdmit,
-	// Unknown for isolated edges
-	b3_neighborUnknown,
 	// Skip for convex edges
 	b3_neighborSkip,
 	// Snap for concave edges
 	b3_neighborSnap,
+
+	// todo comment
+	b3_neighborDrop,
 } b3NeighborResult;
 
 // 1.0027 degrees
@@ -437,6 +438,8 @@ static bool b3GetNeighborDirection( const b3Shape* shape, int triangleIndex, con
 	bool haveNeighbor = b3GetNeighborNormal( shape, triangleIndex, edgeIndex, &neighborNormal );
 	if ( haveNeighbor == false )
 	{
+		// todo comment
+		*direction = b3Neg( b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] ) );
 		return false;
 	}
 
@@ -457,9 +460,81 @@ static bool b3IsInVertexRegion( const b3Vec3* vertices, int vertexIndex, b3Vec3 
 	return b3Dot( normal, e1 ) <= 0.0f && b3Dot( normal, e2 ) <= 0.0f;
 }
 
+static b3Triangle b3GetSurfaceTriangle( const b3Shape* shape, int triangleIndex )
+{
+	if ( shape->type == b3_meshShape )
+	{
+		return b3GetMeshTriangle( &shape->mesh, triangleIndex );
+	}
+
+	B3_ASSERT( shape->type == b3_heightShape );
+	return b3GetHeightFieldTriangle( shape->heightField, triangleIndex );
+}
+
+// todo comment
+static bool b3IsInVertexCone( const b3Shape* shape, int triangleIndex, int vertexIndex, b3Matrix3 meshToLocal,
+							  b3Vec3 normal )
+{
+	b3Vec3 meshNormal = b3MulMV( b3Transpose( meshToLocal ), normal );
+	float tolerance = B3_NEIGHBOR_TOLERANCE;
+	float toleranceSquared = tolerance * tolerance;
+
+	b3Triangle triangle = b3GetSurfaceTriangle( shape, triangleIndex );
+	int indices[3] = { triangle.i1, triangle.i2, triangle.i3 };
+	int vertex = indices[vertexIndex];
+
+	int heightFieldTriangles[6];
+	const int* fanTriangles = heightFieldTriangles;
+	int fanCount;
+	if ( shape->type == b3_meshShape )
+	{
+		fanCount = b3GetMeshVertexTriangles( shape->mesh.data, vertex, &fanTriangles );
+	}
+	else
+	{
+		fanCount = b3GetHeightFieldVertexTriangles( shape->heightField, vertex, heightFieldTriangles );
+	}
+
+	for ( int i = 0; i < fanCount; ++i )
+	{
+		int fanIndex = fanTriangles[i];
+		b3Triangle fan = b3GetSurfaceTriangle( shape, fanIndex );
+		int fanIndices[3] = { fan.i1, fan.i2, fan.i3 };
+		int k = fanIndices[0] == vertex ? 0 : ( fanIndices[1] == vertex ? 1 : 2 );
+		B3_ASSERT( fanIndices[k] == vertex );
+
+		int next = k < 2 ? k + 1 : 0;
+		int previous = k > 0 ? k - 1 : 2;
+		b3Vec3 edges[2] = { b3Sub( fan.vertices[next], fan.vertices[k] ), b3Sub( fan.vertices[previous], fan.vertices[k] ) };
+		int edgeIndices[2] = { k, previous };
+
+		for ( int j = 0; j < 2; ++j )
+		{
+			float lean = b3Dot( meshNormal, edges[j] );
+			if ( lean > 0.0f && lean * lean > toleranceSquared * b3LengthSquared( edges[j] ) )
+			{
+				return false;
+			}
+
+			b3Vec3 neighborNormal;
+			if ( b3GetNeighborNormal( shape, fanIndex, edgeIndices[j], &neighborNormal ) == false )
+			{
+				// todo comment
+				b3Vec3 fanNormal = b3MakeNormalFromPoints( fan.vertices[0], fan.vertices[1], fan.vertices[2] );
+				if ( b3Dot( meshNormal, fanNormal ) < -tolerance )
+				{
+					return false;
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
 // Check the vertex flags to determined if this normal is admissible.
 static bool b3AdmitsVertexNormal( const b3Shape* shape, int triangleIndex, const b3Vec3* vertices, int vertexIndex,
-								  b3Vec3 normal )
+								  b3Matrix3 meshToLocal, b3Vec3 normal )
 {
 	if ( b3IsInVertexRegion( vertices, vertexIndex, normal ) == false )
 	{
@@ -467,14 +542,21 @@ static bool b3AdmitsVertexNormal( const b3Shape* shape, int triangleIndex, const
 		return false;
 	}
 
-	return b3IsConvexVertex( shape, triangleIndex, vertexIndex );
+	if ( b3IsConvexVertex( shape, triangleIndex, vertexIndex ) == false )
+	{
+		return false;
+	}
+
+	return b3IsInVertexCone( shape, triangleIndex, vertexIndex, meshToLocal, normal );
 }
 
 // Voronoi test of an edge or vertex normal against the neighbor normals.
 static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex,
 										 const b3Vec3* vertices, b3Matrix3 meshToLocal,
-										 b3TriangleFeature feature, b3Vec3 normal )
+										 b3TriangleFeature feature, b3Vec3 normal, int* ownerEdge )
 {
+	*ownerEdge = B3_NULL_INDEX;
+
 	int edges[2] = { 0, 0 };
 	int edgeCount = 1;
 	int vertexIndex = B3_NULL_INDEX;
@@ -515,7 +597,7 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 			break;
 
 		default:
-			return b3_neighborUnknown;
+			return b3_neighborAdmit;
 	}
 
 	b3Vec3 triangleNormal = b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] );
@@ -528,28 +610,37 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 		b3Vec3 direction;
 		bool haveNeighbor = b3GetNeighborDirection( shape, triangleIndex, vertices, meshToLocal,
 													edges[i], &direction );
-		if ( haveNeighbor == false )
+
+		bool admitted = b3Dot( normal, direction ) <= tolerance;
+		if ( admitted == false && haveNeighbor && *ownerEdge == B3_NULL_INDEX )
 		{
-			// Isolated edge
-			return b3_neighborUnknown;
+			*ownerEdge = edges[i];
 		}
 
-		admit = admit && b3Dot( normal, direction ) <= tolerance;
+		admit = admit && admitted;
 		convex = convex || b3Dot( triangleNormal, direction ) < -tolerance;
 	}
 
 	if ( admit )
 	{
-		return b3_neighborAdmit;
+		if ( vertexIndex == B3_NULL_INDEX || b3IsInVertexCone( shape, triangleIndex, vertexIndex, meshToLocal, normal ) )
+		{
+			return b3_neighborAdmit;
+		}
+
+		// todo comment
+		return b3IsInVertexRegion( vertices, vertexIndex, normal ) ? b3_neighborSkip : b3_neighborSnap;
 	}
 
 	if ( convex )
 	{
-		return b3_neighborSkip;
+		// todo comment
+		return *ownerEdge == B3_NULL_INDEX ? b3_neighborDrop : b3_neighborSkip;
 	}
 
 	// Check vertex.
-	if ( vertexIndex != B3_NULL_INDEX && b3AdmitsVertexNormal( shape, triangleIndex, vertices, vertexIndex, normal ) )
+	if ( vertexIndex != B3_NULL_INDEX &&
+		 b3AdmitsVertexNormal( shape, triangleIndex, vertices, vertexIndex, meshToLocal, normal ) )
 	{
 		return b3_neighborAdmit;
 	}
@@ -600,7 +691,7 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 				continue;
 			}
 
-			bool admit = b3AdmitsVertexNormal( shape, triangleIndex, vertices, i, normal );
+			bool admit = b3AdmitsVertexNormal( shape, triangleIndex, vertices, i, meshToLocal, normal );
 			if ( admit )
 			{
 				// This vertex tentatively accepts the normal.
@@ -665,171 +756,17 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 	}
 	else if ( nearCount == 3 )
 	{
-		return b3_neighborUnknown;
+		return b3_neighborSnap;
 	}
 
 	*nearFeature = feature;
 
 	// Never skip a hull face, its normal can miss the whole vertex cone so every triangle would
 	// skip, the face contact is empty when the hull is off this triangle.
+	int ownerEdge;
 	b3NeighborResult result =
-		b3TestNeighbors( shape, triangleIndex, vertices, meshToLocal, feature, normal );
-	return result == b3_neighborSkip ? b3_neighborSnap : result;
-}
-
-typedef struct b3BlockSource
-{
-	b3Vec3 point;
-	int manifoldIndex;
-	int survivorIndex;
-	int blockerIndex;
-} b3BlockSource;
-
-// The deepest point moved onto the triangle feature that generates the manifold normal.
-static b3Vec3 b3GetFeaturePoint( const b3LocalManifold* manifold, const b3Vec3* vertices,
-								  b3TriangleFeature feature )
-{
-	int deepest = 0;
-	for ( int i = 1; i < manifold->pointCount; ++i )
-	{
-		if ( manifold->points[i].separation < manifold->points[deepest].separation )
-		{
-			deepest = i;
-		}
-	}
-
-	b3Vec3 point = manifold->points[deepest].point;
-	if ( manifold->feature == b3_featureHullFace )
-	{
-		point = b3MulSub( point, manifold->points[deepest].separation, manifold->normal );
-	}
-
-	int edgeIndex;
-	switch ( feature )
-	{
-		case b3_featureEdge1:
-			edgeIndex = 0;
-			break;
-
-		case b3_featureEdge2:
-			edgeIndex = 1;
-			break;
-
-		case b3_featureEdge3:
-			edgeIndex = 2;
-			break;
-
-		case b3_featureVertex1:
-			return vertices[0];
-
-		case b3_featureVertex2:
-			return vertices[1];
-
-		case b3_featureVertex3:
-			return vertices[2];
-
-		default:
-			return point;
-	}
-
-	b3Vec3 a = vertices[edgeIndex];
-	b3Vec3 edge = b3Sub( vertices[edgeIndex < 2 ? edgeIndex + 1 : 0], a );
-	float fraction = b3Dot( b3Sub( point, a ), edge ) / b3Dot( edge, edge );
-	fraction = b3ClampFloat( fraction, 0.0f, 1.0f );
-	return b3MulAdd( a, fraction, edge );
-}
-
-typedef struct b3BlockTarget
-{
-	// Triangle normal
-	b3Vec3 normal;
-
-	// Tolerance scaled by maximum edge length.
-	float distanceTolerance;
-} b3BlockTarget;
-
-static b3BlockTarget b3MakeBlockTarget( const b3Vec3* vertices )
-{
-	float maxLengthSquared = 0.0f;
-	for ( int i = 0; i < 3; ++i )
-	{
-		b3Vec3 edge = b3Sub( vertices[i < 2 ? i + 1 : 0], vertices[i] );
-		maxLengthSquared = b3MaxFloat( maxLengthSquared, b3Dot( edge, edge ) );
-	}
-
-	// Relative to the triangle size.
-	return (b3BlockTarget){
-		.normal = b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] ),
-		.distanceTolerance = 1.0e-3f * sqrtf( maxLengthSquared ),
-	};
-}
-
-// From Bepu MeshReduction ShouldBlockNormal, a normal is blocked when the point lies on
-// the target triangle and the normal leans over the target face across every edge the point is on, or
-// the point is interior).
-static bool b3ShouldBlockNormal( const b3Vec3* vertices, b3BlockTarget target, b3Vec3 point, b3Vec3 normal )
-{
-	b3Vec3 triangleNormal = target.normal;
-	float distanceTolerance = target.distanceTolerance;
-	B3_ASSERT( b3AbsFloat( b3Dot( triangleNormal, b3Sub( point, vertices[0] ) ) ) <= distanceTolerance );
-
-	float normalDot = b3Dot( normal, triangleNormal );
-	if ( normalDot < -0.01f )
-	{
-		return false;
-	}
-
-	b3Vec3 edges[3];
-	for ( int i = 0; i < 3; ++i )
-	{
-		edges[i] = b3Sub( vertices[i < 2 ? i + 1 : 0], vertices[i] );
-	}
-
-	// Stricter for being on an edge than for being near the triangle, so a point near an
-	// edge needs every edge it is on to be infringed.
-	float edgeTolerance = 0.01f * distanceTolerance;
-	bool onEdge = false;
-	bool infringed = false;
-	bool allInfringed = true;
-	for ( int i = 0; i < 3; ++i )
-	{
-		b3Vec3 inward = b3Normalize( b3Cross( triangleNormal, edges[i] ) );
-		float distance = b3Dot( inward, b3Sub( point, vertices[i] ) );
-		if ( distance < -distanceTolerance )
-		{
-			return false;
-		}
-
-		if ( distance <= edgeTolerance )
-		{
-			// Strictly positive lean on one edge so a flat neighbor is not blocked, a
-			// nearly parallel lean is enough on the others.
-			float lean = b3Dot( normal, inward );
-			onEdge = true;
-			infringed = infringed || lean > 1.0e-6f;
-			allInfringed = allInfringed && lean > -0.01f;
-		}
-	}
-
-	// At a target vertex a normal leaning along an edge leaving the vertex has a closer point on
-	// that edge, so the vertex is not a closest point, a true corner normal never leans along
-	// an edge leaving it)
-	for ( int i = 0; i < 3; ++i )
-	{
-		if ( b3Distance( point, vertices[i] ) > edgeTolerance )
-		{
-			continue;
-		}
-
-		b3Vec3 nextEdge = b3Normalize( edges[i] );
-		b3Vec3 previousEdge = b3Normalize( b3Neg( edges[i > 0 ? i - 1 : 2] ) );
-		if ( b3Dot( normal, nextEdge ) > B3_NEIGHBOR_TOLERANCE || b3Dot( normal, previousEdge ) > B3_NEIGHBOR_TOLERANCE )
-		{
-			return true;
-		}
-	}
-
-	return onEdge && infringed && allInfringed;
+		b3TestNeighbors( shape, triangleIndex, vertices, meshToLocal, feature, normal, &ownerEdge );
+	return result == b3_neighborSkip || result == b3_neighborDrop ? b3_neighborSnap : result;
 }
 
 static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shapeA, const b3Shape* shapeB,
@@ -1027,10 +964,6 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 	int* survivorManifolds = b3Bump( arena, survivorCount * sizeof( int ) );
 	memset( survivorManifolds, 0xFF, survivorCount * sizeof( int ) );
-	bool* snappedEmpty = b3Bump( arena, survivorCount * sizeof( bool ) );
-	memset( snappedEmpty, 0, survivorCount * sizeof( bool ) );
-	b3BlockSource* blockSources = b3Bump( arena, survivorCount * sizeof( b3BlockSource ) );
-	int blockSourceCount = 0;
 
 	for ( int survivorIndex = 0;
 		  survivorIndex < survivorCount && totalPointCount + 3 < pointBufferCapacity;
@@ -1092,9 +1025,9 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				return 0;
 		}
 
-		bool blockSource = false;
 		b3TriangleFeature nearFeature = manifold->feature;
 		b3NeighborResult result = b3_neighborAdmit;
+		int ownerEdge = B3_NULL_INDEX;
 		uint8_t meshFlags = manifold->feature == b3_featureHullFace ? b3_meshContactHullFace : 0;
 		if ( validateNeighbors && manifold->pointCount > 0 &&
 			 manifold->feature != b3_featureTriangleFace )
@@ -1106,15 +1039,9 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			}
 			else
 			{
-				result = b3TestNeighbors( shapeA, triangleIndex, vertices, relativeMatrix,
-								  manifold->feature, manifold->normal );
+				result = b3TestNeighbors( shapeA, triangleIndex, vertices, relativeMatrix, manifold->feature,
+										  manifold->normal, &ownerEdge );
 			}
-
-			// A vertex test only sees the two edges of this triangle at the vertex, so an admitted
-			// vertex normal can still lean across another edge at the vertex, as out of a sliver tip.
-			bool vertexFeature = nearFeature == b3_featureVertex1 || nearFeature == b3_featureVertex2 ||
-								 nearFeature == b3_featureVertex3;
-			blockSource = result == b3_neighborUnknown || ( result == b3_neighborAdmit && vertexFeature );
 
 			bool deep = false;
 			if ( result == b3_neighborSkip || result == b3_neighborSnap )
@@ -1132,19 +1059,33 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			{
 				// In deep overlap the owning neighbor may apply backside culling. Experiments
 				// show the that in this case the neighbor should snap the normal.
-				result = shapeB->type == b3_sphereShape ? b3_neighborUnknown : b3_neighborSnap;
+				if ( shapeB->type != b3_sphereShape )
+				{
+					result = b3_neighborSnap;
+				}
+				else
+				{
+					// todo comment
+					b3Vec3 neighborNormal;
+					if ( ownerEdge != B3_NULL_INDEX &&
+						 b3GetNeighborNormal( shapeA, triangleIndex, ownerEdge, &neighborNormal ) )
+					{
+						neighborNormal = b3MulMV( relativeMatrix, neighborNormal );
+						float offset = b3Dot( neighborNormal, b3Sub( shapeB->sphere.center, vertices[ownerEdge] ) );
+						if ( offset < 0.0f )
+						{
+							result = b3_neighborAdmit;
+						}
+					}
+				}
 			}
 
-			if ( result == b3_neighborUnknown )
-			{
-				meshFlags |= b3_meshContactUnverified;
-			}
-			else if ( result == b3_neighborSnap )
+			if ( result == b3_neighborSnap )
 			{
 				meshFlags = b3_meshContactSnapped;
 			}
 
-			if ( result == b3_neighborSkip || result == b3_neighborSnap )
+			if ( result == b3_neighborSkip || result == b3_neighborSnap || result == b3_neighborDrop )
 			{
 				// Skip leaves the normal to the neighbor. A sphere off the face cannot snap.
 				manifold->pointCount = 0;
@@ -1161,9 +1102,6 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices, triangle.flags, hullB,
 												   &cache->satCache, enableSpeculative );
 			}
-
-			// todo comment
-			snappedEmpty[survivorIndex] = result == b3_neighborSnap && manifold->pointCount == 0;
 		}
 
 		int manifoldPointCount = manifold->pointCount;
@@ -1192,194 +1130,9 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			manifold->triangleNormal =
 				b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] );
 
-			if ( blockSource )
-			{
-				blockSources[blockSourceCount] = (b3BlockSource){
-					.point = b3GetFeaturePoint( manifold, vertices, nearFeature ),
-					.manifoldIndex = manifoldCount,
-					.survivorIndex = survivorIndex,
-					.blockerIndex = B3_NULL_INDEX,
-				};
-				blockSourceCount += 1;
-			}
-
 			survivorManifolds[survivorIndex] = manifoldCount;
 			manifoldCount += 1;
 			totalPointCount += manifoldPointCount;
-		}
-	}
-
-	if ( blockSourceCount > 0 )
-	{
-		int* survivorSources = b3Bump( arena, survivorCount * sizeof( int ) );
-		memset( survivorSources, 0xFF, survivorCount * sizeof( int ) );
-		for ( int i = 0; i < blockSourceCount; ++i )
-		{
-			survivorSources[blockSources[i].survivorIndex] = i;
-		}
-
-		b3BlockTarget* blockTargets = b3Bump( arena, survivorCount * sizeof( b3BlockTarget ) );
-		for ( int i = 0; i < survivorCount; ++i )
-		{
-			blockTargets[i] = b3MakeBlockTarget( survivorVertices + 3 * i );
-		}
-
-		for ( int i = 0; i < blockSourceCount; ++i )
-		{
-			b3BlockSource* source = blockSources + i;
-			b3Vec3 normal = manifoldBuffer[source->manifoldIndex].normal;
-			float bestAlignment = -FLT_MAX;
-			for ( int j = 0; j < survivorCount; ++j )
-			{
-				if ( j == source->survivorIndex )
-				{
-					continue;
-				}
-
-				// Compute the distance of the block source point from the target plane.
-				const b3Vec3* targetVertices = survivorVertices + 3 * j;
-				float planeDistance = b3Dot( blockTargets[j].normal, b3Sub( source->point, targetVertices[0] ) );
-
-				// Is the absolute plane distance greater than the target tolerance?
-				if ( b3AbsFloat( planeDistance ) > blockTargets[j].distanceTolerance )
-				{
-					continue;
-				}
-
-				// The source point is in the plane of the target.
-				// 
-				bool shouldBlock =
-					b3ShouldBlockNormal( targetVertices, blockTargets[j], source->point, normal );
-				if ( shouldBlock )
-				{
-					// todo explain this better
-					float alignment = b3Dot( normal, blockTargets[j].normal );
-					if ( alignment > bestAlignment )
-					{
-						bestAlignment = alignment;
-						source->blockerIndex = j;
-					}
-				}
-			}
-		}
-
-		bool* separated = b3Bump( arena, blockSourceCount * sizeof( bool ) );
-		for ( int i = 0; i < blockSourceCount; ++i )
-		{
-			const b3LocalManifold* manifold = manifoldBuffer + blockSources[i].manifoldIndex;
-			float minSeparation = manifold->points[0].separation;
-			for ( int j = 1; j < manifold->pointCount; ++j )
-			{
-				minSeparation = b3MinFloat( minSeparation, manifold->points[j].separation );
-			}
-
-			separated[i] = minSeparation >= restOffset;
-		}
-
-		// From Bepu, drop when the blocker has its own contact unless the two block each
-		// other as when wedged in a crease, otherwise correct to the blocker face normal if touching.
-		// todo comment
-		enum
-		{
-			b3_blockUnvisited,
-			b3_blockOnPath,
-			b3_blockResolved,
-		};
-
-		uint8_t* states = b3Bump( arena, blockSourceCount * sizeof( uint8_t ) );
-		memset( states, b3_blockUnvisited, blockSourceCount * sizeof( uint8_t ) );
-		bool* dropped = b3Bump( arena, blockSourceCount * sizeof( bool ) );
-		int* path = b3Bump( arena, blockSourceCount * sizeof( int ) );
-
-		for ( int i = 0; i < blockSourceCount; ++i )
-		{
-			int pathCount = 0;
-			int k = i;
-			while ( k != B3_NULL_INDEX && states[k] == b3_blockUnvisited )
-			{
-				states[k] = b3_blockOnPath;
-				path[pathCount++] = k;
-
-				int blocker = blockSources[k].blockerIndex;
-				if ( blocker == B3_NULL_INDEX )
-				{
-					dropped[k] = false;
-					states[k] = b3_blockResolved;
-					k = B3_NULL_INDEX;
-				}
-				else if ( survivorManifolds[blocker] == B3_NULL_INDEX )
-				{
-					dropped[k] = separated[k];
-					states[k] = b3_blockResolved;
-					k = B3_NULL_INDEX;
-				}
-				else if ( survivorSources[blocker] == B3_NULL_INDEX )
-				{
-					dropped[k] = true;
-					states[k] = b3_blockResolved;
-					k = B3_NULL_INDEX;
-				}
-				else
-				{
-					k = survivorSources[blocker];
-				}
-			}
-
-			// todo comment
-			if ( k != B3_NULL_INDEX && states[k] == b3_blockOnPath )
-			{
-				int m = k;
-				do
-				{
-					dropped[m] = separated[m];
-					states[m] = b3_blockResolved;
-					m = survivorSources[blockSources[m].blockerIndex];
-				}
-				while ( m != k );
-			}
-
-			for ( int p = pathCount - 1; p >= 0; --p )
-			{
-				int s = path[p];
-				if ( states[s] == b3_blockResolved )
-				{
-					continue;
-				}
-
-				int next = survivorSources[blockSources[s].blockerIndex];
-				B3_ASSERT( states[next] == b3_blockResolved );
-				dropped[s] = separated[s] || dropped[next] == false;
-				states[s] = b3_blockResolved;
-			}
-		}
-
-		for ( int i = 0; i < blockSourceCount; ++i )
-		{
-			const b3BlockSource* source = blockSources + i;
-			if ( source->blockerIndex == B3_NULL_INDEX )
-			{
-				continue;
-			}
-
-			b3LocalManifold* manifold = manifoldBuffer + source->manifoldIndex;
-			if ( dropped[i] )
-			{
-				manifold->pointCount = 0;
-			}
-			else
-			{
-				// todo comment
-				b3Vec3 blockerNormal = snappedEmpty[source->blockerIndex] ? manifold->triangleNormal
-																			: blockTargets[source->blockerIndex].normal;
-				manifold->normal = blockerNormal;
-				manifold->triangleNormal = blockerNormal;
-				manifold->feature = b3_featureTriangleFace;
-				for ( int j = 0; j < manifold->pointCount; ++j )
-				{
-					manifold->points[j].triangleFeature = b3_featureTriangleFace;
-					manifold->points[j].meshFlags |= b3_meshContactBlocked;
-				}
-			}
 		}
 	}
 

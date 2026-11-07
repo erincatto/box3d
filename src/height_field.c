@@ -786,6 +786,47 @@ bool b3IsHeightFieldVertexConvex( const b3HeightFieldData* heightField, int tria
 	return ( vertexBits[index >> 3] & ( 1 << ( index & 7 ) ) ) != 0;
 }
 
+int b3GetHeightFieldVertexTriangles( const b3HeightFieldData* heightField, int vertex, int triangles[6] )
+{
+	int columnCount = heightField->columnCount;
+	int cellColumnCount = columnCount - 1;
+	int cellRowCount = heightField->rowCount - 1;
+	int row = vertex / columnCount;
+	int column = vertex - row * columnCount;
+
+	// todo comment
+	int rowOffsets[4] = { 0, 0, -1, -1 };
+	int columnOffsets[4] = { 0, -1, 0, -1 };
+	int firstParity[4] = { 0, 0, 0, 1 };
+	int lastParity[4] = { 0, 1, 1, 1 };
+
+	const uint8_t* materialIndices = b3GetHeightFieldMaterialIndices( heightField );
+	int count = 0;
+	for ( int i = 0; i < 4; ++i )
+	{
+		int cellRow = row + rowOffsets[i];
+		int cellColumn = column + columnOffsets[i];
+		if ( cellRow < 0 || cellRow >= cellRowCount || cellColumn < 0 || cellColumn >= cellColumnCount )
+		{
+			continue;
+		}
+
+		int cellIndex = cellRow * cellColumnCount + cellColumn;
+		if ( materialIndices[cellIndex] == B3_HEIGHT_FIELD_HOLE )
+		{
+			continue;
+		}
+
+		for ( int parity = firstParity[i]; parity <= lastParity[i]; ++parity )
+		{
+			triangles[count] = 2 * cellIndex + parity;
+			count += 1;
+		}
+	}
+
+	return count;
+}
+
 b3AABB b3ComputeHeightFieldAABB( const b3HeightFieldData* shape, b3Transform transform )
 {
 	return b3AABB_Transform( transform, shape->aabb );

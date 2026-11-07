@@ -2259,7 +2259,7 @@ typedef struct b3MeshDef
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.
-#define B3_MESH_VERSION 0x5DDAD5A2B47BACA5ull
+#define B3_MESH_VERSION 0x7C41E9B2D3058F6Aull
 
 /// Triangle mesh edge flags.
 typedef enum b3MeshEdgeFlags
@@ -2393,6 +2393,9 @@ typedef struct b3MeshData
 
 	/// Offset of the vertex flag array in bytes from the struct address.
 	int32_t vertexFlagOffset;
+
+	// todo comment
+	int32_t vertexTriangleOffset;
 } b3MeshData;
 
 /// This allows mesh data to be re-used with different scales.

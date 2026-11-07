@@ -2896,8 +2896,8 @@ static const GhostScene s_hullGhostScenes[] = {
 		"Ridge, deep",
 		"box corner jammed on a 90 degree ridge, the apex is 3 cm inside the box, 28 mm into the left "
 		"slope and 34 mm into the right",
-		"deep, the right triangle picks an edge pair, a convex skip, and its snapped face contact is "
-		"empty. The left triangles keep their own normal, which pushes the box off the apex",
+		"deep, the right triangle picks an edge pair, a convex skip that snaps when deep, and its face "
+		"contact is empty. The left triangles snap to their own face, which pushes the box off the apex",
 		BuildGhostRidge,
 		{ 0.5f, 0.5f, 0.5f },
 		{ -0.564f, 0.579f, -0.016f },
@@ -2906,10 +2906,10 @@ static const GhostScene s_hullGhostScenes[] = {
 	},
 	{
 		"T-junction",
-		"a vertex in the middle of the left triangle edge, no edge matches so all are boundary "
-		"edges",
-		"boundary edge, the block pass tests the normal against the other triangles near the box "
-		"and drops it",
+		"a vertex in the middle of the left triangle edge, the left edge matches neither right edge "
+		"so all three are boundary edges",
+		"unsupported, the mesh must be welded. Boundary edges are 90 degree convex edges, so the "
+		"T-junction vertex admits the box side face normal",
 		BuildGhostTJunction,
 		{ 0.5f, 0.5f, 0.5f },
 		{ -0.708f, 0.499f, 0.3f },
@@ -2920,8 +2920,8 @@ static const GhostScene s_hullGhostScenes[] = {
 		"Open boundary",
 		"box hanging over the open edge of a welded strip, yawed 5 degrees and 1 cm deep, its leading "
 		"face 5 mm past the row edge at the boundary vertex",
-		"unknown, the boundary edge has no neighbor, the next row triangle at the vertex blocks the "
-		"normal and has its own contact so it is dropped",
+		"boundary edge, a 90 degree convex edge. The normal leans over the next row triangle at the "
+		"boundary vertex, so it snaps to the triangle face",
 		BuildGhostStrip,
 		{ 0.5f, 0.5f, 0.5f },
 		{ -0.25f, 0.49f, 0.019f },

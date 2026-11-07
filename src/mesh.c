@@ -148,6 +148,16 @@ static uint8_t* b3GetMeshVertexFlagsWrite( b3MeshData* mesh )
 	return (uint8_t*)( (intptr_t)mesh + mesh->vertexFlagOffset );
 }
 
+static int* b3GetMeshVertexTrianglesWrite( b3MeshData* mesh )
+{
+	if ( mesh->vertexTriangleOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (int*)( (intptr_t)mesh + mesh->vertexTriangleOffset );
+}
+
 static int b3GetNodeHeight( const b3MeshNode* node )
 {
 	if ( b3IsLeaf( node ) )
@@ -1144,6 +1154,21 @@ int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex 
 	return vertexFlags[indices[vertexIndex]];
 }
 
+int b3GetMeshVertexTriangles( const b3MeshData* mesh, int vertex, const int** triangles )
+{
+	B3_ASSERT( 0 <= vertex && vertex < mesh->vertexCount );
+
+	if ( mesh->vertexTriangleOffset == 0 )
+	{
+		*triangles = NULL;
+		return 0;
+	}
+
+	const int* starts = (const int*)( (intptr_t)mesh + mesh->vertexTriangleOffset );
+	*triangles = starts + mesh->vertexCount + 1 + starts[vertex];
+	return starts[vertex + 1] - starts[vertex];
+}
+
 static void b3IdentifyEdges( b3MeshData* mesh )
 {
 	b3MeshTriangle* triangles = b3GetMeshTrianglesWrite( mesh );
@@ -1399,6 +1424,33 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 		}
 	}
 
+	int* vertexStarts = b3GetMeshVertexTrianglesWrite( mesh );
+	B3_ASSERT( vertexStarts != NULL );
+	int* vertexTriangles = vertexStarts + vertexCount + 1;
+
+	for ( int i = 0; i < triangleCount; ++i )
+	{
+		vertexStarts[triangles[i].index1 + 1] += 1;
+		vertexStarts[triangles[i].index2 + 1] += 1;
+		vertexStarts[triangles[i].index3 + 1] += 1;
+	}
+
+	for ( int i = 0; i < vertexCount; ++i )
+	{
+		vertexStarts[i + 1] += vertexStarts[i];
+	}
+
+	int* cursors = B3_ALLOC( int, vertexCount );
+	memcpy( cursors, vertexStarts, vertexCount * sizeof( int ) );
+
+	for ( int i = 0; i < triangleCount; ++i )
+	{
+		vertexTriangles[cursors[triangles[i].index1]++] = i;
+		vertexTriangles[cursors[triangles[i].index2]++] = i;
+		vertexTriangles[cursors[triangles[i].index3]++] = i;
+	}
+
+	B3_FREE( cursors, int, vertexCount );
 	B3_FREE( normals, b3Vec3, triangleCount );
 	B3_FREE( edges, b3MeshEdge, edgeCount );
 }
@@ -1921,12 +1973,15 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	byteCount += b3AlignUp8( triangleCount * sizeof( uint8_t ) );
 	int edgeAngleOffset = 0;
 	int vertexFlagOffset = 0;
+	int vertexTriangleOffset = 0;
 	if ( def->identifyEdges )
 	{
 		edgeAngleOffset = (int)byteCount;
 		byteCount += b3AlignUp8( 3 * triangleCount * sizeof( int8_t ) );
 		vertexFlagOffset = (int)byteCount;
 		byteCount += b3AlignUp8( vertexCount * sizeof( uint8_t ) );
+		vertexTriangleOffset = (int)byteCount;
+		byteCount += b3AlignUp8( ( vertexCount + 1 + 3 * triangleCount ) * sizeof( int ) );
 	}
 
 	b3MeshData* mesh = b3Alloc( byteCount );
@@ -1951,6 +2006,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 	mesh->flagsOffset = flagsOffset;
 	mesh->edgeAngleOffset = edgeAngleOffset;
 	mesh->vertexFlagOffset = vertexFlagOffset;
+	mesh->vertexTriangleOffset = vertexTriangleOffset;
 
 	b3MeshNode* nodes = b3GetMeshNodesWrite( mesh );
 	b3MeshTriangle* triangles = b3GetMeshTrianglesWrite( mesh );
