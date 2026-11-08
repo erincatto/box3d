@@ -381,7 +381,8 @@ typedef struct b3SpatialHash
 	float tolerance;
 } b3SpatialHash;
 
-static void b3CreateSpatialHash( b3SpatialHash* h, const b3Vec3* vertices, int vertexCount, size_t stride, float tolerance )
+static void b3CreateSpatialHash( b3SpatialHash* h, const b3Vec3* vertices, int vertexCount, size_t stride,
+								 float tolerance )
 {
 	h->vertices = vertices;
 	h->vertexCount = vertexCount;
@@ -944,8 +945,8 @@ static int b3BuildRecursive( b3Array( b3MeshNode ) * nodes, int count, b3Primiti
 		int index = b3Array_AddIndex( *nodes );
 		int heightLeft = 0, heightRight = 0;
 		int leftIndex = b3BuildRecursive( nodes, split.index, primitives, base, useMedianSplit, &heightLeft );
-		int rightIndex =
-			b3BuildRecursive( nodes, count - split.index, primitives + split.index, base, useMedianSplit, &heightRight );
+		int rightIndex = b3BuildRecursive( nodes, count - split.index, primitives + split.index, base, useMedianSplit,
+										   &heightRight );
 
 		*height = b3MaxInt( heightLeft, heightRight ) + 1;
 
@@ -1058,91 +1059,261 @@ typedef struct
 
 // Lookup table for 8-bit compressed triangle neighbor angles.
 static const b3CosSin s_quantizedCosSin[255] = {
-	{ 1.0f, 0.0f }, { 0.9999235f, 0.012368159f }, { 0.99969405f, 0.024734428f },
-	{ 0.9993117f, 0.03709691f }, { 0.99877644f, 0.04945372f }, { 0.99808836f, 0.061802965f },
-	{ 0.99724764f, 0.074142754f }, { 0.9962543f, 0.0864712f }, { 0.99510866f, 0.09878642f },
-	{ 0.9938107f, 0.111086525f }, { 0.9923608f, 0.12336964f }, { 0.990759f, 0.13563387f },
-	{ 0.9890057f, 0.14787737f }, { 0.9871011f, 0.16009824f }, { 0.9850455f, 0.17229462f },
-	{ 0.98283917f, 0.18446463f }, { 0.98048246f, 0.19660644f }, { 0.97797585f, 0.20871817f },
-	{ 0.97531956f, 0.22079796f }, { 0.9725141f, 0.23284398f }, { 0.96955985f, 0.24485438f },
-	{ 0.9664573f, 0.25682732f }, { 0.9632069f, 0.26876098f }, { 0.9598091f, 0.2806535f },
-	{ 0.95626456f, 0.29250312f }, { 0.9525737f, 0.304308f }, { 0.9487371f, 0.3160663f },
-	{ 0.9447554f, 0.32777625f }, { 0.9406291f, 0.33943605f }, { 0.936359f, 0.35104394f },
-	{ 0.9319456f, 0.36259815f }, { 0.9273896f, 0.37409684f }, { 0.9226918f, 0.38553834f },
-	{ 0.9178528f, 0.39692086f }, { 0.91287345f, 0.40824264f }, { 0.9077544f, 0.419502f },
-	{ 0.9024965f, 0.43069714f }, { 0.89710057f, 0.44182643f }, { 0.89156735f, 0.4528881f },
-	{ 0.88589776f, 0.4638805f }, { 0.8800927f, 0.47480196f }, { 0.8741529f, 0.48565078f },
-	{ 0.8680794f, 0.4964253f }, { 0.8618732f, 0.5071239f }, { 0.8555351f, 0.51774484f },
-	{ 0.8490661f, 0.52828664f }, { 0.8424672f, 0.5387476f }, { 0.83573943f, 0.5491262f },
-	{ 0.8288838f, 0.55942076f }, { 0.82190144f, 0.5696297f }, { 0.8147933f, 0.57975155f },
-	{ 0.8075605f, 0.58978474f }, { 0.8002042f, 0.59972763f }, { 0.79272544f, 0.60957885f },
-	{ 0.78512543f, 0.6193367f }, { 0.7774054f, 0.62899995f }, { 0.7695663f, 0.6385669f },
-	{ 0.76160955f, 0.6480362f }, { 0.7535363f, 0.65740633f }, { 0.74534774f, 0.66667587f },
-	{ 0.73704517f, 0.6758435f }, { 0.7286299f, 0.6849077f }, { 0.7201031f, 0.6938671f },
-	{ 0.71146613f, 0.70272034f }, { 0.70272034f, 0.71146613f }, { 0.6938671f, 0.7201031f },
-	{ 0.6849077f, 0.7286299f }, { 0.6758435f, 0.73704517f }, { 0.66667587f, 0.74534774f },
-	{ 0.65740633f, 0.7535363f }, { 0.6480362f, 0.76160955f }, { 0.6385669f, 0.7695663f },
-	{ 0.62899995f, 0.7774054f }, { 0.6193367f, 0.78512543f }, { 0.60957885f, 0.79272544f },
-	{ 0.59972763f, 0.8002042f }, { 0.58978474f, 0.8075605f }, { 0.57975155f, 0.8147933f },
-	{ 0.5696297f, 0.82190144f }, { 0.55942076f, 0.8288838f }, { 0.5491262f, 0.83573943f },
-	{ 0.5387476f, 0.8424672f }, { 0.52828664f, 0.8490661f }, { 0.51774484f, 0.8555351f },
-	{ 0.5071239f, 0.8618732f }, { 0.4964253f, 0.8680794f }, { 0.48565078f, 0.8741529f },
-	{ 0.47480196f, 0.8800927f }, { 0.4638805f, 0.88589776f }, { 0.4528881f, 0.89156735f },
-	{ 0.44182643f, 0.89710057f }, { 0.43069714f, 0.9024965f }, { 0.419502f, 0.9077544f },
-	{ 0.40824264f, 0.91287345f }, { 0.39692086f, 0.9178528f }, { 0.38553834f, 0.9226918f },
-	{ 0.37409684f, 0.9273896f }, { 0.36259815f, 0.9319456f }, { 0.35104394f, 0.936359f },
-	{ 0.33943605f, 0.9406291f }, { 0.32777625f, 0.9447554f }, { 0.3160663f, 0.9487371f },
-	{ 0.304308f, 0.9525737f }, { 0.29250312f, 0.95626456f }, { 0.2806535f, 0.9598091f },
-	{ 0.26876098f, 0.9632069f }, { 0.25682732f, 0.9664573f }, { 0.24485438f, 0.96955985f },
-	{ 0.23284398f, 0.9725141f }, { 0.22079796f, 0.97531956f }, { 0.20871817f, 0.97797585f },
-	{ 0.19660644f, 0.98048246f }, { 0.18446463f, 0.98283917f }, { 0.17229462f, 0.9850455f },
-	{ 0.16009824f, 0.9871011f }, { 0.14787737f, 0.9890057f }, { 0.13563387f, 0.990759f },
-	{ 0.12336964f, 0.9923608f }, { 0.111086525f, 0.9938107f }, { 0.09878642f, 0.99510866f },
-	{ 0.0864712f, 0.9962543f }, { 0.074142754f, 0.99724764f }, { 0.061802965f, 0.99808836f },
-	{ 0.04945372f, 0.99877644f }, { 0.03709691f, 0.9993117f }, { 0.024734428f, 0.99969405f },
-	{ 0.012368159f, 0.9999235f }, { 0.0f, 1.0f }, { -0.012368159f, 0.9999235f },
-	{ -0.024734428f, 0.99969405f }, { -0.03709691f, 0.9993117f }, { -0.04945372f, 0.99877644f },
-	{ -0.061802965f, 0.99808836f }, { -0.074142754f, 0.99724764f }, { -0.0864712f, 0.9962543f },
-	{ -0.09878642f, 0.99510866f }, { -0.111086525f, 0.9938107f }, { -0.12336964f, 0.9923608f },
-	{ -0.13563387f, 0.990759f }, { -0.14787737f, 0.9890057f }, { -0.16009824f, 0.9871011f },
-	{ -0.17229462f, 0.9850455f }, { -0.18446463f, 0.98283917f }, { -0.19660644f, 0.98048246f },
-	{ -0.20871817f, 0.97797585f }, { -0.22079796f, 0.97531956f }, { -0.23284398f, 0.9725141f },
-	{ -0.24485438f, 0.96955985f }, { -0.25682732f, 0.9664573f }, { -0.26876098f, 0.9632069f },
-	{ -0.2806535f, 0.9598091f }, { -0.29250312f, 0.95626456f }, { -0.304308f, 0.9525737f },
-	{ -0.3160663f, 0.9487371f }, { -0.32777625f, 0.9447554f }, { -0.33943605f, 0.9406291f },
-	{ -0.35104394f, 0.936359f }, { -0.36259815f, 0.9319456f }, { -0.37409684f, 0.9273896f },
-	{ -0.38553834f, 0.9226918f }, { -0.39692086f, 0.9178528f }, { -0.40824264f, 0.91287345f },
-	{ -0.419502f, 0.9077544f }, { -0.43069714f, 0.9024965f }, { -0.44182643f, 0.89710057f },
-	{ -0.4528881f, 0.89156735f }, { -0.4638805f, 0.88589776f }, { -0.47480196f, 0.8800927f },
-	{ -0.48565078f, 0.8741529f }, { -0.4964253f, 0.8680794f }, { -0.5071239f, 0.8618732f },
-	{ -0.51774484f, 0.8555351f }, { -0.52828664f, 0.8490661f }, { -0.5387476f, 0.8424672f },
-	{ -0.5491262f, 0.83573943f }, { -0.55942076f, 0.8288838f }, { -0.5696297f, 0.82190144f },
-	{ -0.57975155f, 0.8147933f }, { -0.58978474f, 0.8075605f }, { -0.59972763f, 0.8002042f },
-	{ -0.60957885f, 0.79272544f }, { -0.6193367f, 0.78512543f }, { -0.62899995f, 0.7774054f },
-	{ -0.6385669f, 0.7695663f }, { -0.6480362f, 0.76160955f }, { -0.65740633f, 0.7535363f },
-	{ -0.66667587f, 0.74534774f }, { -0.6758435f, 0.73704517f }, { -0.6849077f, 0.7286299f },
-	{ -0.6938671f, 0.7201031f }, { -0.70272034f, 0.71146613f }, { -0.71146613f, 0.70272034f },
-	{ -0.7201031f, 0.6938671f }, { -0.7286299f, 0.6849077f }, { -0.73704517f, 0.6758435f },
-	{ -0.74534774f, 0.66667587f }, { -0.7535363f, 0.65740633f }, { -0.76160955f, 0.6480362f },
-	{ -0.7695663f, 0.6385669f }, { -0.7774054f, 0.62899995f }, { -0.78512543f, 0.6193367f },
-	{ -0.79272544f, 0.60957885f }, { -0.8002042f, 0.59972763f }, { -0.8075605f, 0.58978474f },
-	{ -0.8147933f, 0.57975155f }, { -0.82190144f, 0.5696297f }, { -0.8288838f, 0.55942076f },
-	{ -0.83573943f, 0.5491262f }, { -0.8424672f, 0.5387476f }, { -0.8490661f, 0.52828664f },
-	{ -0.8555351f, 0.51774484f }, { -0.8618732f, 0.5071239f }, { -0.8680794f, 0.4964253f },
-	{ -0.8741529f, 0.48565078f }, { -0.8800927f, 0.47480196f }, { -0.88589776f, 0.4638805f },
-	{ -0.89156735f, 0.4528881f }, { -0.89710057f, 0.44182643f }, { -0.9024965f, 0.43069714f },
-	{ -0.9077544f, 0.419502f }, { -0.91287345f, 0.40824264f }, { -0.9178528f, 0.39692086f },
-	{ -0.9226918f, 0.38553834f }, { -0.9273896f, 0.37409684f }, { -0.9319456f, 0.36259815f },
-	{ -0.936359f, 0.35104394f }, { -0.9406291f, 0.33943605f }, { -0.9447554f, 0.32777625f },
-	{ -0.9487371f, 0.3160663f }, { -0.9525737f, 0.304308f }, { -0.95626456f, 0.29250312f },
-	{ -0.9598091f, 0.2806535f }, { -0.9632069f, 0.26876098f }, { -0.9664573f, 0.25682732f },
-	{ -0.96955985f, 0.24485438f }, { -0.9725141f, 0.23284398f }, { -0.97531956f, 0.22079796f },
-	{ -0.97797585f, 0.20871817f }, { -0.98048246f, 0.19660644f }, { -0.98283917f, 0.18446463f },
-	{ -0.9850455f, 0.17229462f }, { -0.9871011f, 0.16009824f }, { -0.9890057f, 0.14787737f },
-	{ -0.990759f, 0.13563387f }, { -0.9923608f, 0.12336964f }, { -0.9938107f, 0.111086525f },
-	{ -0.99510866f, 0.09878642f }, { -0.9962543f, 0.0864712f }, { -0.99724764f, 0.074142754f },
-	{ -0.99808836f, 0.061802965f }, { -0.99877644f, 0.04945372f }, { -0.9993117f, 0.03709691f },
-	{ -0.99969405f, 0.024734428f }, { -0.9999235f, 0.012368159f }, { -1.0f, 0.0f },
+	{ 1.0f, 0.0f },
+	{ 0.9999235f, 0.012368159f },
+	{ 0.99969405f, 0.024734428f },
+	{ 0.9993117f, 0.03709691f },
+	{ 0.99877644f, 0.04945372f },
+	{ 0.99808836f, 0.061802965f },
+	{ 0.99724764f, 0.074142754f },
+	{ 0.9962543f, 0.0864712f },
+	{ 0.99510866f, 0.09878642f },
+	{ 0.9938107f, 0.111086525f },
+	{ 0.9923608f, 0.12336964f },
+	{ 0.990759f, 0.13563387f },
+	{ 0.9890057f, 0.14787737f },
+	{ 0.9871011f, 0.16009824f },
+	{ 0.9850455f, 0.17229462f },
+	{ 0.98283917f, 0.18446463f },
+	{ 0.98048246f, 0.19660644f },
+	{ 0.97797585f, 0.20871817f },
+	{ 0.97531956f, 0.22079796f },
+	{ 0.9725141f, 0.23284398f },
+	{ 0.96955985f, 0.24485438f },
+	{ 0.9664573f, 0.25682732f },
+	{ 0.9632069f, 0.26876098f },
+	{ 0.9598091f, 0.2806535f },
+	{ 0.95626456f, 0.29250312f },
+	{ 0.9525737f, 0.304308f },
+	{ 0.9487371f, 0.3160663f },
+	{ 0.9447554f, 0.32777625f },
+	{ 0.9406291f, 0.33943605f },
+	{ 0.936359f, 0.35104394f },
+	{ 0.9319456f, 0.36259815f },
+	{ 0.9273896f, 0.37409684f },
+	{ 0.9226918f, 0.38553834f },
+	{ 0.9178528f, 0.39692086f },
+	{ 0.91287345f, 0.40824264f },
+	{ 0.9077544f, 0.419502f },
+	{ 0.9024965f, 0.43069714f },
+	{ 0.89710057f, 0.44182643f },
+	{ 0.89156735f, 0.4528881f },
+	{ 0.88589776f, 0.4638805f },
+	{ 0.8800927f, 0.47480196f },
+	{ 0.8741529f, 0.48565078f },
+	{ 0.8680794f, 0.4964253f },
+	{ 0.8618732f, 0.5071239f },
+	{ 0.8555351f, 0.51774484f },
+	{ 0.8490661f, 0.52828664f },
+	{ 0.8424672f, 0.5387476f },
+	{ 0.83573943f, 0.5491262f },
+	{ 0.8288838f, 0.55942076f },
+	{ 0.82190144f, 0.5696297f },
+	{ 0.8147933f, 0.57975155f },
+	{ 0.8075605f, 0.58978474f },
+	{ 0.8002042f, 0.59972763f },
+	{ 0.79272544f, 0.60957885f },
+	{ 0.78512543f, 0.6193367f },
+	{ 0.7774054f, 0.62899995f },
+	{ 0.7695663f, 0.6385669f },
+	{ 0.76160955f, 0.6480362f },
+	{ 0.7535363f, 0.65740633f },
+	{ 0.74534774f, 0.66667587f },
+	{ 0.73704517f, 0.6758435f },
+	{ 0.7286299f, 0.6849077f },
+	{ 0.7201031f, 0.6938671f },
+	{ 0.71146613f, 0.70272034f },
+	{ 0.70272034f, 0.71146613f },
+	{ 0.6938671f, 0.7201031f },
+	{ 0.6849077f, 0.7286299f },
+	{ 0.6758435f, 0.73704517f },
+	{ 0.66667587f, 0.74534774f },
+	{ 0.65740633f, 0.7535363f },
+	{ 0.6480362f, 0.76160955f },
+	{ 0.6385669f, 0.7695663f },
+	{ 0.62899995f, 0.7774054f },
+	{ 0.6193367f, 0.78512543f },
+	{ 0.60957885f, 0.79272544f },
+	{ 0.59972763f, 0.8002042f },
+	{ 0.58978474f, 0.8075605f },
+	{ 0.57975155f, 0.8147933f },
+	{ 0.5696297f, 0.82190144f },
+	{ 0.55942076f, 0.8288838f },
+	{ 0.5491262f, 0.83573943f },
+	{ 0.5387476f, 0.8424672f },
+	{ 0.52828664f, 0.8490661f },
+	{ 0.51774484f, 0.8555351f },
+	{ 0.5071239f, 0.8618732f },
+	{ 0.4964253f, 0.8680794f },
+	{ 0.48565078f, 0.8741529f },
+	{ 0.47480196f, 0.8800927f },
+	{ 0.4638805f, 0.88589776f },
+	{ 0.4528881f, 0.89156735f },
+	{ 0.44182643f, 0.89710057f },
+	{ 0.43069714f, 0.9024965f },
+	{ 0.419502f, 0.9077544f },
+	{ 0.40824264f, 0.91287345f },
+	{ 0.39692086f, 0.9178528f },
+	{ 0.38553834f, 0.9226918f },
+	{ 0.37409684f, 0.9273896f },
+	{ 0.36259815f, 0.9319456f },
+	{ 0.35104394f, 0.936359f },
+	{ 0.33943605f, 0.9406291f },
+	{ 0.32777625f, 0.9447554f },
+	{ 0.3160663f, 0.9487371f },
+	{ 0.304308f, 0.9525737f },
+	{ 0.29250312f, 0.95626456f },
+	{ 0.2806535f, 0.9598091f },
+	{ 0.26876098f, 0.9632069f },
+	{ 0.25682732f, 0.9664573f },
+	{ 0.24485438f, 0.96955985f },
+	{ 0.23284398f, 0.9725141f },
+	{ 0.22079796f, 0.97531956f },
+	{ 0.20871817f, 0.97797585f },
+	{ 0.19660644f, 0.98048246f },
+	{ 0.18446463f, 0.98283917f },
+	{ 0.17229462f, 0.9850455f },
+	{ 0.16009824f, 0.9871011f },
+	{ 0.14787737f, 0.9890057f },
+	{ 0.13563387f, 0.990759f },
+	{ 0.12336964f, 0.9923608f },
+	{ 0.111086525f, 0.9938107f },
+	{ 0.09878642f, 0.99510866f },
+	{ 0.0864712f, 0.9962543f },
+	{ 0.074142754f, 0.99724764f },
+	{ 0.061802965f, 0.99808836f },
+	{ 0.04945372f, 0.99877644f },
+	{ 0.03709691f, 0.9993117f },
+	{ 0.024734428f, 0.99969405f },
+	{ 0.012368159f, 0.9999235f },
+	{ 0.0f, 1.0f },
+	{ -0.012368159f, 0.9999235f },
+	{ -0.024734428f, 0.99969405f },
+	{ -0.03709691f, 0.9993117f },
+	{ -0.04945372f, 0.99877644f },
+	{ -0.061802965f, 0.99808836f },
+	{ -0.074142754f, 0.99724764f },
+	{ -0.0864712f, 0.9962543f },
+	{ -0.09878642f, 0.99510866f },
+	{ -0.111086525f, 0.9938107f },
+	{ -0.12336964f, 0.9923608f },
+	{ -0.13563387f, 0.990759f },
+	{ -0.14787737f, 0.9890057f },
+	{ -0.16009824f, 0.9871011f },
+	{ -0.17229462f, 0.9850455f },
+	{ -0.18446463f, 0.98283917f },
+	{ -0.19660644f, 0.98048246f },
+	{ -0.20871817f, 0.97797585f },
+	{ -0.22079796f, 0.97531956f },
+	{ -0.23284398f, 0.9725141f },
+	{ -0.24485438f, 0.96955985f },
+	{ -0.25682732f, 0.9664573f },
+	{ -0.26876098f, 0.9632069f },
+	{ -0.2806535f, 0.9598091f },
+	{ -0.29250312f, 0.95626456f },
+	{ -0.304308f, 0.9525737f },
+	{ -0.3160663f, 0.9487371f },
+	{ -0.32777625f, 0.9447554f },
+	{ -0.33943605f, 0.9406291f },
+	{ -0.35104394f, 0.936359f },
+	{ -0.36259815f, 0.9319456f },
+	{ -0.37409684f, 0.9273896f },
+	{ -0.38553834f, 0.9226918f },
+	{ -0.39692086f, 0.9178528f },
+	{ -0.40824264f, 0.91287345f },
+	{ -0.419502f, 0.9077544f },
+	{ -0.43069714f, 0.9024965f },
+	{ -0.44182643f, 0.89710057f },
+	{ -0.4528881f, 0.89156735f },
+	{ -0.4638805f, 0.88589776f },
+	{ -0.47480196f, 0.8800927f },
+	{ -0.48565078f, 0.8741529f },
+	{ -0.4964253f, 0.8680794f },
+	{ -0.5071239f, 0.8618732f },
+	{ -0.51774484f, 0.8555351f },
+	{ -0.52828664f, 0.8490661f },
+	{ -0.5387476f, 0.8424672f },
+	{ -0.5491262f, 0.83573943f },
+	{ -0.55942076f, 0.8288838f },
+	{ -0.5696297f, 0.82190144f },
+	{ -0.57975155f, 0.8147933f },
+	{ -0.58978474f, 0.8075605f },
+	{ -0.59972763f, 0.8002042f },
+	{ -0.60957885f, 0.79272544f },
+	{ -0.6193367f, 0.78512543f },
+	{ -0.62899995f, 0.7774054f },
+	{ -0.6385669f, 0.7695663f },
+	{ -0.6480362f, 0.76160955f },
+	{ -0.65740633f, 0.7535363f },
+	{ -0.66667587f, 0.74534774f },
+	{ -0.6758435f, 0.73704517f },
+	{ -0.6849077f, 0.7286299f },
+	{ -0.6938671f, 0.7201031f },
+	{ -0.70272034f, 0.71146613f },
+	{ -0.71146613f, 0.70272034f },
+	{ -0.7201031f, 0.6938671f },
+	{ -0.7286299f, 0.6849077f },
+	{ -0.73704517f, 0.6758435f },
+	{ -0.74534774f, 0.66667587f },
+	{ -0.7535363f, 0.65740633f },
+	{ -0.76160955f, 0.6480362f },
+	{ -0.7695663f, 0.6385669f },
+	{ -0.7774054f, 0.62899995f },
+	{ -0.78512543f, 0.6193367f },
+	{ -0.79272544f, 0.60957885f },
+	{ -0.8002042f, 0.59972763f },
+	{ -0.8075605f, 0.58978474f },
+	{ -0.8147933f, 0.57975155f },
+	{ -0.82190144f, 0.5696297f },
+	{ -0.8288838f, 0.55942076f },
+	{ -0.83573943f, 0.5491262f },
+	{ -0.8424672f, 0.5387476f },
+	{ -0.8490661f, 0.52828664f },
+	{ -0.8555351f, 0.51774484f },
+	{ -0.8618732f, 0.5071239f },
+	{ -0.8680794f, 0.4964253f },
+	{ -0.8741529f, 0.48565078f },
+	{ -0.8800927f, 0.47480196f },
+	{ -0.88589776f, 0.4638805f },
+	{ -0.89156735f, 0.4528881f },
+	{ -0.89710057f, 0.44182643f },
+	{ -0.9024965f, 0.43069714f },
+	{ -0.9077544f, 0.419502f },
+	{ -0.91287345f, 0.40824264f },
+	{ -0.9178528f, 0.39692086f },
+	{ -0.9226918f, 0.38553834f },
+	{ -0.9273896f, 0.37409684f },
+	{ -0.9319456f, 0.36259815f },
+	{ -0.936359f, 0.35104394f },
+	{ -0.9406291f, 0.33943605f },
+	{ -0.9447554f, 0.32777625f },
+	{ -0.9487371f, 0.3160663f },
+	{ -0.9525737f, 0.304308f },
+	{ -0.95626456f, 0.29250312f },
+	{ -0.9598091f, 0.2806535f },
+	{ -0.9632069f, 0.26876098f },
+	{ -0.9664573f, 0.25682732f },
+	{ -0.96955985f, 0.24485438f },
+	{ -0.9725141f, 0.23284398f },
+	{ -0.97531956f, 0.22079796f },
+	{ -0.97797585f, 0.20871817f },
+	{ -0.98048246f, 0.19660644f },
+	{ -0.98283917f, 0.18446463f },
+	{ -0.9850455f, 0.17229462f },
+	{ -0.9871011f, 0.16009824f },
+	{ -0.9890057f, 0.14787737f },
+	{ -0.990759f, 0.13563387f },
+	{ -0.9923608f, 0.12336964f },
+	{ -0.9938107f, 0.111086525f },
+	{ -0.99510866f, 0.09878642f },
+	{ -0.9962543f, 0.0864712f },
+	{ -0.99724764f, 0.074142754f },
+	{ -0.99808836f, 0.061802965f },
+	{ -0.99877644f, 0.04945372f },
+	{ -0.9993117f, 0.03709691f },
+	{ -0.99969405f, 0.024734428f },
+	{ -0.9999235f, 0.012368159f },
+	{ -1.0f, 0.0f },
 };
 
 static b3CosSin b3GetQuantizedCosSin( int code )
@@ -1164,9 +1335,13 @@ int8_t b3QuantizeEdgeAngle( float radians )
 	return (int8_t)b3ClampInt( quantized, -127, 127 );
 }
 
+// Each vertex gets a single ring with a yaw and tilt to each edge from a central axis.
 typedef struct b3VertexRing
 {
+	// Average vertex normal in compressed octahedral encoding.
 	uint16_t axis;
+
+	// Number of boundary edges with 90 degree cliffs.
 	uint16_t cliffCount;
 } b3VertexRing;
 
@@ -1178,13 +1353,15 @@ typedef struct b3VertexRingEntry
 
 static b3Vec3 b3FoldOctahedral( float x, float y )
 {
-	return ( b3Vec3 ){
+	return (b3Vec3){
 		( 1.0f - b3AbsFloat( y ) ) * ( x >= 0.0f ? 1.0f : -1.0f ),
 		( 1.0f - b3AbsFloat( x ) ) * ( y >= 0.0f ? 1.0f : -1.0f ),
 		0.0f,
 	};
 }
 
+// Octahedral normal vector encoding.
+// See: Survey of Efficient Representations for Independent Unit Vectors
 static uint16_t b3EncodeRingAxis( b3Vec3 axis )
 {
 	float sum = b3AbsFloat( axis.x ) + b3AbsFloat( axis.y ) + b3AbsFloat( axis.z );
@@ -1214,9 +1391,10 @@ static b3Vec3 b3DecodeRingAxis( uint16_t code )
 		y = folded.y;
 	}
 
-	return b3Normalize( ( b3Vec3 ){ x, y, z } );
+	return b3Normalize( (b3Vec3){ x, y, z } );
 }
 
+// Used deterministically for encode and decode.
 static void b3MakeRingFrame( b3Vec3 axis, b3Vec3* tangent1, b3Vec3* tangent2 )
 {
 	*tangent1 = b3Perp( axis );
@@ -1232,7 +1410,7 @@ static b3VertexRingEntry b3EncodeRingEntry( b3Vec3 direction, b3Vec3 tangent1, b
 	float tilt = b3Atan2( z, sqrtf( x * x + y * y ) );
 
 	// Quantize yaw and tilt for compressed storage.
-	return ( b3VertexRingEntry ){ b3QuantizeEdgeAngle( yaw ), b3QuantizeEdgeAngle( 2.0f * tilt ) };
+	return (b3VertexRingEntry){ b3QuantizeEdgeAngle( yaw ), b3QuantizeEdgeAngle( 2.0f * tilt ) };
 }
 
 // Decompress yaw and tilt and get the cosine and sine.
@@ -1240,7 +1418,7 @@ static b3Vec3 b3DecodeRingEntry( b3VertexRingEntry entry )
 {
 	b3CosSin yaw = b3GetQuantizedCosSin( 2 * entry.yaw );
 	b3CosSin tilt = b3GetQuantizedCosSin( entry.tilt );
-	return ( b3Vec3 ){ tilt.cosine * yaw.cosine, tilt.cosine * yaw.sine, tilt.sine };
+	return (b3Vec3){ tilt.cosine * yaw.cosine, tilt.cosine * yaw.sine, tilt.sine };
 }
 
 bool b3GetMeshNeighborNormal( const b3Mesh* mesh, int triangleIndex, int edgeIndex, b3Vec3* normal )
@@ -1353,13 +1531,14 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 	bool uniform = absScale.y == absScale.x && absScale.z == absScale.x;
 	if ( uniform )
 	{
-		edgeScale = ( b3Vec3 ){ scale.x < 0.0f ? -1.0f : 1.0f, scale.y < 0.0f ? -1.0f : 1.0f, scale.z < 0.0f ? -1.0f : 1.0f };
+		edgeScale =
+			(b3Vec3){ scale.x < 0.0f ? -1.0f : 1.0f, scale.y < 0.0f ? -1.0f : 1.0f, scale.z < 0.0f ? -1.0f : 1.0f };
 		cliffScale = edgeScale;
 	}
 	else
 	{
 		edgeScale = scale;
-		cliffScale = ( b3Vec3 ){ 1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z };
+		cliffScale = (b3Vec3){ 1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z };
 	}
 
 	const int* starts = (const int*)( (intptr_t)data + data->vertexRingOffset );
@@ -1386,8 +1565,10 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 
 	b3Vec3 edgeNormal = b3Mul( edgeScale, normal );
 	b3Vec3 cliffNormal = b3Mul( cliffScale, normal );
-	b3Vec3 localEdgeNormal = { b3Dot( edgeNormal, tangent1 ), b3Dot( edgeNormal, tangent2 ), b3Dot( edgeNormal, axis ) };
-	b3Vec3 localCliffNormal = { b3Dot( cliffNormal, tangent1 ), b3Dot( cliffNormal, tangent2 ), b3Dot( cliffNormal, axis ) };
+	b3Vec3 localEdgeNormal = { b3Dot( edgeNormal, tangent1 ), b3Dot( edgeNormal, tangent2 ),
+							   b3Dot( edgeNormal, axis ) };
+	b3Vec3 localCliffNormal = { b3Dot( cliffNormal, tangent1 ), b3Dot( cliffNormal, tangent2 ),
+								b3Dot( cliffNormal, axis ) };
 
 	for ( int i = 0; i < entryCount; ++i )
 	{
@@ -1398,7 +1579,8 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 		float limit = tolerance;
 		if ( uniform == false )
 		{
-			b3Vec3 meshDirection = b3MulAdd( b3MulAdd( b3MulSV( direction.x, tangent1 ), direction.y, tangent2 ), direction.z, axis );
+			b3Vec3 meshDirection =
+				b3MulAdd( b3MulAdd( b3MulSV( direction.x, tangent1 ), direction.y, tangent2 ), direction.z, axis );
 			limit *= b3Length( b3Mul( isCliff ? cliffScale : edgeScale, meshDirection ) );
 		}
 
@@ -1671,6 +1853,7 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 }
 
 // Build the ring of neighbor normal data at a vertex.
+// If ring is NULL then only compute the count.
 static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCount, int vertex, int* stamps, int stamp,
 							  b3VertexRing* ring )
 {
@@ -1678,7 +1861,7 @@ static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCou
 	const b3Vec3* vertices = b3GetMeshVertices( mesh );
 	const int8_t* edgeAngles = b3GetMeshEdgeAngles( mesh );
 
-	b3Vec3 axis = b3Vec3_zero;
+	b3Vec3 centralAxis = b3Vec3_zero;
 	b3Vec3 tangent1 = b3Vec3_zero;
 	b3Vec3 tangent2 = b3Vec3_zero;
 	b3VertexRingEntry* entries = NULL;
@@ -1688,21 +1871,23 @@ static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCou
 		for ( int i = 0; i < fanCount; ++i )
 		{
 			b3MeshTriangle triangle = triangles[fan[i]];
-			b3Vec3 normal =
-				b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2], vertices[triangle.index3] );
+			b3Vec3 normal = b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2],
+													vertices[triangle.index3] );
 			normalSum = b3Add( normalSum, normal );
 		}
 
 		float length;
-		axis = b3GetLengthAndNormalize( &length, normalSum );
+		centralAxis = b3GetLengthAndNormalize( &length, normalSum );
 		if ( length == 0.0f )
 		{
-			axis = ( b3Vec3 ){ 0.0f, 1.0f, 0.0f };
+			centralAxis = (b3Vec3){ 0.0f, 1.0f, 0.0f };
 		}
 
-		ring->axis = b3EncodeRingAxis( axis );
-		axis = b3DecodeRingAxis( ring->axis );
-		b3MakeRingFrame( axis, &tangent1, &tangent2 );
+		ring->axis = b3EncodeRingAxis( centralAxis );
+
+		// Overwrite the axis with the decompressed version to match runtime.
+		centralAxis = b3DecodeRingAxis( ring->axis );
+		b3MakeRingFrame( centralAxis, &tangent1, &tangent2 );
 		entries = (b3VertexRingEntry*)( ring + 1 );
 	}
 
@@ -1712,6 +1897,8 @@ static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCou
 		b3MeshTriangle triangle = triangles[fan[i]];
 		int indices[3] = { triangle.index1, triangle.index2, triangle.index3 };
 		int k = indices[0] == vertex ? 0 : ( indices[1] == vertex ? 1 : 2 );
+
+		// The other vertex indices on this triangle that are not the input vertex index.
 		int others[2] = { indices[k < 2 ? k + 1 : 0], indices[k > 0 ? k - 1 : 2] };
 
 		for ( int j = 0; j < 2; ++j )
@@ -1725,8 +1912,8 @@ static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCou
 			stamps[other] = stamp;
 			if ( entries != NULL )
 			{
-				b3Vec3 direction = b3Normalize( b3Sub( vertices[other], vertices[vertex] ) );
-				entries[entryCount] = b3EncodeRingEntry( direction, tangent1, tangent2, axis );
+				b3Vec3 edgeAxis = b3Normalize( b3Sub( vertices[other], vertices[vertex] ) );
+				entries[entryCount] = b3EncodeRingEntry( edgeAxis, tangent1, tangent2, centralAxis );
 			}
 
 			entryCount += 1;
@@ -1751,9 +1938,9 @@ static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCou
 
 			if ( entries != NULL )
 			{
-				b3Vec3 normal =
-					b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2], vertices[triangle.index3] );
-				entries[entryCount] = b3EncodeRingEntry( b3Neg( normal ), tangent1, tangent2, axis );
+				b3Vec3 normal = b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2],
+														vertices[triangle.index3] );
+				entries[entryCount] = b3EncodeRingEntry( b3Neg( normal ), tangent1, tangent2, centralAxis );
 			}
 
 			entryCount += 1;
@@ -1781,12 +1968,23 @@ static b3MeshData* b3AppendVertexRings( b3MeshData* mesh )
 	int vertexCount = mesh->vertexCount;
 	int triangleCount = mesh->triangleCount;
 
+	// Triangle fan counts per vertex via counting sort and prefix sum.
 	int* fanStarts = B3_ALLOC( int, ( vertexCount + 1 ) );
+
+	// Sub-arrays of triangle fans for each vertex.
 	int* fans = B3_ALLOC( int, ( 3 * triangleCount ) );
+
+	// Cursors for walking fan sub-arrays.
 	int* cursors = B3_ALLOC( int, vertexCount );
+
+	// Edge stamps to avoid visiting the same edge twice when
+	// iterating triangles.
 	int* stamps = B3_ALLOC( int, vertexCount );
+
+	// Byte offsets for each sub-array of ring entries per vertex.
 	int* ringStarts = B3_ALLOC( int, ( vertexCount + 1 ) );
 
+	// Counting sort
 	memset( fanStarts, 0, ( vertexCount + 1 ) * sizeof( int ) );
 	for ( int i = 0; i < triangleCount; ++i )
 	{
@@ -1813,9 +2011,16 @@ static b3MeshData* b3AppendVertexRings( b3MeshData* mesh )
 		stamps[i] = B3_NULL_INDEX;
 	}
 
+	// Hey dude, I got an offset to the array of offsets.
 	size_t startsOffset = mesh->byteCount;
+
+	// After the array of offsets, the ring sub-arrays begin.
 	size_t ringOffset = startsOffset + b3AlignUp8( ( vertexCount + 1 ) * sizeof( int ) );
+
+	// The vertex ring offset for the current vertex.
 	size_t offset = ringOffset;
+
+	// First pass fills in offsets.
 	for ( int i = 0; i < vertexCount; ++i )
 	{
 		ringStarts[i] = (int)offset;
@@ -1831,6 +2036,7 @@ static b3MeshData* b3AppendVertexRings( b3MeshData* mesh )
 
 	ringStarts[vertexCount] = (int)offset;
 
+	// We now have the required space, grow the blob.
 	size_t byteCount = ringOffset + b3AlignUp8( offset - ringOffset );
 	b3MeshData* result = b3Alloc( byteCount );
 	memset( result, 0, byteCount );
@@ -1839,6 +2045,8 @@ static b3MeshData* b3AppendVertexRings( b3MeshData* mesh )
 
 	result->byteCount = (int)byteCount;
 	result->vertexRingOffset = (int)startsOffset;
+
+	// Copy the ring sub-array offsets per vertex. The vertexCount + 1 entry is the end offset.
 	memcpy( (uint8_t*)result + startsOffset, ringStarts, ( vertexCount + 1 ) * sizeof( int ) );
 
 	for ( int i = 0; i < vertexCount; ++i )
@@ -2109,7 +2317,8 @@ b3MeshData* b3CreateBoxMesh( b3Vec3 center, b3Vec3 extent, bool identifyEdges )
 	float y = extent.y;
 	float z = extent.z;
 	b3Vec3 vertices[] = {
-		{ x, y, z }, { -x, y, z }, { -x, -y, z }, { x, -y, z }, { x, y, -z }, { -x, y, -z }, { -x, -y, -z }, { x, -y, -z },
+		{ x, y, z },  { -x, y, z },	 { -x, -y, z },	 { x, -y, z },
+		{ x, y, -z }, { -x, y, -z }, { -x, -y, -z }, { x, -y, -z },
 	};
 
 	for ( int i = 0; i < 8; ++i )
@@ -2143,7 +2352,8 @@ b3MeshData* b3CreateHollowBoxMesh( b3Vec3 center, b3Vec3 extent )
 	float y = extent.y;
 	float z = extent.z;
 	b3Vec3 vertices[] = {
-		{ x, y, z }, { -x, y, z }, { -x, -y, z }, { x, -y, z }, { x, y, -z }, { -x, y, -z }, { -x, -y, -z }, { x, -y, -z },
+		{ x, y, z },  { -x, y, z },	 { -x, -y, z },	 { x, -y, z },
+		{ x, y, -z }, { -x, y, -z }, { -x, -y, -z }, { x, -y, -z },
 	};
 
 	for ( int i = 0; i < 8; ++i )
@@ -2808,7 +3018,7 @@ b3CastOutput b3ShapeCastMesh( const b3Mesh* mesh, const b3ShapeCastInput* input 
 
 					// Test extended triangle vs ray bounds overlap in scaled space. Skip edge tests.
 					bool overlap = b3TestBoundsOverlap( triangleMin, triangleMax, rayMin, rayMax );
-					if (overlap == false)
+					if ( overlap == false )
 					{
 						continue;
 					}
@@ -2990,8 +3200,8 @@ int b3CollideMoverAndMesh( b3PlaneResult* planes, int capacity, const b3Mesh* sh
 						else if ( distanceOutput.distance <= mover->radius )
 						{
 							b3Plane plane = { distanceOutput.normal, mover->radius - distanceOutput.distance };
-							planes[planeCount] =
-								(b3PlaneResult){ plane, distanceOutput.pointA, triangleIndex, 0, materialIndices[triangleIndex] };
+							planes[planeCount] = (b3PlaneResult){ plane, distanceOutput.pointA, triangleIndex, 0,
+																  materialIndices[triangleIndex] };
 							planeCount += 1;
 
 							if ( planeCount == capacity )
@@ -3102,10 +3312,12 @@ void b3QueryMesh( const b3Mesh* mesh, b3AABB bounds, b3MeshQueryFcn* fcn, void* 
 			const b3MeshNode* leftChild = b3GetLeftChild( node );
 			const b3MeshNode* rightChild = b3GetRightChild( node );
 
-			bool overlapLeft = b3TestBoundsOverlap( b3LoadV( &leftChild->lowerBound.x ), b3LoadV( &leftChild->upperBound.x ),
-													invScaledBoundsMin, invScaledBoundsMax );
-			bool overlapRight = b3TestBoundsOverlap( b3LoadV( &rightChild->lowerBound.x ),
-													 b3LoadV( &rightChild->upperBound.x ), invScaledBoundsMin, invScaledBoundsMax );
+			bool overlapLeft =
+				b3TestBoundsOverlap( b3LoadV( &leftChild->lowerBound.x ), b3LoadV( &leftChild->upperBound.x ),
+									 invScaledBoundsMin, invScaledBoundsMax );
+			bool overlapRight =
+				b3TestBoundsOverlap( b3LoadV( &rightChild->lowerBound.x ), b3LoadV( &rightChild->upperBound.x ),
+									 invScaledBoundsMin, invScaledBoundsMax );
 
 			if ( overlapLeft )
 			{

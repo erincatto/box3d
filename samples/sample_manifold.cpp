@@ -2156,6 +2156,7 @@ public:
 		m_speculative = true;
 		m_drawTriangleManifolds = false;
 		m_drawTriangleIndices = false;
+		m_drawVertexIndices = false;
 		m_cullDistance = 0.5f;
 		m_showGizmo = false;
 		m_gizmoLocal = false;
@@ -2445,6 +2446,29 @@ public:
 			}
 		}
 
+		if ( m_drawVertexIndices )
+		{
+			bool multipleMeshes = m_meshes.size() > 1;
+			for ( int i = 0; i < (int)m_meshes.size(); ++i )
+			{
+				// Welded engine vertices, which differ from the source vertices
+				const b3MeshData* data = m_meshes[i].data;
+				const b3Vec3* vertices = b3GetMeshVertices( data );
+				for ( int v = 0; v < data->vertexCount; ++v )
+				{
+					b3Pos point = b3OffsetPos( b3Pos_zero, vertices[v] );
+					if ( multipleMeshes )
+					{
+						DrawString3D( point, MakeColor( b3_colorAquamarine ), "m%d v%d", i, v );
+					}
+					else
+					{
+						DrawString3D( point, MakeColor( b3_colorAquamarine ), "v%d", v );
+					}
+				}
+			}
+		}
+
 		DrawShape( m_transform );
 
 		float length = 0.3f * b3GetLengthUnitsPerMeter();
@@ -2536,6 +2560,7 @@ public:
 		ImGui::Checkbox( "Speculative", &m_speculative );
 		ImGui::Checkbox( "Triangle Manifolds", &m_drawTriangleManifolds );
 		ImGui::Checkbox( "Triangle Indices", &m_drawTriangleIndices );
+		ImGui::Checkbox( "Vertex Indices", &m_drawVertexIndices );
 		ImGui::SliderFloat( "Cull Distance", &m_cullDistance, 0.0f, 200.0f, "%0.1f cm" );
 		if ( ImGui::Button( "Reset Pose" ) )
 		{
@@ -2591,6 +2616,7 @@ public:
 	bool m_speculative;
 	bool m_drawTriangleManifolds;
 	bool m_drawTriangleIndices;
+	bool m_drawVertexIndices;
 	bool m_showGizmo;
 	bool m_gizmoLocal;
 
