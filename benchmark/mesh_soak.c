@@ -71,6 +71,7 @@ typedef struct Soak
 	int shapeFilter;
 
 	bool fixedSeed;
+	bool recycling;
 
 	int completedCount;
 	int failureCount;
@@ -108,6 +109,11 @@ static int RunGeneration( Soak* soak, int generation, uint32_t seed, MeshDropSha
 	b3LockMutex( soak->mutex );
 	b3WorldId worldId = b3CreateWorld( &worldDef );
 	b3UnlockMutex( soak->mutex );
+
+	if ( soak->recycling == false )
+	{
+		b3World_SetContactRecycleDistance( worldId, 0.0f );
+	}
 
 	CreateMeshDropGround( worldId, soak->groundMesh );
 
@@ -467,6 +473,7 @@ int main( int argc, char** argv )
 	int shapeFilter = e_meshDropBox;
 	uint32_t seed = (uint32_t)b3GetTicks();
 	bool fixedSeed = false;
+	bool recycling = true;
 	const char* writePath = NULL;
 	const char* comparePath = NULL;
 	MeshDropSettings settings = GetDefaultMeshDropSettings();
@@ -527,6 +534,10 @@ int main( int argc, char** argv )
 		{
 			comparePath = value;
 		}
+		else if ( strcmp( arg, "--no-recycling" ) == 0 )
+		{
+			recycling = false;
+		}
 		else
 		{
 			printf( "Usage: mesh_soak [options]\n"
@@ -541,6 +552,7 @@ int main( int argc, char** argv )
 					"  -a, --amplitude=<float>  wave amplitude (default 0.5)\n"
 					"  -w, --write=<csv>        write the counts as a baseline, replacing only the rows of this run\n"
 					"  -c, --compare=<csv>      compare the counts with the baseline rows from the same -s, -b and -g\n"
+					"  --no-recycling           disable contact recycling\n"
 					"Exit code is 0 when every generation passes and no count grew past noise, 1 otherwise,\n"
 					"2 for bad arguments or a baseline from a different run.\n",
 					MESH_DROP_BODY_COUNT );
@@ -557,6 +569,7 @@ int main( int argc, char** argv )
 	Soak soak = { 0 };
 	soak.mutex = b3CreateMutex();
 	soak.settings = settings;
+	soak.recycling = recycling;
 	soak.groundMesh = CreateMeshDropMesh( settings.amplitude );
 	soak.cylinder = CreateMeshDropCylinder();
 	soak.baseSeed = seed;

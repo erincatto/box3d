@@ -23,6 +23,8 @@ static const char* s_bodyKeys[e_ghostBodyCount] = { "box", "capsule", "upright",
 
 #define MAX_CONFIGS 256
 
+static bool s_recycling = true;
+
 typedef struct Config
 {
 	GhostScene scene;
@@ -97,6 +99,11 @@ static void RunConfig( Config* config, GhostSettings settings, int stepCount, bo
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	b3WorldId worldId = b3CreateWorld( &worldDef );
+	if ( s_recycling == false )
+	{
+		b3World_SetContactRecycleDistance( worldId, 0.0f );
+	}
+
 	GhostCollisionsData data = CreateGhostCollisions( worldId, settings );
 
 	for ( int step = 0; step < stepCount; ++step )
@@ -355,6 +362,10 @@ int main( int argc, char** argv )
 		{
 			settings.speculative = false;
 		}
+		else if ( strcmp( arg, "--no-recycling" ) == 0 )
+		{
+			s_recycling = false;
+		}
 		else if ( strcmp( arg, "--height-field" ) == 0 )
 		{
 			settings.heightField = true;
@@ -382,6 +393,7 @@ int main( int argc, char** argv )
 					"  -c, --compare=<file>     compare with a written csv, fail if any count grew or has no row\n"
 					"  --speed=, --yaw=, --friction=, --cell=, --fixed-rotation, --no-speculative\n"
 					"  --height-field           height field ground, one static body per height field\n"
+					"  --no-recycling           disable contact recycling\n"
 					"  -v, --verbose            print every ghost\n"
 					"Exit code is 1 when a compared count grew or has no row, 0 otherwise.\n" );
 			return 2;

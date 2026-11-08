@@ -169,7 +169,33 @@ static inline bool b3IsBetterCullCandidate( float score, float separation, float
 	return separation < bestSeparation - separationTol;
 }
 
-static int b3CullPoints( b3Point2D* points, int count )
+// todo comment
+static int b3FindFarthestCullPoint( const b3Point2D* points, int count, int index, float scoreTol, float separationTol )
+{
+	b3Vec2 origin = points[index].p;
+	float bestScore = 0.0f;
+	float bestSeparation = FLT_MAX;
+	int bestIndex = B3_NULL_INDEX;
+	for ( int i = 0; i < count; ++i )
+	{
+		if ( i == index )
+		{
+			continue;
+		}
+
+		float score = b3DistanceSquared2( origin, points[i].p );
+		if ( b3IsBetterCullCandidate( score, points[i].separation, bestScore, bestSeparation, scoreTol, separationTol ) )
+		{
+			bestIndex = i;
+			bestScore = score;
+			bestSeparation = points[i].separation;
+		}
+	}
+
+	return bestIndex;
+}
+
+static int b3CullPoints( b3Point2D* points, int count, bool sweep )
 {
 	if ( count <= 1 )
 	{
@@ -181,29 +207,55 @@ static int b3CullPoints( b3Point2D* points, int count )
 	float separationTol = B3_LINEAR_SLOP;
 
 	b3Point2D finalPoints[4];
-	int count1 = count;
 
-	// Step 1: the two points with the largest distance, ties broken by deepest combined separation
 	float bestScore = 0.0f;
 	float bestSeparation = FLT_MAX;
 	int bestIndex1 = B3_NULL_INDEX;
 	int bestIndex2 = B3_NULL_INDEX;
 
-	for ( int i = 0; i < count1; ++i )
+	if ( sweep )
 	{
-		b3Vec2 p1 = points[i].p;
-		for ( int j = i + 1; j < count1; ++j )
+		// todo comment
+		b3Vec2 axis = { 0.92106099f, 0.38941834f };
+		int startIndex = 0;
+		float startScore = b3Dot2( axis, points[0].p );
+		float startSeparation = points[0].separation;
+		for ( int i = 1; i < count; ++i )
 		{
-			float score = b3DistanceSquared2( p1, points[j].p );
-			// Separation sum heuristic
-			float separation = points[i].separation + points[j].separation;
-
-			if ( b3IsBetterCullCandidate( score, separation, bestScore, bestSeparation, tolSqr, separationTol ) )
+			float score = b3Dot2( axis, points[i].p );
+			if ( b3IsBetterCullCandidate( score, points[i].separation, startScore, startSeparation, tol, separationTol ) )
 			{
-				bestIndex1 = i;
-				bestIndex2 = j;
-				bestScore = score;
-				bestSeparation = separation;
+				startIndex = i;
+				startScore = score;
+				startSeparation = points[i].separation;
+			}
+		}
+
+		bestIndex1 = b3FindFarthestCullPoint( points, count, startIndex, tolSqr, separationTol );
+		B3_ASSERT( bestIndex1 != B3_NULL_INDEX );
+		bestIndex2 = b3FindFarthestCullPoint( points, count, bestIndex1, tolSqr, separationTol );
+		B3_ASSERT( bestIndex2 != B3_NULL_INDEX );
+		bestScore = b3DistanceSquared2( points[bestIndex1].p, points[bestIndex2].p );
+	}
+	else
+	{
+		// Step 1: the two points with the largest distance, ties broken by deepest combined separation
+		for ( int i = 0; i < count; ++i )
+		{
+			b3Vec2 p1 = points[i].p;
+			for ( int j = i + 1; j < count; ++j )
+			{
+				float score = b3DistanceSquared2( p1, points[j].p );
+				// Separation sum heuristic
+				float separation = points[i].separation + points[j].separation;
+
+				if ( b3IsBetterCullCandidate( score, separation, bestScore, bestSeparation, tolSqr, separationTol ) )
+				{
+					bestIndex1 = i;
+					bestIndex2 = j;
+					bestScore = score;
+					bestSeparation = separation;
+				}
 			}
 		}
 	}
@@ -212,7 +264,7 @@ static int b3CullPoints( b3Point2D* points, int count )
 	{
 		// Choose deepest point
 		int deepestIndex = 0;
-		for ( int i = 1; i < count1; ++i )
+		for ( int i = 1; i < count; ++i )
 		{
 			if ( points[i].separation < points[deepestIndex].separation )
 			{
@@ -230,12 +282,7 @@ static int b3CullPoints( b3Point2D* points, int count )
 	finalPoints[0] = points[bestIndex1];
 	finalPoints[1] = points[bestIndex2];
 
-	// Cull
-	points[bestIndex2] = points[count1 - 1];
-	points[bestIndex1] = points[count1 - 2];
-	count1 -= 2;
-
-	if ( count1 == 0 )
+	if ( count == 2 )
 	{
 		points[0] = finalPoints[0];
 		points[1] = finalPoints[1];
@@ -254,10 +301,16 @@ static int b3CullPoints( b3Point2D* points, int count )
 	// Step 2: find the point with the maximum triangular area, ties broken by deepest separation
 	bestScore = 0.0f;
 	bestSeparation = FLT_MAX;
-	int bestIndex = B3_NULL_INDEX;
+	int bestIndex3 = B3_NULL_INDEX;
 	float bestSignedArea = 0.0f;
-	for ( int i = 0; i < count1; ++i )
+	for ( int i = 0; i < count; ++i )
 	{
+		// todo comment
+		if ( i == bestIndex1 || i == bestIndex2 )
+		{
+			continue;
+		}
+
 		b3Vec2 p = points[i].p;
 		float signedArea = b3Cross2( ba, b3Sub2( p, a ) );
 		float score = b3AbsFloat( signedArea );
@@ -267,11 +320,11 @@ static int b3CullPoints( b3Point2D* points, int count )
 			bestSignedArea = signedArea;
 			bestScore = score;
 			bestSeparation = points[i].separation;
-			bestIndex = i;
+			bestIndex3 = i;
 		}
 	}
 
-	if ( bestIndex == B3_NULL_INDEX )
+	if ( bestIndex3 == B3_NULL_INDEX )
 	{
 		// All points collinear
 		points[0] = finalPoints[0];
@@ -280,19 +333,15 @@ static int b3CullPoints( b3Point2D* points, int count )
 	}
 
 	// Store best point
-	finalPoints[2] = points[bestIndex];
+	finalPoints[2] = points[bestIndex3];
 
-	if ( count1 == 1 )
+	if ( count == 3 )
 	{
 		points[0] = finalPoints[0];
 		points[1] = finalPoints[1];
 		points[2] = finalPoints[2];
 		return 3;
 	}
-
-	// Cull
-	points[bestIndex] = points[count1 - 1];
-	count1 -= 1;
 
 	// Step 4: get the point that adds the most area outside the current triangle
 
@@ -311,9 +360,14 @@ static int b3CullPoints( b3Point2D* points, int count )
 
 	bestScore = 0.0f;
 	bestSeparation = FLT_MAX;
-	bestIndex = B3_NULL_INDEX;
-	for ( int i = 0; i < count1; ++i )
+	int bestIndex4 = B3_NULL_INDEX;
+	for ( int i = 0; i < count; ++i )
 	{
+		if ( i == bestIndex1 || i == bestIndex2 || i == bestIndex3 )
+		{
+			continue;
+		}
+
 		b3Vec2 p = points[i].p;
 		float u1 = b3Cross2( b3Sub2( p, a ), ba );
 		float u2 = b3Cross2( b3Sub2( p, b ), cb );
@@ -325,11 +379,11 @@ static int b3CullPoints( b3Point2D* points, int count )
 		{
 			bestScore = score;
 			bestSeparation = points[i].separation;
-			bestIndex = i;
+			bestIndex4 = i;
 		}
 	}
 
-	if ( bestIndex == B3_NULL_INDEX )
+	if ( bestIndex4 == B3_NULL_INDEX )
 	{
 		// No additional area
 		points[0] = finalPoints[0];
@@ -339,7 +393,7 @@ static int b3CullPoints( b3Point2D* points, int count )
 	}
 
 	// Store best point
-	finalPoints[3] = points[bestIndex];
+	finalPoints[3] = points[bestIndex4];
 
 	// Full quad
 	points[0] = finalPoints[0];
@@ -350,7 +404,10 @@ static int b3CullPoints( b3Point2D* points, int count )
 }
 
 // todo comment
-#define B3_CULL_HULL_THRESHOLD 64
+#define B3_CULL_FILTER_THRESHOLD 64
+
+// todo comment
+#define B3_CULL_SWEEP_THRESHOLD 256
 
 // todo comment
 static int b3DropInteriorPoints( b3Point2D* points, int count, float margin )
@@ -456,33 +513,15 @@ static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 nor
 #if B3_MAX_MANIFOLD_POINTS == 4
 	b3Point2D* hull = pts;
 	int count2;
-	if ( count1 <= B3_CULL_HULL_THRESHOLD )
+	if ( count1 <= B3_CULL_FILTER_THRESHOLD )
 	{
-		count2 = b3CullPoints( pts, count1 );
+		count2 = b3CullPoints( pts, count1, false );
 	}
 	else
 	{
 		// todo comment
-		b3Point2D deepest = pts[0];
-		for ( int i = 1; i < count1; ++i )
-		{
-			if ( pts[i].separation < deepest.separation )
-			{
-				deepest = pts[i];
-			}
-		}
-
 		int keptCount = b3DropInteriorPoints( pts, count1, 0.25f * B3_LINEAR_SLOP );
-		hull = b3Bump( &arena, 2 * keptCount * sizeof( b3Point2D ) );
-		int flags = b3_hull2DKeepCollinear | b3_hull2DExactMerge | b3_hull2DIndexOrder;
-		int hullCount = b3Hull2D( pts, keptCount, hull, flags );
-		count2 = b3CullPoints( hull, hullCount );
-
-		// todo comment
-		if ( count2 == 1 )
-		{
-			hull[0] = deepest;
-		}
+		count2 = b3CullPoints( pts, keptCount, keptCount > B3_CULL_SWEEP_THRESHOLD );
 	}
 #else
 	b3Point2D* hull = b3Bump( &arena, 2 * count1 * sizeof( b3Point2D ) );

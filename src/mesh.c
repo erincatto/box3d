@@ -1231,11 +1231,11 @@ static b3VertexRingEntry b3EncodeRingEntry( b3Vec3 direction, b3Vec3 tangent1, b
 	float yaw = b3Atan2( y, x );
 	float tilt = b3Atan2( z, sqrtf( x * x + y * y ) );
 
-	// todo comment
+	// Quantize yaw and tilt for compressed storage.
 	return ( b3VertexRingEntry ){ b3QuantizeEdgeAngle( yaw ), b3QuantizeEdgeAngle( 2.0f * tilt ) };
 }
 
-// todo comment
+// Decompress yaw and tilt and get the cosine and sine.
 static b3Vec3 b3DecodeRingEntry( b3VertexRingEntry entry )
 {
 	b3CosSin yaw = b3GetQuantizedCosSin( 2 * entry.yaw );
@@ -1345,18 +1345,18 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 
 	// todo comment
 	b3Vec3 scale = mesh->scale;
-	b3Vec3 edgeScale, wallScale;
+	b3Vec3 edgeScale, boundaryScale;
 	b3Vec3 absScale = b3Abs( scale );
 	bool uniform = absScale.y == absScale.x && absScale.z == absScale.x;
 	if ( uniform )
 	{
 		edgeScale = ( b3Vec3 ){ scale.x < 0.0f ? -1.0f : 1.0f, scale.y < 0.0f ? -1.0f : 1.0f, scale.z < 0.0f ? -1.0f : 1.0f };
-		wallScale = edgeScale;
+		boundaryScale = edgeScale;
 	}
 	else
 	{
 		edgeScale = scale;
-		wallScale = ( b3Vec3 ){ 1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z };
+		boundaryScale = ( b3Vec3 ){ 1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z };
 	}
 
 	const int* starts = (const int*)( (intptr_t)data + data->vertexRingOffset );
@@ -1367,7 +1367,7 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 		const b3Vec3* vertices = b3GetMeshVertices( data );
 		b3Vec3 faceNormal =
 			b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2], vertices[triangle.index3] );
-		faceNormal = b3Normalize( b3Mul( wallScale, faceNormal ) );
+		faceNormal = b3Normalize( b3Mul( boundaryScale, faceNormal ) );
 		float cosAngle = b3Dot( normal, faceNormal );
 		return cosAngle > 0.0f && cosAngle * cosAngle >= 1.0f - tolerance * tolerance;
 	}
@@ -1382,21 +1382,21 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 	b3MakeRingFrame( axis, &tangent1, &tangent2 );
 
 	b3Vec3 edgeNormal = b3Mul( edgeScale, normal );
-	b3Vec3 wallNormal = b3Mul( wallScale, normal );
+	b3Vec3 boundaryNormal = b3Mul( boundaryScale, normal );
 	b3Vec3 localEdgeNormal = { b3Dot( edgeNormal, tangent1 ), b3Dot( edgeNormal, tangent2 ), b3Dot( edgeNormal, axis ) };
-	b3Vec3 localWallNormal = { b3Dot( wallNormal, tangent1 ), b3Dot( wallNormal, tangent2 ), b3Dot( wallNormal, axis ) };
+	b3Vec3 localBoundaryNormal = { b3Dot( boundaryNormal, tangent1 ), b3Dot( boundaryNormal, tangent2 ), b3Dot( boundaryNormal, axis ) };
 
 	for ( int i = 0; i < entryCount; ++i )
 	{
-		bool isWall = i >= edgeCount;
+		bool isBoundary = i >= edgeCount;
 		b3Vec3 direction = b3DecodeRingEntry( entries[i] );
-		float lean = b3Dot( isWall ? localWallNormal : localEdgeNormal, direction );
+		float lean = b3Dot( isBoundary ? localBoundaryNormal : localEdgeNormal, direction );
 
 		float limit = tolerance;
 		if ( uniform == false )
 		{
 			b3Vec3 meshDirection = b3MulAdd( b3MulAdd( b3MulSV( direction.x, tangent1 ), direction.y, tangent2 ), direction.z, axis );
-			limit *= b3Length( b3Mul( isWall ? wallScale : edgeScale, meshDirection ) );
+			limit *= b3Length( b3Mul( isBoundary ? boundaryScale : edgeScale, meshDirection ) );
 		}
 
 		if ( lean > limit )
@@ -1667,7 +1667,7 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 	B3_FREE( edges, b3MeshEdge, edgeCount );
 }
 
-// todo comment
+// Build the ring of neighbor normal data at a vertex.
 static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCount, int vertex, int* stamps, int stamp,
 							  b3VertexRing* ring )
 {

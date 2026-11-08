@@ -399,7 +399,8 @@ static void b3FindFarthestPointsAlongCardinalAxes( int* index1Out, int* index2Ou
 	}
 }
 
-static int b3FindFarthestPointFromLine( int index1, int index2, float tolerance, int vertexCount, const b3Vec3* vertexBase )
+static int b3FindFarthestPointFromLine( int index1, int index2, float tolerance, int vertexCount,
+										const b3Vec3* vertexBase )
 {
 	b3Vec3 a = vertexBase[index1];
 	b3Vec3 b = vertexBase[index2];
@@ -765,7 +766,8 @@ static void b3HullBuilder_RecacheConflicts( b3QHFace* face, float minOutside )
 	b3QHVertex* maxVertex = NULL;
 	float maxDistance = minOutside;
 
-	for ( b3QHListNode* node = face->conflictListHead.link.next; node != &face->conflictListHead.link; node = node->next )
+	for ( b3QHListNode* node = face->conflictListHead.link.next; node != &face->conflictListHead.link;
+		  node = node->next )
 	{
 		b3QHVertex* vertex = (b3QHVertex*)node;
 		float distance = b3PlaneSeparation( face->plane, vertex->position );
@@ -785,7 +787,8 @@ static b3QHVertex* b3HullBuilder_NextConflictVertex( const b3HullBuilder* b )
 	b3QHVertex* maxVertex = NULL;
 	float maxDistance = b->minOutside;
 
-	for ( const b3QHListNode* faceNode = b->faceList.link.next; faceNode != &b->faceList.link; faceNode = faceNode->next )
+	for ( const b3QHListNode* faceNode = b->faceList.link.next; faceNode != &b->faceList.link;
+		  faceNode = faceNode->next )
 	{
 		const b3QHFace* face = (const b3QHFace*)faceNode;
 		if ( face->maxConflict != NULL && face->maxConflictDistance > maxDistance )
@@ -818,7 +821,8 @@ static void b3HullBuilder_DrainConflictList( b3HullBuilder* b, b3QHFace* face )
 // `entryEdge` is the half-edge in `face` whose twin lies in the just-deleted parent face, or
 // NULL for the seed. The frame skips `entryEdge` on recursive entries (it would be ignored
 // anyway since the parent's mark is now DELETE, but skipping saves one iteration).
-static void b3HullBuilder_EnterHorizonFace( b3HullBuilder* b, b3QHFace* face, b3QHHalfEdge* entryEdge, b3HorizonFrame* frameOut )
+static void b3HullBuilder_EnterHorizonFace( b3HullBuilder* b, b3QHFace* face, b3QHHalfEdge* entryEdge,
+											b3HorizonFrame* frameOut )
 {
 	face->mark = B3_MARK_DELETE;
 	b3HullBuilder_DrainConflictList( b, face );
@@ -1358,7 +1362,8 @@ static bool b3HullBuilder_IsConsistent( const b3HullBuilder* b )
 		return false;
 	}
 
-	for ( const b3QHListNode* faceNode = b->faceList.link.next; faceNode != &b->faceList.link; faceNode = faceNode->next )
+	for ( const b3QHListNode* faceNode = b->faceList.link.next; faceNode != &b->faceList.link;
+		  faceNode = faceNode->next )
 	{
 		const b3QHFace* face = (const b3QHFace*)faceNode;
 		if ( face->edge->face != face )
@@ -1428,8 +1433,8 @@ static bool b3HullBuilder_HasHull( const b3HullBuilder* b )
 }
 
 // Build the entire hull. Returns true iff the result satisfies Euler's identity.
-static bool b3HullBuilder_Construct( b3HullBuilder* b, const b3Vec3* points, int pointCount, int maxVertexCount, b3Vec3 origin,
-									 b3Vec3* shiftedPoints )
+static bool b3HullBuilder_Construct( b3HullBuilder* b, const b3Vec3* points, int pointCount, int maxVertexCount,
+									 b3Vec3 origin, b3Vec3* shiftedPoints )
 {
 	if ( pointCount < 4 )
 	{
@@ -2196,7 +2201,8 @@ b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCou
 	int faceCount = 0;
 	int edgeCount = 0;
 
-	for ( b3QHListNode* faceNode = builder.faceList.link.next; faceNode != &builder.faceList.link; faceNode = faceNode->next )
+	for ( b3QHListNode* faceNode = builder.faceList.link.next; faceNode != &builder.faceList.link;
+		  faceNode = faceNode->next )
 	{
 		B3_ASSERT( faceCount < B3_HULL_MAX_COUNT );
 
@@ -3099,7 +3105,7 @@ int b3SimplifyHull2D( b3Point2D* hull, int count1, int target )
 	return count2;
 }
 
-// todo comment
+// Comparator for sorting points for the 2D hull.
 static inline bool b3IsPoint2DLess( const b3Point2D* a, const b3Point2D* b )
 {
 	if ( a->p.x != b->p.x )
@@ -3149,7 +3155,7 @@ static int b3Weld2D( b3Point2D* pts, int count1 )
 	return count2;
 }
 
-// todo comment
+// Only merge points that line up exactly.
 static int b3MergeExact2D( b3Point2D* pts, int count1 )
 {
 	float separationTol = B3_LINEAR_SLOP;
@@ -3185,13 +3191,13 @@ int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull, int flags )
 	}
 
 #define LESS( i, j ) b3IsPoint2DLess( pts + (int)( i ), pts + (int)( j ) )
-#define SWAP( i, j )                                                                                                            \
-	do                                                                                                                          \
-	{                                                                                                                           \
-		b3Point2D swapPoint = pts[(int)( i )];                                                                                  \
-		pts[(int)( i )] = pts[(int)( j )];                                                                                      \
-		pts[(int)( j )] = swapPoint;                                                                                            \
-	}                                                                                                                           \
+#define SWAP( i, j )                                                                                                   \
+	do                                                                                                                 \
+	{                                                                                                                  \
+		b3Point2D swapPoint = pts[(int)( i )];                                                                         \
+		pts[(int)( i )] = pts[(int)( j )];                                                                             \
+		pts[(int)( j )] = swapPoint;                                                                                   \
+	}                                                                                                                  \
 	while ( 0 )
 
 	QSORT( count, LESS, SWAP );
@@ -3199,7 +3205,16 @@ int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull, int flags )
 #undef LESS
 #undef SWAP
 
-	int count1 = ( flags & b3_hull2DExactMerge ) ? b3MergeExact2D( pts, count ) : b3Weld2D( pts, count );
+	int count1;
+	if ( flags & b3_hull2DExactMerge )
+	{
+		count1 = b3MergeExact2D( pts, count );
+	}
+	else
+	{
+		b3Weld2D( pts, count );
+	}
+
 	bool keepCollinear = ( flags & b3_hull2DKeepCollinear ) != 0;
 
 	int count2 = 0;
@@ -3233,8 +3248,6 @@ int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull, int flags )
 		}
 
 		int lowerCount = count2 + 1;
-
-		// todo comment
 		int lowerIndex = count2 - 2;
 
 		for ( int i = count1 - 2; i >= 0; i-- )
@@ -3273,13 +3286,13 @@ int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull, int flags )
 	if ( flags & b3_hull2DIndexOrder )
 	{
 #define LESS( i, j ) ( hull[(int)( i )].originalIndex < hull[(int)( j )].originalIndex )
-#define SWAP( i, j )                                                                                                            \
-	do                                                                                                                          \
-	{                                                                                                                           \
-		b3Point2D swapPoint = hull[(int)( i )];                                                                                 \
-		hull[(int)( i )] = hull[(int)( j )];                                                                                    \
-		hull[(int)( j )] = swapPoint;                                                                                           \
-	}                                                                                                                           \
+#define SWAP( i, j )                                                                                                   \
+	do                                                                                                                 \
+	{                                                                                                                  \
+		b3Point2D swapPoint = hull[(int)( i )];                                                                        \
+		hull[(int)( i )] = hull[(int)( j )];                                                                           \
+		hull[(int)( j )] = swapPoint;                                                                                  \
+	}                                                                                                                  \
 	while ( 0 )
 
 		QSORT( count2, LESS, SWAP );
