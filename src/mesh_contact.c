@@ -1667,8 +1667,9 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	return true;
 }
 
-int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3HullData* hull,
-						  b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts )
+// todo comment
+static int b3CollideMeshAndShape( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3Shape* shapeB,
+								  b3AABB localBounds, b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts )
 {
 	if ( capacity <= 0 )
 	{
@@ -1680,19 +1681,14 @@ int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mes
 		.mesh = *mesh,
 	};
 
-	b3Shape hullShape = {
-		.type = b3_hullShape,
-		.hull = hull,
-	};
-
 	b3Arena arena = b3CreateArena( 64 * 1024 );
 
 	float margin = B3_SPECULATIVE_DISTANCE;
 	b3Vec3 extension = { margin, margin, margin };
-	b3AABB hullBounds = b3AABB_Transform( transformBtoA, hull->aabb );
+	b3AABB shapeBounds = b3AABB_Transform( transformBtoA, localBounds );
 	b3AABB queryBounds = {
-		.lowerBound = b3Sub( hullBounds.lowerBound, extension ),
-		.upperBound = b3Add( hullBounds.upperBound, extension ),
+		.lowerBound = b3Sub( shapeBounds.lowerBound, extension ),
+		.upperBound = b3Add( shapeBounds.upperBound, extension ),
 	};
 
 	b3TriangleQueryContext queryContext = {
@@ -1714,8 +1710,8 @@ int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mes
 	b3Transform transformAtoB = b3InvertTransform( transformBtoA );
 
 	b3Cluster* clusters;
-	int clusterCount = b3CollideMeshTriangles( &clusters, &meshShape, &hullShape, transformAtoB, triangleCaches,
-											   triangleCount, enableSpeculative, handleGhosts, false, NULL, &arena );
+	int clusterCount = b3CollideMeshTriangles( &clusters, &meshShape, shapeB, transformAtoB, triangleCaches, triangleCount,
+											   enableSpeculative, handleGhosts, false, NULL, &arena );
 
 	int count = b3MinInt( clusterCount, capacity );
 	b3Matrix3 matrixB = b3MakeMatrixFromQuat( transformBtoA.q );
@@ -1745,4 +1741,30 @@ int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mes
 
 	b3DestroyArena( &arena );
 	return count;
+}
+
+int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3HullData* hull,
+						  b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts )
+{
+	b3Shape hullShape = {
+		.type = b3_hullShape,
+		.hull = hull,
+	};
+
+	return b3CollideMeshAndShape( manifolds, capacity, mesh, &hullShape, hull->aabb, transformBtoA, enableSpeculative,
+								  handleGhosts );
+}
+
+int b3CollideMeshAndSphere( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3Sphere* sphere,
+							b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts )
+{
+	b3Shape sphereShape = {
+		.type = b3_sphereShape,
+		.sphere = *sphere,
+	};
+
+	b3Vec3 extent = { sphere->radius, sphere->radius, sphere->radius };
+	b3AABB bounds = { b3Sub( sphere->center, extent ), b3Add( sphere->center, extent ) };
+	return b3CollideMeshAndShape( manifolds, capacity, mesh, &sphereShape, bounds, transformBtoA, enableSpeculative,
+								  handleGhosts );
 }

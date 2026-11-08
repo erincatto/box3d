@@ -1329,6 +1329,7 @@ int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex 
 	return vertexFlags[b3GetMeshVertexIndex( mesh, triangle, vertexIndex )];
 }
 
+// Is the candidate manifold normal in vertex Voronoi region?
 bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexIndex, b3Vec3 normal, float tolerance )
 {
 	const b3MeshData* data = mesh->data;
@@ -1340,23 +1341,25 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 		return true;
 	}
 
-	b3MeshTriangle triangle = b3GetMeshTriangles( data )[triangleIndex];
+	const b3MeshTriangle* triangles = b3GetMeshTriangles( data );
+	b3MeshTriangle triangle = triangles[triangleIndex];
 	int vertex = b3GetMeshVertexIndex( mesh, triangle, vertexIndex );
 
-	// todo comment
+	// Account for the mesh scale, including reflection. The cliff scale is separate
+	// to maintain the 90 degree angle that all cliffs use.
 	b3Vec3 scale = mesh->scale;
-	b3Vec3 edgeScale, boundaryScale;
+	b3Vec3 edgeScale, cliffScale;
 	b3Vec3 absScale = b3Abs( scale );
 	bool uniform = absScale.y == absScale.x && absScale.z == absScale.x;
 	if ( uniform )
 	{
 		edgeScale = ( b3Vec3 ){ scale.x < 0.0f ? -1.0f : 1.0f, scale.y < 0.0f ? -1.0f : 1.0f, scale.z < 0.0f ? -1.0f : 1.0f };
-		boundaryScale = edgeScale;
+		cliffScale = edgeScale;
 	}
 	else
 	{
 		edgeScale = scale;
-		boundaryScale = ( b3Vec3 ){ 1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z };
+		cliffScale = ( b3Vec3 ){ 1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z };
 	}
 
 	const int* starts = (const int*)( (intptr_t)data + data->vertexRingOffset );
@@ -1367,7 +1370,7 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 		const b3Vec3* vertices = b3GetMeshVertices( data );
 		b3Vec3 faceNormal =
 			b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2], vertices[triangle.index3] );
-		faceNormal = b3Normalize( b3Mul( boundaryScale, faceNormal ) );
+		faceNormal = b3Normalize( b3Mul( cliffScale, faceNormal ) );
 		float cosAngle = b3Dot( normal, faceNormal );
 		return cosAngle > 0.0f && cosAngle * cosAngle >= 1.0f - tolerance * tolerance;
 	}
@@ -1382,21 +1385,21 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 	b3MakeRingFrame( axis, &tangent1, &tangent2 );
 
 	b3Vec3 edgeNormal = b3Mul( edgeScale, normal );
-	b3Vec3 boundaryNormal = b3Mul( boundaryScale, normal );
+	b3Vec3 cliffNormal = b3Mul( cliffScale, normal );
 	b3Vec3 localEdgeNormal = { b3Dot( edgeNormal, tangent1 ), b3Dot( edgeNormal, tangent2 ), b3Dot( edgeNormal, axis ) };
-	b3Vec3 localBoundaryNormal = { b3Dot( boundaryNormal, tangent1 ), b3Dot( boundaryNormal, tangent2 ), b3Dot( boundaryNormal, axis ) };
+	b3Vec3 localCliffNormal = { b3Dot( cliffNormal, tangent1 ), b3Dot( cliffNormal, tangent2 ), b3Dot( cliffNormal, axis ) };
 
 	for ( int i = 0; i < entryCount; ++i )
 	{
-		bool isBoundary = i >= edgeCount;
+		bool isCliff = i >= edgeCount;
 		b3Vec3 direction = b3DecodeRingEntry( entries[i] );
-		float lean = b3Dot( isBoundary ? localBoundaryNormal : localEdgeNormal, direction );
+		float lean = b3Dot( isCliff ? localCliffNormal : localEdgeNormal, direction );
 
 		float limit = tolerance;
 		if ( uniform == false )
 		{
 			b3Vec3 meshDirection = b3MulAdd( b3MulAdd( b3MulSV( direction.x, tangent1 ), direction.y, tangent2 ), direction.z, axis );
-			limit *= b3Length( b3Mul( isBoundary ? boundaryScale : edgeScale, meshDirection ) );
+			limit *= b3Length( b3Mul( isCliff ? cliffScale : edgeScale, meshDirection ) );
 		}
 
 		if ( lean > limit )

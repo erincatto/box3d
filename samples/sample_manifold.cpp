@@ -3015,3 +3015,155 @@ public:
 
 static int sampleHullGhostManifold =
 	RegisterSample( "Manifold", "Hull Ghost Manifold", HullGhostManifold::Create );
+
+// A flat floor for x > 0 meeting a 10 degree ramp at the concave edge x = 0
+static void BuildGhostRamp( std::vector<GhostMesh>& meshes )
+{
+	GhostMesh mesh;
+	mesh.vertices = { { 0.0f, 0.0f, -2.0f },
+					  { 0.0f, 0.0f, 2.0f },
+					  { -2.0f, 2.0f * tanf( 10.0f * B3_PI / 180.0f ), 0.0f },
+					  { 2.0f, 0.0f, 0.0f } };
+	AddGhostTriangle( mesh, 0, 1, 2 );
+	AddGhostTriangle( mesh, 1, 0, 3 );
+	meshes.push_back( mesh );
+}
+
+// A hub whose six spokes alternate 8 degree ridges and 32 degree gullies, so every fan triangle has a
+// concave edge and the mesh flags the hub concave. Every spoke still runs downhill, so the hub is the
+// closest point for a body resting on it.
+static void BuildGhostSaddle( std::vector<GhostMesh>& meshes )
+{
+	float radius = 1.5f;
+	float toRadians = B3_PI / 180.0f;
+	float hubHeight = radius * tanf( 32.0f * toRadians );
+
+	GhostMesh mesh;
+	mesh.vertices.push_back( { 0.0f, hubHeight, 0.0f } );
+	for ( int i = 0; i < 6; ++i )
+	{
+		float angle = i * B3_PI / 3.0f;
+		float drop = ( i & 1 ) ? 32.0f : 8.0f;
+		mesh.vertices.push_back(
+			{ radius * cosf( angle ), hubHeight - radius * tanf( drop * toRadians ), radius * sinf( angle ) } );
+	}
+
+	for ( int i = 0; i < 6; ++i )
+	{
+		AddGhostTriangle( mesh, 0, 1 + i, 1 + ( i + 1 ) % 6 );
+	}
+	meshes.push_back( mesh );
+}
+
+// Sphere radius in the x extent
+static const GhostScene s_sphereGhostScenes[] = {
+	{
+		"Flat edge",
+		"sphere 1 mm deep over the left triangle, 5 cm from the shared edge, the right triangle sees the edge "
+		"and tilts its normal 5.7 degrees",
+		"flat edge, the normal leans over the left triangle and a sphere off the face cannot snap, so the "
+		"right triangle drops it",
+		BuildGhostFlat,
+		{ 0.5f, 0.5f, 0.5f },
+		{ 0.0f, 0.499f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f },
+		true,
+	},
+	{
+		"Flat vertex",
+		"sphere 1 mm deep, 5 cm from the fan center inside one wedge, the other triangles see the center vertex "
+		"or a spoke and tilt their normals 5.7 degrees",
+		"flat vertex and edges, the normal is not the face normal, so they drop it",
+		BuildGhostFan,
+		{ 0.5f, 0.5f, 0.5f },
+		{ 0.0f, 0.499f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f },
+		true,
+	},
+	{
+		"Convex edge",
+		"sphere 1 mm deep on the right slope 5 cm below the crest, the left triangle sees the crest edge and "
+		"gives a normal 5.7 degrees past the right slope",
+		"convex edge, the normal is outside the edge cone so the left triangle skips and the right one owns "
+		"the contact",
+		BuildGhostCrest,
+		{ 0.5f, 0.5f, 0.5f },
+		{ 0.1774f, 1.005f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f },
+		true,
+	},
+	{
+		"Concave edge",
+		"sphere 1 mm deep on the floor 10 cm from a 10 degree ramp, the ramp triangle sees the crease edge 9 mm "
+		"away and tilts its normal 11.3 degrees away from the ramp",
+		"concave edge, the normal is neither face normal so it snaps, and a sphere off the face cannot snap, so "
+		"the ramp triangle drops it",
+		BuildGhostRamp,
+		{ 0.5f, 0.5f, 0.5f },
+		{ 0.1f, 0.499f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f },
+		true,
+	},
+	{
+		"Saddle vertex",
+		"none, sphere 1 mm deep on the hub. The spokes alternate 8 degree ridges and 32 degree gullies, so "
+		"every fan triangle has a concave edge, yet the hub is the closest point",
+		"the edge tests of every triangle reject the vertical normal across its gully. The normal is in the hub "
+		"fan cone, so every triangle keeps it",
+		BuildGhostSaddle,
+		{ 0.5f, 0.5f, 0.5f },
+		{ 0.0f, 1.4363f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f },
+		true,
+	},
+};
+
+class SphereGhostManifold : public GhostManifold
+{
+public:
+	explicit SphereGhostManifold( SampleContext* context )
+		: GhostManifold( context )
+	{
+		m_sphere = { b3Vec3_zero, 0.5f };
+		SetScenes( s_sphereGhostScenes, IM_ARRAYSIZE( s_sphereGhostScenes ) );
+	}
+
+	void CreateShape( const GhostScene& scene ) override
+	{
+		m_sphere = { b3Vec3_zero, scene.extents.x };
+	}
+
+	int CollideMesh( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, b3Transform transformBtoA,
+					 bool speculative, bool handleGhosts ) override
+	{
+		return b3CollideMeshAndSphere( manifolds, capacity, mesh, &m_sphere, transformBtoA, speculative,
+									   handleGhosts );
+	}
+
+	void CollideTriangle( b3LocalManifold* manifold, int capacity, const b3Vec3* triangle, bool ) override
+	{
+		b3CollideTriangleAndSphere( manifold, capacity, triangle, &m_sphere );
+	}
+
+	void DrawShape( b3WorldTransform transform ) override
+	{
+		DrawWireSphere( transform, &m_sphere, 32, MakeColor( b3_colorGreen ) );
+	}
+
+	b3AABB ComputeShapeBounds( b3Transform transform ) override
+	{
+		b3Vec3 center = b3TransformPoint( transform, m_sphere.center );
+		b3Vec3 extent = { m_sphere.radius, m_sphere.radius, m_sphere.radius };
+		return { b3Sub( center, extent ), b3Add( center, extent ) };
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new SphereGhostManifold( context );
+	}
+
+	b3Sphere m_sphere;
+};
+
+static int sampleSphereGhostManifold =
+	RegisterSample( "Manifold", "Sphere Ghost Manifold", SphereGhostManifold::Create );

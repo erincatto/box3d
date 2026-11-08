@@ -683,6 +683,10 @@ B3_API void b3CollideTriangleAndSphere( b3LocalManifold* manifold, int capacity,
 B3_API int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3HullData* hull,
 								 b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts );
 
+// todo comment
+B3_API int b3CollideMeshAndSphere( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3Sphere* sphere,
+								   b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts );
+
 /// This is used for computing 2D hulls in service of contact manifold simplification.
 /// Placed here for testing. Internal.
 typedef struct b3Point2D

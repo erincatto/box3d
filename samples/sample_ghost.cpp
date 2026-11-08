@@ -2588,6 +2588,7 @@ public:
 
 		m_cellSize = 0.25f;
 		m_beltSpeed = 2.5f;
+		m_reverseFlow = false;
 		m_targetCount = 80;
 		m_spawnInterval = 15;
 		m_bodyType = e_mixedBody;
@@ -2705,6 +2706,11 @@ public:
 		}
 	}
 
+	float GetBeltVelocity() const
+	{
+		return m_reverseFlow ? -m_beltSpeed : m_beltSpeed;
+	}
+
 	b3SurfaceMaterial MakeMaterial( int index ) const
 	{
 		b3SurfaceMaterial material = b3DefaultSurfaceMaterial();
@@ -2718,7 +2724,8 @@ public:
 		// Horizontal is enough, the solver projects tangent velocity onto the contact plane
 		float yaw = -B3_PI + 2.0f * B3_PI * (float)( index - 1 ) / (float)m_yawBinCount;
 		material.friction = 0.8f;
-		material.tangentVelocity = { m_beltSpeed * cosf( yaw ), 0.0f, m_beltSpeed * sinf( yaw ) };
+		float velocity = GetBeltVelocity();
+		material.tangentVelocity = { velocity * cosf( yaw ), 0.0f, velocity * sinf( yaw ) };
 		material.customColor = b3_colorSlateGray;
 		return material;
 	}
@@ -3294,7 +3301,7 @@ public:
 			{
 				b3Vec3 p = m_stations[k] + 0.05f * m_ups[k];
 				b3Vec3 t = m_tangents[k];
-				DrawArrow( b3ToPos( p ), b3ToPos( p + 0.25f * m_beltSpeed * t ), MakeColor( b3_colorBlueViolet ) );
+				DrawArrow( b3ToPos( p ), b3ToPos( p + 0.25f * GetBeltVelocity() * t ), MakeColor( b3_colorBlueViolet ) );
 			}
 		}
 
@@ -3318,6 +3325,11 @@ public:
 		rebuild |= ImGui::IsItemDeactivatedAfterEdit();
 
 		if ( ImGui::SliderFloat( "Belt Speed", &m_beltSpeed, 0.0f, 6.0f, "%.1f m/s" ) )
+		{
+			UpdateBeltSpeed();
+		}
+
+		if ( ImGui::Checkbox( "Reverse Flow", &m_reverseFlow ) )
 		{
 			UpdateBeltSpeed();
 		}
@@ -3407,6 +3419,7 @@ public:
 
 	float m_cellSize;
 	float m_beltSpeed;
+	bool m_reverseFlow;
 	int m_targetCount;
 	int m_spawnInterval;
 	BodyType m_bodyType;
