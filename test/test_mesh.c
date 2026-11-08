@@ -1158,7 +1158,7 @@ static int MeshPeelCylinder( void )
 }
 
 // Exact vertex cone from every triangle at the vertex. Returns the largest lean of the normal past
-// an edge at the vertex or past the wall below a boundary edge.
+// an edge at the vertex or past the cliff below a boundary edge.
 static float ExactVertexLean( const b3Mesh* mesh, int vertex, b3Vec3 normal )
 {
 	float lean = -FLT_MAX;

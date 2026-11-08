@@ -1167,7 +1167,7 @@ int8_t b3QuantizeEdgeAngle( float radians )
 typedef struct b3VertexRing
 {
 	uint16_t axis;
-	uint16_t wallCount;
+	uint16_t cliffCount;
 } b3VertexRing;
 
 typedef struct b3VertexRingEntry
@@ -1378,7 +1378,7 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 	const b3VertexRing* ring = (const b3VertexRing*)( (intptr_t)data + starts[vertex] );
 	const b3VertexRingEntry* entries = (const b3VertexRingEntry*)( ring + 1 );
 	int entryCount = ( byteCount - (int)sizeof( b3VertexRing ) ) / (int)sizeof( b3VertexRingEntry );
-	int edgeCount = entryCount - ring->wallCount;
+	int edgeCount = entryCount - ring->cliffCount;
 
 	b3Vec3 axis = b3DecodeRingAxis( ring->axis );
 	b3Vec3 tangent1, tangent2;
@@ -1733,7 +1733,7 @@ static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCou
 		}
 	}
 
-	int wallCount = 0;
+	int cliffCount = 0;
 	for ( int i = 0; i < fanCount; ++i )
 	{
 		int triangleIndex = fan[i];
@@ -1757,14 +1757,14 @@ static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCou
 			}
 
 			entryCount += 1;
-			wallCount += 1;
+			cliffCount += 1;
 		}
 	}
 
 	if ( ring != NULL )
 	{
-		B3_ASSERT( wallCount <= UINT16_MAX );
-		ring->wallCount = (uint16_t)wallCount;
+		B3_ASSERT( cliffCount <= UINT16_MAX );
+		ring->cliffCount = (uint16_t)cliffCount;
 	}
 
 	return (int)( sizeof( b3VertexRing ) + entryCount * sizeof( b3VertexRingEntry ) );
