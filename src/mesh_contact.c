@@ -759,17 +759,17 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 		return b3IsInVertexRegion( vertices, vertexIndex, normal ) ? b3_neighborSkip : b3_neighborSnap;
 	}
 
+	// Check vertex area first to avoid a saddle tunnel.
+	if ( vertexIndex != B3_NULL_INDEX && b3IsInVertexRegion( vertices, vertexIndex, normal ) &&
+		 b3IsInVertexCone( shape, triangleIndex, vertexIndex, meshToLocal, normal ) )
+	{
+		return b3_neighborAdmit;
+	}
+
 	if ( convex )
 	{
 		// todo comment
 		return *ownerEdge == B3_NULL_INDEX ? b3_neighborDrop : b3_neighborSkip;
-	}
-
-	// Check vertex.
-	if ( vertexIndex != B3_NULL_INDEX &&
-		 b3AdmitsVertexNormal( shape, triangleIndex, vertices, vertexIndex, meshToLocal, normal ) )
-	{
-		return b3_neighborAdmit;
 	}
 
 	return b3_neighborSnap;

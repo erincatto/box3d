@@ -3212,7 +3212,7 @@ int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull, int flags )
 	}
 	else
 	{
-		b3Weld2D( pts, count );
+		count1 = b3Weld2D( pts, count );
 	}
 
 	bool keepCollinear = ( flags & b3_hull2DKeepCollinear ) != 0;
