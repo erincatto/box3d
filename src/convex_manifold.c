@@ -990,7 +990,7 @@ static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3L
 	}
 
 	b3Point2D hull[2 * B3_MAX_CLIP_POINTS];
-	int hullCount = b3Hull2D( pts, count, hull );
+	int hullCount = b3Hull2D( pts, count, hull, 0 );
 	int finalCount = b3SimplifyHull2D( hull, hullCount, target );
 	B3_ASSERT( 0 < finalCount && finalCount <= target );
 

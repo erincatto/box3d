@@ -7,6 +7,7 @@
 
 #include "algorithm.h"
 #include "math_internal.h"
+#include "qsort.h"
 #include "shape.h"
 #include "simd.h"
 
@@ -3098,20 +3099,20 @@ int b3SimplifyHull2D( b3Point2D* hull, int count1, int target )
 	return count2;
 }
 
-// Sort comparator: by x, then by y. Insertion since n is typically 20 or less.
-static void b3Sort2D( b3Point2D* pts, int count )
+// todo comment
+static inline bool b3IsPoint2DLess( const b3Point2D* a, const b3Point2D* b )
 {
-	for ( int i = 1; i < count; ++i )
+	if ( a->p.x != b->p.x )
 	{
-		b3Point2D base = pts[i];
-		int j = i - 1;
-		while ( j >= 0 && ( pts[j].p.x > base.p.x || ( pts[j].p.x == base.p.x && pts[j].p.y > base.p.y ) ) )
-		{
-			pts[j + 1] = pts[j];
-			j -= 1;
-		}
-		pts[j + 1] = base;
+		return a->p.x < b->p.x;
 	}
+
+	if ( a->p.y != b->p.y )
+	{
+		return a->p.y < b->p.y;
+	}
+
+	return a->originalIndex < b->originalIndex;
 }
 
 // Welds points that have been sorted O(n) time
@@ -3148,79 +3149,144 @@ static int b3Weld2D( b3Point2D* pts, int count1 )
 	return count2;
 }
 
+// todo comment
+static int b3MergeExact2D( b3Point2D* pts, int count1 )
+{
+	float separationTol = B3_LINEAR_SLOP;
+
+	int count2 = 0;
+	for ( int i = 0; i < count1; i++ )
+	{
+		b3Point2D point = pts[i];
+		if ( count2 > 0 && pts[count2 - 1].p.x == point.p.x && pts[count2 - 1].p.y == point.p.y )
+		{
+			if ( point.separation < pts[count2 - 1].separation - separationTol )
+			{
+				pts[count2 - 1] = point;
+			}
+		}
+		else
+		{
+			pts[count2] = point;
+			count2 += 1;
+		}
+	}
+
+	return count2;
+}
+
 // Andrew's monotone chain convex hull algorithm
 // hull must have space for 2 * count1 points
-int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull )
+int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull, int flags )
 {
-	int count1 = count;
-
-	if ( count1 <= 0 )
+	if ( count <= 0 )
 	{
 		return 0;
 	}
 
-	if ( count1 == 1 )
-	{
-		hull[0] = pts[0];
-		return 1;
-	}
+#define LESS( i, j ) b3IsPoint2DLess( pts + (int)( i ), pts + (int)( j ) )
+#define SWAP( i, j )                                                                                                            \
+	do                                                                                                                          \
+	{                                                                                                                           \
+		b3Point2D swapPoint = pts[(int)( i )];                                                                                  \
+		pts[(int)( i )] = pts[(int)( j )];                                                                                      \
+		pts[(int)( j )] = swapPoint;                                                                                            \
+	}                                                                                                                           \
+	while ( 0 )
 
-	b3Sort2D( pts, count1 );
-	count1 = b3Weld2D( pts, count1 );
+	QSORT( count, LESS, SWAP );
 
-	if ( count1 == 1 )
-	{
-		hull[0] = pts[0];
-		return 1;
-	}
+#undef LESS
+#undef SWAP
 
-	if ( count1 == 2 )
-	{
-		hull[0] = pts[0];
-		hull[1] = pts[1];
-		return 2;
-	}
+	int count1 = ( flags & b3_hull2DExactMerge ) ? b3MergeExact2D( pts, count ) : b3Weld2D( pts, count );
+	bool keepCollinear = ( flags & b3_hull2DKeepCollinear ) != 0;
 
 	int count2 = 0;
-
-	for ( int i = 0; i < count1; i++ )
+	if ( count1 <= 2 )
 	{
-		while ( count2 >= 2 )
+		for ( int i = 0; i < count1; i++ )
 		{
-			float area = b3Cross2D( hull[count2 - 2].p, hull[count2 - 1].p, pts[i].p );
-			if ( area > 0.0f )
-			{
-				break;
-			}
-
-			count2 -= 1;
+			hull[i] = pts[i];
 		}
 
-		B3_VALIDATE( count2 < 2 * count1 );
-		hull[count2] = pts[i];
-		count2 += 1;
+		count2 = count1;
 	}
-
-	int lowerCount = count2 + 1;
-
-	for ( int i = count1 - 2; i >= 0; i-- )
+	else
 	{
-		while ( count2 >= lowerCount )
+		for ( int i = 0; i < count1; i++ )
 		{
-			float area = b3Cross2D( hull[count2 - 2].p, hull[count2 - 1].p, pts[i].p );
-			if ( area > 0.0f )
+			while ( count2 >= 2 )
 			{
-				break;
+				float area = b3Cross2D( hull[count2 - 2].p, hull[count2 - 1].p, pts[i].p );
+				if ( area > 0.0f || ( keepCollinear && area == 0.0f ) )
+				{
+					break;
+				}
+
+				count2 -= 1;
 			}
 
-			count2 -= 1;
+			B3_VALIDATE( count2 < 2 * count1 );
+			hull[count2] = pts[i];
+			count2 += 1;
 		}
 
-		B3_VALIDATE( count2 < 2 * count1 );
-		hull[count2] = pts[i];
-		count2 += 1;
+		int lowerCount = count2 + 1;
+
+		// todo comment
+		int lowerIndex = count2 - 2;
+
+		for ( int i = count1 - 2; i >= 0; i-- )
+		{
+			if ( lowerIndex >= 0 && hull[lowerIndex].p.x == pts[i].p.x && hull[lowerIndex].p.y == pts[i].p.y )
+			{
+				lowerIndex -= 1;
+				if ( i > 0 )
+				{
+					continue;
+				}
+			}
+
+			while ( count2 >= lowerCount )
+			{
+				float area = b3Cross2D( hull[count2 - 2].p, hull[count2 - 1].p, pts[i].p );
+				if ( area > 0.0f || ( keepCollinear && area == 0.0f ) )
+				{
+					break;
+				}
+
+				count2 -= 1;
+			}
+
+			B3_VALIDATE( count2 < 2 * count1 );
+			hull[count2] = pts[i];
+			count2 += 1;
+		}
+
+		B3_VALIDATE( hull[0].originalIndex == hull[count2 - 1].originalIndex );
+		count2 -= 1;
 	}
 
-	B3_VALIDATE( hull[0].originalIndex == hull[count2 - 1].originalIndex );
-	return count2 - 1;
+	B3_VALIDATE( count2 <= count1 );
+
+	if ( flags & b3_hull2DIndexOrder )
+	{
+#define LESS( i, j ) ( hull[(int)( i )].originalIndex < hull[(int)( j )].originalIndex )
+#define SWAP( i, j )                                                                                                            \
+	do                                                                                                                          \
+	{                                                                                                                           \
+		b3Point2D swapPoint = hull[(int)( i )];                                                                                 \
+		hull[(int)( i )] = hull[(int)( j )];                                                                                    \
+		hull[(int)( j )] = swapPoint;                                                                                           \
+	}                                                                                                                           \
+	while ( 0 )
+
+		QSORT( count2, LESS, SWAP );
+
+#undef LESS
+#undef SWAP
+	}
+
+	return count2;
 }

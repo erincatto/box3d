@@ -692,8 +692,21 @@ typedef struct b3Point2D
 	int originalIndex; // original index of the associated contact point
 } b3Point2D;
 
+/// Options for how a 2D hull is built.
+typedef enum b3Hull2DFlags
+{
+	/// Keep collinear points.
+	b3_hull2DKeepCollinear = 0x01,
+
+	/// Only merge identical points.
+	b3_hull2DExactMerge = 0x02,
+
+	/// Order the output points by the input order.
+	b3_hull2DIndexOrder = 0x04,
+} b3Hull2DFlags;
+
 /// Compute a 2D hull. Used internally for contact manifold simplification. Here for testing.
-B3_API int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull );
+B3_API int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull, int flags );
 
 /// Simplify a 2D hull. Used internally for contact manifold simplification. Here for testing.
 B3_API int b3SimplifyHull2D( b3Point2D* hull, int count, int target );

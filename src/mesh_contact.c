@@ -349,6 +349,87 @@ static int b3CullPoints( b3Point2D* points, int count )
 	return 4;
 }
 
+// todo comment
+#define B3_CULL_HULL_THRESHOLD 64
+
+// todo comment
+static int b3DropInteriorPoints( b3Point2D* points, int count, float margin )
+{
+	int extremes[8] = { 0 };
+	float bests[8] = {
+		points[0].p.x,
+		points[0].p.x + points[0].p.y,
+		points[0].p.y,
+		points[0].p.y - points[0].p.x,
+		-points[0].p.x,
+		-points[0].p.x - points[0].p.y,
+		-points[0].p.y,
+		points[0].p.x - points[0].p.y,
+	};
+
+	for ( int i = 1; i < count; ++i )
+	{
+		b3Vec2 p = points[i].p;
+		float values[8] = { p.x, p.x + p.y, p.y, p.y - p.x, -p.x, -p.x - p.y, -p.y, p.x - p.y };
+		for ( int k = 0; k < 8; ++k )
+		{
+			if ( values[k] > bests[k] )
+			{
+				bests[k] = values[k];
+				extremes[k] = i;
+			}
+		}
+	}
+
+	// todo comment
+	b3Vec2 normals[8];
+	float offsets[8];
+	int edgeCount = 0;
+	for ( int k = 0; k < 8; ++k )
+	{
+		b3Vec2 a = points[extremes[k]].p;
+		b3Vec2 b = points[extremes[( k + 1 ) & 7]].p;
+		b3Vec2 normal = { a.y - b.y, b.x - a.x };
+		float length = b3Length2( normal );
+		if ( length == 0.0f )
+		{
+			continue;
+		}
+
+		normals[edgeCount] = normal;
+		offsets[edgeCount] = b3Dot2( normal, a ) + margin * length;
+		edgeCount += 1;
+	}
+
+	if ( edgeCount < 3 )
+	{
+		return count;
+	}
+
+	int keptCount = 0;
+	for ( int i = 0; i < count; ++i )
+	{
+		b3Vec2 p = points[i].p;
+		bool interior = true;
+		for ( int k = 0; k < edgeCount; ++k )
+		{
+			if ( b3Dot2( normals[k], p ) <= offsets[k] )
+			{
+				interior = false;
+				break;
+			}
+		}
+
+		if ( interior == false )
+		{
+			points[keptCount] = points[i];
+			keptCount += 1;
+		}
+	}
+
+	return keptCount;
+}
+
 #endif
 
 static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 normal, b3Arena arena )
@@ -374,10 +455,38 @@ static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 nor
 
 #if B3_MAX_MANIFOLD_POINTS == 4
 	b3Point2D* hull = pts;
-	int count2 = b3CullPoints( pts, count1 );
+	int count2;
+	if ( count1 <= B3_CULL_HULL_THRESHOLD )
+	{
+		count2 = b3CullPoints( pts, count1 );
+	}
+	else
+	{
+		// todo comment
+		b3Point2D deepest = pts[0];
+		for ( int i = 1; i < count1; ++i )
+		{
+			if ( pts[i].separation < deepest.separation )
+			{
+				deepest = pts[i];
+			}
+		}
+
+		int keptCount = b3DropInteriorPoints( pts, count1, 0.25f * B3_LINEAR_SLOP );
+		hull = b3Bump( &arena, 2 * keptCount * sizeof( b3Point2D ) );
+		int flags = b3_hull2DKeepCollinear | b3_hull2DExactMerge | b3_hull2DIndexOrder;
+		int hullCount = b3Hull2D( pts, keptCount, hull, flags );
+		count2 = b3CullPoints( hull, hullCount );
+
+		// todo comment
+		if ( count2 == 1 )
+		{
+			hull[0] = deepest;
+		}
+	}
 #else
 	b3Point2D* hull = b3Bump( &arena, 2 * count1 * sizeof( b3Point2D ) );
-	int hullCount = b3Hull2D( pts, count1, hull );
+	int hullCount = b3Hull2D( pts, count1, hull, 0 );
 	int count2 = b3SimplifyHull2D( hull, hullCount, B3_MAX_MANIFOLD_POINTS );
 #endif
 	B3_ASSERT( count2 <= B3_MAX_MANIFOLD_POINTS );

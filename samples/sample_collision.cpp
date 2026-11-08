@@ -2900,6 +2900,7 @@ public:
 		e_random = 0,
 		e_circle = 1,
 		e_sliver = 2,
+		e_grid = 3,
 	};
 
 	static Sample* Create( SampleContext* context )
@@ -2923,6 +2924,7 @@ public:
 		m_pointCount = 20;
 		m_drawScale = 1.0f;
 		m_drawLabels = true;
+		m_hullFlags = 0;
 
 		Generate();
 	}
@@ -2957,6 +2959,20 @@ public:
 			{
 				float angle = delta * (float)i;
 				m_inputPoints[i].p = { radius * cosf( angle ), radius * sinf( angle ) };
+				m_inputPoints[i].separation = 0.0f;
+				m_inputPoints[i].originalIndex = i;
+			}
+		}
+		else if ( m_sourceMode == e_grid )
+		{
+			// Every border point is collinear with its neighbors, so the hull keeps them only with
+			// the collinear flag
+			m_drawScale = 1.0f;
+			m_inputCount = 36;
+
+			for ( int i = 0; i < m_inputCount; ++i )
+			{
+				m_inputPoints[i].p = { -5.0f + 2.0f * (float)( i % 6 ), -5.0f + 2.0f * (float)( i / 6 ) };
 				m_inputPoints[i].separation = 0.0f;
 				m_inputPoints[i].originalIndex = i;
 			}
@@ -2998,7 +3014,7 @@ public:
 			scratch[i] = m_inputPoints[i];
 		}
 
-		m_hullCount = b3Hull2D( scratch, m_inputCount, m_hullPoints );
+		m_hullCount = b3Hull2D( scratch, m_inputCount, m_hullPoints, m_hullFlags );
 
 		for ( int i = 0; i < m_hullCount; ++i )
 		{
@@ -3010,13 +3026,13 @@ public:
 
 	bool DrawControls() override
 	{
-		const char* modes[] = { "Random", "Circle", "Sliver" };
+		const char* modes[] = { "Random", "Circle", "Sliver", "Grid" };
 		if ( ImGui::Combo( "Source", &m_sourceMode, modes, IM_ARRAYSIZE( modes ) ) )
 		{
 			Generate();
 		}
 
-		if ( m_sourceMode != e_sliver )
+		if ( m_sourceMode == e_random || m_sourceMode == e_circle )
 		{
 			if ( ImGui::SliderInt( "Point Count", &m_pointCount, 4, m_pointCapacity ) )
 			{
@@ -3033,6 +3049,8 @@ public:
 		}
 
 		ImGui::SliderInt( "Target Count", &m_targetCount, 3, m_inputCount );
+		ImGui::CheckboxFlags( "Keep Collinear", &m_hullFlags, b3_hull2DKeepCollinear );
+		ImGui::CheckboxFlags( "Exact Merge", &m_hullFlags, b3_hull2DExactMerge );
 		ImGui::Checkbox( "Draw Labels", &m_drawLabels );
 
 		return true;
@@ -3110,6 +3128,7 @@ public:
 	int m_simplifiedCount;
 	int m_targetCount;
 	int m_pointCount;
+	int m_hullFlags;
 	bool m_drawLabels;
 };
 
