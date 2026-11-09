@@ -22,7 +22,6 @@ typedef struct b3TriangleData
 	b3Vec3 v1, v2, v3;
 	b3Vec3 e1, e2, e3;
 	b3Plane plane;
-	int flags;
 } b3TriangleData;
 
 // Indexed by the 3-bit vertex mask
@@ -599,15 +598,6 @@ static b3SeparatingAxis b3QueryTriangleAndHullEdges( const b3TriangleData* trian
 
 	b3Vec3 trianglePoints[] = { triangle->v1, triangle->v2, triangle->v3 };
 	b3Vec3 triangleEdges[] = { triangle->e1, triangle->e2, triangle->e3 };
-	// int edgeFlags[] = { b3_concaveEdge1, b3_concaveEdge1, b3_concaveEdge3 };
-
-#if B3_FORCE_GHOST_COLLISIONS
-	int triangleFlags = 0xFF;
-#else
-	int triangleFlags = triangle->flags;
-#endif
-	(void)triangleFlags;
-
 	b3Vec3 triNormal = triangle->plane.normal;
 
 	const b3HullHalfEdge* hullEdges = b3GetHullEdges( hull );
@@ -655,7 +645,6 @@ static b3SeparatingAxis b3QueryTriangleAndHullEdges( const b3TriangleData* trian
 			axis = b3Normalize( axis );
 			float separation = b3Dot( axis, b3Sub( trianglePoints[j], hullPoint ) );
 
-			// if ( separation > result.separation && ( edgeFlags[j] & triangleFlags ) == 0 )
 			if ( separation > result.separation )
 			{
 				// Note: We don't exit early if we find a separating axis here since we want to
@@ -957,8 +946,8 @@ static void b3CollideTriangleAndHullEdges( b3LocalManifold* manifold, int capaci
 }
 
 // Triangle face contact wrapper.
-void b3BuildTriangleAndHullFaceContact( b3LocalManifold* manifold, int capacity, const b3Vec3* triangle, int triangleFlags,
-										const b3HullData* hull, b3SATCache* cache, bool enableSpeculative )
+void b3BuildTriangleAndHullFaceContact( b3LocalManifold* manifold, int capacity, const b3Vec3* triangle, const b3HullData* hull,
+										 b3SATCache* cache, bool enableSpeculative )
 {
 	manifold->pointCount = 0;
 
@@ -970,7 +959,6 @@ void b3BuildTriangleAndHullFaceContact( b3LocalManifold* manifold, int capacity,
 		.e2 = b3Sub( triangle[2], triangle[1] ),
 		.e3 = b3Sub( triangle[0], triangle[2] ),
 		.plane = b3MakePlaneFromPoints( triangle[0], triangle[1], triangle[2] ),
-		.flags = triangleFlags,
 	};
 
 	b3SeparatingAxis query = b3QueryTriangleFace( &triangleData, hull );
@@ -987,7 +975,7 @@ b3AtomicInt b3_triangleConvexCalls;
 b3AtomicInt b3_triangleCacheHits;
 
 // Triangle is in the local space of the hull for efficiency.
-void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, int triangleFlags,
+void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v1, b3Vec3 v2, b3Vec3 v3,
 							   const b3HullData* hullB, b3SATCache* cache, bool enableSpeculative )
 {
 	manifold->pointCount = 0;
@@ -1032,7 +1020,6 @@ void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v
 		.e2 = triangleEdges[1],
 		.e3 = triangleEdges[2],
 		.plane = trianglePlane,
-		.flags = triangleFlags,
 	};
 
 	const b3HullHalfEdge* edges = b3GetHullEdges( hullB );
@@ -1110,6 +1097,9 @@ void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v
 				// Cache hit, shapes are separated
 				return;
 			}
+
+			// Note: it is possible for a hull face to lean into an edge direction while mainting
+			// a valid cache. But this has never been observed.
 
 			// Deep overlap may lead to an invalid cache
 			// todo confirm

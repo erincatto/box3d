@@ -419,23 +419,6 @@ protected:
 		const b3MeshTriangle& triangle = b3GetMeshTriangles( m_mesh )[point.triangleIndex];
 		int v[3] = { triangle.index1, triangle.index2, triangle.index3 };
 
-		// The normal was replaced by the face normal of a nearby triangle
-		if ( point.meshFlags & b3_meshContactBlocked )
-		{
-			for ( int k = 0; k < 3; ++k )
-			{
-				for ( int other : m_vertexTriangles[v[k]] )
-				{
-					if ( MatchesFace( normal, other ) )
-					{
-						return true;
-					}
-				}
-			}
-
-			return false;
-		}
-
 		switch ( point.triangleFeature )
 		{
 			case b3_featureTriangleFace:
@@ -3091,23 +3074,6 @@ public:
 		const b3MeshTriangle& triangle = b3GetMeshTriangles( m_mesh )[point.triangleIndex];
 		int v[3] = { triangle.index1, triangle.index2, triangle.index3 };
 
-		// The normal was replaced by the face normal of a nearby triangle
-		if ( point.meshFlags & b3_meshContactBlocked )
-		{
-			for ( int k = 0; k < 3; ++k )
-			{
-				for ( int other : m_vertexTriangles[v[k]] )
-				{
-					if ( MatchesFace( normal, other ) )
-					{
-						return true;
-					}
-				}
-			}
-
-			return false;
-		}
-
 		switch ( point.triangleFeature )
 		{
 			case b3_featureTriangleFace:
@@ -3282,8 +3248,8 @@ public:
 					  m_manifoldCount, rate );
 		DrawTextLine( "ghost feature: face %d, edge %d, vertex %d, unresolved %d", m_classCounts[e_faceGhost],
 					  m_classCounts[e_edgeGhost], m_classCounts[e_vertexGhost], m_classCounts[e_otherGhost] );
-		DrawTextLine( "ghost origin: hull face %d, snapped %d, unverified %d, deep %d, blocked %d", m_flagCounts[0],
-					  m_flagCounts[1], m_flagCounts[2], m_flagCounts[3], m_flagCounts[4] );
+		DrawTextLine( "ghost origin: hull face %d, snapped %d, deep %d", m_flagCounts[0], m_flagCounts[1],
+					  m_flagCounts[2] );
 		DrawTextLine( "bodies: %d, recycled: %d", m_bodyCount, m_recycleCount );
 		DrawTextLine( "triangles: %d, stations: %d", m_mesh->triangleCount, (int)m_stations.size() );
 	}
@@ -3430,7 +3396,7 @@ public:
 	bool m_drawFlow;
 	bool m_drawGhosts;
 
-	static constexpr int m_flagCount = 5;
+	static constexpr int m_flagCount = 3;
 	int m_classCounts[e_ghostClassCount];
 	int m_flagCounts[m_flagCount];
 	int m_ghostCount;

@@ -1248,7 +1248,6 @@ public:
 							ImGuiSliderFlags_Logarithmic );
 		rebuild = ( ImGui::IsItemDeactivatedAfterEdit() && m_remesh ) || rebuild;
 
-		const char* regularizeNames[] = { "None", "Light", "Full" };
 		rebuild =
 			( ImGui::Checkbox( "Repeat Simplify", &m_repeatSimplify ) && m_remesh ) || rebuild;
 

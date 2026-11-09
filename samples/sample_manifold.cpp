@@ -1979,9 +1979,6 @@ public:
 		m_transformB = b3WorldTransform_identity;
 		// m_transformB.p = { -2.16650009f, 0.912535489f, 0.00000000f };
 
-		// b3MeshEdgeFlags
-		m_flags = 0;
-
 		/*
 		 *		separation	-0.0415397286	float
 		type	2 '\x2'	unsigned char
@@ -2051,10 +2048,9 @@ public:
 		};
 
 		b3CollideTriangleAndHull( &m_manifold, m_pointCapacity, localTriangle[0], localTriangle[1],
-								  localTriangle[2], m_flags, m_hull, &m_satCache, true );
+								  localTriangle[2], m_hull, &m_satCache, true );
 	}
 
-	int m_flags;
 	b3BoxHull m_boxHull;
 	b3HullData* m_cylinder;
 	b3HullData* m_hull;
@@ -3017,7 +3013,7 @@ public:
 						  bool speculative ) override
 	{
 		b3SATCache cache = {};
-		b3CollideTriangleAndHull( manifold, capacity, triangle[0], triangle[1], triangle[2], 0,
+		b3CollideTriangleAndHull( manifold, capacity, triangle[0], triangle[1], triangle[2],
 								  &m_box.base, &cache, speculative );
 	}
 

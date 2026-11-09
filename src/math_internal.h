@@ -28,7 +28,6 @@ typedef struct b3Triangle
 {
 	b3Vec3 vertices[3];
 	int i1, i2, i3;
-	int flags;
 } b3Triangle;
 
 typedef struct b3TrianglePoint

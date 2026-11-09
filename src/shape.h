@@ -147,12 +147,10 @@ static inline b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleInde
 	B3_ASSERT( 0 <= triangleIndex && triangleIndex < mesh->data->triangleCount );
 
 	const b3MeshTriangle* triangles = b3GetMeshTriangles( mesh->data );
-	const uint8_t* flags = b3GetMeshFlags( mesh->data );
 	const b3Vec3* vertices = b3GetMeshVertices( mesh->data );
 
 	b3Triangle result;
 	b3MeshTriangle triangle = triangles[triangleIndex];
-	uint8_t triangleFlags = flags[triangleIndex];
 
 	b3Vec3 scale = mesh->scale;
 
@@ -167,12 +165,6 @@ static inline b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleInde
 		result.i2 = triangle.index3;
 		result.i3 = triangle.index2;
 
-		// Hand mesh inversion.
-		int edge1Bits = triangleFlags & ( b3_concaveEdge1 | b3_inverseConcaveEdge1 );
-		int edge3Bits = triangleFlags & ( b3_concaveEdge3 | b3_inverseConcaveEdge3 );
-		result.flags = triangleFlags & ~( b3_concaveEdge1 | b3_concaveEdge3 | b3_inverseConcaveEdge1 | b3_inverseConcaveEdge3 );
-		result.flags |= edge1Bits << 2;
-		result.flags |= edge3Bits >> 2;
 	}
 	else
 	{
@@ -181,7 +173,6 @@ static inline b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleInde
 
 		result.i2 = triangle.index2;
 		result.i3 = triangle.index3;
-		result.flags = triangleFlags;
 	}
 
 	return result;
@@ -209,7 +200,6 @@ static inline bool b3IsConvexVertex( const b3Shape* shape, int triangleIndex, in
 {
 	if ( shape->type == b3_meshShape )
 	{
-		// todo should this handle reflection?
 		int flags = b3GetMeshVertexFlag( &shape->mesh, triangleIndex, vertexIndex );
 		return ( flags & ( b3_flatVertex | b3_concaveVertex ) ) == 0;
 	}

@@ -682,7 +682,7 @@ B3_API void b3CollideTriangleAndCapsule( b3LocalManifold* manifold, int capacity
 
 /// Collide a triangle and hull. Normal points from triangle to hull.
 B3_API void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v1, b3Vec3 v2, b3Vec3 v3,
-									  int triangleFlags, const b3HullData* hullB, b3SATCache* cache,
+									  const b3HullData* hullB, b3SATCache* cache,
 									  bool enableSpeculative );
 
 /// Collide a triangle and sphere. Normal points from triangle to sphere.

@@ -597,9 +597,6 @@ b3HeightFieldData* b3CreateHeightField( const b3HeightFieldDef* data )
 	return hf;
 }
 
-_Static_assert( b3_concaveEdge3 == 4 * b3_concaveEdge1, "bit math" );
-_Static_assert( b3_inverseConcaveEdge3 == 4 * b3_inverseConcaveEdge1, "bit math" );
-
 // Decode the four corner vertices of a height field cell into local space.
 // Output order matches the index naming used throughout this file:
 // corners[0] = (column, row), corners[1] = (column + 1, row),
@@ -641,8 +638,6 @@ b3Triangle b3GetHeightFieldTriangle( const b3HeightFieldData* heightField, int t
 	B3_ASSERT( triangleIndex < 2 * ( heightField->columnCount - 1 ) * ( heightField->rowCount - 1 ) );
 
 	b3Triangle triangle;
-	triangle.flags = b3GetHeightFieldFlags( heightField )[triangleIndex];
-
 	int columnCount = heightField->columnCount;
 	int quadIndex = triangleIndex >> 1;
 	int row = quadIndex / ( columnCount - 1 );
@@ -685,15 +680,6 @@ b3Triangle b3GetHeightFieldTriangle( const b3HeightFieldData* heightField, int t
 	{
 		B3_SWAP( triangle.vertices[1], triangle.vertices[2] );
 		B3_SWAP( triangle.i2, triangle.i3 );
-
-		// Reversing winding swaps edge1 and edge3; edge2 (the diagonal) is preserved.
-		int flags = triangle.flags;
-		int edge1Bits = flags & ( b3_concaveEdge1 | b3_inverseConcaveEdge1 );
-		int edge3Bits = flags & ( b3_concaveEdge3 | b3_inverseConcaveEdge3 );
-		flags &= ~( b3_concaveEdge1 | b3_concaveEdge3 | b3_inverseConcaveEdge1 | b3_inverseConcaveEdge3 );
-		flags |= edge1Bits << 2;
-		flags |= edge3Bits >> 2;
-		triangle.flags = flags;
 	}
 
 	return triangle;

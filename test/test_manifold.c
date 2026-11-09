@@ -430,7 +430,7 @@ static int TriangleEdgeTest( void )
 		b3LocalManifold manifold = { 0 };
 		manifold.points = points;
 		b3SATCache cache = { .type = b3_manualEdgePairAxis };
-		b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, 0, &hull.base, &cache, true );
+		b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, &hull.base, &cache, true );
 
 		b3Vec3 expectedNormal = b3Neg( axis );
 		b3Vec3 expectedPoint = b3MulAdd( hullPoint, 0.5f * gap, axis );
@@ -463,7 +463,7 @@ static int TriangleEdgeTest( void )
 		b3LocalManifold manifold = { 0 };
 		manifold.points = points;
 		b3SATCache cache = { 0 };
-		b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, 0, &hull.base, &cache, true );
+		b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, &hull.base, &cache, true );
 
 		ENSURE( manifold.pointCount == 0 );
 		ENSURE( cache.type == b3_edgePairAxis );
@@ -496,7 +496,7 @@ static int TriangleParallelEdgeTest( void )
 			b3LocalManifold manifold = { 0 };
 			manifold.points = points;
 			b3SATCache cache = { 0 };
-			b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, 0, &hull.base, &cache, true );
+			b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, &hull.base, &cache, true );
 
 			ENSURE_FACE_POINTS( manifold.pointCount );
 			ENSURE( cache.type == b3_faceAxisA );
@@ -890,7 +890,7 @@ static int TriangleHullEdgeSweepTest( void )
 				b3LocalManifold manifold = { 0 };
 				manifold.points = points;
 				b3SATCache cache = { .type = b3_manualEdgePairAxis };
-				b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, 0, &hull.base, &cache, true );
+				b3CollideTriangleAndHull( &manifold, 8, v1, v2, v3, &hull.base, &cache, true );
 
 				if ( cache.type != b3_edgePairAxis || manifold.pointCount != 1 )
 				{
@@ -1340,7 +1340,7 @@ static int SpeculativeMarginTest( void )
 			manifold.pointCount = 0;
 			b3BoxHull raised = b3MakeTransformedBoxHull( 0.5f, 0.5f, 0.5f, SlideY( 0.5f + gap ) );
 			b3SATCache cache = { 0 };
-			b3CollideTriangleAndHull( &manifold, B3_MAX_MANIFOLD_POINTS, triangle[0], triangle[1], triangle[2], 0, &raised.base,
+			b3CollideTriangleAndHull( &manifold, B3_MAX_MANIFOLD_POINTS, triangle[0], triangle[1], triangle[2], &raised.base,
 									  &cache, true );
 			ENSURE( CheckSpeculativePoints( &manifold, gap ) == 0 );
 		}

@@ -346,106 +346,6 @@ static int MeshCreators( void )
 	return 0;
 }
 
-// Two bits per edge: concave and inverse concave. Both set means flat.
-static int EdgeClass( int flags, int edgeIndex )
-{
-	int concave = ( flags >> edgeIndex ) & 1;
-	int inverse = ( flags >> ( edgeIndex + 4 ) ) & 1;
-	return concave | inverse << 1;
-}
-
-// A mirror with the winding swapped keeps every edge convex, concave or flat, so each edge
-// class must follow its vertex pair to its new slot
-static bool MirroredFlagsMatch( const b3MeshData* data, b3Vec3 mirrorScale )
-{
-	b3Mesh plain = { .data = data, .scale = b3Vec3_one };
-	b3Mesh mirrored = { .data = data, .scale = mirrorScale };
-
-	for ( int i = 0; i < data->triangleCount; ++i )
-	{
-		b3Triangle triangle1 = b3GetMeshTriangle( &plain, i );
-		b3Triangle triangle2 = b3GetMeshTriangle( &mirrored, i );
-		int indices1[3] = { triangle1.i1, triangle1.i2, triangle1.i3 };
-		int indices2[3] = { triangle2.i1, triangle2.i2, triangle2.i3 };
-
-		for ( int k = 0; k < 3; ++k )
-		{
-			int a = indices2[k];
-			int b = indices2[( k + 1 ) % 3];
-
-			int match = -1;
-			for ( int j = 0; j < 3; ++j )
-			{
-				int c = indices1[j];
-				int d = indices1[( j + 1 ) % 3];
-				if ( ( a == c && b == d ) || ( a == d && b == c ) )
-				{
-					match = j;
-				}
-			}
-
-			if ( match == -1 || EdgeClass( triangle2.flags, k ) != EdgeClass( triangle1.flags, match ) )
-			{
-				return false;
-			}
-		}
-	}
-
-	return true;
-}
-
-static bool HasConvexEdge( const b3MeshData* mesh )
-{
-	const uint8_t* flags = b3GetMeshFlags( mesh );
-
-	for ( int i = 0; i < mesh->triangleCount; ++i )
-	{
-		for ( int k = 0; k < 3; ++k )
-		{
-			if ( EdgeClass( flags[i], k ) == 2 )
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-// The valley has concave and flat edges, the box has convex and flat edges
-static int MeshMirroredFlags( void )
-{
-	b3Vec3 vertices[VALLEY_VERTEX_COUNT];
-	int32_t indices[3 * VALLEY_TRIANGLE_COUNT];
-	MakeValley( vertices, indices );
-
-	b3MeshDef def = MakeValleyDef( vertices, indices );
-	b3MeshData* valley = b3CreateMesh( &def, NULL, 0 );
-	ENSURE( valley != NULL );
-	ENSURE( HasConcaveEdge( valley ) );
-
-	b3MeshData* box = b3CreateBoxMesh( b3Vec3_zero, (b3Vec3){ 1.0f, 2.0f, 3.0f }, true );
-	ENSURE( box != NULL );
-	ENSURE( HasConvexEdge( box ) );
-
-	b3Vec3 mirrorScales[] = {
-		{ -1.0f, 1.0f, 1.0f },
-		{ 1.0f, -1.0f, 1.0f },
-		{ 2.0f, 0.5f, -3.0f },
-		{ -1.0f, -1.0f, -1.0f },
-	};
-
-	for ( int i = 0; i < ARRAY_COUNT( mirrorScales ); ++i )
-	{
-		ENSURE( MirroredFlagsMatch( valley, mirrorScales[i] ) );
-		ENSURE( MirroredFlagsMatch( box, mirrorScales[i] ) );
-	}
-
-	b3DestroyMesh( box );
-	b3DestroyMesh( valley );
-	return 0;
-}
-
 // Brute force search for the triangle across edge a-b, walked b to a with consistent winding
 static int FindNeighbor( const b3Mesh* mesh, int triangleIndex, int a, int b, int* edgeIndex )
 {
@@ -777,7 +677,7 @@ static int MeshManyTriangles( void )
 	return 0;
 }
 
-// The grid is symmetric in x, so the mirror only changes the winding and the flags
+// The grid is symmetric in x, so the mirror only changes the winding
 static int MeshWideHullSlide( void )
 {
 	ENSURE( WideHullSlide( b3Vec3_one ) == 0 );
@@ -1334,7 +1234,6 @@ int MeshTest( void )
 	RUN_SUBTEST( MeshCreators );
 	RUN_SUBTEST( MeshWideHullSlide );
 	RUN_SUBTEST( MeshManyTriangles );
-	RUN_SUBTEST( MeshMirroredFlags );
 	RUN_SUBTEST( MeshEdgeAngles );
 	RUN_SUBTEST( MeshVertexRing );
 	RUN_SUBTEST( MeshSphereOnRidge );

@@ -1126,7 +1126,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				}
 
 				b3CollideTriangleAndHull( manifold, pointCapacity, vertices[0], vertices[1], vertices[2],
-										  triangle.flags, hullB, &cache->satCache, enableSpeculative );
+										  hullB, &cache->satCache, enableSpeculative );
 				if ( context != NULL )
 				{
 					context->satCallCount += 1;
@@ -1175,6 +1175,8 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 				if ( deep )
 				{
+					meshFlags |= b3_meshContactDeep;
+
 					// Handle deep overlap.
 					if ( shapeB->type == b3_sphereShape )
 					{
@@ -1204,7 +1206,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 			if ( result == b3_neighborSnap )
 			{
-				meshFlags = b3_meshContactSnapped;
+				meshFlags |= b3_meshContactSnapped;
 			}
 
 			if ( result == b3_neighborSkip || result == b3_neighborSnap || result == b3_neighborDrop )
@@ -1221,7 +1223,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			}
 			else if ( result == b3_neighborSnap && shapeB->type == b3_hullShape )
 			{
-				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices, triangle.flags, hullB,
+				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices, hullB,
 												   &cache->satCache, enableSpeculative );
 			}
 		}

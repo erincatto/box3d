@@ -2498,14 +2498,15 @@ typedef struct b3HeightFieldData
 	/// uint8_t, one per triangle.
 	int32_t flagsOffset;
 
+	/// Offset to the vertex ghost collision flag. Array of bits.
+	int32_t vertexFlagOffset;
+
 	/// Triangle winding.
 	uint8_t clockwise;
 
 	/// Explicit padding.
 	uint8_t padding[3];
 
-	// Offet to the vertex ghost collision flag. Array of bits.
-	int32_t vertexFlagOffset;
 } b3HeightFieldData;
 
 /**@}*/ // height_field
@@ -2877,11 +2878,9 @@ typedef enum b3TriangleFeature
 /// This gives debug information about how a contact point was generated.
 typedef enum b3MeshContactFlags
 {
-	b3_meshContactHullFace = 0x01,
-	b3_meshContactSnapped = 0x02,
-	b3_meshContactUnverified = 0x04,
-	b3_meshContactDeep = 0x08,
-	b3_meshContactBlocked = 0x10,
+	b3_meshContactHullFace = 0x01, ///< Normal is a hull face normal.
+	b3_meshContactSnapped = 0x02, ///< The normal is snapped to the triangle normal.
+	b3_meshContactDeep = 0x04, ///< The contact is considered deep (2 * linear slop).
 } b3MeshContactFlags;
 
 /// Separating axis test cache. Provides temporal acceleration of collision routines.
