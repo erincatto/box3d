@@ -679,11 +679,11 @@ B3_API void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b
 B3_API void b3CollideTriangleAndSphere( b3LocalManifold* manifold, int capacity, const b3Vec3* triangleA,
 										const b3Sphere* sphereB );
 
-// Collide a mesh and hull for testing.
+/// Collide a mesh and hull for testing.
 B3_API int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3HullData* hull,
 								 b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts );
 
-// todo comment
+/// Collide a mesh and sphere for testing.
 B3_API int b3CollideMeshAndSphere( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3Sphere* sphere,
 								   b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts );
 
@@ -691,9 +691,9 @@ B3_API int b3CollideMeshAndSphere( b3Manifold* manifolds, int capacity, const b3
 /// Placed here for testing. Internal.
 typedef struct b3Point2D
 {
-	b3Vec2 p;		   // 2D point
-	float separation;  // separation of the associated contact point
-	int originalIndex; // original index of the associated contact point
+	b3Vec2 p;		   ///< 2D point
+	float separation;  ///< separation of the associated contact point
+	int originalIndex; ///< original index of the associated contact point
 } b3Point2D;
 
 /// Options for how a 2D hull is built.

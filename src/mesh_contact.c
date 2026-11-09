@@ -169,7 +169,7 @@ static inline bool b3IsBetterCullCandidate( float score, float separation, float
 	return separation < bestSeparation - separationTol;
 }
 
-// todo comment
+// Find the farthest point from the base point.
 static int b3FindFarthestCullPoint( const b3Point2D* points, int count, int index, float scoreTol, float separationTol )
 {
 	b3Vec2 origin = points[index].p;
@@ -216,7 +216,7 @@ static int b3CullPoints( b3Point2D* points, int count, bool sweep )
 
 	if ( sweep )
 	{
-		// todo comment
+		// Arbitrary search direction.
 		b3Vec2 axis = { 0.92106099f, 0.38941834f };
 		int startIndex = 0;
 		float startScore = b3Dot2( axis, points[0].p );
@@ -307,7 +307,7 @@ static int b3CullPoints( b3Point2D* points, int count, bool sweep )
 	float bestSignedArea = 0.0f;
 	for ( int i = 0; i < count; ++i )
 	{
-		// todo comment
+		// Skip best points 1 and 2 rather than culling them. This preserves order under octogon culling.
 		if ( i == bestIndex1 || i == bestIndex2 )
 		{
 			continue;
@@ -405,13 +405,13 @@ static int b3CullPoints( b3Point2D* points, int count, bool sweep )
 	return 4;
 }
 
-// todo comment
+// Above this point count it is worth culling interior points prior to the regular culling algorithm.
 #define B3_CULL_FILTER_THRESHOLD 64
 
-// todo comment
+// If the cull filter leaves this many points then fallback to a linear tests for the first to points.
 #define B3_CULL_SWEEP_THRESHOLD 256
 
-// todo comment
+// Drop interior points before computing the farthest two points. This is faster than brute-force O(N^2).
 static int b3DropInteriorPoints( b3Point2D* points, int count, float margin )
 {
 	int extremes[8] = { 0 };
@@ -420,6 +420,7 @@ static int b3DropInteriorPoints( b3Point2D* points, int count, float margin )
 		-points[0].p.x, -points[0].p.x - points[0].p.y, -points[0].p.y, points[0].p.x - points[0].p.y,
 	};
 
+	// Find the maximum offsets in the octogon.
 	for ( int i = 1; i < count; ++i )
 	{
 		b3Vec2 p = points[i].p;
@@ -434,7 +435,7 @@ static int b3DropInteriorPoints( b3Point2D* points, int count, float margin )
 		}
 	}
 
-	// todo comment
+	// Build 8 planes as an approximate convex hull for culling.
 	b3Vec2 normals[8];
 	float offsets[8];
 	int edgeCount = 0;
@@ -459,6 +460,7 @@ static int b3DropInteriorPoints( b3Point2D* points, int count, float margin )
 		return count;
 	}
 
+	// Cull points.
 	int keptCount = 0;
 	for ( int i = 0; i < count; ++i )
 	{
@@ -515,7 +517,7 @@ static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 nor
 	}
 	else
 	{
-		// todo comment
+		// Many points. Reduce point count using bounding octogon.
 		int keptCount = b3DropInteriorPoints( pts, count1, 0.25f * B3_LINEAR_SLOP );
 		count2 = b3CullPoints( pts, keptCount, keptCount > B3_CULL_SWEEP_THRESHOLD );
 	}
@@ -549,14 +551,13 @@ typedef struct b3Cluster
 
 typedef enum b3NeighborResult
 {
-	// Admit for flat edges
+	// Admit for flat edges.
 	b3_neighborAdmit,
-	// Skip for convex edges
+	// Skip for convex edges.
 	b3_neighborSkip,
-	// Snap for concave edges
+	// Snap for concave edges.
 	b3_neighborSnap,
-
-	// todo comment
+	// Drop for a cliff.
 	b3_neighborDrop,
 } b3NeighborResult;
 
@@ -645,7 +646,7 @@ static bool b3IsInVertexCone( const b3Shape* shape, int triangleIndex, int verte
 			b3Vec3 neighborNormal;
 			if ( b3GetNeighborNormal( shape, fanIndex, edgeIndices[j], &neighborNormal ) == false )
 			{
-				// todo comment
+				// Cliff at boundary or hole.
 				b3Vec3 fanNormal = b3MakeNormalFromPoints( fan.vertices[0], fan.vertices[1], fan.vertices[2] );
 				if ( b3Dot( meshNormal, fanNormal ) < -tolerance )
 				{
@@ -772,7 +773,7 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 
 	if ( convex )
 	{
-		// Edge is convex. 
+		// Edge is convex. Drop for a cliff with no deep consideration.
 		return *ownerEdge == B3_NULL_INDEX ? b3_neighborDrop : b3_neighborSkip;
 	}
 
@@ -1159,45 +1160,45 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 										  manifold->normal, &ownerEdge );
 			}
 
-			// todo why consider snap if the the next section doesn't?
-			// todo why compute min separation if we just need a deep result?
-			bool deep = false;
-			if ( result == b3_neighborSkip || result == b3_neighborSnap )
+			// Check deep overlap before skipping.
+			if ( result == b3_neighborSkip )
 			{
-				float minSeparation = manifold->points[0].separation;
-				for ( int i = 1; i < manifold->pointCount; ++i )
+				bool deep = false;
+				for ( int i = 0; i < manifold->pointCount; ++i )
 				{
-					minSeparation = b3MinFloat( minSeparation, manifold->points[i].separation );
-				}
-
-				deep = minSeparation < -2.0f * linearSlop;
-			}
-
-			if ( result == b3_neighborSkip && deep )
-			{
-				// Handle deep overlap.
-				if ( shapeB->type == b3_sphereShape )
-				{
-					// No way to snap a deep sphere normal.
-					b3Vec3 neighborNormal;
-					if ( ownerEdge != B3_NULL_INDEX &&
-						 b3GetNeighborNormal( shapeA, triangleIndex, ownerEdge, &neighborNormal ) )
+					if ( manifold->points[i].separation < -2.0f * linearSlop )
 					{
-						neighborNormal = b3MulMV( relativeMatrix, neighborNormal );
-						float neighborSeparation =
-							b3Dot( neighborNormal, b3Sub( shapeB->sphere.center, vertices[ownerEdge] ) );
-						if ( neighborSeparation < 0.0f )
-						{
-							// Neighbor would cull, so better keep this one.
-							result = b3_neighborAdmit;
-						}
+						deep = true;
+						break;
 					}
 				}
-				else
+
+				if ( deep )
 				{
-					// In deep overlap the owning neighbor may apply backside culling. Experiments show that in this
-					// case the neighbor should snap the normal.
-					result = b3_neighborSnap;
+					// Handle deep overlap.
+					if ( shapeB->type == b3_sphereShape )
+					{
+						// No way to snap a deep sphere normal.
+						b3Vec3 neighborNormal;
+						if ( ownerEdge != B3_NULL_INDEX &&
+							 b3GetNeighborNormal( shapeA, triangleIndex, ownerEdge, &neighborNormal ) )
+						{
+							neighborNormal = b3MulMV( relativeMatrix, neighborNormal );
+							float neighborSeparation =
+								b3Dot( neighborNormal, b3Sub( shapeB->sphere.center, vertices[ownerEdge] ) );
+							if ( neighborSeparation < 0.0f )
+							{
+								// Neighbor would cull, so better keep this one.
+								result = b3_neighborAdmit;
+							}
+						}
+					}
+					else
+					{
+						// In deep overlap the owning neighbor may apply backside culling. Experiments show that in this
+						// case the neighbor should snap the normal.
+						result = b3_neighborSnap;
+					}
 				}
 			}
 
@@ -1674,7 +1675,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	return true;
 }
 
-// todo comment
+// Mesh collision testing interface.
 static int b3CollideMeshAndShape( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3Shape* shapeB,
 								  b3AABB localBounds, b3Transform transformBtoA, bool enableSpeculative,
 								  bool handleGhosts )
