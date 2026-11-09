@@ -1319,7 +1319,8 @@ static const b3CosSin s_quantizedCosSin[255] = {
 static b3CosSin b3GetQuantizedCosSin( int code )
 {
 	B3_ASSERT( -254 <= code && code <= 254 );
-	b3CosSin cs = s_quantizedCosSin[code < 0 ? -code : code];
+	int index = b3MinInt( code < 0 ? -code : code, 254 );
+	b3CosSin cs = s_quantizedCosSin[index];
 	if ( code < 0 )
 	{
 		cs.sine = -cs.sine;
