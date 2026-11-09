@@ -209,6 +209,7 @@ static inline bool b3IsConvexVertex( const b3Shape* shape, int triangleIndex, in
 {
 	if ( shape->type == b3_meshShape )
 	{
+		// todo should this handle reflection?
 		int flags = b3GetMeshVertexFlag( &shape->mesh, triangleIndex, vertexIndex );
 		return ( flags & ( b3_flatVertex | b3_concaveVertex ) ) == 0;
 	}

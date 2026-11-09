@@ -1505,7 +1505,8 @@ int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex 
 	}
 
 	b3MeshTriangle triangle = b3GetMeshTriangles( data )[triangleIndex];
-	return vertexFlags[b3GetMeshVertexIndex( mesh, triangle, vertexIndex )];
+	int index = b3GetMeshVertexIndex( mesh, triangle, vertexIndex );
+	return vertexFlags[index];
 }
 
 // Is the candidate manifold normal in vertex Voronoi region?
