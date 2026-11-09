@@ -8,7 +8,9 @@ real px = 0.75bp;
 
 pen ink = rgb("231f20");
 pen meshPen = ink + 0.6px;
-pen regionFill = rgb("f2d4d0");
+// Half opacity over white matches the opaque f2d4d0 of the other figures
+pen regionFill = rgb("e5a9a1") + opacity(0.5);
+pen regionShade = rgb("7a1f18");
 pen regionPen = rgb("a8322a") + 0.9px;
 pen rayPen = rgb("a8322a") + 0.6px;
 pen spokePen = rgb("1f5c99") + 1.0px;
@@ -74,81 +76,108 @@ triple Arc(triple a, triple b, real t)
   return unit((1 - t) * a + t * b);
 }
 
-// Extreme rays are face or cliff normals, drawn as arrows leaving the rim
+// Extreme rays of the region, drawn as arrows leaving the rim
 void DrawRayTips(picture pic, triple v, triple[] rays, real radius)
 {
   for (triple r : rays)
     draw(pic, (v + radius * r) -- (v + (radius + 0.3) * r), regionPen, Arrow3(arrowSize));
 }
 
-// The region is a convex cone, so drawing only the faces that face the camera needs no sorting
+// Convex hull by monotone chain
+pair[] ConvexHull(pair[] points)
+{
+  pair[] p = sort(points, new bool(pair a, pair b) { return a.x < b.x || (a.x == b.x && a.y < b.y); });
+  pair[] hull;
+  for (int pass = 0; pass < 2; ++pass)
+  {
+    int base = hull.length;
+    for (pair q : p)
+    {
+      while (hull.length >= base + 2 && cross(hull[hull.length - 1] - hull[hull.length - 2], q - hull[hull.length - 2]) <= 0)
+        hull.pop();
+      hull.push(q);
+    }
+    hull.pop();
+    p = reverse(p);
+  }
+  return hull;
+}
+
+// The region is convex, so its outline is the hull of its projected points. Filling that once
+// avoids the seams that overlapping translucent patches would show.
+void FillProjected(picture pic, triple v, triple[] points)
+{
+  triple view = unit(currentprojection.camera - currentprojection.target);
+  triple u1 = unit(cross(currentprojection.up, view));
+  triple u2 = cross(view, u1);
+
+  pair[] flat;
+  for (triple q : points)
+    flat.push((dot(q - v, u1), dot(q - v, u2)));
+
+  pair[] hull = ConvexHull(flat);
+  path3 outline = v + hull[0].x * u1 + hull[0].y * u2;
+  for (int k = 1; k < hull.length; ++k)
+    outline = outline -- (v + hull[k].x * u1 + hull[k].y * u2);
+  draw(pic, surface(outline -- cycle, planar = true), regionFill, nolight);
+}
+
 void DrawRegion(picture pic, triple v, triple[] rays, real radius)
 {
   int arcSteps = 12;
   int n = rays.length;
-  triple view = unit(currentprojection.camera - currentprojection.target);
-
-  if (n == 2)
-  {
-    path3 arc = v + radius * rays[0];
-    for (int k = 1; k <= arcSteps; ++k)
-      arc = arc -- (v + radius * Arc(rays[0], rays[1], k / arcSteps));
-    draw(pic, surface(v -- arc -- cycle), regionFill, nolight);
-    draw(pic, arc, regionPen);
-    for (triple r : rays)
-      draw(pic, v -- (v + radius * r), regionPen);
-    DrawRayTips(pic, v, rays, radius);
-    return;
-  }
 
   triple axis = (0, 0, 0);
   for (triple r : rays)
     axis += r;
   axis = unit(axis);
 
-  int rings = 6;
-  surface cap;
+  triple[] points = { v };
   path3 rim;
   for (int i = 0; i < n; ++i)
   {
+    if (n == 2 && i == 1)
+      break;
+
     triple a = rays[i];
     triple b = rays[(i + 1) % n];
-
-    path3 arc = v + radius * a;
-    for (int k = 1; k <= arcSteps; ++k)
-      arc = arc -- (v + radius * Arc(a, b, k / arcSteps));
-
-    triple side = cross(a, b);
-    if (dot(side, axis) > 0)
-      side = -side;
-    if (dot(side, view) > 0)
+    for (int k = 0; k <= arcSteps; ++k)
     {
-      draw(pic, surface(v -- arc -- cycle), regionFill, nolight);
-      draw(pic, v -- arc -- cycle, rayPen);
-    }
+      triple p = v + radius * Arc(a, b, k / arcSteps);
+      rim = i == 0 && k == 0 ? p : rim -- p;
+      points.push(p);
 
-    for (int k = 0; k < arcSteps; ++k)
-    {
-      triple p0 = Arc(a, b, k / arcSteps);
-      triple p1 = Arc(a, b, (k + 1) / arcSteps);
-      rim = i == 0 && k == 0 ? v + radius * p0 : rim -- (v + radius * p0);
-      for (int j = 0; j < rings; ++j)
-      {
-        real u0 = j / rings;
-        real u1 = (j + 1) / rings;
-        triple q00 = Arc(axis, p0, u0);
-        triple q10 = Arc(axis, p0, u1);
-        triple q11 = Arc(axis, p1, u1);
-        triple q01 = Arc(axis, p1, u0);
-        if (dot(q00 + q11, view) > 0)
-          cap.append(surface(v + radius * q00 -- v + radius * q10 -- v + radius * q11 -- v + radius * q01 -- cycle));
-      }
+      // Interior points for the silhouette of the spherical cap
+      for (int j = 1; j < 6 && n > 2; ++j)
+        points.push(v + radius * Arc(axis, Arc(a, b, k / arcSteps), j / 6));
     }
   }
 
-  // The mesh pen covers the hairline seams between patches
-  draw(pic, cap, surfacepen = regionFill, meshpen = regionFill + 0.5px, nolight);
-  draw(pic, rim -- cycle, regionPen);
+  FillProjected(pic, v, points);
+
+  // Darken the flat sides with the same light as the mesh. Sides on the near half of the cone never
+  // overlap each other in projection, nor do sides on the far half, so each adds one layer.
+  for (int i = 0; i < n; ++i)
+  {
+    if (n == 2 && i == 1)
+      break;
+
+    triple a = rays[i];
+    triple b = rays[(i + 1) % n];
+    triple side = unit(cross(a, b));
+
+    path3 sector = v + radius * a;
+    for (int k = 1; k <= arcSteps; ++k)
+      sector = sector -- (v + radius * Arc(a, b, k / arcSteps));
+    sector = v -- sector -- cycle;
+
+    real shade = 1 - abs(dot(side, lightDirection));
+    draw(pic, surface(sector, planar = true), regionShade + opacity(0.35 * shade), nolight);
+  }
+
+  draw(pic, n == 2 ? rim : rim -- cycle, regionPen);
+  for (triple r : rays)
+    draw(pic, v -- (v + radius * r), rayPen);
   DrawRayTips(pic, v, rays, radius);
 }
 

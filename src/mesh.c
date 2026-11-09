@@ -1545,7 +1545,7 @@ bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexInde
 	int byteCount = starts[vertex + 1] - starts[vertex];
 	if ( byteCount == 0 )
 	{
-		// todo comment
+		// Flat vertex
 		const b3Vec3* vertices = b3GetMeshVertices( data );
 		b3Vec3 faceNormal =
 			b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2], vertices[triangle.index3] );
@@ -1852,8 +1852,7 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 	B3_FREE( edges, b3MeshEdge, edgeCount );
 }
 
-// Build the ring of neighbor normal data at a vertex.
-// If ring is NULL then only compute the count.
+// Build the ring of neighbor normal data at a vertex. If ring is null then only compute the byte count.
 static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCount, int vertex, int* stamps, int stamp,
 							  b3VertexRing* ring )
 {
@@ -1912,6 +1911,9 @@ static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCou
 			stamps[other] = stamp;
 			if ( entries != NULL )
 			{
+				// This encodes every edge. The intersection of all planes perpendicular to the edge axis builds
+				// the Voronoi region. That process can identify edges that don't contribute to the Voronoi region.
+				// That culling could save storage but is skipped for simplicity.
 				b3Vec3 edgeAxis = b3Normalize( b3Sub( vertices[other], vertices[vertex] ) );
 				entries[entryCount] = b3EncodeRingEntry( edgeAxis, tangent1, tangent2, centralAxis );
 			}
@@ -1940,7 +1942,9 @@ static int b3BuildVertexRing( const b3MeshData* mesh, const int* fan, int fanCou
 			{
 				b3Vec3 normal = b3MakeNormalFromPoints( vertices[triangle.index1], vertices[triangle.index2],
 														vertices[triangle.index3] );
-				entries[entryCount] = b3EncodeRingEntry( b3Neg( normal ), tangent1, tangent2, centralAxis );
+				// The cliff is a 90 degree drop.
+				b3Vec3 cliffEdgeAxis = b3Neg( normal );
+				entries[entryCount] = b3EncodeRingEntry( cliffEdgeAxis, tangent1, tangent2, centralAxis );
 			}
 
 			entryCount += 1;
@@ -2026,6 +2030,7 @@ static b3MeshData* b3AppendVertexRings( b3MeshData* mesh )
 		ringStarts[i] = (int)offset;
 		if ( vertexFlags[i] & b3_flatVertex )
 		{
+			// Flat vertices don't store ring data.
 			continue;
 		}
 

@@ -184,7 +184,8 @@ static int b3FindFarthestCullPoint( const b3Point2D* points, int count, int inde
 		}
 
 		float score = b3DistanceSquared2( origin, points[i].p );
-		if ( b3IsBetterCullCandidate( score, points[i].separation, bestScore, bestSeparation, scoreTol, separationTol ) )
+		if ( b3IsBetterCullCandidate( score, points[i].separation, bestScore, bestSeparation, scoreTol,
+									  separationTol ) )
 		{
 			bestIndex = i;
 			bestScore = score;
@@ -223,7 +224,8 @@ static int b3CullPoints( b3Point2D* points, int count, bool sweep )
 		for ( int i = 1; i < count; ++i )
 		{
 			float score = b3Dot2( axis, points[i].p );
-			if ( b3IsBetterCullCandidate( score, points[i].separation, startScore, startSeparation, tol, separationTol ) )
+			if ( b3IsBetterCullCandidate( score, points[i].separation, startScore, startSeparation, tol,
+										  separationTol ) )
 			{
 				startIndex = i;
 				startScore = score;
@@ -414,14 +416,8 @@ static int b3DropInteriorPoints( b3Point2D* points, int count, float margin )
 {
 	int extremes[8] = { 0 };
 	float bests[8] = {
-		points[0].p.x,
-		points[0].p.x + points[0].p.y,
-		points[0].p.y,
-		points[0].p.y - points[0].p.x,
-		-points[0].p.x,
-		-points[0].p.x - points[0].p.y,
-		-points[0].p.y,
-		points[0].p.x - points[0].p.y,
+		points[0].p.x,	points[0].p.x + points[0].p.y,	points[0].p.y,	points[0].p.y - points[0].p.x,
+		-points[0].p.x, -points[0].p.x - points[0].p.y, -points[0].p.y, points[0].p.x - points[0].p.y,
 	};
 
 	for ( int i = 1; i < count; ++i )
@@ -567,22 +563,25 @@ typedef enum b3NeighborResult
 // 1.0027 degrees
 #define B3_NEIGHBOR_TOLERANCE 0.0175f
 
-static bool b3GetNeighborDirection( const b3Shape* shape, int triangleIndex, const b3Vec3* vertices,
-									b3Matrix3 meshToLocal, int edgeIndex, b3Vec3* direction )
+// Cross product of triangle edge with neighbor triangle normal. A vector pointing away from the edge
+// in the neighbor triangle plane towards its center.
+// tangent = cross(e, n)
+static bool b3GetNeighborTangent( const b3Shape* shape, int triangleIndex, const b3Vec3* vertices,
+								  b3Matrix3 meshToLocal, int edgeIndex, b3Vec3* tangent )
 {
 	b3Vec3 neighborNormal;
 
 	bool haveNeighbor = b3GetNeighborNormal( shape, triangleIndex, edgeIndex, &neighborNormal );
 	if ( haveNeighbor == false )
 	{
-		// todo comment
-		*direction = b3Neg( b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] ) );
+		// Cliff edge axis along negative triangle normal.
+		*tangent = b3Neg( b3MakeNormalFromPoints( vertices[0], vertices[1], vertices[2] ) );
 		return false;
 	}
 
 	neighborNormal = b3MulMV( meshToLocal, neighborNormal );
 	b3Vec3 edge = b3Normalize( b3Sub( vertices[( edgeIndex + 1 ) % 3], vertices[edgeIndex] ) );
-	*direction = b3Cross( edge, neighborNormal );
+	*tangent = b3Cross( edge, neighborNormal );
 	return true;
 }
 
@@ -679,7 +678,7 @@ static bool b3AdmitsVertexNormal( const b3Shape* shape, int triangleIndex, const
 
 // Voronoi test of an edge or vertex normal against the neighbor normals.
 static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex, const b3Vec3* vertices,
-										 b3Matrix3 meshToLocal, b3TriangleFeature feature, b3Vec3 normal,
+										 b3Matrix3 meshToLocal, b3TriangleFeature feature, b3Vec3 candidateNormal,
 										 int* ownerEdge )
 {
 	*ownerEdge = B3_NULL_INDEX;
@@ -734,41 +733,46 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 
 	for ( int i = 0; i < edgeCount; ++i )
 	{
-		b3Vec3 direction;
-		bool haveNeighbor = b3GetNeighborDirection( shape, triangleIndex, vertices, meshToLocal, edges[i], &direction );
+		// neighborTangent = cross(edgeAxis, neighborTriangleNormal)
+		b3Vec3 neighborTangent;
+		bool haveNeighbor =
+			b3GetNeighborTangent( shape, triangleIndex, vertices, meshToLocal, edges[i], &neighborTangent );
 
-		bool admitted = b3Dot( normal, direction ) <= tolerance;
+		// Does the candidate normal lean into the neighbor's face region?
+		bool admitted = b3Dot( candidateNormal, neighborTangent ) <= tolerance;
 		if ( admitted == false && haveNeighbor && *ownerEdge == B3_NULL_INDEX )
 		{
 			*ownerEdge = edges[i];
 		}
 
 		admit = admit && admitted;
-		convex = convex || b3Dot( triangleNormal, direction ) < -tolerance;
+
+		// Convex if at least one edge is convex.
+		convex = convex || b3Dot( triangleNormal, neighborTangent ) < -tolerance;
 	}
 
 	if ( admit )
 	{
 		if ( vertexIndex == B3_NULL_INDEX ||
-			 b3IsInVertexCone( shape, triangleIndex, vertexIndex, meshToLocal, normal ) )
+			 b3IsInVertexCone( shape, triangleIndex, vertexIndex, meshToLocal, candidateNormal ) )
 		{
 			return b3_neighborAdmit;
 		}
 
-		// todo comment
-		return b3IsInVertexRegion( vertices, vertexIndex, normal ) ? b3_neighborSkip : b3_neighborSnap;
+		bool inVertexRegion = b3IsInVertexRegion( vertices, vertexIndex, candidateNormal );
+		return inVertexRegion ? b3_neighborSkip : b3_neighborSnap;
 	}
 
 	// Check vertex area first to avoid a saddle tunnel.
-	if ( vertexIndex != B3_NULL_INDEX && b3IsInVertexRegion( vertices, vertexIndex, normal ) &&
-		 b3IsInVertexCone( shape, triangleIndex, vertexIndex, meshToLocal, normal ) )
+	if ( vertexIndex != B3_NULL_INDEX && b3IsInVertexRegion( vertices, vertexIndex, candidateNormal ) &&
+		 b3IsInVertexCone( shape, triangleIndex, vertexIndex, meshToLocal, candidateNormal ) )
 	{
 		return b3_neighborAdmit;
 	}
 
 	if ( convex )
 	{
-		// todo comment
+		// Edge is convex. 
 		return *ownerEdge == B3_NULL_INDEX ? b3_neighborDrop : b3_neighborSkip;
 	}
 
@@ -806,8 +810,7 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 
 	float linearSlop = B3_LINEAR_SLOP;
 
-	// If the hull overlaps this triangle then determine if the deepest point
-	// is close to a vertex.
+	// If the hull overlaps this triangle then determine if the deepest point is close to a vertex.
 	if ( deepestPoint->separation < 0.0f )
 	{
 		for ( int i = 0; i < 3; ++i )
@@ -836,15 +839,15 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 	{
 		b3Vec3 vertex = vertices[i];
 		b3Vec3 edge = b3Normalize( b3Sub( vertices[i < 2 ? i + 1 : 0], vertex ) );
-		b3Vec3 inward = b3Cross( triangleNormal, edge );
-		if ( b3Dot( inward, b3Sub( point, vertex ) ) <= linearSlop )
+		b3Vec3 inwardTangent = b3Cross( triangleNormal, edge );
+		if ( b3Dot( inwardTangent, b3Sub( point, vertex ) ) <= linearSlop )
 		{
 			nearEdges[nearCount] = i;
 			nearCount += 1;
 
 			// An edge or vertex normal cone tilts outward from the triangle and an edge cone is perpendicular to the
 			// edge, a hull face normal need be neither.
-			inwardTilt = inwardTilt || b3Dot( normal, inward ) > tolerance;
+			inwardTilt = inwardTilt || b3Dot( normal, inwardTangent ) > tolerance;
 			alongEdge = alongEdge || b3AbsFloat( b3Dot( normal, edge ) ) > tolerance;
 		}
 	}
@@ -1156,6 +1159,8 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 										  manifold->normal, &ownerEdge );
 			}
 
+			// todo why consider snap if the the next section doesn't?
+			// todo why compute min separation if we just need a deep result?
 			bool deep = false;
 			if ( result == b3_neighborSkip || result == b3_neighborSnap )
 			{
@@ -1170,26 +1175,29 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 			if ( result == b3_neighborSkip && deep )
 			{
-				// In deep overlap the owning neighbor may apply backside culling. Experiments
-				// show the that in this case the neighbor should snap the normal.
-				if ( shapeB->type != b3_sphereShape )
+				// Handle deep overlap.
+				if ( shapeB->type == b3_sphereShape )
 				{
-					result = b3_neighborSnap;
-				}
-				else
-				{
-					// todo comment
+					// No way to snap a deep sphere normal.
 					b3Vec3 neighborNormal;
 					if ( ownerEdge != B3_NULL_INDEX &&
 						 b3GetNeighborNormal( shapeA, triangleIndex, ownerEdge, &neighborNormal ) )
 					{
 						neighborNormal = b3MulMV( relativeMatrix, neighborNormal );
-						float offset = b3Dot( neighborNormal, b3Sub( shapeB->sphere.center, vertices[ownerEdge] ) );
-						if ( offset < 0.0f )
+						float neighborSeparation =
+							b3Dot( neighborNormal, b3Sub( shapeB->sphere.center, vertices[ownerEdge] ) );
+						if ( neighborSeparation < 0.0f )
 						{
+							// Neighbor would cull, so better keep this one.
 							result = b3_neighborAdmit;
 						}
 					}
+				}
+				else
+				{
+					// In deep overlap the owning neighbor may apply backside culling. Experiments show that in this
+					// case the neighbor should snap the normal.
+					result = b3_neighborSnap;
 				}
 			}
 
@@ -1252,9 +1260,8 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 	if ( hullB != NULL && validateNeighbors )
 	{
-		// Cull triangles fully below the hull face when it rests on a triangle and has
-		// a tilted manifold normal. This helps when a box slides across a chamfered
-		// channel.
+		// Cull triangles fully below the hull face when it rests on a triangle and has a tilted manifold normal. This
+		// helps when a box slides across a chamfered channel.
 		float tolerance = B3_NEIGHBOR_TOLERANCE;
 		float cosSquaredTolerance = 1.0f - tolerance * tolerance;
 		const b3LocalManifold* resting = NULL;
@@ -1669,7 +1676,8 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 
 // todo comment
 static int b3CollideMeshAndShape( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3Shape* shapeB,
-								  b3AABB localBounds, b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts )
+								  b3AABB localBounds, b3Transform transformBtoA, bool enableSpeculative,
+								  bool handleGhosts )
 {
 	if ( capacity <= 0 )
 	{
@@ -1710,8 +1718,8 @@ static int b3CollideMeshAndShape( b3Manifold* manifolds, int capacity, const b3M
 	b3Transform transformAtoB = b3InvertTransform( transformBtoA );
 
 	b3Cluster* clusters;
-	int clusterCount = b3CollideMeshTriangles( &clusters, &meshShape, shapeB, transformAtoB, triangleCaches, triangleCount,
-											   enableSpeculative, handleGhosts, false, NULL, &arena );
+	int clusterCount = b3CollideMeshTriangles( &clusters, &meshShape, shapeB, transformAtoB, triangleCaches,
+											   triangleCount, enableSpeculative, handleGhosts, false, NULL, &arena );
 
 	int count = b3MinInt( clusterCount, capacity );
 	b3Matrix3 matrixB = b3MakeMatrixFromQuat( transformBtoA.q );
