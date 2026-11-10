@@ -2460,9 +2460,9 @@ public:
 
 static int sampleGhostScenarios= RegisterSample( "Ghost", "Scenarios", GhostCollisions::Create );
 
-// A closed conveyor circuit swept from a channel profile and finely tessellated, so every body slides over
-// thousands of internal edges. The loop runs over a washboard, up a helix, through a chicane and down a
-// sharp ramp.
+// A closed conveyor circuit swept from a cross section and finely tessellated, so every body slides over
+// thousands of internal edges. Belts carry bodies over a washboard, up a spiral lift and through a chicane,
+// then gravity takes them down a banked trough spiral back to the start.
 // A pushing manifold is counted as a ghost when its normal matches no nearby triangle and does not lie
 // on the arc between two triangles that meet at a convex crease.
 class ConveyorCircuit : public Sample
@@ -2481,14 +2481,24 @@ public:
 	static constexpr int m_maxBodies = 300;
 	static constexpr int m_markerCapacity = 256;
 
-	// Material 0 is the rails and skirts, the rest are belt directions
+	// Material 0 is the rails and skirts, then the slide, then the belt directions
+	static constexpr int m_slideMaterial = 1;
+	static constexpr int m_firstBeltMaterial = 2;
 	static constexpr int m_yawBinCount = 128;
-	static constexpr int m_materialCount = m_yawBinCount + 1;
+	static constexpr int m_materialCount = m_firstBeltMaterial + m_yawBinCount;
 
 	static constexpr int m_segmentCount = 8;
-	static constexpr int m_profileCount = 8;
+	static constexpr int m_slideSegment = 7;
 
-	static constexpr float m_radius = 5.0f;
+	// Skirt, lip, inner wall, floor, inner wall, lip, skirt
+	static constexpr int m_profileSegmentCount = 7;
+	static constexpr int m_floorSegment = 3;
+
+	// Half turns, so each spiral reverses the heading and the loop closes
+	static constexpr float m_liftTurns = 2.5f;
+	static constexpr float m_slideTurns = 1.5f;
+
+	static constexpr float m_radius = 4.5f;
 	static constexpr float m_straightLength = 16.0f;
 	static constexpr float m_chicaneRadius = 3.0f;
 	static constexpr float m_chicaneAngle = 25.0f * B3_DEG_TO_RAD;
@@ -2497,18 +2507,24 @@ public:
 	static constexpr float m_railThickness = 0.08f;
 	static constexpr float m_skirtDepth = 0.4f;
 	static constexpr float m_baseHeight = 1.0f;
-	static constexpr float m_liftHeight = 1.5f;
+	static constexpr float m_liftHeight = 5.0f;
 	static constexpr float m_bumpStart = 5.0f;
 	static constexpr float m_bumpEnd = 11.0f;
 	static constexpr float m_bumpLength = 1.0f;
 	static constexpr float m_bumpHeight = 0.06f;
-	static constexpr float m_rampLength = 6.0f;
-	static constexpr float m_spawnDistance = 1.0f;
+	static constexpr float m_troughBlendLength = 2.0f;
+	static constexpr float m_floorArcAngle = 55.0f * B3_DEG_TO_RAD;
+	static constexpr float m_bankAngle = 20.0f * B3_DEG_TO_RAD;
+	static constexpr float m_bankRampFraction = 0.2f;
+	static constexpr float m_spawnDistance = 3.0f;
+	static constexpr float m_heatBinLength = 1.0f;
+	static constexpr int m_trackWindow = 6;
 
 	struct Segment
 	{
 		float length;
 		float curvature;
+		const char* name;
 	};
 
 	enum GhostClass
@@ -2531,7 +2547,7 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 35.0f, 40.0f, 38.0f, { 0.0f, 1.5f, 0.0f } );
+			m_camera->SetView( -180.0f, 30.0f, 20.0f, { 0.0f, 3.0f, 0.0f } );
 		}
 
 		AddGroundBox( 30.0f );
@@ -2541,14 +2557,14 @@ public:
 		float lead = 2.0f;
 
 		// The chicane returns to the original heading and line, so the loop still closes
-		m_segments[0] = { m_straightLength, 0.0f };
-		m_segments[1] = { B3_PI * m_radius, 1.0f / m_radius };
-		m_segments[2] = { lead, 0.0f };
-		m_segments[3] = { chicaneArc, 1.0f / m_chicaneRadius };
-		m_segments[4] = { 2.0f * chicaneArc, -1.0f / m_chicaneRadius };
-		m_segments[5] = { chicaneArc, 1.0f / m_chicaneRadius };
-		m_segments[6] = { m_straightLength - lead - chicaneAdvance, 0.0f };
-		m_segments[7] = { B3_PI * m_radius, 1.0f / m_radius };
+		m_segments[0] = { m_straightLength, 0.0f, "bottom straight" };
+		m_segments[1] = { 2.0f * B3_PI * m_radius * m_liftTurns, 1.0f / m_radius, "spiral lift" };
+		m_segments[2] = { lead, 0.0f, "top straight" };
+		m_segments[3] = { chicaneArc, 1.0f / m_chicaneRadius, "chicane" };
+		m_segments[4] = { 2.0f * chicaneArc, -1.0f / m_chicaneRadius, "chicane" };
+		m_segments[5] = { chicaneArc, 1.0f / m_chicaneRadius, "chicane" };
+		m_segments[6] = { m_straightLength - lead - chicaneAdvance, 0.0f, "top straight" };
+		m_segments[m_slideSegment] = { 2.0f * B3_PI * m_radius * m_slideTurns, 1.0f / m_radius, "slide" };
 
 		m_totalLength = 0.0f;
 		for ( int i = 0; i < m_segmentCount; ++i )
@@ -2557,28 +2573,19 @@ public:
 			m_totalLength += m_segments[i].length;
 		}
 
-		// Channel cross section in lateral and up coordinates, traversed with air on the left
-		m_profile[0] = { -m_halfWidth - m_railThickness, -m_skirtDepth };
-		m_profile[1] = { -m_halfWidth - m_railThickness, m_railHeight };
-		m_profile[2] = { -m_halfWidth, m_railHeight };
-		m_profile[3] = { -m_halfWidth, 0.0f };
-		m_profile[4] = { m_halfWidth, 0.0f };
-		m_profile[5] = { m_halfWidth, m_railHeight };
-		m_profile[6] = { m_halfWidth + m_railThickness, m_railHeight };
-		m_profile[7] = { m_halfWidth + m_railThickness, -m_skirtDepth };
-
 		m_cylinderHull = b3CreateCylinder( 0.4f, 0.25f, -0.2f, 16 );
 
-		m_cellSize = 0.25f;
-		m_beltSpeed = 2.5f;
-		m_reverseFlow = false;
-		m_targetCount = 80;
+		m_cellSize = 0.4f;
+		m_beltSpeed = 5.0f;
+		m_slideFriction = 0.01f;
+		m_targetCount = 120;
 		m_spawnInterval = 15;
 		m_bodyType = e_mixedBody;
 		m_toleranceDegrees = 10.0f;
 		m_contactRecycling = true;
 		m_drawFlow = true;
-		m_drawGhosts = true;
+		m_drawGhosts = false;
+		m_drawHeat = false;
 
 		m_groundId = b3_nullBodyId;
 		m_bodyCount = 0;
@@ -2595,14 +2602,24 @@ public:
 		b3DestroyHull( m_cylinderHull );
 	}
 
+	static float SmoothStep( float x )
+	{
+		x = b3ClampFloat( x, 0.0f, 1.0f );
+		return x * x * ( 3.0f - 2.0f * x );
+	}
+
+	float GetSlideStart() const
+	{
+		return m_segmentStart[m_slideSegment];
+	}
+
 	float EvaluateHeight( float s ) const
 	{
-		float helix0 = m_segmentStart[1];
-		float helix1 = m_segmentStart[2];
-		float ramp0 = m_segmentStart[6] + 1.0f;
-		float ramp1 = ramp0 + m_rampLength;
+		float lift0 = m_segmentStart[1];
+		float lift1 = m_segmentStart[2];
+		float slide0 = GetSlideStart();
 
-		if ( s < helix0 )
+		if ( s < lift0 )
 		{
 			if ( m_bumpStart <= s && s <= m_bumpEnd )
 			{
@@ -2613,24 +2630,101 @@ public:
 			return 0.0f;
 		}
 
-		if ( s < helix1 )
+		if ( s < lift1 )
 		{
-			float u = ( s - helix0 ) / ( helix1 - helix0 );
-			return m_liftHeight * u * u * ( 3.0f - 2.0f * u );
+			return m_liftHeight * SmoothStep( ( s - lift0 ) / ( lift1 - lift0 ) );
 		}
 
-		if ( s < ramp0 )
+		if ( s < slide0 )
 		{
 			return m_liftHeight;
 		}
 
-		// Linear with sharp creases at both ends
-		if ( s < ramp1 )
+		// Steepest at the top so slow bodies leaving the belt keep moving, level at the bottom
+		float u = ( s - slide0 ) / m_segments[m_slideSegment].length;
+		return m_liftHeight * ( 1.0f - 1.5f * u + 0.5f * u * u * u );
+	}
+
+	// Zero for the belt channel and one for the slide trough, blended on the straights at either end
+	float EvaluateTrough( float s ) const
+	{
+		float slide0 = GetSlideStart();
+		if ( s >= slide0 )
 		{
-			return m_liftHeight * ( ramp1 - s ) / m_rampLength;
+			return 1.0f;
 		}
 
-		return 0.0f;
+		float entry = ( s - ( slide0 - m_troughBlendLength ) ) / m_troughBlendLength;
+		float exit = 1.0f - s / m_troughBlendLength;
+		return SmoothStep( b3MaxFloat( entry, exit ) );
+	}
+
+	// The slide only turns left, so a positive bank always lowers the inside of the turn
+	float EvaluateBank( float s ) const
+	{
+		float slide0 = GetSlideStart();
+		if ( s < slide0 )
+		{
+			return 0.0f;
+		}
+
+		float u = ( s - slide0 ) / m_segments[m_slideSegment].length;
+		return m_bankAngle * SmoothStep( b3MinFloat( u, 1.0f - u ) / m_bankRampFraction );
+	}
+
+	// Cross section in lateral and up coordinates, traversed with air on the left. The trough bends the
+	// inner walls and floor onto one circular arc, so channel and trough share a grid and blend smoothly.
+	b3Vec2 EvaluateProfile( int segment, float alpha, float trough ) const
+	{
+		float inner = m_halfWidth;
+		float outer = m_halfWidth + m_railThickness;
+
+		b3Vec2 channel[m_profileSegmentCount + 1] = {
+			{ -outer, -m_skirtDepth }, { -outer, m_railHeight }, { -inner, m_railHeight }, { -inner, 0.0f },
+			{ inner, 0.0f },		   { inner, m_railHeight },	 { outer, m_railHeight },  { outer, -m_skirtDepth },
+		};
+
+		// The lips sit at the top of the arc
+		b3Vec2 troughCorners[m_profileSegmentCount + 1] = {
+			{ -outer, -m_skirtDepth }, { -outer, inner }, { -inner, inner }, {}, {}, { inner, inner }, { outer, inner },
+			{ outer, -m_skirtDepth },
+		};
+
+		b3Vec2 a = channel[segment];
+		b3Vec2 b = channel[segment + 1];
+		b3Vec2 p = { a.x + alpha * ( b.x - a.x ), a.y + alpha * ( b.y - a.y ) };
+
+		b3Vec2 q;
+		if ( m_floorSegment - 1 <= segment && segment <= m_floorSegment + 1 )
+		{
+			float angles[4] = { -0.5f * B3_PI, -m_floorArcAngle, m_floorArcAngle, 0.5f * B3_PI };
+			int i = segment - ( m_floorSegment - 1 );
+			float angle = angles[i] + alpha * ( angles[i + 1] - angles[i] );
+			q = { inner * sinf( angle ), inner * ( 1.0f - cosf( angle ) ) };
+		}
+		else
+		{
+			b3Vec2 ta = troughCorners[segment];
+			b3Vec2 tb = troughCorners[segment + 1];
+			q = { ta.x + alpha * ( tb.x - ta.x ), ta.y + alpha * ( tb.y - ta.y ) };
+		}
+
+		return { p.x + trough * ( q.x - p.x ), p.y + trough * ( q.y - p.y ) };
+	}
+
+	float GetProfileLength( int segment, float trough ) const
+	{
+		int sampleCount = 8;
+		float length = 0.0f;
+		b3Vec2 a = EvaluateProfile( segment, 0.0f, trough );
+		for ( int i = 1; i <= sampleCount; ++i )
+		{
+			b3Vec2 b = EvaluateProfile( segment, (float)i / (float)sampleCount, trough );
+			length += sqrtf( ( b.x - a.x ) * ( b.x - a.x ) + ( b.y - a.y ) * ( b.y - a.y ) );
+			a = b;
+		}
+
+		return length;
 	}
 
 	b3Vec3 EvaluateCenter( float s ) const
@@ -2667,13 +2761,18 @@ public:
 	{
 		int count = b3MaxInt( 32, (int)ceilf( m_totalLength / m_cellSize ) );
 		m_stations.resize( count );
+		m_stationDistances.resize( count );
 		m_tangents.resize( count );
 		m_laterals.resize( count );
 		m_ups.resize( count );
+		m_troughs.resize( count );
 
 		for ( int k = 0; k < count; ++k )
 		{
-			m_stations[k] = EvaluateCenter( m_totalLength * (float)k / (float)count );
+			float s = m_totalLength * (float)k / (float)count;
+			m_stationDistances[k] = s;
+			m_stations[k] = EvaluateCenter( s );
+			m_troughs[k] = EvaluateTrough( s );
 		}
 
 		// The chord across each station bisects a crease, so the rails stay square to the belt
@@ -2683,15 +2782,15 @@ public:
 			b3Vec3 prev = m_stations[( k + count - 1 ) % count];
 			b3Vec3 t = b3Normalize( next - prev );
 			b3Vec3 l = b3Normalize( b3Cross( t, b3Vec3_axisY ) );
-			m_tangents[k] = t;
-			m_laterals[k] = l;
-			m_ups[k] = b3Cross( l, t );
-		}
-	}
+			b3Vec3 u = b3Cross( l, t );
 
-	float GetBeltVelocity() const
-	{
-		return m_reverseFlow ? -m_beltSpeed : m_beltSpeed;
+			float bank = EvaluateBank( m_stationDistances[k] );
+			float c = cosf( bank );
+			float s = sinf( bank );
+			m_tangents[k] = t;
+			m_laterals[k] = c * l - s * u;
+			m_ups[k] = c * u + s * l;
+		}
 	}
 
 	b3SurfaceMaterial MakeMaterial( int index ) const
@@ -2704,13 +2803,39 @@ public:
 			return material;
 		}
 
+		if ( index == m_slideMaterial )
+		{
+			material.friction = m_slideFriction;
+			material.customColor = b3_colorSteelBlue;
+			return material;
+		}
+
 		// Horizontal is enough, the solver projects tangent velocity onto the contact plane
-		float yaw = -B3_PI + 2.0f * B3_PI * (float)( index - 1 ) / (float)m_yawBinCount;
+		float yaw = -B3_PI + 2.0f * B3_PI * (float)( index - m_firstBeltMaterial ) / (float)m_yawBinCount;
 		material.friction = 0.8f;
-		float velocity = GetBeltVelocity();
-		material.tangentVelocity = { velocity * cosf( yaw ), 0.0f, velocity * sinf( yaw ) };
+		material.tangentVelocity = { m_beltSpeed * cosf( yaw ), 0.0f, m_beltSpeed * sinf( yaw ) };
 		material.customColor = b3_colorSlateGray;
 		return material;
+	}
+
+	int GetStationMaterial( int station, int profileSegment ) const
+	{
+		bool slide = m_stationDistances[station] >= GetSlideStart();
+		if ( slide && m_floorSegment - 1 <= profileSegment && profileSegment <= m_floorSegment + 1 )
+		{
+			return m_slideMaterial;
+		}
+
+		if ( slide == false && profileSegment == m_floorSegment )
+		{
+			int stationCount = (int)m_stations.size();
+			b3Vec3 direction = m_stations[( station + 1 ) % stationCount] - m_stations[station];
+			float yaw = atan2f( direction.z, direction.x );
+			int bin = (int)floorf( ( yaw + B3_PI ) / ( 2.0f * B3_PI ) * m_yawBinCount + 0.5f );
+			return m_firstBeltMaterial + bin % m_yawBinCount;
+		}
+
+		return 0;
 	}
 
 	void CreateCircuit()
@@ -2720,55 +2845,70 @@ public:
 		// The last row repeats the first station and welds to it, closing the loop
 		int stationCount = (int)m_stations.size();
 
+		// Every station shares one column layout, sized for the longer of the two sections
+		int columnCounts[m_profileSegmentCount];
+		int columnTotal = 0;
+		for ( int j = 0; j < m_profileSegmentCount; ++j )
+		{
+			float length = b3MaxFloat( GetProfileLength( j, 0.0f ), GetProfileLength( j, 1.0f ) );
+			columnCounts[j] = b3MaxInt( 1, (int)ceilf( length / m_cellSize - 0.01f ) );
+			columnTotal += columnCounts[j];
+		}
+
+		int stride = columnTotal + 1;
+
 		std::vector<b3Vec3> vertices;
 		std::vector<int32_t> indices;
 		std::vector<uint8_t> materialIndices;
+		vertices.reserve( ( stationCount + 1 ) * stride );
 
-		for ( int j = 0; j + 1 < m_profileCount; ++j )
+		m_lipPoints.resize( stationCount );
+		for ( int k = 0; k <= stationCount; ++k )
 		{
-			b3Vec2 pa = m_profile[j];
-			b3Vec2 delta = { m_profile[j + 1].x - pa.x, m_profile[j + 1].y - pa.y };
-			float length = sqrtf( delta.x * delta.x + delta.y * delta.y );
-			int columnCount = b3MaxInt( 1, (int)ceilf( length / m_cellSize - 0.01f ) );
-			bool floor = j == 3;
+			int station = k % stationCount;
+			b3Vec3 center = m_stations[station];
+			b3Vec3 lateral = m_laterals[station];
+			b3Vec3 up = m_ups[station];
+			float trough = m_troughs[station];
 
-			int base = (int)vertices.size();
-			int stride = columnCount + 1;
-			for ( int k = 0; k <= stationCount; ++k )
+			b3Vec2 p = EvaluateProfile( 0, 0.0f, trough );
+			vertices.push_back( center + p.x * lateral + p.y * up );
+
+			for ( int j = 0; j < m_profileSegmentCount; ++j )
 			{
-				int station = k % stationCount;
-				for ( int i = 0; i <= columnCount; ++i )
+				for ( int i = 1; i <= columnCounts[j]; ++i )
 				{
-					float alpha = (float)i / (float)columnCount;
-					float u = pa.x + alpha * delta.x;
-					float v = pa.y + alpha * delta.y;
-					vertices.push_back( m_stations[station] + u * m_laterals[station] + v * m_ups[station] );
+					p = EvaluateProfile( j, (float)i / (float)columnCounts[j], trough );
+					vertices.push_back( center + p.x * lateral + p.y * up );
 				}
 			}
 
-			for ( int k = 0; k < stationCount; ++k )
+			if ( k < stationCount )
 			{
-				int station = k;
-				b3Vec3 expected = -delta.y * m_laterals[station] + delta.x * m_ups[station];
+				p = EvaluateProfile( 1, 0.0f, trough );
+				m_lipPoints[k] = center + p.x * lateral + p.y * up;
+			}
+		}
 
-				int material = 0;
-				if ( floor )
-				{
-					b3Vec3 direction = m_stations[( k + 1 ) % stationCount] - m_stations[station];
-					float yaw = atan2f( direction.z, direction.x );
-					int bin = (int)floorf( ( yaw + B3_PI ) / ( 2.0f * B3_PI ) * m_yawBinCount + 0.5f );
-					material = 1 + bin % m_yawBinCount;
-				}
+		for ( int k = 0; k < stationCount; ++k )
+		{
+			int column = 0;
+			for ( int j = 0; j < m_profileSegmentCount; ++j )
+			{
+				int material = GetStationMaterial( k, j );
 
-				for ( int i = 0; i < columnCount; ++i )
+				for ( int i = 0; i < columnCounts[j]; ++i, ++column )
 				{
-					int a = base + k * stride + i;
+					int a = k * stride + column;
 					int b = a + 1;
 					int c = a + stride + 1;
 					int d = a + stride;
 
+					// Air is on the left of the profile direction
+					b3Vec3 expected = b3Cross( vertices[b] - vertices[a], m_tangents[k] );
+
 					int corners[6] = { a, b, c, c, d, a };
-					if ( ( k + i ) & 1 )
+					if ( ( k + column ) & 1 )
 					{
 						int flipped[6] = { a, b, d, b, c, d };
 						memcpy( corners, flipped, sizeof( corners ) );
@@ -2819,6 +2959,16 @@ public:
 
 		BuildAdjacency();
 
+		m_heatBinCount = b3MaxInt( 1, (int)( m_totalLength / m_heatBinLength + 0.5f ) );
+		m_binGhosts.assign( m_heatBinCount, 0 );
+		m_binManifolds.assign( m_heatBinCount, 0 );
+
+		// Station indices changed, so every body needs a fresh search
+		for ( int i = 0; i < m_bodyCount; ++i )
+		{
+			m_bodyStations[i] = B3_NULL_INDEX;
+		}
+
 		m_markerCount = 0;
 		m_markerIndex = 0;
 	}
@@ -2839,7 +2989,7 @@ public:
 		}
 	}
 
-	void UpdateBeltSpeed()
+	void UpdateMaterials()
 	{
 		for ( int i = 1; i < m_materialCount; ++i )
 		{
@@ -2904,7 +3054,9 @@ public:
 				break;
 		}
 
-		m_bodyIds[m_bodyCount++] = bodyId;
+		m_bodyIds[m_bodyCount] = bodyId;
+		m_bodyStations[m_bodyCount] = B3_NULL_INDEX;
+		m_bodyCount += 1;
 	}
 
 	void DestroyBodies()
@@ -2929,6 +3081,64 @@ public:
 		m_recycleCount = 0;
 		m_markerCount = 0;
 		m_markerIndex = 0;
+		std::fill( m_binGhosts.begin(), m_binGhosts.end(), 0 );
+		std::fill( m_binManifolds.begin(), m_binManifolds.end(), 0 );
+	}
+
+	// Bodies move far less than a station per step, so a local search follows a body along the track and
+	// keeps it from snapping to a spiral layer above or below. A body that fell off gets a full search.
+	int FindStation( b3Vec3 point, int hint ) const
+	{
+		int count = (int)m_stations.size();
+		int best = 0;
+		float bestDistanceSquared = FLT_MAX;
+
+		if ( hint != B3_NULL_INDEX )
+		{
+			for ( int offset = -m_trackWindow; offset <= m_trackWindow; ++offset )
+			{
+				int k = ( hint + offset + count ) % count;
+				float distanceSquared = b3LengthSquared( point - m_stations[k] );
+				if ( distanceSquared < bestDistanceSquared )
+				{
+					bestDistanceSquared = distanceSquared;
+					best = k;
+				}
+			}
+
+			if ( bestDistanceSquared < 4.0f )
+			{
+				return best;
+			}
+		}
+
+		for ( int k = 0; k < count; ++k )
+		{
+			float distanceSquared = b3LengthSquared( point - m_stations[k] );
+			if ( distanceSquared < bestDistanceSquared )
+			{
+				bestDistanceSquared = distanceSquared;
+				best = k;
+			}
+		}
+
+		return best;
+	}
+
+	int GetHeatBin( int station ) const
+	{
+		return (int)( (int64_t)station * m_heatBinCount / (int64_t)m_stations.size() );
+	}
+
+	const char* GetSegmentName( float s ) const
+	{
+		int segment = 0;
+		while ( segment + 1 < m_segmentCount && s >= m_segmentStart[segment + 1] )
+		{
+			segment += 1;
+		}
+
+		return m_segments[segment].name;
 	}
 
 	void BuildAdjacency()
@@ -3130,7 +3340,7 @@ public:
 		}
 	}
 
-	void CountGhosts( b3BodyId bodyId, b3Pos center )
+	void CountGhosts( b3BodyId bodyId, b3Pos center, int heatBin )
 	{
 		// Clustering merges manifolds whose normals agree within its threshold and hands them one normal,
 		// so a point may carry a normal that far from its own feature
@@ -3179,6 +3389,7 @@ public:
 				}
 
 				m_manifoldCount += 1;
+				m_binManifolds[heatBin] += 1;
 
 				if ( admitted )
 				{
@@ -3187,6 +3398,7 @@ public:
 
 				const b3ManifoldPoint& point = manifold->points[firstPush];
 				m_ghostCount += 1;
+				m_binGhosts[heatBin] += 1;
 				m_stepGhostCount += 1;
 				m_classCounts[Classify( point )] += 1;
 				for ( int bit = 0; bit < m_flagCount; ++bit )
@@ -3228,11 +3440,13 @@ public:
 					b3Body_SetTransform( bodyId, GetSpawnPosition(), RandomQuat() );
 					b3Body_SetLinearVelocity( bodyId, b3Vec3_zero );
 					b3Body_SetAngularVelocity( bodyId, b3Vec3_zero );
+					m_bodyStations[i] = B3_NULL_INDEX;
 					m_recycleCount += 1;
 					continue;
 				}
 
-				CountGhosts( bodyId, m_contactCenters[i] );
+				m_bodyStations[i] = FindStation( b3ToVec3( m_contactCenters[i] ), m_bodyStations[i] );
+				CountGhosts( bodyId, m_contactCenters[i], GetHeatBin( m_bodyStations[i] ) );
 			}
 
 			m_spawnTimer += 1;
@@ -3243,6 +3457,7 @@ public:
 			}
 		}
 
+#if 0
 		float rate = m_manifoldCount > 0 ? 1.0e6f * (float)m_ghostCount / (float)m_manifoldCount : 0.0f;
 		DrawTextLine( "ghost manifolds: %d this step, %d of %d pushing (%.0f ppm)", m_stepGhostCount, m_ghostCount,
 					  m_manifoldCount, rate );
@@ -3250,8 +3465,28 @@ public:
 					  m_classCounts[e_edgeGhost], m_classCounts[e_vertexGhost], m_classCounts[e_otherGhost] );
 		DrawTextLine( "ghost origin: hull face %d, snapped %d, deep %d", m_flagCounts[0], m_flagCounts[1],
 					  m_flagCounts[2] );
+		int worstBin = 0;
+		for ( int i = 1; i < m_heatBinCount; ++i )
+		{
+			worstBin = m_binGhosts[i] > m_binGhosts[worstBin] ? i : worstBin;
+		}
+
+		if ( m_binGhosts[worstBin] > 0 )
+		{
+			float s = ( (float)worstBin + 0.5f ) * m_totalLength / (float)m_heatBinCount;
+			float binRate = 1.0e6f * (float)m_binGhosts[worstBin] / (float)m_binManifolds[worstBin];
+			DrawTextLine( "worst metre: %.0f m along the %s, %d ghosts (%.0f ppm)", s, GetSegmentName( s ),
+						  m_binGhosts[worstBin], binRate );
+		}
+		else
+		{
+			DrawTextLine( "worst metre: none" );
+		}
+
 		DrawTextLine( "bodies: %d, recycled: %d", m_bodyCount, m_recycleCount );
-		DrawTextLine( "triangles: %d, stations: %d", m_mesh->triangleCount, (int)m_stations.size() );
+		DrawTextLine( "triangles: %d, stations: %d, length: %.0f m", m_mesh->triangleCount, (int)m_stations.size(),
+					  m_totalLength );
+#endif
 	}
 
 	void Render() override
@@ -3262,13 +3497,24 @@ public:
 
 		if ( m_drawFlow )
 		{
-			int stride = b3MaxInt( 1, stationCount / 48 );
+			int stride = b3MaxInt( 1, stationCount / 96 );
+			float slide0 = GetSlideStart();
 			for ( int k = 0; k < stationCount; k += stride )
 			{
+				if ( m_stationDistances[k] >= slide0 )
+				{
+					continue;
+				}
+
 				b3Vec3 p = m_stations[k] + 0.05f * m_ups[k];
 				b3Vec3 t = m_tangents[k];
-				DrawArrow( b3ToPos( p ), b3ToPos( p + 0.25f * GetBeltVelocity() * t ), MakeColor( b3_colorBlueViolet ) );
+				DrawArrow( b3ToPos( p ), b3ToPos( p + 0.25f * m_beltSpeed * t ), MakeColor( b3_colorBlueViolet ) );
 			}
+		}
+
+		if ( m_drawHeat )
+		{
+			DrawHeat();
 		}
 
 		if ( m_drawGhosts )
@@ -3282,6 +3528,56 @@ public:
 		}
 	}
 
+	// The strip runs along the outer lip. Each metre of track is a tick, gray before any traffic and green
+	// while clean. Ghosts raise a bar whose height follows the count and whose color runs from gold to red
+	// with the rate.
+	void DrawHeat()
+	{
+		int stationCount = (int)m_stations.size();
+
+		int maxGhosts = 1;
+		float maxRate = 0.0f;
+		for ( int i = 0; i < m_heatBinCount; ++i )
+		{
+			maxGhosts = b3MaxInt( maxGhosts, m_binGhosts[i] );
+			if ( m_binManifolds[i] > 0 )
+			{
+				maxRate = b3MaxFloat( maxRate, (float)m_binGhosts[i] / (float)m_binManifolds[i] );
+			}
+		}
+
+		Vec4 idle = MakeColor( b3_colorDimGray );
+		Vec4 clean = MakeColor( b3_colorLimeGreen );
+		Vec4 low = MakeColor( b3_colorGold );
+		Vec4 high = MakeColor( b3_colorRed );
+
+		for ( int i = 0; i < m_heatBinCount; ++i )
+		{
+			int first = (int)( (int64_t)i * stationCount / m_heatBinCount );
+			int last = (int)( (int64_t)( i + 1 ) * stationCount / m_heatBinCount );
+			b3Vec3 a = m_lipPoints[first] + 0.05f * b3Vec3_axisY;
+			b3Vec3 b = m_lipPoints[last % stationCount] + 0.05f * b3Vec3_axisY;
+
+			Vec4 color = m_binManifolds[i] > 0 ? clean : idle;
+			DrawLineEx( b3ToPos( a ), b3ToPos( b ), color, 0.04f, OVERLAY_THICKNESS_WORLD, OVERLAY_OCCLUSION_DIM );
+
+			if ( m_binGhosts[i] == 0 )
+			{
+				continue;
+			}
+
+			float rate = (float)m_binGhosts[i] / (float)m_binManifolds[i];
+			float t = maxRate > 0.0f ? rate / maxRate : 1.0f;
+			Vec4 barColor = MakeVec4( low.x + t * ( high.x - low.x ), low.y + t * ( high.y - low.y ),
+									  low.z + t * ( high.z - low.z ), 1.0f );
+
+			float height = 0.2f + 1.8f * (float)m_binGhosts[i] / (float)maxGhosts;
+			b3Vec3 base = m_lipPoints[( first + last ) / 2 % stationCount];
+			DrawLineEx( b3ToPos( base ), b3ToPos( base + height * b3Vec3_axisY ), barColor, 0.08f,
+						OVERLAY_THICKNESS_WORLD, OVERLAY_OCCLUSION_DIM );
+		}
+	}
+
 	bool DrawControls() override
 	{
 		bool rebuild = false;
@@ -3292,12 +3588,12 @@ public:
 
 		if ( ImGui::SliderFloat( "Belt Speed", &m_beltSpeed, 0.0f, 6.0f, "%.1f m/s" ) )
 		{
-			UpdateBeltSpeed();
+			UpdateMaterials();
 		}
 
-		if ( ImGui::Checkbox( "Reverse Flow", &m_reverseFlow ) )
+		if ( ImGui::SliderFloat( "Slide Friction", &m_slideFriction, 0.0f, 0.2f, "%.3f" ) )
 		{
-			UpdateBeltSpeed();
+			UpdateMaterials();
 		}
 
 		ImGui::SliderInt( "Body Count", &m_targetCount, 1, m_maxBodies );
@@ -3322,6 +3618,7 @@ public:
 		ImGui::SliderFloat( "Ghost Tolerance", &m_toleranceDegrees, 1.0f, 20.0f, "%.0f deg" );
 		ImGui::Checkbox( "Draw Flow", &m_drawFlow );
 		ImGui::Checkbox( "Draw Ghosts", &m_drawGhosts );
+		ImGui::Checkbox( "Draw Heat", &m_drawHeat );
 
 		respawn |= ImGui::Button( "Respawn" );
 		if ( ImGui::Button( "Reset Counters" ) )
@@ -3360,12 +3657,18 @@ public:
 	Segment m_segments[m_segmentCount];
 	float m_segmentStart[m_segmentCount];
 	float m_totalLength;
-	b3Vec2 m_profile[m_profileCount];
 
 	std::vector<b3Vec3> m_stations;
+	std::vector<float> m_stationDistances;
 	std::vector<b3Vec3> m_tangents;
 	std::vector<b3Vec3> m_laterals;
 	std::vector<b3Vec3> m_ups;
+	std::vector<float> m_troughs;
+	std::vector<b3Vec3> m_lipPoints;
+
+	int m_heatBinCount = 1;
+	std::vector<int> m_binGhosts;
+	std::vector<int> m_binManifolds;
 
 	std::vector<b3Vec3> m_triangleNormals;
 	std::vector<int> m_edgeNeighbors;
@@ -3379,13 +3682,14 @@ public:
 
 	b3BodyId m_bodyIds[m_maxBodies];
 	b3Pos m_contactCenters[m_maxBodies];
+	int m_bodyStations[m_maxBodies];
 	int m_bodyCount;
 	int m_spawnIndex;
 	int m_spawnTimer;
 
 	float m_cellSize;
 	float m_beltSpeed;
-	bool m_reverseFlow;
+	float m_slideFriction;
 	int m_targetCount;
 	int m_spawnInterval;
 	BodyType m_bodyType;
@@ -3395,6 +3699,7 @@ public:
 	bool m_contactRecycling;
 	bool m_drawFlow;
 	bool m_drawGhosts;
+	bool m_drawHeat;
 
 	static constexpr int m_flagCount = 3;
 	int m_classCounts[e_ghostClassCount];

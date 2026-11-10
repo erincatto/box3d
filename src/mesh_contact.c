@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#define B3_FORCE_GHOST_COLLISIONS 0
 #define B3_MAX_POINTS_PER_TRIANGLE 32
 
 #if B3_ENABLE_VALIDATION
