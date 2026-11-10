@@ -1315,13 +1315,12 @@ static int MeshVertexRing( void )
 // counts belong to the first ORACLE_SCAN_POSES poses, so a change to a scene or to the pose stream moves
 // them without the collider changing. Lower a budget when a case is fixed.
 //
-// The two misses examined so far: the cluster reduction keeps spread rather than the deepest point, so a
-// snapped neighbor joining the cluster pushed the deepest point out (flat pose 416), and a contact
-// against a boundary edge from the side was dropped (crest pose 377).
+// The remaining ghost, wave pose 291, is a hull face normal admitted by a vertex cone with the deepest
+// point half a linear slop from the vertex, where the oracle only accepts the normal at the vertex.
 static int MeshGhostOracle( void )
 {
 	int ghostBudget[e_oracleSceneCount] = { 0, 0, 0, 0, 0, 0, 0, 1 };
-	int missedBudget[e_oracleSceneCount] = { 1, 0, 1, 3, 2, 1, 1, 3 };
+	int missedBudget[e_oracleSceneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
 	for ( int scene = 0; scene < e_oracleSceneCount; ++scene )
 	{

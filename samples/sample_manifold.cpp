@@ -2110,7 +2110,7 @@ static void AddGhostTriangle( GhostMesh& mesh, int a, int b, int c, b3Vec3 facin
 class GhostManifold : public Sample
 {
 public:
-	static constexpr int m_maxScenes = 16;
+	static constexpr int m_maxScenes = 20;
 	static constexpr int m_manifoldCapacity = 32;
 	static constexpr int m_triangleCapacity = 64;
 	static constexpr int m_trianglePointCapacity = 64;
@@ -2875,6 +2875,26 @@ static void BuildGhostSaddleRidge( std::vector<GhostMesh>& meshes )
 	meshes.push_back( mesh );
 }
 
+// The ghost oracle wave, 3 m square with 25 cm cells
+static void BuildGhostWave( std::vector<GhostMesh>& meshes )
+{
+	b3MeshData* data = CreateOracleMesh( e_oracleWave );
+	const b3Vec3* vertices = b3GetMeshVertices( data );
+	const b3MeshTriangle* triangles = b3GetMeshTriangles( data );
+
+	GhostMesh mesh;
+	mesh.vertices.assign( vertices, vertices + data->vertexCount );
+	for ( int i = 0; i < data->triangleCount; ++i )
+	{
+		mesh.indices.push_back( triangles[i].index1 );
+		mesh.indices.push_back( triangles[i].index2 );
+		mesh.indices.push_back( triangles[i].index3 );
+	}
+
+	b3DestroyMesh( data );
+	meshes.push_back( mesh );
+}
+
 static const float s_inch = 0.0254f;
 
 static const GhostScene s_hullGhostScenes[] = {
@@ -3028,6 +3048,58 @@ static const GhostScene s_hullGhostScenes[] = {
 		{ 0.46f, 0.1f, 0.5f },
 		{ -0.44f, 0.096f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f },
+		true,
+	},
+	{
+		"Open boundary, snapped neighbors",
+		"box rolled 44 degrees over the open edge of the strip, its low edge crosses the boundary 1.6 mm "
+		"up. Its own triangle gives a face contact and the neighbor triangles pick a box side face",
+		"the neighbors snap to the strip normal and join the face cluster with points 19 to 21 cm up the "
+		"box side, so the cluster reduction keeps those over the touching point unless the deepest point "
+		"is put back",
+		BuildGhostStrip,
+		{ 0.145f, 0.225f, 0.155f },
+		{ -0.071f, 0.26f, 0.023f },
+		{ 5.0f, -23.0f, 44.0f },
+		true,
+	},
+	{
+		"Open boundary, rolled",
+		"box rolled 40 degrees over the open edge of the strip, its low edge 4 mm from the boundary. The "
+		"edge axis wins SAT by 0.1 mm but the box bottom face is kept for its points, leaning 12 degrees "
+		"along the boundary edge",
+		"the leaning face snaps to the strip normal, whose clip reaches 29 cm up the box face. A boundary "
+		"edge has no neighbor, so the GJK contact at the edge replaces the snapped clip with one point "
+		"and the edge normal",
+		BuildGhostStrip,
+		{ 0.2f, 0.1f, 0.2f },
+		{ 0.0f, 0.184f, 0.25f },
+		{ -15.0f, 0.0f, 40.0f },
+		true,
+	},
+	{
+		"Rail end",
+		"box rolled 30 degrees against the open end of the rail, its corner edge 4 mm from the wall end "
+		"edge, SAT picks a box face whose normal is not perpendicular to that edge",
+		"the face normal fails the edge test and snaps to the wall face, whose clip is empty beside the "
+		"rail. A boundary edge has no neighbor to take the contact, so the GJK normal at the edge "
+		"replaces it",
+		BuildGhostRail,
+		{ 0.2f, 0.2f, 0.2f },
+		{ 0.527f, 0.3f, 0.0f },
+		{ 0.0f, 0.0f, -30.0f },
+		true,
+	},
+	{
+		"Wave, resting cull",
+		"box on a wave resting within 1 degree of one triangle 12 mm away, the closest triangles are 7 mm "
+		"away, tilted about 5 degrees and below the lowest box corner along the resting normal",
+		"the closest triangles snap to their own faces. The resting cull only drops triangles farther "
+		"than the resting contact, otherwise these drop and the only contact left is 5 mm too far",
+		BuildGhostWave,
+		{ 0.35f, 0.17f, 0.15f },
+		{ 0.532f, 0.198f, -1.175f },
+		{ -3.0f, 77.0f, -6.0f },
 		true,
 	},
 };

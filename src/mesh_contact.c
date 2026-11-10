@@ -487,6 +487,73 @@ static int b3DropInteriorPoints( b3Point2D* points, int count, float margin )
 
 #endif
 
+// Fallback if culling leads to all points separated. Rare.
+static void b3KeepDeepestPoint( b3Point2D* kept, int keptCount, const b3LocalManifoldPoint* points, int count,
+								b3Vec3 origin, b3Vec3 u, b3Vec3 v )
+{
+	int deepest = 0;
+	for ( int i = 1; i < count; ++i )
+	{
+		if ( points[i].separation < points[deepest].separation )
+		{
+			deepest = i;
+		}
+	}
+
+	float keptSeparation = FLT_MAX;
+	for ( int i = 0; i < keptCount; ++i )
+	{
+		if ( kept[i].originalIndex == deepest )
+		{
+			return;
+		}
+
+		keptSeparation = b3MinFloat( keptSeparation, points[kept[i].originalIndex].separation );
+	}
+
+	float separation = points[deepest].separation;
+	if ( separation <= 0.0f || separation >= keptSeparation - B3_LINEAR_SLOP )
+	{
+		return;
+	}
+
+	int replaceIndex = 0;
+	float bestArea = -1.0f;
+	for ( int candidate = 0; candidate < keptCount; ++candidate )
+	{
+		b3Vec2 ring[B3_MAX_MANIFOLD_POINTS];
+		int ringCount = 0;
+		for ( int i = 0; i < keptCount; ++i )
+		{
+			int index = i == candidate ? deepest : kept[i].originalIndex;
+			b3Vec3 d = b3Sub( points[index].point, origin );
+			ring[ringCount] = (b3Vec2){ b3Dot( d, u ), b3Dot( d, v ) };
+			ringCount += 1;
+		}
+
+		float area = 0.0f;
+		for ( int i = 0; i < ringCount; ++i )
+		{
+			for ( int j = i + 1; j < ringCount; ++j )
+			{
+				for ( int k = j + 1; k < ringCount; ++k )
+				{
+					float signedArea = b3Cross2( b3Sub2( ring[j], ring[i] ), b3Sub2( ring[k], ring[i] ) );
+					area = b3MaxFloat( area, b3AbsFloat( signedArea ) );
+				}
+			}
+		}
+
+		if ( area > bestArea )
+		{
+			bestArea = area;
+			replaceIndex = candidate;
+		}
+	}
+
+	kept[replaceIndex].originalIndex = deepest;
+}
+
 static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 normal, b3Arena arena )
 {
 	int targetCount = 1;
@@ -527,6 +594,8 @@ static int b3ReduceCluster( b3LocalManifoldPoint* points, int count1, b3Vec3 nor
 	int count2 = b3SimplifyHull2D( hull, hullCount, B3_MAX_MANIFOLD_POINTS );
 #endif
 	B3_ASSERT( count2 <= B3_MAX_MANIFOLD_POINTS );
+
+	b3KeepDeepestPoint( hull, count2, points, count1, origin, u, v );
 
 	b3LocalManifoldPoint finalPoints[B3_MAX_MANIFOLD_POINTS];
 	for ( int i = 0; i < count2; ++i )
@@ -1008,6 +1077,80 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 	return result == b3_neighborSkip || result == b3_neighborDrop ? b3_neighborSnap : result;
 }
 
+// Special handling if a boundary collision drops all points. Rare.
+static void b3CollideBoundaryEdge( b3LocalManifold* manifold, const b3Shape* shapeA, int triangleIndex,
+								   const b3Vec3* vertices, b3Matrix3 meshToLocal, const b3HullData* hull,
+								   float speculativeDistance )
+{
+	float linearSlop = B3_LINEAR_SLOP;
+
+	b3DistanceInput input = { 0 };
+	input.proxyA = (b3ShapeProxy){ vertices, 3, 0.0f };
+	input.proxyB = (b3ShapeProxy){ b3GetHullPoints( hull ), hull->vertexCount, 0.0f };
+	input.transform = b3Transform_identity;
+	input.useRadii = false;
+	b3SimplexCache simplexCache = { 0 };
+	b3DistanceOutput output = b3ShapeDistance( &input, &simplexCache, NULL, 0 );
+
+	if ( output.distance < B3_OVERLAP_SLOP || output.distance > speculativeDistance )
+	{
+		return;
+	}
+
+	float tolerance = 0.01f * linearSlop;
+	b3TriangleFeature feature = b3_featureNone;
+	bool onBoundary = false;
+	b3TriangleFeature vertexFeatures[] = { b3_featureVertex1, b3_featureVertex2, b3_featureVertex3 };
+	b3TriangleFeature edgeFeatures[] = { b3_featureEdge1, b3_featureEdge2, b3_featureEdge3 };
+	for ( int i = 0; i < 3; ++i )
+	{
+		b3Vec3 a = vertices[i];
+		b3Vec3 e = b3Sub( vertices[i < 2 ? i + 1 : 0], a );
+		float t = b3ClampFloat( b3Dot( b3Sub( output.pointA, a ), e ) / b3LengthSquared( e ), 0.0f, 1.0f );
+		b3Vec3 closest = b3MulAdd( a, t, e );
+		if ( b3DistanceSquared( closest, output.pointA ) >= tolerance * tolerance )
+		{
+			continue;
+		}
+
+		b3Vec3 neighborNormal;
+		onBoundary = onBoundary || b3GetNeighborNormal( shapeA, triangleIndex, i, &neighborNormal ) == false;
+
+		if ( b3DistanceSquared( a, output.pointA ) < tolerance * tolerance )
+		{
+			feature = vertexFeatures[i];
+		}
+		else if ( b3DistanceSquared( b3Add( a, e ), output.pointA ) < tolerance * tolerance )
+		{
+			feature = vertexFeatures[i < 2 ? i + 1 : 0];
+		}
+		else if ( feature == b3_featureNone )
+		{
+			feature = edgeFeatures[i];
+		}
+	}
+
+	if ( onBoundary == false || feature == b3_featureNone )
+	{
+		return;
+	}
+
+	int ownerEdge;
+	if ( b3TestNeighbors( shapeA, triangleIndex, vertices, meshToLocal, feature, output.normal, &ownerEdge ) !=
+		 b3_neighborAdmit )
+	{
+		return;
+	}
+
+	b3LocalManifoldPoint* point = manifold->points + 0;
+	point->point = b3Lerp( output.pointA, output.pointB, 0.5f );
+	point->separation = output.distance;
+	point->pair = b3MakeFeaturePair( b3_featureShapeA, (int)feature, b3_featureShapeA, (int)feature );
+	manifold->normal = output.normal;
+	manifold->pointCount = 1;
+	manifold->feature = feature;
+}
+
 static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shapeA, const b3Shape* shapeB,
 								   b3Transform transformAtoB, b3TriangleCache* triangleCaches, int triangleCount,
 								   bool enableSpeculative, bool handleGhosts, bool isFast, b3TaskContext* context,
@@ -1309,6 +1452,12 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				meshFlags |= b3_meshContactSnapped;
 			}
 
+			float rawSeparation = FLT_MAX;
+			for ( int i = 0; i < manifold->pointCount; ++i )
+			{
+				rawSeparation = b3MinFloat( rawSeparation, manifold->points[i].separation );
+			}
+
 			if ( result == b3_neighborSkip || result == b3_neighborSnap || result == b3_neighborDrop )
 			{
 				// Skip leaves the normal to the neighbor. A sphere off the face cannot snap.
@@ -1325,6 +1474,11 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			{
 				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices, hullB, &cache->satCache,
 												   enableSpeculative );
+				if ( rawSeparation > 0.0f )
+				{
+					b3CollideBoundaryEdge( manifold, shapeA, triangleIndex, vertices, relativeMatrix, hullB,
+										   hullSpeculativeDistance );
+				}
 			}
 		}
 
@@ -1388,6 +1542,15 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			{
 				hullBottom = b3MinFloat( hullBottom, b3Dot( normal, hullPoints[i] ) );
 			}
+
+			float restingSeparation = FLT_MAX;
+			for ( int i = 0; i < resting->pointCount; ++i )
+			{
+				restingSeparation = b3MinFloat( restingSeparation, resting->points[i].separation );
+			}
+
+			// Padding
+			hullBottom -= b3MaxFloat( 0.0f, restingSeparation ) + linearSlop;
 
 			for ( int i = 0; i < survivorCount; ++i )
 			{

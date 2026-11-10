@@ -14,6 +14,14 @@
 #define GHOST_HALF_WIDTH 3.0f
 #define GHOST_START_X -16.0f
 
+// The rail deflects the body sideways and the floor is frictionless, so a narrow floor ends the run off
+// the side instead of at the far end
+#define GHOST_RAIL_HALF_LENGTH ( 0.5f * GHOST_HALF_LENGTH )
+#define GHOST_RAIL_HALF_WIDTH ( 2.0f * GHOST_HALF_WIDTH )
+
+// A run takes about 144 steps, clear of 150 where the 900 step scan would flip between 5 and 6 runs
+#define GHOST_RAIL_START_X -5.3f
+
 // A 34 degree chamfer like the s&box beams
 #define GHOST_CHAMFER_WIDTH 0.05f
 #define GHOST_CHAMFER_DROP ( GHOST_CHAMFER_WIDTH / 1.5f )
@@ -156,10 +164,10 @@ static void AddStrip( MeshBuilder* builder, const b3Vec2* profile, int count, fl
 
 // The rail cross section is a profile in zy extruded along x. Each quad side is its edge direction along
 // the section crossed with x, which is the outward normal for a section traversed with air on the left.
-static void AddRail( MeshBuilder* builder, const b3Vec2* section, int count, float cellSize, bool mirror )
+static void AddRail( MeshBuilder* builder, const b3Vec2* section, int count, float halfLength, float cellSize, bool mirror )
 {
 	float sign = mirror ? -1.0f : 1.0f;
-	int xCount = b3MaxInt( 1, (int)ceilf( 2.0f * GHOST_HALF_LENGTH / cellSize - 0.01f ) );
+	int xCount = b3MaxInt( 1, (int)ceilf( 2.0f * halfLength / cellSize - 0.01f ) );
 	int stride = xCount + 1;
 
 	int pointCount = 1;
@@ -193,7 +201,7 @@ static void AddRail( MeshBuilder* builder, const b3Vec2* section, int count, flo
 			float y = a.y + t * ( b.y - a.y );
 			for ( int j = 0; j <= xCount; ++j )
 			{
-				float x = -GHOST_HALF_LENGTH + 2.0f * GHOST_HALF_LENGTH * (float)j / (float)xCount;
+				float x = -halfLength + 2.0f * halfLength * (float)j / (float)xCount;
 				builder->vertices[index++] = (b3Vec3){ sign * x, y, z };
 			}
 		}
@@ -401,9 +409,11 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 	data->groundId = b3CreateBody( worldId, &bodyDef );
 
 	const GhostSettings* settings = &data->settings;
-	float h = GHOST_HALF_LENGTH;
+	bool rail = settings->scene == e_ghostRail;
+	float h = rail ? GHOST_RAIL_HALF_LENGTH : GHOST_HALF_LENGTH;
 	data->profileCount = 0;
-	data->halfWidth = GHOST_HALF_WIDTH;
+	data->halfLength = h;
+	data->halfWidth = rail ? GHOST_RAIL_HALF_WIDTH : GHOST_HALF_WIDTH;
 
 	switch ( settings->scene )
 	{
@@ -467,7 +477,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 
 		case e_ghostRail:
 			// Cross section in zy, from the floor up the inner wall, over the top and down the outer skirt
-			PushProfile( data, -GHOST_HALF_WIDTH, 0.0f );
+			PushProfile( data, -data->halfWidth, 0.0f );
 			PushProfile( data, 0.0f, 0.0f );
 			PushProfile( data, 0.0f, GHOST_RAIL_HEIGHT );
 			PushProfile( data, GHOST_RAIL_THICKNESS, GHOST_RAIL_HEIGHT );
@@ -483,7 +493,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 	MeshBuilder builder = { 0 };
 	float cellSize = settings->cellSize;
 	bool mirror = settings->mirror;
-	float groundHalfWidth = GHOST_HALF_WIDTH;
+	float groundHalfWidth = data->halfWidth;
 	int cellCountZ = GetCellCount( 2.0f * groundHalfWidth, cellSize );
 
 	if ( settings->heightField )
@@ -515,7 +525,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 	}
 	else if ( settings->scene == e_ghostRail )
 	{
-		AddRail( &builder, data->profile, data->profileCount, cellSize, mirror );
+		AddRail( &builder, data->profile, data->profileCount, h, cellSize, mirror );
 		AddMesh( data, &builder, false );
 	}
 	else if ( settings->scene == e_ghostInternal )
@@ -574,7 +584,7 @@ void LaunchGhostBody( b3WorldId worldId, GhostCollisionsData* data )
 		// contact is edge on edge and perpendicular to the rail, a face normal there leans along the rail
 		// and catches the body. Found in the Conveyor Circuit sample.
 		b3Quat pitch = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, 60.0f * B3_PI / 180.0f );
-		bodyDef.position = (b3Pos){ GHOST_START_X, GHOST_RAIL_HEIGHT + 0.45f, -0.15f };
+		bodyDef.position = (b3Pos){ GHOST_RAIL_START_X, GHOST_RAIL_HEIGHT + 0.45f, -0.15f };
 		bodyDef.rotation = b3MulQuat( pitch, yaw );
 		bodyDef.linearVelocity = (b3Vec3){ settings->speed, 0.0f, 0.0f };
 	}
@@ -753,7 +763,7 @@ static bool IsGhost( const GhostCollisionsData* data, b3Vec3 normal, float xMin,
 int UpdateGhostCollisions( b3WorldId worldId, GhostCollisionsData* data, GhostReport* reports, int capacity )
 {
 	b3Pos center = b3Body_GetWorldCenter( data->bodyId );
-	bool done = center.x > GHOST_HALF_LENGTH - 1.0f || center.y < -3.0f;
+	bool done = center.x > data->halfLength - 1.0f || center.y < -3.0f;
 	if ( data->settings.scene == e_ghostInternal )
 	{
 		// Run out onto the ground plane, or give up on a body knocked off the side
