@@ -862,6 +862,10 @@ static inline bool b3IsSubset( int mask, int allowed )
 }
 
 // Voronoi test of neighbors based on deepest point.
+// Ghost collisions arise when the chose manifold normal does not align with what GJK would give with slight separation.
+// A non-ghosting normal must be within the Voronoi regions the triangles face, edges, and vertices. However, even
+// normals within the Voronoi regions can ghost. So we use the deepest point as a proxy for what GJK would yield with
+// slight separation.
 static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int triangleIndex, const b3Vec3* vertices,
 												 b3Matrix3 meshToLocal, const b3LocalManifold* manifold,
 												 b3TriangleFeature* nearFeature )
@@ -1184,8 +1188,6 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 	b3LocalManifold* manifoldBuffer = b3Bump( arena, survivorCount * sizeof( b3LocalManifold ) );
 	int manifoldCount = 0;
 
-	bool validateNeighbors = handleGhosts;
-
 	int* survivorManifolds = b3Bump( arena, survivorCount * sizeof( int ) );
 	memset( survivorManifolds, 0xFF, survivorCount * sizeof( int ) );
 
@@ -1251,7 +1253,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 		b3NeighborResult result = b3_neighborAdmit;
 		int ownerEdge = B3_NULL_INDEX;
 		uint8_t meshFlags = manifold->feature == b3_featureHullFace ? b3_meshContactHullFace : 0;
-		if ( validateNeighbors && manifold->pointCount > 0 && manifold->feature != b3_featureTriangleFace )
+		if ( handleGhosts && manifold->pointCount > 0 && manifold->feature != b3_featureTriangleFace )
 		{
 			if ( manifold->feature == b3_featureHullFace )
 			{
@@ -1365,7 +1367,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 		}
 	}
 
-	if ( hullB != NULL && validateNeighbors )
+	if ( hullB != NULL && handleGhosts )
 	{
 		// Cull triangles fully below the hull face when it rests on a triangle and has a tilted manifold normal. This
 		// helps when a box slides across a chamfered channel.

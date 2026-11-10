@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "ghost_collisions.h"
+#include "ghost_oracle.h"
 #include "shape.h"
 #include "test_macros.h"
 
@@ -11,6 +12,7 @@
 
 #include <float.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1304,6 +1306,84 @@ static int MeshVertexRing( void )
 	return 0;
 }
 
+// Separated poses have an exact reference, the union of the triangles, see ghost_oracle.h. With ghost
+// handling no manifold may carry a normal the union lacks at its deep points. Without ghost handling the
+// oracle has to find ghosts in every scene, which shows it has teeth.
+//
+// A miss is a pose whose union closest pair goes unrepresented with ghost handling but not without it.
+// The budget holds the current counts. The two cases examined so far: the cluster reduction keeps spread
+// rather than the deepest point, so a snapped neighbor joining the cluster pushed the deepest point out
+// (flat pose 416), and a contact against a boundary edge from the side was dropped (crest pose 377).
+// Lower the budget as these are fixed.
+static int MeshGhostOracle( void )
+{
+	static OracleResult result;
+	int poseCount = 500;
+	int missedBudget[e_oracleSceneCount] = { 1, 0, 1, 3, 2, 1, 1, 3 };
+
+	for ( int scene = 0; scene < e_oracleSceneCount; ++scene )
+	{
+		b3MeshData* mesh = CreateOracleMesh( (OracleScene)scene );
+		ENSURE( mesh != NULL );
+
+		int validCount = 0;
+		int ghostPoses = 0;
+		int missedPoses = 0;
+		int rawGhostPoses = 0;
+		int firstGhost = -1;
+		int firstMissed = -1;
+
+		for ( int i = 0; i < poseCount; ++i )
+		{
+			b3BoxHull box;
+			b3Transform transform;
+			if ( MakeOraclePose( mesh, (OracleScene)scene, i, &box, &transform ) == false )
+			{
+				continue;
+			}
+
+			if ( EvaluateGhostOracle( &result, mesh, &box.base, transform, false ) == false )
+			{
+				continue;
+			}
+
+			validCount += 1;
+			rawGhostPoses += result.ghostCount > 0 ? 1 : 0;
+			bool rawMissed = result.missed;
+
+			EvaluateGhostOracle( &result, mesh, &box.base, transform, true );
+			if ( result.ghostCount > 0 )
+			{
+				ghostPoses += 1;
+				firstGhost = firstGhost < 0 ? i : firstGhost;
+			}
+
+			if ( result.missed && rawMissed == false )
+			{
+				missedPoses += 1;
+				firstMissed = firstMissed < 0 ? i : firstMissed;
+			}
+		}
+
+		b3DestroyMesh( mesh );
+
+		if ( validCount <= poseCount / 2 || rawGhostPoses == 0 || ghostPoses > 0 || missedPoses > missedBudget[scene] )
+		{
+			printf( "  oracle %s: valid %d, unhandled ghosts %d, ghosts %d (first pose %d), missed %d of %d (first "
+					"pose %d)\n",
+					g_oracleSceneNames[scene], validCount, rawGhostPoses, ghostPoses, firstGhost, missedPoses,
+					missedBudget[scene], firstMissed );
+		}
+
+		ENSURE( validCount > poseCount / 2 );
+		ENSURE( rawGhostPoses > 0 );
+		ENSURE( ghostPoses == 0 );
+		ENSURE( missedPoses <= missedBudget[scene] );
+	}
+
+	return 0;
+}
+
 int MeshTest( void )
 {
 	RUN_SUBTEST( MeshDenseStride );
@@ -1322,6 +1402,7 @@ int MeshTest( void )
 	RUN_SUBTEST( MeshCapsuleOverCrest );
 	RUN_SUBTEST( MeshApexContact );
 	RUN_SUBTEST( MeshPeelCylinder );
+	RUN_SUBTEST( MeshGhostOracle );
 
 	return 0;
 }

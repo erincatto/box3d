@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "ghost_oracle.h"
 #include "gfx/draw.h"
 #include "gfx/keycodes.h"
 #include "sample.h"
@@ -3232,3 +3233,333 @@ public:
 
 static int sampleSphereGhostManifold =
 	RegisterSample( "Manifold", "Sphere Ghost Manifold", SphereGhostManifold::Create );
+
+// Separated poses judged against the union of the triangles, see shared/ghost_oracle.h. Pose N of a scene
+// is the pose N the MeshGhostOracle unit test runs, so a failure index from the test replays here.
+class GhostOracle : public Sample
+{
+public:
+	explicit GhostOracle( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 30.0f, 25.0f, 5.0f, { 0.0f, 0.2f, 0.0f } );
+		}
+
+		m_scene = e_oracleFlat;
+		m_poseIndex = 0;
+		m_handleGhosts = true;
+		m_mesh = nullptr;
+		m_valid = false;
+		m_scanned = false;
+		m_status[0] = 0;
+		LoadScene( e_oracleFlat );
+	}
+
+	~GhostOracle() override
+	{
+		if ( m_mesh != nullptr )
+		{
+			b3DestroyMesh( m_mesh );
+		}
+	}
+
+	void LoadScene( int scene )
+	{
+		if ( m_mesh != nullptr )
+		{
+			b3DestroyMesh( m_mesh );
+		}
+
+		m_scene = scene;
+		m_mesh = CreateOracleMesh( (OracleScene)scene );
+		m_scanned = false;
+		Evaluate();
+	}
+
+	// Returns true if the pose is separated
+	bool EvaluatePose( int index )
+	{
+		if ( MakeOraclePose( m_mesh, (OracleScene)m_scene, index, &m_box, &m_transform ) == false )
+		{
+			return false;
+		}
+
+		if ( EvaluateGhostOracle( &m_rawResult, m_mesh, &m_box.base, m_transform, false ) == false )
+		{
+			return false;
+		}
+
+		EvaluateGhostOracle( &m_result, m_mesh, &m_box.base, m_transform, true );
+		return true;
+	}
+
+	void Evaluate()
+	{
+		m_valid = EvaluatePose( m_poseIndex );
+	}
+
+	const OracleResult& Shown() const
+	{
+		return m_handleGhosts ? m_result : m_rawResult;
+	}
+
+	bool IsCullingMiss() const
+	{
+		return m_result.missed && m_rawResult.missed == false;
+	}
+
+	void FindNext( bool ghost )
+	{
+		int start = m_poseIndex;
+		for ( int i = 1; i <= 5000; ++i )
+		{
+			int index = start + i;
+			if ( EvaluatePose( index ) == false )
+			{
+				continue;
+			}
+
+			const OracleResult& result = Shown();
+			bool found = ghost ? result.ghostCount > 0 : IsCullingMiss();
+			if ( found )
+			{
+				m_poseIndex = index;
+				m_valid = true;
+				snprintf( m_status, sizeof( m_status ), "found pose %d", index );
+				return;
+			}
+		}
+
+		snprintf( m_status, sizeof( m_status ), "none in poses %d to %d", start + 1, start + 5000 );
+		Evaluate();
+	}
+
+	void Scan()
+	{
+		m_scanValid = 0;
+		m_scanGhosts = 0;
+		m_scanRawGhosts = 0;
+		m_scanMissed = 0;
+		for ( int i = 0; i < m_scanCount; ++i )
+		{
+			if ( EvaluatePose( i ) == false )
+			{
+				continue;
+			}
+
+			m_scanValid += 1;
+			m_scanRawGhosts += m_rawResult.ghostCount > 0 ? 1 : 0;
+			m_scanGhosts += m_result.ghostCount > 0 ? 1 : 0;
+			m_scanMissed += IsCullingMiss() ? 1 : 0;
+		}
+
+		m_scanned = true;
+		Evaluate();
+	}
+
+	void Focus()
+	{
+		m_camera->SetView( 30.0f, 25.0f, 2.0f, b3OffsetPos( b3Pos_zero, m_transform.p ) );
+	}
+
+	void Step() override
+	{
+	}
+
+	void Render() override
+	{
+		const OracleResult& result = Shown();
+
+		DrawTextLine( "%s, pose %d, ghost handling %s", g_oracleSceneNames[m_scene], m_poseIndex,
+					  m_handleGhosts ? "on" : "off" );
+		if ( m_valid == false )
+		{
+			DrawTextLine( "no separated pose at this index" );
+		}
+		else
+		{
+			DrawTextLine( "distance %.2f mm", 1000.0f * result.distance );
+			DrawTextLine( "ghost manifolds %d", result.ghostCount );
+			if ( result.missed )
+			{
+				DrawTextLine( "closest pair missed%s", m_handleGhosts && IsCullingMiss() ? ", by ghost handling" : "" );
+			}
+		}
+
+		if ( m_scanned )
+		{
+			DrawTextLine(
+				"scan of %d poses: %d separated, ghost poses %d unhandled and %d handled, %d misses by handling",
+				m_scanCount, m_scanValid, m_scanRawGhosts, m_scanGhosts, m_scanMissed );
+		}
+
+		if ( m_status[0] != 0 )
+		{
+			DrawTextLine( "%s", m_status );
+		}
+
+		const b3Vec3* vertices = b3GetMeshVertices( m_mesh );
+		const b3MeshTriangle* triangles = b3GetMeshTriangles( m_mesh );
+		for ( int i = 0; i < m_mesh->triangleCount; ++i )
+		{
+			b3Vec3 a = vertices[triangles[i].index1];
+			b3Vec3 b = vertices[triangles[i].index2];
+			b3Vec3 c = vertices[triangles[i].index3];
+			DrawTriangle( b3WorldTransform_identity, a, b, c, MakeColor( b3_colorDarkSlateGray ) );
+
+			b3Vec3 corners[3] = { a, b, c };
+			for ( int k = 0; k < 3; ++k )
+			{
+				DrawLine( b3OffsetPos( b3Pos_zero, corners[k] ), b3OffsetPos( b3Pos_zero, corners[k < 2 ? k + 1 : 0] ),
+						  MakeColor( b3_colorGray ) );
+			}
+		}
+
+		DrawAxes( b3WorldTransform_identity, 0.25f );
+
+		if ( m_valid == false )
+		{
+			return;
+		}
+
+		b3WorldTransform transform = { b3OffsetPos( b3Pos_zero, m_transform.p ), m_transform.q };
+		DrawHull( transform, &m_box.base, MakeColor( b3_colorGreen ) );
+
+		float speculativeDistance = B3_SPECULATIVE_DISTANCE;
+		for ( int i = 0; i < result.pairCount; ++i )
+		{
+			const OraclePair& pair = result.pairs[i];
+			if ( pair.distance > speculativeDistance )
+			{
+				continue;
+			}
+
+			b3Pos meshPoint = b3OffsetPos( b3Pos_zero, pair.meshPoint );
+			b3Pos hullPoint = b3OffsetPos( b3Pos_zero, pair.hullPoint );
+			if ( pair.owned )
+			{
+				DrawLineEx( meshPoint, hullPoint, MakeColor( b3_colorLimeGreen ), 3.0f, OVERLAY_THICKNESS_PIXELS,
+							OVERLAY_OCCLUSION_DIM );
+				DrawPoint( meshPoint, 8.0f, MakeColor( b3_colorLimeGreen ) );
+			}
+			else
+			{
+				DrawLine( meshPoint, hullPoint, MakeColor( b3_colorDimGray ) );
+			}
+		}
+
+		DrawPoint( b3OffsetPos( b3Pos_zero, result.closestMeshPoint ), 12.0f, MakeColor( b3_colorWhite ) );
+
+		Vec4 verdictColors[] = {
+			MakeColor( b3_colorDodgerBlue ),
+			MakeColor( b3_colorCyan ),
+			MakeColor( b3_colorSilver ),
+			MakeColor( b3_colorRed ),
+		};
+
+		float length = 0.15f * b3GetLengthUnitsPerMeter();
+		for ( int i = 0; i < result.pointCount; ++i )
+		{
+			const OraclePoint& point = result.points[i];
+			b3Pos origin = b3OffsetPos( b3Pos_zero, point.meshPoint );
+			Vec4 color = verdictColors[point.verdict];
+			DrawArrow( origin, b3OffsetPos( origin, b3MulSV( length, point.normal ) ), color );
+			DrawPoint( origin, 8.0f, color );
+			DrawString3D( origin, color, "  t%d %.1f mm", point.triangleIndex, 1000.0f * point.separation );
+		}
+	}
+
+	bool HasSolverControls() const override
+	{
+		return false;
+	}
+
+	bool HasProfile() const override
+	{
+		return false;
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::PushItemWidth( 160.0f );
+		int scene = m_scene;
+		if ( ImGui::Combo( "Scene", &scene, g_oracleSceneNames, e_oracleSceneCount ) )
+		{
+			m_status[0] = 0;
+			LoadScene( scene );
+		}
+
+		if ( ImGui::InputInt( "Pose", &m_poseIndex ) )
+		{
+			m_poseIndex = b3MaxInt( m_poseIndex, 0 );
+			m_status[0] = 0;
+			Evaluate();
+		}
+		ImGui::PopItemWidth();
+
+		if ( ImGui::Checkbox( "Ghost Handling", &m_handleGhosts ) )
+		{
+			m_status[0] = 0;
+		}
+
+		if ( ImGui::Button( "Next Ghost" ) )
+		{
+			FindNext( true );
+		}
+		ImGui::SameLine();
+		if ( ImGui::Button( "Next Miss" ) )
+		{
+			FindNext( false );
+		}
+
+		if ( ImGui::Button( "Scan" ) )
+		{
+			Scan();
+		}
+		ImGui::SameLine();
+		if ( ImGui::Button( "Focus" ) )
+		{
+			Focus();
+		}
+
+		ImGui::TextColored( ImVec4( 0.2f, 0.8f, 0.2f, 1.0f ), "union contact" );
+		ImGui::SameLine();
+		ImGui::TextColored( ImVec4( 0.41f, 0.41f, 0.41f, 1.0f ), "dominated pair" );
+		ImGui::TextColored( ImVec4( 0.12f, 0.56f, 1.0f, 1.0f ), "face" );
+		ImGui::SameLine();
+		ImGui::TextColored( ImVec4( 0.0f, 1.0f, 1.0f, 1.0f ), "edge or vertex" );
+		ImGui::SameLine();
+		ImGui::TextColored( ImVec4( 0.75f, 0.75f, 0.75f, 1.0f ), "shared" );
+		ImGui::SameLine();
+		ImGui::TextColored( ImVec4( 1.0f, 0.0f, 0.0f, 1.0f ), "ghost" );
+		return true;
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new GhostOracle( context );
+	}
+
+	static constexpr int m_scanCount = 500;
+
+	b3MeshData* m_mesh;
+	int m_scene;
+	int m_poseIndex;
+	bool m_handleGhosts;
+	bool m_valid;
+	b3BoxHull m_box;
+	b3Transform m_transform;
+	OracleResult m_result;
+	OracleResult m_rawResult;
+
+	bool m_scanned;
+	int m_scanValid = 0;
+	int m_scanGhosts = 0;
+	int m_scanRawGhosts = 0;
+	int m_scanMissed = 0;
+	char m_status[128];
+};
+
+static int sampleGhostOracle = RegisterSample( "Manifold", "Ghost Oracle", GhostOracle::Create );

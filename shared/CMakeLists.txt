@@ -7,6 +7,8 @@ set(BOX3D_SHARED_FILES
 	determinism.h
 	ghost_collisions.c
 	ghost_collisions.h
+	ghost_oracle.c
+	ghost_oracle.h
 	human.c
 	human.h
 	mesh_drop.c
