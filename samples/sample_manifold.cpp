@@ -10,6 +10,7 @@
 #include "box3d/constants.h"
 
 #include <imgui.h>
+#include <stdio.h>
 #include <vector>
 
 #include <ImGuizmo.h>

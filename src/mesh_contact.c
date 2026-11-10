@@ -1198,17 +1198,6 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 		int triangleIndex = triangleCaches[index].triangleIndex;
 		const b3Vec3* vertices = survivorVertices + 3 * survivorIndex;
 
-		b3Triangle triangle;
-		if ( shapeA->type == b3_meshShape )
-		{
-			triangle = b3GetMeshTriangle( &shapeA->mesh, triangleIndex );
-		}
-		else
-		{
-			B3_ASSERT( shapeA->type == b3_heightShape );
-			triangle = b3GetHeightFieldTriangle( shapeA->heightField, triangleIndex );
-		}
-
 		b3ContactCache* cache = &triangleCaches[index].cache;
 		int pointCapacity = pointBufferCapacity - totalPointCount;
 		b3LocalManifold* manifold = manifoldBuffer + manifoldCount;
