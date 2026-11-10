@@ -19,6 +19,10 @@ extern "C"
 // points outside the span of face normals under the body. Those are the ones that block or launch
 // a body.
 
+// A conveyor side rail along x, the floor is on the -z side
+#define GHOST_RAIL_HEIGHT 0.35f
+#define GHOST_RAIL_THICKNESS 0.08f
+
 typedef enum GhostScene
 {
 	e_ghostFlat,

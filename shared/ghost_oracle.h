@@ -43,8 +43,11 @@ typedef enum OracleScene
 
 extern const char* g_oracleSceneNames[e_oracleSceneCount];
 
-#define ORACLE_MAX_TRIANGLES 128
+#define ORACLE_MAX_TRIANGLES 256
 #define ORACLE_MAX_POINTS 128
+
+// Poses per scene in the unit test, and in the sample scan so the two report the same counts
+#define ORACLE_SCAN_POSES 500
 
 typedef enum OracleVerdict
 {
@@ -65,6 +68,7 @@ typedef struct OraclePair
 {
 	int triangleIndex;
 	b3Vec3 vertices[3];
+	b3Vec3 faceNormal;
 	b3Vec3 meshPoint;
 	b3Vec3 hullPoint;
 	b3Vec3 normal;
@@ -74,6 +78,18 @@ typedef struct OraclePair
 	// Triangle index of a closer triangle containing the mesh point, or -1
 	int dominatedBy;
 } OraclePair;
+
+// The union of the triangles near the hull. Depends only on the pose, not on the collider.
+typedef struct OracleReference
+{
+	// Distance between the hull and the mesh
+	float distance;
+	b3Vec3 closestMeshPoint;
+	b3Vec3 closestHullPoint;
+
+	OraclePair pairs[ORACLE_MAX_TRIANGLES];
+	int pairCount;
+} OracleReference;
 
 typedef struct OraclePoint
 {
@@ -89,23 +105,46 @@ typedef struct OraclePoint
 	OracleVerdict verdict;
 } OraclePoint;
 
+// The collider output judged against the reference
 typedef struct OracleResult
 {
-	// Distance between the hull and the mesh
-	float distance;
-	b3Vec3 closestMeshPoint;
-	b3Vec3 closestHullPoint;
-
-	OraclePair pairs[ORACLE_MAX_TRIANGLES];
-	int pairCount;
-
 	OraclePoint points[ORACLE_MAX_POINTS];
 	int pointCount;
 
 	// Ghost manifolds
 	int ghostCount;
+
+	// The union closest pair has no collided point
 	bool missed;
 } OracleResult;
+
+typedef struct OraclePose
+{
+	b3BoxHull box;
+	b3Transform transform;
+	OracleReference reference;
+
+	// Collided without and with ghost handling
+	OracleResult raw;
+	OracleResult handled;
+} OraclePose;
+
+typedef struct OracleScan
+{
+	// Separated poses
+	int validCount;
+
+	// Poses with a ghost manifold, without and with ghost handling
+	int rawGhostPoses;
+	int ghostPoses;
+
+	// Poses where ghost handling lost the closest pair
+	int missedPoses;
+
+	// Pose indices, -1 for none
+	int firstGhost;
+	int firstMissed;
+} OracleScan;
 
 // The poses keep the hull separated by at least this much, where the closest direction is well defined
 #define ORACLE_MIN_DISTANCE ( 0.1f * B3_LINEAR_SLOP )
@@ -114,12 +153,15 @@ typedef struct OracleResult
 b3MeshData* CreateOracleMesh( OracleScene scene );
 
 // Deterministic random box and pose for the scene and index, separated from the mesh by
-// [ORACLE_MIN_DISTANCE, B3_SPECULATIVE_DISTANCE]. Returns false if no separated pose was found.
-bool MakeOraclePose( const b3MeshData* mesh, OracleScene scene, int index, b3BoxHull* box, b3Transform* transform );
+// [ORACLE_MIN_DISTANCE, B3_SPECULATIVE_DISTANCE], collided and judged with and without ghost handling.
+// Returns false if no separated pose was found, in which case the reference and results mean nothing.
+bool EvaluateOraclePose( OraclePose* pose, const b3MeshData* mesh, OracleScene scene, int index );
 
-// Returns false if the hull is not separated by ORACLE_MIN_DISTANCE, in which case the result is empty.
-bool EvaluateGhostOracle( OracleResult* result, const b3MeshData* mesh, const b3HullData* hull, b3Transform transform,
-						  bool handleGhosts );
+// A miss counts against ghost handling only when the collider represents the closest pair without it
+bool IsOracleCullingMiss( const OraclePose* pose );
+
+// Poses [0, poseCount) of the scene
+OracleScan ScanGhostOracle( const b3MeshData* mesh, OracleScene scene, int poseCount );
 
 #ifdef __cplusplus
 }

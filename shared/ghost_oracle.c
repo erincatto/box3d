@@ -3,6 +3,8 @@
 
 #include "ghost_oracle.h"
 
+#include "ghost_collisions.h"
+
 #include "box3d/box3d.h"
 #include "box3d/constants.h"
 
@@ -14,8 +16,10 @@ const char* g_oracleSceneNames[e_oracleSceneCount] = {
 	"flat", "fan", "crest", "valley", "ridge", "saddle ridge", "rail", "wave",
 };
 
+// The wave scene is the largest, 169 vertices and 288 triangles
 #define ORACLE_MAX_VERTICES 256
-#define ORACLE_MAX_INDICES ( 3 * 256 )
+#define ORACLE_MAX_INDICES ( 3 * 512 )
+#define ORACLE_MAX_MANIFOLDS 128
 
 typedef struct OracleBuilder
 {
@@ -27,6 +31,7 @@ typedef struct OracleBuilder
 
 static int AddVertex( OracleBuilder* builder, b3Vec3 vertex )
 {
+	B3_ASSERT( builder->vertexCount < ORACLE_MAX_VERTICES );
 	if ( builder->vertexCount == ORACLE_MAX_VERTICES )
 	{
 		return 0;
@@ -39,6 +44,7 @@ static int AddVertex( OracleBuilder* builder, b3Vec3 vertex )
 // Winds the triangle to face the given direction
 static void AddTriangle( OracleBuilder* builder, int a, int b, int c, b3Vec3 facing )
 {
+	B3_ASSERT( builder->indexCount + 3 <= ORACLE_MAX_INDICES );
 	if ( builder->indexCount + 3 > ORACLE_MAX_INDICES )
 	{
 		return;
@@ -124,9 +130,13 @@ static float RidgeHeight( float x, float z )
 	return -fabsf( x );
 }
 
+// libm trig differs in the last bit between platforms, which would make each a different mesh
 static float WaveHeight( float x, float z )
 {
-	return 0.12f * sinf( 2.3f * x + 0.4f ) * cosf( 1.7f * z ) + 0.05f * sinf( 4.1f * z - 1.3f * x );
+	float s1 = b3ComputeCosSin( 2.3f * x + 0.4f ).sine;
+	float c1 = b3ComputeCosSin( 1.7f * z ).cosine;
+	float s2 = b3ComputeCosSin( 4.1f * z - 1.3f * x ).sine;
+	return 0.12f * s1 * c1 + 0.05f * s2;
 }
 
 static void BuildFan( OracleBuilder* builder )
@@ -134,8 +144,8 @@ static void BuildFan( OracleBuilder* builder )
 	int center = AddVertex( builder, b3Vec3_zero );
 	for ( int i = 0; i < 6; ++i )
 	{
-		float angle = ( i + 0.5f ) * B3_PI / 3.0f;
-		AddVertex( builder, (b3Vec3){ 2.0f * cosf( angle ), 0.0f, 2.0f * sinf( angle ) } );
+		b3CosSin cs = b3ComputeCosSin( ( i + 0.5f ) * B3_PI / 3.0f );
+		AddVertex( builder, (b3Vec3){ 2.0f * cs.cosine, 0.0f, 2.0f * cs.sine } );
 	}
 
 	for ( int i = 0; i < 6; ++i )
@@ -171,8 +181,8 @@ static void BuildSaddleRidge( OracleBuilder* builder )
 // A wall facing -z meeting a narrow top at a convex edge, like a conveyor side rail
 static void BuildRail( OracleBuilder* builder )
 {
-	float sectionZ[4] = { 0.0f, 0.0f, 0.08f, 0.08f };
-	float sectionY[4] = { 0.0f, 0.35f, 0.35f, 0.0f };
+	float sectionZ[4] = { 0.0f, 0.0f, GHOST_RAIL_THICKNESS, GHOST_RAIL_THICKNESS };
+	float sectionY[4] = { 0.0f, GHOST_RAIL_HEIGHT, GHOST_RAIL_HEIGHT, 0.0f };
 	int columns = 5;
 	for ( int row = 0; row < 4; ++row )
 	{
@@ -253,6 +263,7 @@ b3MeshData* CreateOracleMesh( OracleScene scene )
 	return b3CreateMesh( &def, NULL, 0 );
 }
 
+// Local state and 24 bits per draw, which the global 15 bit generator in utils.h does not give
 typedef struct OracleRandom
 {
 	uint32_t state;
@@ -300,26 +311,31 @@ static b3Vec3 RandomTilt( OracleRandom* random, b3Vec3 axis, float maxAngle )
 	}
 
 	perp = b3MulSV( 1.0f / length, perp );
-	float angle = RandomRange( random, 0.0f, maxAngle );
-	return b3Add( b3MulSV( cosf( angle ), axis ), b3MulSV( sinf( angle ), perp ) );
+	b3CosSin cs = b3ComputeCosSin( RandomRange( random, 0.0f, maxAngle ) );
+	return b3Add( b3MulSV( cs.cosine, axis ), b3MulSV( cs.sine, perp ) );
 }
 
 static bool CollectPair( b3Vec3 a, b3Vec3 b, b3Vec3 c, int triangleIndex, void* context )
 {
-	OracleResult* result = context;
-	if ( result->pairCount == ORACLE_MAX_TRIANGLES )
+	OracleReference* reference = context;
+
+	// A truncated union would misjudge the pose
+	B3_ASSERT( reference->pairCount < ORACLE_MAX_TRIANGLES );
+	if ( reference->pairCount == ORACLE_MAX_TRIANGLES )
 	{
 		return false;
 	}
 
-	OraclePair* pair = result->pairs + result->pairCount;
+	OraclePair* pair = reference->pairs + reference->pairCount;
 	*pair = (OraclePair){ 0 };
 	pair->triangleIndex = triangleIndex;
 	pair->vertices[0] = a;
 	pair->vertices[1] = b;
 	pair->vertices[2] = c;
+	pair->faceNormal = b3Normalize( b3Cross( b3Sub( b, a ), b3Sub( c, a ) ) );
+	pair->owned = true;
 	pair->dominatedBy = -1;
-	result->pairCount += 1;
+	reference->pairCount += 1;
 	return true;
 }
 
@@ -377,9 +393,10 @@ static b3Vec3 ClosestPointOnTriangle( b3Vec3 p, b3Vec3 a, b3Vec3 b, b3Vec3 c )
 	return b3Add( a, b3Add( b3MulSV( v, ab ), b3MulSV( w, ac ) ) );
 }
 
-static float ComputePairs( OracleResult* result, const b3MeshData* mesh, const b3HullData* hull, b3Transform transform )
+// The closest pair of each nearby triangle and the union distance
+static float ComputePairs( OracleReference* reference, const b3MeshData* mesh, const b3HullData* hull, b3Transform transform )
 {
-	result->pairCount = 0;
+	reference->pairCount = 0;
 
 	b3AABB bounds = b3ComputeHullAABB( hull, transform );
 	// Collided points can be well past the speculative distance and the proximal test looks around them
@@ -388,12 +405,12 @@ static float ComputePairs( OracleResult* result, const b3MeshData* mesh, const b
 	bounds.upperBound = b3Add( bounds.upperBound, (b3Vec3){ margin, margin, margin } );
 
 	b3Mesh meshShape = { .data = (b3MeshData*)mesh, .scale = b3Vec3_one };
-	b3QueryMesh( &meshShape, bounds, CollectPair, result );
+	b3QueryMesh( &meshShape, bounds, CollectPair, reference );
 
 	float minDistance = FLT_MAX;
-	for ( int i = 0; i < result->pairCount; ++i )
+	for ( int i = 0; i < reference->pairCount; ++i )
 	{
-		OraclePair* pair = result->pairs + i;
+		OraclePair* pair = reference->pairs + i;
 		b3DistanceInput input = { 0 };
 		input.proxyA = (b3ShapeProxy){ pair->vertices, 3, 0.0f };
 		input.proxyB = (b3ShapeProxy){ b3GetHullPoints( hull ), hull->vertexCount, 0.0f };
@@ -409,16 +426,55 @@ static float ComputePairs( OracleResult* result, const b3MeshData* mesh, const b
 		if ( output.distance < minDistance )
 		{
 			minDistance = output.distance;
-			result->closestMeshPoint = output.pointA;
-			result->closestHullPoint = output.pointB;
+			reference->closestMeshPoint = output.pointA;
+			reference->closestHullPoint = output.pointB;
 		}
 	}
 
-	result->distance = minDistance;
+	reference->distance = minDistance;
 	return minDistance;
 }
 
-bool MakeOraclePose( const b3MeshData* mesh, OracleScene scene, int index, b3BoxHull* box, b3Transform* transform )
+#define ORACLE_CONTAIN_TOLERANCE 1.0e-4f
+
+static bool TriangleContains( const OraclePair* pair, b3Vec3 point )
+{
+	b3Vec3 closest = ClosestPointOnTriangle( point, pair->vertices[0], pair->vertices[1], pair->vertices[2] );
+	return b3DistanceSquared( closest, point ) < ORACLE_CONTAIN_TOLERANCE * ORACLE_CONTAIN_TOLERANCE;
+}
+
+// A closest pair is a contact of the union unless a closer triangle also contains its mesh point
+static void ComputeOwnership( OracleReference* reference )
+{
+	// Ties along shared features differ only by GJK round off
+	float tieTolerance = 0.02f * B3_LINEAR_SLOP;
+
+	for ( int i = 0; i < reference->pairCount; ++i )
+	{
+		OraclePair* pair = reference->pairs + i;
+		pair->owned = true;
+		pair->dominatedBy = -1;
+		for ( int j = 0; j < reference->pairCount; ++j )
+		{
+			const OraclePair* other = reference->pairs + j;
+			if ( j == i || other->distance >= pair->distance - tieTolerance )
+			{
+				continue;
+			}
+
+			if ( TriangleContains( other, pair->meshPoint ) )
+			{
+				pair->owned = false;
+				pair->dominatedBy = other->triangleIndex;
+				break;
+			}
+		}
+	}
+}
+
+// On success the reference holds the closest pairs of the returned pose
+static bool MakeOraclePose( OracleReference* reference, const b3MeshData* mesh, OracleScene scene, int index, b3BoxHull* box,
+							b3Transform* transform )
 {
 	OracleRandom random = { 0x9E3779B9u ^ ( 2654435761u * (uint32_t)( index + 1 ) ) ^ ( 40503u * (uint32_t)scene ) };
 	for ( int i = 0; i < 4; ++i )
@@ -484,11 +540,12 @@ bool MakeOraclePose( const b3MeshData* mesh, OracleScene scene, int index, b3Box
 	b3Transform pose = { b3Sub( target, b3RotateVector( rotation, support ) ), rotation };
 	pose.p = b3MulAdd( pose.p, gap, approach );
 
-	static OracleResult scratch;
 	for ( int iteration = 0; iteration < 20; ++iteration )
 	{
-		float distance = ComputePairs( &scratch, mesh, &box->base, pose );
-		if ( scratch.pairCount == 0 )
+		*transform = pose;
+
+		float distance = ComputePairs( reference, mesh, &box->base, pose );
+		if ( reference->pairCount == 0 )
 		{
 			return false;
 		}
@@ -501,75 +558,89 @@ bool MakeOraclePose( const b3MeshData* mesh, OracleScene scene, int index, b3Box
 
 		if ( b3AbsFloat( distance - gap ) < 0.05f * linearSlop )
 		{
-			*transform = pose;
 			return true;
 		}
 
-		b3Vec3 direction = b3Normalize( b3Sub( scratch.closestHullPoint, scratch.closestMeshPoint ) );
+		b3Vec3 direction = b3Normalize( b3Sub( reference->closestHullPoint, reference->closestMeshPoint ) );
 		pose.p = b3MulAdd( pose.p, gap - distance, direction );
 	}
 
-	float distance = ComputePairs( &scratch, mesh, &box->base, pose );
 	*transform = pose;
-	return ORACLE_MIN_DISTANCE <= distance && distance <= B3_SPECULATIVE_DISTANCE;
+	float distance = ComputePairs( reference, mesh, &box->base, pose );
+	return reference->pairCount > 0 && ORACLE_MIN_DISTANCE <= distance && distance <= B3_SPECULATIVE_DISTANCE;
 }
 
-bool EvaluateGhostOracle( OracleResult* result, const b3MeshData* mesh, const b3HullData* hull, b3Transform transform,
-						  bool handleGhosts )
+// Smallest squared sine between the normal and the face normal of a triangle that contains the mesh
+// point and faces the normal. FLT_MAX if there is no such triangle.
+static float FacingSineSquared( const OracleReference* reference, b3Vec3 meshPoint, b3Vec3 normal )
+{
+	float best = FLT_MAX;
+	for ( int i = 0; i < reference->pairCount; ++i )
+	{
+		const OraclePair* pair = reference->pairs + i;
+		if ( b3Dot( pair->faceNormal, normal ) <= 0.0f || TriangleContains( pair, meshPoint ) == false )
+		{
+			continue;
+		}
+
+		best = b3MinFloat( best, b3LengthSquared( b3Cross( pair->faceNormal, normal ) ) );
+	}
+
+	return best;
+}
+
+// The mesh point is the closest union point to a point a little way out along the normal
+static bool IsProximalNormal( const OracleReference* reference, b3Vec3 meshPoint, b3Vec3 normal, float sinTolerance )
+{
+	float probeDistance = 0.01f;
+	b3Vec3 probe = b3MulAdd( meshPoint, probeDistance, normal );
+	float bestDistanceSquared = FLT_MAX;
+	b3Vec3 best = meshPoint;
+	for ( int i = 0; i < reference->pairCount; ++i )
+	{
+		const OraclePair* pair = reference->pairs + i;
+		b3Vec3 closest = ClosestPointOnTriangle( probe, pair->vertices[0], pair->vertices[1], pair->vertices[2] );
+		float distanceSquared = b3DistanceSquared( closest, probe );
+		if ( distanceSquared < bestDistanceSquared )
+		{
+			bestDistanceSquared = distanceSquared;
+			best = closest;
+		}
+	}
+
+	float offset = sinTolerance * probeDistance;
+	return b3DistanceSquared( best, meshPoint ) < offset * offset;
+}
+
+// Collides the hull and judges every manifold against the reference
+static void JudgeCollision( OracleResult* result, const OracleReference* reference, const b3MeshData* mesh,
+							const b3HullData* hull, b3Transform transform, bool handleGhosts )
 {
 	result->pointCount = 0;
 	result->ghostCount = 0;
 	result->missed = false;
 
-	float distance = ComputePairs( result, mesh, hull, transform );
-	if ( result->pairCount == 0 || distance < ORACLE_MIN_DISTANCE )
-	{
-		result->pairCount = 0;
-		return false;
-	}
-
-	// Ties along shared features differ only by GJK round off
-	float tieTolerance = 0.02f * B3_LINEAR_SLOP;
-	float containTolerance = 1.0e-4f;
-
-	for ( int i = 0; i < result->pairCount; ++i )
-	{
-		OraclePair* pair = result->pairs + i;
-		pair->owned = true;
-		for ( int j = 0; j < result->pairCount; ++j )
-		{
-			const OraclePair* other = result->pairs + j;
-			if ( j == i || other->distance >= pair->distance - tieTolerance )
-			{
-				continue;
-			}
-
-			b3Vec3 closest =
-				ClosestPointOnTriangle( pair->meshPoint, other->vertices[0], other->vertices[1], other->vertices[2] );
-			if ( b3DistanceSquared( closest, pair->meshPoint ) < containTolerance * containTolerance )
-			{
-				pair->owned = false;
-				pair->dominatedBy = other->triangleIndex;
-				break;
-			}
-		}
-	}
-
-	b3Manifold manifolds[ORACLE_MAX_TRIANGLES];
+	b3Manifold manifolds[ORACLE_MAX_MANIFOLDS];
 	b3Mesh meshShape = { .data = (b3MeshData*)mesh, .scale = b3Vec3_one };
 	int manifoldCount =
-		b3CollideMeshAndHull( manifolds, ORACLE_MAX_TRIANGLES, &meshShape, hull, transform, true, handleGhosts );
+		b3CollideMeshAndHull( manifolds, ORACLE_MAX_MANIFOLDS, &meshShape, hull, transform, true, handleGhosts );
+	B3_ASSERT( manifoldCount < ORACLE_MAX_MANIFOLDS );
 
 	// Clustering merges manifolds whose normals are within about 5 degrees
 	float sinTolerance = 0.1f;
-	float probeDistance = 0.01f;
 	float minSeparation = FLT_MAX;
 	for ( int i = 0; i < manifoldCount; ++i )
 	{
 		const b3Manifold* manifold = manifolds + i;
 		int firstPoint = result->pointCount;
-		for ( int j = 0; j < manifold->pointCount && result->pointCount < ORACLE_MAX_POINTS; ++j )
+		for ( int j = 0; j < manifold->pointCount; ++j )
 		{
+			B3_ASSERT( result->pointCount < ORACLE_MAX_POINTS );
+			if ( result->pointCount == ORACLE_MAX_POINTS )
+			{
+				break;
+			}
+
 			const b3ManifoldPoint* manifoldPoint = manifold->points + j;
 			OraclePoint* point = result->points + result->pointCount;
 			point->point = manifoldPoint->anchorA;
@@ -583,15 +654,17 @@ bool EvaluateGhostOracle( OracleResult* result, const b3MeshData* mesh, const b3
 			minSeparation = b3MinFloat( minSeparation, point->separation );
 
 			const OraclePair* pair = NULL;
-			for ( int k = 0; k < result->pairCount; ++k )
+			for ( int k = 0; k < reference->pairCount; ++k )
 			{
-				if ( result->pairs[k].triangleIndex == point->triangleIndex )
+				if ( reference->pairs[k].triangleIndex == point->triangleIndex )
 				{
-					pair = result->pairs + k;
+					pair = reference->pairs + k;
 					break;
 				}
 			}
 
+			// The reference bounds contain the collider bounds, so every collided triangle has a pair
+			B3_ASSERT( pair != NULL );
 			if ( pair == NULL )
 			{
 				continue;
@@ -601,68 +674,15 @@ bool EvaluateGhostOracle( OracleResult* result, const b3MeshData* mesh, const b3
 				ClosestPointOnTriangle( point->point, pair->vertices[0], pair->vertices[1], pair->vertices[2] );
 			point->meshPoint = meshPoint;
 
-			for ( int k = 0; k < result->pairCount; ++k )
+			// A proximal normal also has to be in front of a face here, or an inverted face normal would pass
+			float sineSquared = FacingSineSquared( reference, meshPoint, point->normal );
+			if ( sineSquared < sinTolerance * sinTolerance )
 			{
-				const OraclePair* other = result->pairs + k;
-				b3Vec3 closest =
-					ClosestPointOnTriangle( meshPoint, other->vertices[0], other->vertices[1], other->vertices[2] );
-				if ( b3DistanceSquared( closest, meshPoint ) > containTolerance * containTolerance )
-				{
-					continue;
-				}
-
-				b3Vec3 faceNormal = b3Normalize( b3Cross( b3Sub( other->vertices[1], other->vertices[0] ),
-														  b3Sub( other->vertices[2], other->vertices[0] ) ) );
-				b3Vec3 cross = b3Cross( faceNormal, point->normal );
-				if ( b3Dot( faceNormal, point->normal ) > 0.0f &&
-					 b3LengthSquared( cross ) < sinTolerance * sinTolerance )
-				{
-					point->verdict = e_oracleFace;
-					break;
-				}
+				point->verdict = e_oracleFace;
 			}
-
-			if ( point->verdict == e_oracleGhost )
+			else if ( sineSquared < FLT_MAX && IsProximalNormal( reference, meshPoint, point->normal, sinTolerance ) )
 			{
-				b3Vec3 probe = b3MulAdd( meshPoint, probeDistance, point->normal );
-				float bestDistanceSquared = FLT_MAX;
-				b3Vec3 best = meshPoint;
-				for ( int k = 0; k < result->pairCount; ++k )
-				{
-					const OraclePair* other = result->pairs + k;
-					b3Vec3 closest =
-						ClosestPointOnTriangle( probe, other->vertices[0], other->vertices[1], other->vertices[2] );
-					float distanceSquared = b3DistanceSquared( closest, probe );
-					if ( distanceSquared < bestDistanceSquared )
-					{
-						bestDistanceSquared = distanceSquared;
-						best = closest;
-					}
-				}
-
-				// The probe must also be in front of the surface, or an inverted face normal would pass
-				float offset = sinTolerance * probeDistance;
-				if ( b3DistanceSquared( best, meshPoint ) < offset * offset )
-				{
-					for ( int k = 0; k < result->pairCount; ++k )
-					{
-						const OraclePair* other = result->pairs + k;
-						b3Vec3 closest = ClosestPointOnTriangle( meshPoint, other->vertices[0], other->vertices[1],
-																 other->vertices[2] );
-						if ( b3DistanceSquared( closest, meshPoint ) > containTolerance * containTolerance )
-						{
-							continue;
-						}
-
-						b3Vec3 faceNormal = b3Cross( b3Sub( other->vertices[1], other->vertices[0] ),
-													 b3Sub( other->vertices[2], other->vertices[0] ) );
-						if ( b3Dot( faceNormal, point->normal ) > 0.0f )
-						{
-							point->verdict = e_oracleFeature;
-							break;
-						}
-					}
-				}
+				point->verdict = e_oracleFeature;
 			}
 		}
 
@@ -697,10 +717,63 @@ bool EvaluateGhostOracle( OracleResult* result, const b3MeshData* mesh, const b3
 
 	// The union closest pair has to be represented. SAT separation is a lower bound on distance.
 	float linearSlop = B3_LINEAR_SLOP;
+	float distance = reference->distance;
 	if ( distance < B3_SPECULATIVE_DISTANCE - linearSlop && minSeparation > distance + linearSlop )
 	{
 		result->missed = true;
 	}
+}
 
+bool EvaluateOraclePose( OraclePose* pose, const b3MeshData* mesh, OracleScene scene, int index )
+{
+	if ( MakeOraclePose( &pose->reference, mesh, scene, index, &pose->box, &pose->transform ) == false )
+	{
+		return false;
+	}
+
+	B3_ASSERT( pose->reference.distance >= ORACLE_MIN_DISTANCE );
+	ComputeOwnership( &pose->reference );
+
+	const b3HullData* hull = &pose->box.base;
+	JudgeCollision( &pose->raw, &pose->reference, mesh, hull, pose->transform, false );
+	JudgeCollision( &pose->handled, &pose->reference, mesh, hull, pose->transform, true );
 	return true;
+}
+
+bool IsOracleCullingMiss( const OraclePose* pose )
+{
+	return pose->handled.missed && pose->raw.missed == false;
+}
+
+OracleScan ScanGhostOracle( const b3MeshData* mesh, OracleScene scene, int poseCount )
+{
+	static OraclePose pose;
+	OracleScan scan = { 0 };
+	scan.firstGhost = -1;
+	scan.firstMissed = -1;
+
+	for ( int i = 0; i < poseCount; ++i )
+	{
+		if ( EvaluateOraclePose( &pose, mesh, scene, i ) == false )
+		{
+			continue;
+		}
+
+		scan.validCount += 1;
+		scan.rawGhostPoses += pose.raw.ghostCount > 0 ? 1 : 0;
+
+		if ( pose.handled.ghostCount > 0 )
+		{
+			scan.ghostPoses += 1;
+			scan.firstGhost = scan.firstGhost < 0 ? i : scan.firstGhost;
+		}
+
+		if ( IsOracleCullingMiss( &pose ) )
+		{
+			scan.missedPoses += 1;
+			scan.firstMissed = scan.firstMissed < 0 ? i : scan.firstMissed;
+		}
+	}
+
+	return scan;
 }

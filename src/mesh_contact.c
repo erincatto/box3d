@@ -1179,6 +1179,11 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 		}
 	}
 
+	if ( survivorCount == 0 )
+	{
+		return 0;
+	}
+
 	// Make room for clip points. Additional capacity for a heavy clip.
 	int pointBufferCapacity = B3_MAX_POINTS_PER_TRIANGLE * survivorCount + 2 * B3_MAX_CLIP_POINTS;
 

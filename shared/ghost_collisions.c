@@ -18,9 +18,6 @@
 #define GHOST_CHAMFER_WIDTH 0.05f
 #define GHOST_CHAMFER_DROP ( GHOST_CHAMFER_WIDTH / 1.5f )
 
-// A conveyor side rail along x, the floor is on the -z side
-#define GHOST_RAIL_HEIGHT 0.35f
-#define GHOST_RAIL_THICKNESS 0.08f
 #define GHOST_RAIL_SKIRT 0.4f
 
 typedef struct PeelPreset

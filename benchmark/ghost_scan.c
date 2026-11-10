@@ -3,7 +3,9 @@
 
 // Headless scan of the Mesh / Ghost Collisions sample. Runs every scene, body, mirror and PEEL
 // preset for a fixed number of steps and counts the ghost manifolds that pushed on the body. A
-// written result file can be compared against a later build, which fails on any count that grew.
+// written result file can be compared against a later build, which fails on any count that grew. It
+// also fails on a config that completed fewer runs, because a body stopped on an edge or dropped
+// through the ground crosses fewer edges and so logs fewer ghosts.
 
 #if defined( _MSC_VER ) && !defined( _CRT_SECURE_NO_WARNINGS )
 #define _CRT_SECURE_NO_WARNINGS
@@ -390,12 +392,13 @@ int main( int argc, char** argv )
 					"  -p, --preset=<0-3|all>   PEEL preset (default all)\n"
 					"  -n, --steps=<int>        steps per config (default 900)\n"
 					"  -w, --write=<file>       write results as csv, replacing only the rows of this run\n"
-					"  -c, --compare=<file>     compare with a written csv, fail if any count grew or has no row\n"
+					"  -c, --compare=<file>     compare with a written csv, fail if any count grew, any config\n"
+					"                           completed fewer runs, or has no row\n"
 					"  --speed=, --yaw=, --friction=, --cell=, --fixed-rotation, --no-speculative\n"
 					"  --height-field           height field ground, one static body per height field\n"
 					"  --no-recycling           disable contact recycling\n"
 					"  -v, --verbose            print every ghost\n"
-					"Exit code is 1 when a compared count grew or has no row, 0 otherwise.\n" );
+					"Exit code is 1 when a compared count grew, completed fewer runs or has no row, 0 otherwise.\n" );
 			return 2;
 		}
 	}
@@ -441,6 +444,7 @@ int main( int argc, char** argv )
 	int grewCount = 0;
 	int shrankCount = 0;
 	int missingCount = 0;
+	int fewerRunsCount = 0;
 	int column = 0;
 	for ( int i = 0; i < configCount; ++i )
 	{
@@ -483,9 +487,21 @@ int main( int argc, char** argv )
 		grewCount += c->baseGhostCount >= 0 && c->ghostCount > c->baseGhostCount;
 		shrankCount += c->baseGhostCount >= 0 && c->ghostCount < c->baseGhostCount;
 		missingCount += c->baseGhostCount < 0;
+		fewerRunsCount += c->baseRunCount >= 0 && c->runCount < c->baseRunCount;
 	}
 
 	printf( "\n\ntotal ghosts %d, time %.1f s\n", totalGhosts, seconds );
+
+	for ( int i = 0; i < configCount && fewerRunsCount > 0; ++i )
+	{
+		const Config* c = configs + i;
+		if ( c->baseRunCount >= 0 && c->runCount < c->baseRunCount )
+		{
+			char row[64];
+			FormatRow( row, sizeof( row ), c );
+			printf( "fewer runs: %s %s %d>%d\n", row, s_bodyKeys[c->body], c->baseRunCount, c->runCount );
+		}
+	}
 
 	if ( writePath != NULL && WriteResults( writePath, configs, configCount ) == false )
 	{
@@ -494,8 +510,9 @@ int main( int argc, char** argv )
 
 	if ( comparePath != NULL )
 	{
-		bool pass = grewCount == 0 && missingCount == 0;
-		printf( "compared with %s: %d grew, %d shrank, %d missing\n", comparePath, grewCount, shrankCount, missingCount );
+		bool pass = grewCount == 0 && missingCount == 0 && fewerRunsCount == 0;
+		printf( "compared with %s: %d grew, %d shrank, %d missing, %d with fewer runs\n", comparePath, grewCount, shrankCount,
+				missingCount, fewerRunsCount );
 		printf( pass ? "PASS\n" : "FAIL\n" );
 		return pass ? 0 : 1;
 	}

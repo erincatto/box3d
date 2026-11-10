@@ -3235,7 +3235,7 @@ public:
 static int sampleSphereGhostManifold =
 	RegisterSample( "Manifold", "Sphere Ghost Manifold", SphereGhostManifold::Create );
 
-// Separated poses judged against the union of the triangles, see shared/ghost_oracle.h. Pose N of a scene
+/// Separated poses judged against the union of the triangles, see shared/ghost_oracle.h. Pose N of a scene
 // is the pose N the MeshGhostOracle unit test runs, so a failure index from the test replays here.
 class GhostOracle : public Sample
 {
@@ -3254,6 +3254,7 @@ public:
 		m_mesh = nullptr;
 		m_valid = false;
 		m_scanned = false;
+		m_searching = false;
 		m_status[0] = 0;
 		LoadScene( e_oracleFlat );
 	}
@@ -3276,102 +3277,97 @@ public:
 		m_scene = scene;
 		m_mesh = CreateOracleMesh( (OracleScene)scene );
 		m_scanned = false;
+		m_searching = false;
 		Evaluate();
-	}
-
-	// Returns true if the pose is separated
-	bool EvaluatePose( int index )
-	{
-		if ( MakeOraclePose( m_mesh, (OracleScene)m_scene, index, &m_box, &m_transform ) == false )
-		{
-			return false;
-		}
-
-		if ( EvaluateGhostOracle( &m_rawResult, m_mesh, &m_box.base, m_transform, false ) == false )
-		{
-			return false;
-		}
-
-		EvaluateGhostOracle( &m_result, m_mesh, &m_box.base, m_transform, true );
-		return true;
 	}
 
 	void Evaluate()
 	{
-		m_valid = EvaluatePose( m_poseIndex );
+		m_valid = EvaluateOraclePose( &m_pose, m_mesh, (OracleScene)m_scene, m_poseIndex );
 	}
 
 	const OracleResult& Shown() const
 	{
-		return m_handleGhosts ? m_result : m_rawResult;
+		return m_handleGhosts ? m_pose.handled : m_pose.raw;
 	}
 
-	bool IsCullingMiss() const
+	void StartSearch( bool ghost )
 	{
-		return m_result.missed && m_rawResult.missed == false;
+		m_searching = true;
+		m_searchGhost = ghost;
+		m_searchStart = m_poseIndex;
+		m_searchIndex = m_poseIndex + 1;
 	}
 
-	void FindNext( bool ghost )
+	// A pose costs up to 21 GJK sweeps of the mesh and most searches find nothing, so the search takes
+	// a time slice per frame
+	void UpdateSearch()
 	{
-		int start = m_poseIndex;
-		for ( int i = 1; i <= 5000; ++i )
+		uint64_t ticks = b3GetTicks();
+		int end = m_searchStart + m_searchCount;
+		while ( m_searchIndex <= end && b3GetMilliseconds( ticks ) < 8.0f )
 		{
-			int index = start + i;
-			if ( EvaluatePose( index ) == false )
+			int index = m_searchIndex;
+			m_searchIndex += 1;
+
+			if ( EvaluateOraclePose( &m_searchPose, m_mesh, (OracleScene)m_scene, index ) == false )
 			{
 				continue;
 			}
 
-			const OracleResult& result = Shown();
-			bool found = ghost ? result.ghostCount > 0 : IsCullingMiss();
+			const OracleResult& result = m_handleGhosts ? m_searchPose.handled : m_searchPose.raw;
+			bool found = m_searchGhost ? result.ghostCount > 0 : IsOracleCullingMiss( &m_searchPose );
 			if ( found )
 			{
+				m_pose = m_searchPose;
 				m_poseIndex = index;
 				m_valid = true;
+				m_searching = false;
 				snprintf( m_status, sizeof( m_status ), "found pose %d", index );
 				return;
 			}
 		}
 
-		snprintf( m_status, sizeof( m_status ), "none in poses %d to %d", start + 1, start + 5000 );
-		Evaluate();
-	}
-
-	void Scan()
-	{
-		m_scanValid = 0;
-		m_scanGhosts = 0;
-		m_scanRawGhosts = 0;
-		m_scanMissed = 0;
-		for ( int i = 0; i < m_scanCount; ++i )
+		if ( m_searchIndex > end )
 		{
-			if ( EvaluatePose( i ) == false )
-			{
-				continue;
-			}
-
-			m_scanValid += 1;
-			m_scanRawGhosts += m_rawResult.ghostCount > 0 ? 1 : 0;
-			m_scanGhosts += m_result.ghostCount > 0 ? 1 : 0;
-			m_scanMissed += IsCullingMiss() ? 1 : 0;
+			m_searching = false;
+			snprintf( m_status, sizeof( m_status ), "none in poses %d to %d", m_searchStart + 1, end );
 		}
-
-		m_scanned = true;
-		Evaluate();
+		else
+		{
+			snprintf( m_status, sizeof( m_status ), "searching poses %d to %d, at %d", m_searchStart + 1, end, m_searchIndex );
+		}
 	}
 
-	void Focus()
+	void CancelSearch()
 	{
-		m_camera->SetView( 30.0f, 25.0f, 2.0f, b3OffsetPos( b3Pos_zero, m_transform.p ) );
+		m_searching = false;
+		m_status[0] = 0;
 	}
 
 	void Step() override
 	{
+		if ( m_searching )
+		{
+			UpdateSearch();
+		}
+	}
+
+	bool FocusBounds( b3AABB* bounds ) override
+	{
+		if ( m_valid == false )
+		{
+			return false;
+		}
+
+		*bounds = b3ComputeHullAABB( &m_pose.box.base, m_pose.transform );
+		return true;
 	}
 
 	void Render() override
 	{
 		const OracleResult& result = Shown();
+		const OracleReference& reference = m_pose.reference;
 
 		DrawTextLine( "%s, pose %d, ghost handling %s", g_oracleSceneNames[m_scene], m_poseIndex,
 					  m_handleGhosts ? "on" : "off" );
@@ -3381,11 +3377,12 @@ public:
 		}
 		else
 		{
-			DrawTextLine( "distance %.2f mm", 1000.0f * result.distance );
+			DrawTextLine( "distance %.2f mm", 1000.0f * reference.distance );
 			DrawTextLine( "ghost manifolds %d", result.ghostCount );
 			if ( result.missed )
 			{
-				DrawTextLine( "closest pair missed%s", m_handleGhosts && IsCullingMiss() ? ", by ghost handling" : "" );
+				bool cullingMiss = m_handleGhosts && IsOracleCullingMiss( &m_pose );
+				DrawTextLine( "closest pair missed%s", cullingMiss ? ", by ghost handling" : "" );
 			}
 		}
 
@@ -3393,7 +3390,7 @@ public:
 		{
 			DrawTextLine(
 				"scan of %d poses: %d separated, ghost poses %d unhandled and %d handled, %d misses by handling",
-				m_scanCount, m_scanValid, m_scanRawGhosts, m_scanGhosts, m_scanMissed );
+				ORACLE_SCAN_POSES, m_scan.validCount, m_scan.rawGhostPoses, m_scan.ghostPoses, m_scan.missedPoses );
 		}
 
 		if ( m_status[0] != 0 )
@@ -3425,13 +3422,13 @@ public:
 			return;
 		}
 
-		b3WorldTransform transform = { b3OffsetPos( b3Pos_zero, m_transform.p ), m_transform.q };
-		DrawHull( transform, &m_box.base, MakeColor( b3_colorGreen ) );
+		b3WorldTransform transform = { b3OffsetPos( b3Pos_zero, m_pose.transform.p ), m_pose.transform.q };
+		DrawHull( transform, &m_pose.box.base, MakeColor( b3_colorGreen ) );
 
 		float speculativeDistance = B3_SPECULATIVE_DISTANCE;
-		for ( int i = 0; i < result.pairCount; ++i )
+		for ( int i = 0; i < reference.pairCount; ++i )
 		{
-			const OraclePair& pair = result.pairs[i];
+			const OraclePair& pair = reference.pairs[i];
 			if ( pair.distance > speculativeDistance )
 			{
 				continue;
@@ -3441,31 +3438,24 @@ public:
 			b3Pos hullPoint = b3OffsetPos( b3Pos_zero, pair.hullPoint );
 			if ( pair.owned )
 			{
-				DrawLineEx( meshPoint, hullPoint, MakeColor( b3_colorLimeGreen ), 3.0f, OVERLAY_THICKNESS_PIXELS,
+				DrawLineEx( meshPoint, hullPoint, MakeColor( m_ownedColor ), 3.0f, OVERLAY_THICKNESS_PIXELS,
 							OVERLAY_OCCLUSION_DIM );
-				DrawPoint( meshPoint, 8.0f, MakeColor( b3_colorLimeGreen ) );
+				DrawPoint( meshPoint, 8.0f, MakeColor( m_ownedColor ) );
 			}
 			else
 			{
-				DrawLine( meshPoint, hullPoint, MakeColor( b3_colorDimGray ) );
+				DrawLine( meshPoint, hullPoint, MakeColor( m_dominatedColor ) );
 			}
 		}
 
-		DrawPoint( b3OffsetPos( b3Pos_zero, result.closestMeshPoint ), 12.0f, MakeColor( b3_colorWhite ) );
-
-		Vec4 verdictColors[] = {
-			MakeColor( b3_colorDodgerBlue ),
-			MakeColor( b3_colorCyan ),
-			MakeColor( b3_colorSilver ),
-			MakeColor( b3_colorRed ),
-		};
+		DrawPoint( b3OffsetPos( b3Pos_zero, reference.closestMeshPoint ), 12.0f, MakeColor( b3_colorWhite ) );
 
 		float length = 0.15f * b3GetLengthUnitsPerMeter();
 		for ( int i = 0; i < result.pointCount; ++i )
 		{
 			const OraclePoint& point = result.points[i];
 			b3Pos origin = b3OffsetPos( b3Pos_zero, point.meshPoint );
-			Vec4 color = verdictColors[point.verdict];
+			Vec4 color = MakeColor( m_verdictColors[point.verdict] );
 			DrawArrow( origin, b3OffsetPos( origin, b3MulSV( length, point.normal ) ), color );
 			DrawPoint( origin, 8.0f, color );
 			DrawString3D( origin, color, "  t%d %.1f mm", point.triangleIndex, 1000.0f * point.separation );
@@ -3482,6 +3472,12 @@ public:
 		return false;
 	}
 
+	static void Legend( b3HexColor hexColor, const char* label )
+	{
+		Vec4 color = MakeColor( hexColor );
+		ImGui::TextColored( ImVec4( color.x, color.y, color.z, 1.0f ), "%s", label );
+	}
+
 	bool DrawControls() override
 	{
 		ImGui::PushItemWidth( 160.0f );
@@ -3495,46 +3491,58 @@ public:
 		if ( ImGui::InputInt( "Pose", &m_poseIndex ) )
 		{
 			m_poseIndex = b3MaxInt( m_poseIndex, 0 );
-			m_status[0] = 0;
+			CancelSearch();
 			Evaluate();
 		}
 		ImGui::PopItemWidth();
 
+		// The search judges the shown result, so it does not survive a switch
 		if ( ImGui::Checkbox( "Ghost Handling", &m_handleGhosts ) )
 		{
-			m_status[0] = 0;
+			CancelSearch();
 		}
 
-		if ( ImGui::Button( "Next Ghost" ) )
+		if ( m_searching )
 		{
-			FindNext( true );
+			if ( ImGui::Button( "Cancel Search" ) )
+			{
+				CancelSearch();
+			}
 		}
-		ImGui::SameLine();
-		if ( ImGui::Button( "Next Miss" ) )
+		else
 		{
-			FindNext( false );
+			if ( ImGui::Button( "Next Ghost" ) )
+			{
+				StartSearch( true );
+			}
+			ImGui::SameLine();
+			if ( ImGui::Button( "Next Miss" ) )
+			{
+				StartSearch( false );
+			}
 		}
 
 		if ( ImGui::Button( "Scan" ) )
 		{
-			Scan();
+			m_scan = ScanGhostOracle( m_mesh, (OracleScene)m_scene, ORACLE_SCAN_POSES );
+			m_scanned = true;
 		}
 		ImGui::SameLine();
-		if ( ImGui::Button( "Focus" ) )
+		if ( ImGui::Button( "Frame" ) )
 		{
-			Focus();
+			FrameSelection( m_context );
 		}
 
-		ImGui::TextColored( ImVec4( 0.2f, 0.8f, 0.2f, 1.0f ), "union contact" );
+		Legend( m_ownedColor, "union contact" );
 		ImGui::SameLine();
-		ImGui::TextColored( ImVec4( 0.41f, 0.41f, 0.41f, 1.0f ), "dominated pair" );
-		ImGui::TextColored( ImVec4( 0.12f, 0.56f, 1.0f, 1.0f ), "face" );
+		Legend( m_dominatedColor, "dominated pair" );
+		Legend( m_verdictColors[e_oracleFace], "face" );
 		ImGui::SameLine();
-		ImGui::TextColored( ImVec4( 0.0f, 1.0f, 1.0f, 1.0f ), "edge or vertex" );
+		Legend( m_verdictColors[e_oracleFeature], "edge or vertex" );
 		ImGui::SameLine();
-		ImGui::TextColored( ImVec4( 0.75f, 0.75f, 0.75f, 1.0f ), "shared" );
+		Legend( m_verdictColors[e_oracleShared], "shared" );
 		ImGui::SameLine();
-		ImGui::TextColored( ImVec4( 1.0f, 0.0f, 0.0f, 1.0f ), "ghost" );
+		Legend( m_verdictColors[e_oracleGhost], "ghost" );
 		return true;
 	}
 
@@ -3543,23 +3551,28 @@ public:
 		return new GhostOracle( context );
 	}
 
-	static constexpr int m_scanCount = 500;
+	static constexpr int m_searchCount = 5000;
+	static constexpr b3HexColor m_ownedColor = b3_colorLimeGreen;
+	static constexpr b3HexColor m_dominatedColor = b3_colorDimGray;
+
+	// Indexed by OracleVerdict
+	static constexpr b3HexColor m_verdictColors[4] = { b3_colorDodgerBlue, b3_colorCyan, b3_colorSilver, b3_colorRed };
 
 	b3MeshData* m_mesh;
 	int m_scene;
 	int m_poseIndex;
 	bool m_handleGhosts;
 	bool m_valid;
-	b3BoxHull m_box;
-	b3Transform m_transform;
-	OracleResult m_result;
-	OracleResult m_rawResult;
+	OraclePose m_pose;
 
 	bool m_scanned;
-	int m_scanValid = 0;
-	int m_scanGhosts = 0;
-	int m_scanRawGhosts = 0;
-	int m_scanMissed = 0;
+	OracleScan m_scan;
+
+	bool m_searching;
+	bool m_searchGhost;
+	int m_searchStart;
+	int m_searchIndex;
+	OraclePose m_searchPose;
 	char m_status[128];
 };
 
