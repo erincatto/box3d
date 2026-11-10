@@ -2461,8 +2461,8 @@ public:
 static int sampleGhostScenarios= RegisterSample( "Ghost", "Scenarios", GhostCollisions::Create );
 
 // A closed conveyor circuit swept from a cross section and finely tessellated, so every body slides over
-// thousands of internal edges. Belts carry bodies over a washboard, up a spiral lift and through a chicane,
-// then gravity takes them down a banked trough spiral back to the start.
+// thousands of internal edges. Belts carry bodies over a washboard, up a spiral lift and a bumpy escalator,
+// then off a sharp drop where gravity takes them down a banked trough spiral back to the start.
 // A pushing manifold is counted as a ghost when its normal matches no nearby triangle and does not lie
 // on the arc between two triangles that meet at a convex crease.
 class ConveyorCircuit : public Sample
@@ -2487,8 +2487,8 @@ public:
 	static constexpr int m_yawBinCount = 128;
 	static constexpr int m_materialCount = m_firstBeltMaterial + m_yawBinCount;
 
-	static constexpr int m_segmentCount = 8;
-	static constexpr int m_slideSegment = 7;
+	static constexpr int m_segmentCount = 4;
+	static constexpr int m_slideSegment = 3;
 
 	// Skirt, lip, inner wall, floor, inner wall, lip, skirt
 	static constexpr int m_profileSegmentCount = 7;
@@ -2500,8 +2500,6 @@ public:
 
 	static constexpr float m_radius = 4.5f;
 	static constexpr float m_straightLength = 16.0f;
-	static constexpr float m_chicaneRadius = 3.0f;
-	static constexpr float m_chicaneAngle = 25.0f * B3_DEG_TO_RAD;
 	static constexpr float m_halfWidth = 1.0f;
 	static constexpr float m_railHeight = 0.35f;
 	static constexpr float m_railThickness = 0.08f;
@@ -2512,6 +2510,10 @@ public:
 	static constexpr float m_bumpEnd = 11.0f;
 	static constexpr float m_bumpLength = 1.0f;
 	static constexpr float m_bumpHeight = 0.06f;
+	static constexpr float m_escalatorRise = 1.5f;
+	static constexpr float m_stepLength = 1.5f;
+	static constexpr float m_stepHeight = 0.15f;
+	static constexpr float m_dropLength = 2.5f;
 	static constexpr float m_troughBlendLength = 2.0f;
 	static constexpr float m_floorArcAngle = 55.0f * B3_DEG_TO_RAD;
 	static constexpr float m_bankAngle = 20.0f * B3_DEG_TO_RAD;
@@ -2547,23 +2549,14 @@ public:
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( -180.0f, 30.0f, 20.0f, { 0.0f, 3.0f, 0.0f } );
+			m_camera->SetView( -135.0f, 35.0f, 27.5f, { 0.0f, -1.0f, 2.0f } );
 		}
 
 		AddGroundBox( 30.0f );
 
-		float chicaneArc = m_chicaneRadius * m_chicaneAngle;
-		float chicaneAdvance = 4.0f * m_chicaneRadius * sinf( m_chicaneAngle );
-		float lead = 2.0f;
-
-		// The chicane returns to the original heading and line, so the loop still closes
 		m_segments[0] = { m_straightLength, 0.0f, "bottom straight" };
 		m_segments[1] = { 2.0f * B3_PI * m_radius * m_liftTurns, 1.0f / m_radius, "spiral lift" };
-		m_segments[2] = { lead, 0.0f, "top straight" };
-		m_segments[3] = { chicaneArc, 1.0f / m_chicaneRadius, "chicane" };
-		m_segments[4] = { 2.0f * chicaneArc, -1.0f / m_chicaneRadius, "chicane" };
-		m_segments[5] = { chicaneArc, 1.0f / m_chicaneRadius, "chicane" };
-		m_segments[6] = { m_straightLength - lead - chicaneAdvance, 0.0f, "top straight" };
+		m_segments[2] = { m_straightLength, 0.0f, "escalator" };
 		m_segments[m_slideSegment] = { 2.0f * B3_PI * m_radius * m_slideTurns, 1.0f / m_radius, "slide" };
 
 		m_totalLength = 0.0f;
@@ -2635,14 +2628,54 @@ public:
 			return m_liftHeight * SmoothStep( ( s - lift0 ) / ( lift1 - lift0 ) );
 		}
 
+		// Constant grade between parabolic blends, so every step sits on the same slope. The top blend
+		// levels out at the lip so belt speed bodies fly off the edge instead of following the drop, and
+		// it shares its length with the trough blend so the steps stay on the flat channel floor.
 		if ( s < slide0 )
 		{
-			return m_liftHeight;
+			float t = s - lift1;
+			float length = slide0 - lift1;
+			float blend = m_troughBlendLength;
+			float grade = m_escalatorRise / ( length - blend );
+
+			float height = m_liftHeight;
+			if ( t < blend )
+			{
+				height += 0.5f * grade * t * t / blend;
+			}
+			else if ( t < length - blend )
+			{
+				height += grade * ( t - 0.5f * blend );
+			}
+			else
+			{
+				float r = length - t;
+				height += m_escalatorRise - 0.5f * grade * r * r / blend;
+			}
+
+			int stepCount = (int)( ( length - 2.0f * blend ) / m_stepLength );
+			float stepStart = 0.5f * ( length - stepCount * m_stepLength );
+			if ( stepStart <= t && t <= stepStart + stepCount * m_stepLength )
+			{
+				float phase = 2.0f * B3_PI * ( t - stepStart ) / m_stepLength;
+				height += 0.5f * m_stepHeight * ( 1.0f - cosf( phase ) );
+			}
+
+			return height;
 		}
 
-		// Steepest at the top so slow bodies leaving the belt keep moving, level at the bottom
+		// Steepest at the top so slow bodies leaving the belt keep moving, level at the bottom. The drop
+		// sheds the escalator rise and flattens out where the base curve takes over.
 		float u = ( s - slide0 ) / m_segments[m_slideSegment].length;
-		return m_liftHeight * ( 1.0f - 1.5f * u + 0.5f * u * u * u );
+		float height = m_liftHeight * ( 1.0f - 1.5f * u + 0.5f * u * u * u );
+
+		float x = ( s - slide0 ) / m_dropLength;
+		if ( x < 1.0f )
+		{
+			height += m_escalatorRise * ( 1.0f - sinf( 0.5f * B3_PI * x ) );
+		}
+
+		return height;
 	}
 
 	// Zero for the belt channel and one for the slide trough, blended on the straights at either end
