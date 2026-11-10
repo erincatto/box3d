@@ -2843,6 +2843,36 @@ static void BuildGhostRail( std::vector<GhostMesh>& meshes )
 	meshes.push_back( mesh );
 }
 
+// A 35 degree ridge along x that runs into a wall rising toward x = 1, so the ridge end at the origin
+// is a saddle vertex, convex across the ridge and concave along it. The ridge sags 4 mm toward x = -2.
+static void BuildGhostSaddleRidge( std::vector<GhostMesh>& meshes )
+{
+	GhostMesh mesh;
+	float xs[3] = { -2.0f, 0.0f, 1.0f };
+	float crests[3] = { -0.004f, 0.0f, 0.3f };
+	float sides[3] = { -0.7f, -0.7f, -0.4f };
+	for ( int i = 0; i < 3; ++i )
+	{
+		mesh.vertices.push_back( { xs[i], sides[i], -1.0f } );
+		mesh.vertices.push_back( { xs[i], crests[i], 0.0f } );
+		mesh.vertices.push_back( { xs[i], sides[i], 1.0f } );
+	}
+
+	for ( int i = 0; i < 2; ++i )
+	{
+		for ( int k = 0; k < 2; ++k )
+		{
+			int a = 3 * i + k;
+			int b = a + 1;
+			int c = a + 3;
+			int d = a + 4;
+			AddGhostTriangle( mesh, a, b, c );
+			AddGhostTriangle( mesh, c, b, d );
+		}
+	}
+	meshes.push_back( mesh );
+}
+
 static const float s_inch = 0.0254f;
 
 static const GhostScene s_hullGhostScenes[] = {
@@ -2983,6 +3013,19 @@ static const GhostScene s_hullGhostScenes[] = {
 		{ 0.4f, 0.2f, 0.4f },
 		{ 0.1f, 0.77f, -0.15f },
 		{ -15.0f, 0.0f, 60.0f },
+		true,
+	},
+	{
+		"Saddle ridge",
+		"box resting flat on a ridge, its footprint covers the saddle where the ridge meets a wall, the "
+		"saddle is 4 mm deep and the ridge under the box sags to 2 mm",
+		"the deepest points within linear slop span the ridge edge, which admits the up normal. Taking "
+		"only the deepest point picks the saddle vertex, whose cone rejects up, and snaps to the 35 degree "
+		"slope",
+		BuildGhostSaddleRidge,
+		{ 0.46f, 0.1f, 0.5f },
+		{ -0.44f, 0.096f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f },
 		true,
 	},
 };

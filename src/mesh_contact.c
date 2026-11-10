@@ -780,6 +780,87 @@ static b3NeighborResult b3TestNeighbors( const b3Shape* shape, int triangleIndex
 	return b3_neighborSnap;
 }
 
+// Classify a clipped hull point relative to the triangle features. ORs into the vertex and edge masks.
+// Returns false if the point isn't close to an edge or vertex.
+static bool b3ClassifyHullFacePoint( const b3Vec3* vertices, b3Vec3 triangleNormal, b3Vec3 point, b3FeaturePair pair,
+									 int* vertexMask, int* edgeMask )
+{
+	B3_ASSERT( pair.owner1 != pair.owner2 || pair.index1 != pair.index2 );
+
+	float linearSlop = B3_LINEAR_SLOP;
+
+	int edges[3];
+	int edgeCount = 0;
+	if ( pair.owner1 == b3_featureShapeA )
+	{
+		edges[edgeCount] = pair.index1;
+		edgeCount += 1;
+	}
+
+	if ( pair.owner2 == b3_featureShapeA && ( edgeCount == 0 || pair.index2 != edges[0] ) )
+	{
+		edges[edgeCount] = pair.index2;
+		edgeCount += 1;
+	}
+
+	if ( edgeCount == 0 )
+	{
+		// Close to an edge?
+		for ( int i = 0; i < 3; ++i )
+		{
+			b3Vec3 vertex = vertices[i];
+			b3Vec3 edge = b3Normalize( b3Sub( vertices[i < 2 ? i + 1 : 0], vertex ) );
+			b3Vec3 inwardTangent = b3Cross( triangleNormal, edge );
+			if ( b3Dot( inwardTangent, b3Sub( point, vertex ) ) <= linearSlop )
+			{
+				edges[edgeCount] = i;
+				edgeCount += 1;
+			}
+		}
+	}
+
+	if ( edgeCount == 0 || edgeCount == 3 )
+	{
+		// Not close to any triangle edge or triangle is very small.
+		return false;
+	}
+
+	if ( edgeCount == 2 )
+	{
+		// Close to two edges, mask the shared vertex.
+		int a = edges[0];
+		int b = edges[1];
+		int vertex = ( a < 2 ? a + 1 : 0 ) == b ? b : a;
+		*vertexMask |= 1 << vertex;
+		return true;
+	}
+
+	B3_ASSERT( edgeCount == 1 );
+
+	// Close to only one edge. Determine if it should be classified as a vertex or edge point.
+	int edge = edges[0];
+	int next = edge < 2 ? edge + 1 : 0;
+	if ( b3DistanceSquared( point, vertices[edge] ) <= linearSlop * linearSlop )
+	{
+		*vertexMask |= 1 << edge;
+	}
+	else if ( b3DistanceSquared( point, vertices[next] ) <= linearSlop * linearSlop )
+	{
+		*vertexMask |= 1 << next;
+	}
+	else
+	{
+		*edgeMask |= 1 << edge;
+	}
+
+	return true;
+}
+
+static inline bool b3IsSubset( int mask, int allowed )
+{
+	return ( mask & ~allowed ) == 0;
+}
+
 // Voronoi test of neighbors based on deepest point.
 static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int triangleIndex, const b3Vec3* vertices,
 												 b3Matrix3 meshToLocal, const b3LocalManifold* manifold,
@@ -796,27 +877,43 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 		return b3_neighborAdmit;
 	}
 
-	int deepest = 0;
+	float minSeparation = manifold->points[0].separation;
 	for ( int i = 1; i < manifold->pointCount; ++i )
 	{
-		if ( manifold->points[i].separation < manifold->points[deepest].separation )
-		{
-			deepest = i;
-		}
+		minSeparation = b3MinFloat( minSeparation, manifold->points[i].separation );
 	}
 
-	// Clip points were moved onto the hull face, step back along the normal to the triangle.
-	const b3LocalManifoldPoint* deepestPoint = manifold->points + deepest;
-	b3Vec3 point = b3MulSub( deepestPoint->point, deepestPoint->separation, normal );
+	// Determine if the overlapped points are on the triangle face or boundary. Classify
+	// considering all points within slop of deepest point.
+	float depthLimit = minSeparation + B3_LINEAR_SLOP;
+	int vertexMask = 0;
+	int edgeMask = 0;
+	bool onFace = false;
+	for ( int i = 0; i < manifold->pointCount; ++i )
+	{
+		const b3LocalManifoldPoint* manifoldPoint = manifold->points + i;
+		if ( manifoldPoint->separation > depthLimit )
+		{
+			continue;
+		}
 
-	float linearSlop = B3_LINEAR_SLOP;
+		// Clip points were moved onto the hull face, step back along the normal to the triangle.
+		b3Vec3 point = b3MulSub( manifoldPoint->point, manifoldPoint->separation, normal );
+		bool onBoundary =
+			b3ClassifyHullFacePoint( vertices, triangleNormal, point, manifoldPoint->pair, &vertexMask, &edgeMask );
 
-	// If the hull overlaps this triangle then determine if the deepest point is close to a vertex.
-	if ( deepestPoint->separation < 0.0f )
+		onFace = onFace || onBoundary == false;
+	}
+
+	b3TriangleFeature vertexFeatures[3] = { b3_featureVertex1, b3_featureVertex2, b3_featureVertex3 };
+	b3TriangleFeature edgeFeatures[3] = { b3_featureEdge1, b3_featureEdge2, b3_featureEdge3 };
+
+	// If the hull overlaps this triangle then determine if a deepest point is close to a vertex.
+	if ( minSeparation < 0.0f )
 	{
 		for ( int i = 0; i < 3; ++i )
 		{
-			if ( b3DistanceSquared( point, vertices[i] ) > linearSlop * linearSlop )
+			if ( ( vertexMask & ( 1 << i ) ) == 0 )
 			{
 				continue;
 			}
@@ -825,69 +922,76 @@ static b3NeighborResult b3TestHullFaceNeighbors( const b3Shape* shape, int trian
 			if ( admit )
 			{
 				// This vertex tentatively accepts the normal.
-				b3TriangleFeature vertexFeatures[3] = { b3_featureVertex1, b3_featureVertex2, b3_featureVertex3 };
 				*nearFeature = vertexFeatures[i];
 				return b3_neighborAdmit;
 			}
 		}
 	}
 
-	int nearEdges[3];
-	int nearCount = 0;
-	bool inwardTilt = false;
-	bool alongEdge = false;
-	for ( int i = 0; i < 3; ++i )
-	{
-		b3Vec3 vertex = vertices[i];
-		b3Vec3 edge = b3Normalize( b3Sub( vertices[i < 2 ? i + 1 : 0], vertex ) );
-		b3Vec3 inwardTangent = b3Cross( triangleNormal, edge );
-		if ( b3Dot( inwardTangent, b3Sub( point, vertex ) ) <= linearSlop )
-		{
-			nearEdges[nearCount] = i;
-			nearCount += 1;
-
-			// An edge or vertex normal cone tilts outward from the triangle and an edge cone is perpendicular to the
-			// edge, a hull face normal need be neither.
-			inwardTilt = inwardTilt || b3Dot( normal, inwardTangent ) > tolerance;
-			alongEdge = alongEdge || b3AbsFloat( b3Dot( normal, edge ) ) > tolerance;
-		}
-	}
-
-	b3TriangleFeature feature = b3_featureNone;
-	if ( nearCount == 2 )
-	{
-		if ( nearEdges[0] == 0 && nearEdges[1] == 1 )
-		{
-			feature = b3_featureVertex2;
-		}
-		else if ( nearEdges[0] == 1 )
-		{
-			feature = b3_featureVertex3;
-		}
-		else
-		{
-			feature = b3_featureVertex1;
-		}
-	}
-
-	if ( nearCount == 0 || inwardTilt )
+	if ( onFace )
 	{
 		// A tilted hull face over the triangle interior, the triangle face owns the normal.
 		return b3_neighborSnap;
 	}
-	else if ( nearCount == 1 )
+
+	B3_ASSERT( edgeMask != 0 || vertexMask != 0 );
+
+	b3TriangleFeature feature = b3_featureNone;
+	int edges[2] = { 0, 0 };
+	int edgeCount = 0;
+
+	// Is the contact point close to only one vertex?
+	if ( edgeMask == 0 && vertexMask != 0 && ( vertexMask & ( vertexMask - 1 ) ) == 0 )
 	{
-		if ( alongEdge )
+		int vertex = vertexMask == 1 ? 0 : ( vertexMask == 2 ? 1 : 2 );
+		feature = vertexFeatures[vertex];
+		edges[0] = vertex;
+		edges[1] = vertex > 0 ? vertex - 1 : 2;
+		edgeCount = 2;
+	}
+	else
+	{
+		// Is the contact point close to an edge
+		for ( int i = 0; i < 3; ++i )
+		{
+			int next = i < 2 ? i + 1 : 0;
+			int edgeBit = 1 << i;
+			int vertexBits = ( 1 << i ) | ( 1 << next );
+
+			// Is this edge and its vertices a subset? One mask can be zero and always a subset.
+			if ( b3IsSubset( edgeMask, edgeBit ) && b3IsSubset( vertexMask, vertexBits ) )
+			{
+				feature = edgeFeatures[i];
+				edges[0] = i;
+				edgeCount = 1;
+				break;
+			}
+		}
+	}
+
+	if ( feature == b3_featureNone )
+	{
+		return b3_neighborSnap;
+	}
+
+	for ( int i = 0; i < edgeCount; ++i )
+	{
+		int edgeIndex = edges[i];
+		b3Vec3 vertex = vertices[edgeIndex];
+		b3Vec3 edge = b3Normalize( b3Sub( vertices[edgeIndex < 2 ? edgeIndex + 1 : 0], vertex ) );
+		b3Vec3 inwardTangent = b3Cross( triangleNormal, edge );
+
+		// An edge or vertex normal cone tilts outward from the triangle and an edge cone is perpendicular to the
+		// edge, a hull face normal need be neither.
+		if ( b3Dot( normal, inwardTangent ) > tolerance )
 		{
 			return b3_neighborSnap;
 		}
 
-		b3TriangleFeature edgeFeatures[3] = { b3_featureEdge1, b3_featureEdge2, b3_featureEdge3 };
-		feature = edgeFeatures[nearEdges[0]];
-	}
-	else if ( nearCount == 3 )
-	{
-		return b3_neighborSnap;
+		if ( edgeCount == 1 && b3AbsFloat( b3Dot( normal, edge ) ) > tolerance )
+		{
+			return b3_neighborSnap;
+		}
 	}
 
 	*nearFeature = feature;
@@ -1125,8 +1229,8 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 					cache->satCache = (b3SATCache){ 0 };
 				}
 
-				b3CollideTriangleAndHull( manifold, pointCapacity, vertices[0], vertices[1], vertices[2],
-										  hullB, &cache->satCache, enableSpeculative );
+				b3CollideTriangleAndHull( manifold, pointCapacity, vertices[0], vertices[1], vertices[2], hullB,
+										  &cache->satCache, enableSpeculative );
 				if ( context != NULL )
 				{
 					context->satCallCount += 1;
@@ -1223,8 +1327,8 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			}
 			else if ( result == b3_neighborSnap && shapeB->type == b3_hullShape )
 			{
-				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices, hullB,
-												   &cache->satCache, enableSpeculative );
+				b3BuildTriangleAndHullFaceContact( manifold, pointCapacity, vertices, hullB, &cache->satCache,
+												   enableSpeculative );
 			}
 		}
 

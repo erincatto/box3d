@@ -685,6 +685,87 @@ static int MeshWideHullSlide( void )
 	return 0;
 }
 
+static bool HasVertex( const b3MeshData* mesh, int triangleIndex, b3Vec3 point )
+{
+	const b3MeshTriangle* triangle = b3GetMeshTriangles( mesh ) + triangleIndex;
+	const b3Vec3* vertices = b3GetMeshVertices( mesh );
+	int indices[3] = { triangle->index1, triangle->index2, triangle->index3 };
+	for ( int i = 0; i < 3; ++i )
+	{
+		if ( b3DistanceSquared( vertices[indices[i]], point ) < 1.0e-8f )
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// A box face rests on a ridge that runs into a rising wall, so the ridge end is a saddle vertex. The
+// ridge sags slightly away from the saddle, leaving the saddle the deepest point by less than linear
+// slop. The ridge edge admits the up normal and the saddle cone does not, so the deepest points have
+// to be taken as the edge they span, not as the single deepest vertex, or the contact snaps to a slope.
+static int MeshHullOnSaddleRidge( void )
+{
+	b3Vec3 ridgeStart = { -2.0f, -0.004f, 0.0f };
+	b3Vec3 saddle = { 0.0f, 0.0f, 0.0f };
+
+	b3Vec3 vertices[] = {
+		{ -2.0f, -0.7f, -1.0f },
+		ridgeStart,
+		{ -2.0f, -0.7f, 1.0f },
+		{ 0.0f, -0.7f, -1.0f },
+		saddle,
+		{ 0.0f, -0.7f, 1.0f },
+		{ 1.0f, -0.4f, -1.0f },
+		{ 1.0f, 0.3f, 0.0f },
+		{ 1.0f, -0.4f, 1.0f },
+	};
+
+	int32_t indices[] = {
+		0, 1, 3, 3, 1, 4, 1, 2, 4, 4, 2, 5, 3, 4, 6, 6, 4, 7, 4, 5, 7, 7, 5, 8,
+	};
+
+	b3MeshDef def = { 0 };
+	def.vertices = vertices;
+	def.vertexCount = ARRAY_COUNT( vertices );
+	def.indices = indices;
+	def.triangleCount = ARRAY_COUNT( indices ) / 3;
+	def.identifyEdges = true;
+	b3MeshData* meshData = b3CreateMesh( &def, NULL, 0 );
+	ENSURE( meshData != NULL );
+
+	// The footprint covers the saddle and a stretch of the ridge, slightly overlapping
+	float hy = 0.1f;
+	b3BoxHull box = b3MakeBoxHull( 0.46f, hy, 0.5f );
+	b3Transform transform = { { -0.44f, hy - 0.004f, 0.0f }, b3Quat_identity };
+
+	b3Mesh mesh = { .data = meshData, .scale = b3Vec3_one };
+	b3Manifold manifolds[16];
+	int manifoldCount =
+		b3CollideMeshAndHull( manifolds, ARRAY_COUNT( manifolds ), &mesh, &box.base, transform, true, true );
+
+	int ridgePointCount = 0;
+	for ( int i = 0; i < manifoldCount; ++i )
+	{
+		const b3Manifold* manifold = manifolds + i;
+		for ( int j = 0; j < manifold->pointCount; ++j )
+		{
+			int triangleIndex = manifold->points[j].triangleIndex;
+			if ( HasVertex( meshData, triangleIndex, ridgeStart ) && HasVertex( meshData, triangleIndex, saddle ) )
+			{
+				ridgePointCount += 1;
+				ENSURE( manifold->normal.y > 0.999f );
+			}
+		}
+	}
+
+	ENSURE( ridgePointCount > 0 );
+
+	b3DestroyMesh( meshData );
+	return 0;
+}
+
 // A sphere balanced on a convex ridge is held up by edge contacts alone. Their normals lie between
 // the two face normals, so neighbor validation must keep them.
 static int MeshSphereOnRidge( void )
@@ -1237,6 +1318,7 @@ int MeshTest( void )
 	RUN_SUBTEST( MeshEdgeAngles );
 	RUN_SUBTEST( MeshVertexRing );
 	RUN_SUBTEST( MeshSphereOnRidge );
+	RUN_SUBTEST( MeshHullOnSaddleRidge );
 	RUN_SUBTEST( MeshCapsuleOverCrest );
 	RUN_SUBTEST( MeshApexContact );
 	RUN_SUBTEST( MeshPeelCylinder );
