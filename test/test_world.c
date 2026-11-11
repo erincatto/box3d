@@ -6,6 +6,7 @@
 #include "dynamic_tree.h"
 #include "overflow_color.h"
 #include "physics_world.h"
+#include "platform.h"
 #include "recording.h"
 #include "test_macros.h"
 
@@ -1797,6 +1798,151 @@ static int BodySimLocatorTest( void )
 	return LocatorFastFlagTest();
 }
 
+// A query thread runs static overlaps while the main thread steps. A static body is added before
+// each step so the step clears moved flags in the static tree under the reader. Run under TSan
+// to check the relaxed flag access.
+typedef struct StaticQueryShared
+{
+	b3WorldId worldId;
+	b3AtomicInt stepping;
+	b3AtomicInt quit;
+	b3AtomicInt idle;
+	b3AtomicInt expectedCount;
+	b3AtomicInt queryCount;
+	b3AtomicInt failCount;
+} StaticQueryShared;
+
+typedef struct StaticQueryHits
+{
+	b3WorldId worldId;
+	int count;
+	bool nonStatic;
+} StaticQueryHits;
+
+static bool StaticQueryFcn( b3ShapeId shapeId, void* context )
+{
+	StaticQueryHits* hits = context;
+	b3BodyId bodyId = b3Shape_GetBody( shapeId );
+	hits->count += 1;
+
+	// Body type is read through the body array, which the step mutates for awake bodies. Static
+	// bodies are not touched by the step.
+	if ( b3Body_GetType( bodyId ) != b3_staticBody )
+	{
+		hits->nonStatic = true;
+	}
+	return true;
+}
+
+static void StaticQueryThread( void* context )
+{
+	StaticQueryShared* shared = context;
+	b3AABB box = { { -100.0f, -10.0f, -100.0f }, { 100.0f, 10.0f, 100.0f } };
+	b3QueryFilter filter = b3DefaultQueryFilter();
+
+	while ( b3AtomicLoadInt( &shared->quit ) == 0 )
+	{
+		if ( b3AtomicLoadInt( &shared->stepping ) == 0 )
+		{
+			b3AtomicStoreInt( &shared->idle, 1 );
+			b3Yield();
+			continue;
+		}
+
+		b3AtomicStoreInt( &shared->idle, 0 );
+		int expected = b3AtomicLoadInt( &shared->expectedCount );
+
+		StaticQueryHits hits = { shared->worldId, 0, false };
+		b3World_OverlapAABB_Static( shared->worldId, box, filter, StaticQueryFcn, &hits );
+		b3AtomicFetchAddInt( &shared->queryCount, 1 );
+
+		if ( hits.count != expected || hits.nonStatic )
+		{
+			b3AtomicFetchAddInt( &shared->failCount, 1 );
+		}
+	}
+}
+
+static int TestOverlapStaticDuringStep( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.workerCount = 4;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull tile = b3MakeBoxHull( 1.0f, 0.5f, 1.0f );
+	int staticCount = 0;
+
+	for ( int i = -10; i < 10; ++i )
+	{
+		for ( int j = -10; j < 10; ++j )
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.position = (b3Pos){ 2.0f * i + 1.0f, -0.5f, 2.0f * j + 1.0f };
+			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+			b3CreateHullShape( bodyId, &shapeDef, &tile.base );
+			staticCount += 1;
+		}
+	}
+
+	b3BoxHull cube = b3MakeBoxHull( 0.4f, 0.4f, 0.4f );
+	for ( int i = 0; i < 400; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ -9.5f + ( i % 20 ), 1.0f + 0.9f * ( i / 100 ), -9.5f + ( ( i / 20 ) % 5 ) * 4.0f };
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+		b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+	}
+
+	StaticQueryShared shared = { 0 };
+	shared.worldId = worldId;
+	b3Thread* thread = b3CreateThread( StaticQueryThread, &shared, "static query" );
+
+	b3BoxHull post = b3MakeBoxHull( 0.1f, 1.0f, 0.1f );
+	for ( int step = 0; step < 60; ++step )
+	{
+		// The query thread is idle, so the static tree may change.
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = (b3Pos){ -50.0f + step, 1.0f, 50.0f };
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+		b3CreateHullShape( bodyId, &shapeDef, &post.base );
+		staticCount += 1;
+
+		ENSURE( b3HasTreeMoved( b3GetWorldFromId( worldId )->broadPhase.trees + b3_staticBody ) );
+
+		b3AtomicStoreInt( &shared.expectedCount, staticCount );
+		b3AtomicStoreInt( &shared.stepping, 1 );
+
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+		b3AtomicStoreInt( &shared.stepping, 0 );
+		b3AtomicStoreInt( &shared.idle, 0 );
+		while ( b3AtomicLoadInt( &shared.idle ) == 0 )
+		{
+			b3Yield();
+		}
+
+		ENSURE( b3HasTreeMoved( b3GetWorldFromId( worldId )->broadPhase.trees + b3_staticBody ) == false );
+	}
+
+	b3AtomicStoreInt( &shared.quit, 1 );
+	b3JoinThread( thread );
+
+	ENSURE( b3AtomicLoadInt( &shared.queryCount ) > 0 );
+	ENSURE( b3AtomicLoadInt( &shared.failCount ) == 0 );
+
+	// The serial path agrees with the regular overlap filtered to static bodies.
+	StaticQueryHits hits = { worldId, 0, false };
+	b3AABB box = { { -100.0f, -10.0f, -100.0f }, { 100.0f, 10.0f, 100.0f } };
+	b3World_OverlapAABB_Static( worldId, box, b3DefaultQueryFilter(), StaticQueryFcn, &hits );
+	ENSURE( hits.count == staticCount );
+	ENSURE( hits.nonStatic == false );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int WorldTest( void )
 {
 	RUN_SUBTEST( HelloWorld );
@@ -1825,6 +1971,7 @@ int WorldTest( void )
 	RUN_SUBTEST( TestEnlargedProxyDestroyed );
 	RUN_SUBTEST( TestCompoundShapeCount );
 	RUN_SUBTEST( BodySimLocatorTest );
+	RUN_SUBTEST( TestOverlapStaticDuringStep );
 
 	return 0;
 }

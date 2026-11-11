@@ -2759,6 +2759,17 @@ b3TreeStats b3World_OverlapAABB( b3WorldId worldId, b3AABB aabb, b3QueryFilter f
 	return treeStats;
 }
 
+b3TreeStats b3World_OverlapAABB_Static( b3WorldId worldId, b3AABB aabb, b3QueryFilter filter, b3OverlapResultFcn* fcn,
+										void* context )
+{
+	b3World* world = b3GetWorldFromId( worldId );
+	B3_ASSERT( b3IsValidAABB( aabb ) );
+
+	WorldQueryContext worldContext = { world, fcn, filter, context };
+	return b3DynamicTree_QueryRelaxed( world->broadPhase.trees + b3_staticBody, aabb, filter.maskBits, false,
+									   TreeQueryCallback, &worldContext );
+}
+
 typedef struct WorldOverlapContext
 {
 	b3World* world;

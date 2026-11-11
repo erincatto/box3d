@@ -2879,8 +2879,8 @@ typedef enum b3TriangleFeature
 typedef enum b3MeshContactFlags
 {
 	b3_meshContactHullFace = 0x01, ///< Normal is a hull face normal.
-	b3_meshContactSnapped = 0x02, ///< The normal is snapped to the triangle normal.
-	b3_meshContactDeep = 0x04, ///< The contact is considered deep (2 * linear slop).
+	b3_meshContactSnapped = 0x02,  ///< The normal is snapped to the triangle normal.
+	b3_meshContactDeep = 0x04,	   ///< The contact is considered deep (2 * linear slop).
 } b3MeshContactFlags;
 
 /// Separating axis test cache. Provides temporal acceleration of collision routines.
