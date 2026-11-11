@@ -4,6 +4,7 @@
 #include "gfx/debug_adapter.h"
 #include "gfx/draw.h"
 #include "imgui.h"
+#include "mesh_drop.h"
 #include "sample.h"
 #include "utils.h"
 
@@ -387,38 +388,9 @@ public:
 
 static int sampleNeedleMesh = RegisterSample( "Continuous", "Needle Mesh", NeedleMesh::Create );
 
-struct IndexPair
-{
-	int index1;
-	int index2;
-};
-
-static inline IndexPair ConvertToPair( void* userData )
-{
-	static_assert( sizeof( intptr_t ) >= 8 && sizeof( int ) == 4 );
-	intptr_t value = (intptr_t)userData;
-	int index1 = (int)value;
-	int index2 = (int)( value >> 32 );
-	return { index1, index2 };
-}
-
-static inline void* ConvertToUserData( IndexPair pair )
-{
-	intptr_t value = (intptr_t)pair.index2 << 32 | (intptr_t)pair.index1;
-	return (void*)value;
-}
-
 class MeshDrop : public Sample
 {
 public:
-	enum ShapeType
-	{
-		e_box,
-		e_capsule,
-		e_cylinder,
-		e_sphere,
-	};
-
 	explicit MeshDrop( SampleContext* context )
 		: Sample( context )
 	{
@@ -428,20 +400,21 @@ public:
 			GetGuiDraw()->forceScale = 0.1f;
 		}
 
+		m_settings = GetDefaultMeshDropSettings();
 		m_groundId = b3_nullBodyId;
 		m_groundMesh = nullptr;
-		m_groundAmplitude = 0.5f;
 		CreateGround();
 
-		m_bodies = new b3BodyId[m_bodyCount];
-		memset( m_bodies, 0, m_bodyCount * sizeof( b3BodyId ) );
+		for ( int i = 0; i < MESH_DROP_BODY_COUNT; ++i )
+		{
+			m_bodies[i] = b3_nullBodyId;
+		}
 
-		m_cylinder = b3CreateCylinder( 0.4f, 0.05f, 0.0f, 6 );
-		m_shapeType = e_box;
+		m_cylinder = CreateMeshDropCylinder();
+		m_seed = 0;
 		m_runCount = 0;
 		m_failure = false;
 		m_autoGenerate = false;
-		m_collide = true;
 		m_stepWhilePaused = true;
 
 		Generate();
@@ -449,7 +422,6 @@ public:
 
 	~MeshDrop() override
 	{
-		delete[] m_bodies;
 		b3DestroyHull( m_cylinder );
 		b3DestroyMesh( m_groundMesh );
 	}
@@ -468,58 +440,13 @@ public:
 			m_groundMesh = nullptr;
 		}
 
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		m_groundId = b3CreateBody( m_worldId, &bodyDef );
-
-		int gridCount = 40;
-		float cellWidth = 1.0f;
-		float rowHz = 0.1f;
-		float columnHz = 0.2f;
-
-		m_groundMesh = b3CreateWaveMesh( gridCount, gridCount, cellWidth, m_groundAmplitude, rowHz, columnHz );
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.filter.categoryBits = 1;
-		b3CreateMeshShape( m_groundId, &shapeDef, m_groundMesh, b3Vec3_one );
-
-		float extent = 0.5f * gridCount * cellWidth;
-		float halfHeight = 1.0f;
-
-		{
-			b3Transform transform;
-			transform.p = { 0.0f, halfHeight, -extent };
-			transform.q = b3Quat_identity;
-			b3BoxHull wallBox = b3MakeTransformedBoxHull( extent, halfHeight, 0.1f, transform );
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
-		}
-
-		{
-			b3Transform transform;
-			transform.p = { 0.0f, halfHeight, extent };
-			transform.q = b3Quat_identity;
-			b3BoxHull wallBox = b3MakeTransformedBoxHull( extent, halfHeight, 0.1f, transform );
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
-		}
-
-		{
-			b3Transform transform;
-			transform.p = { -extent, halfHeight, 0.0f };
-			transform.q = b3Quat_identity;
-			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, halfHeight, extent, transform );
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
-		}
-
-		{
-			b3Transform transform;
-			transform.p = { extent, halfHeight, 0.0f };
-			transform.q = b3Quat_identity;
-			b3BoxHull wallBox = b3MakeTransformedBoxHull( 0.1f, halfHeight, extent, transform );
-			b3CreateHullShape( m_groundId, &shapeDef, &wallBox.base );
-		}
+		m_groundMesh = CreateMeshDropMesh( m_settings.amplitude );
+		m_groundId = CreateMeshDropGround( m_worldId, m_groundMesh );
 	}
 
 	void Generate()
 	{
-		for ( int i = 0; i < m_bodyCount; ++i )
+		for ( int i = 0; i < MESH_DROP_BODY_COUNT; ++i )
 		{
 			if ( B3_IS_NULL( m_bodies[i] ) )
 			{
@@ -530,105 +457,51 @@ public:
 			m_bodies[i] = b3_nullBodyId;
 		}
 
-		// The soft contact solver cannot always resolve this small shape at 4 sub-steps.
-		// Also this small shape has trouble moving advancing in the time of impact code
-		// because the size is very close to the tolerances used.
-		// b3BoxHull box = b3MakeBoxHull( 0.01f, 0.1f, 0.02f );
-		b3BoxHull box = b3MakeBoxHull( 0.02f, 0.2f, 0.04f );
-		b3Capsule capsule = { { 0.0f, -0.2f, 0.0f }, { 0.0f, 0.2f, 0.0f }, 0.05f };
-		b3Sphere sphere = { b3Vec3_zero, 0.05f };
-
-		int bodyIndex = 0;
-
-		b3BodyDef bodyDef = b3DefaultBodyDef();
-		bodyDef.type = b3_dynamicBody;
-
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-		shapeDef.baseMaterial.rollingResistance = m_shapeType == e_capsule ? 0.4f : 0.1f;
-
-		// Don't allow shapes to collide with each other. This
-		// makes isolating failures easier.
-		if ( m_collide == false )
-		{
-			shapeDef.filter.categoryBits = 2;
-			shapeDef.filter.maskBits = 1;
-		}
-
-		g_randomSeed = (uint32_t)b3GetTicks();
-
-		bool simulateAll = true;
-		// g_randomSeed = 1910133196;
+		// A non-zero seed replays a generation reported by the mesh_soak tool
+		m_seed = m_replaySeed != 0 ? m_replaySeed : (uint32_t)b3GetTicks();
 
 		m_runCount += 1;
 		m_stepCount = 0;
-		printf( "run %d seed %u\n", m_runCount, g_randomSeed );
+		printf( "run %d seed %u\n", m_runCount, m_seed );
 
-		for ( int i = 0; i < m_gridCount; ++i )
+		MeshDropSettings settings = m_settings;
+		if ( m_solo[0] >= 0 && m_solo[1] >= 0 )
 		{
-			for ( int j = 0; j < m_gridCount; ++j )
-			{
-				b3Vec3 linearVelocity = RandomVec3Uniform( -1.0f, 1.0f );
-				b3Vec3 angularVelocity = RandomVec3Uniform( -5.0f, 5.0f );
-
-				if ( simulateAll || ( i == 19 && j == 20 ) )
-				{
-					bodyDef.position = { 0.5f * ( i - 0.5f * m_gridCount ), 5.0f, 0.5f * ( j - 0.5f * m_gridCount ) };
-					bodyDef.linearVelocity = linearVelocity;
-					bodyDef.angularVelocity = angularVelocity;
-					// bodyDef.angularDamping = 0.1f;
-					bodyDef.userData = ConvertToUserData( { i, j } );
-					b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-
-					if ( m_shapeType == e_box )
-					{
-						b3CreateHullShape( bodyId, &shapeDef, &box.base );
-					}
-					else if ( m_shapeType == e_capsule )
-					{
-						b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
-					}
-					else if ( m_shapeType == e_cylinder )
-					{
-						b3CreateHullShape( bodyId, &shapeDef, m_cylinder );
-					}
-					else
-					{
-						b3CreateSphereShape( bodyId, &shapeDef, &sphere );
-					}
-
-					m_bodies[bodyIndex] = bodyId;
-				}
-				else
-				{
-					m_bodies[bodyIndex] = b3_nullBodyId;
-				}
-				bodyIndex += 1;
-			}
+			settings.soloIndex = MESH_DROP_GRID_COUNT * m_solo[0] + m_solo[1];
 		}
 
-		assert( bodyIndex == m_bodyCount );
+		CreateMeshDropBodies( m_worldId, settings, m_seed, m_cylinder, m_bodies );
+		ResetMeshDropDepth( &m_depth, settings, m_cylinder );
 	}
 
 	bool DrawControls() override
 	{
-		const char* shapeTypes[] = { "box", "capsule", "cylinder", "sphere" };
-		int shapeType = (int)m_shapeType;
-		if ( ImGui::Combo( "Type", &shapeType, shapeTypes, IM_ARRAYSIZE( shapeTypes ) ) )
+		int shapeType = (int)m_settings.shape;
+		if ( ImGui::Combo( "Type", &shapeType, g_meshDropShapeNames, e_meshDropShapeCount ) )
 		{
 			m_stepCount = 0;
-			m_shapeType = ShapeType( shapeType );
+			m_settings.shape = MeshDropShape( shapeType );
 			Generate();
 		}
 
-		if ( ImGui::SliderFloat( "Amplitude", &m_groundAmplitude, 0.0f, 1.0f ) )
+		if ( ImGui::SliderFloat( "Amplitude", &m_settings.amplitude, 0.0f, 1.0f ) )
 		{
 			CreateGround();
 			Generate();
 		}
 
-		if ( ImGui::Checkbox( "Collide", &m_collide ) )
+		if ( ImGui::Checkbox( "Collide", &m_settings.collide ) )
 		{
 			Generate();
+		}
+
+		ImGui::InputScalar( "Seed", ImGuiDataType_U32, &m_replaySeed );
+
+		// Drop only the body at these indices, -1 for all
+		if ( ImGui::InputInt2( "Solo", m_solo ) )
+		{
+			m_solo[0] = b3ClampInt( m_solo[0], -1, MESH_DROP_GRID_COUNT - 1 );
+			m_solo[1] = b3ClampInt( m_solo[1], -1, MESH_DROP_GRID_COUNT - 1 );
 		}
 
 		if ( ImGui::Button( "Generate" ) )
@@ -647,7 +520,13 @@ public:
 
 	void Step() override
 	{
+		int stepCount = m_stepCount;
 		Sample::Step();
+
+		if ( m_stepCount != stepCount )
+		{
+			UpdateMeshDropDepth( m_worldId, &m_depth );
+		}
 
 		{
 			PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
@@ -657,13 +536,25 @@ public:
 			if ( result.hit )
 			{
 				b3BodyId bodyId = b3Shape_GetBody( result.shapeId );
-				void* userData = b3Body_GetUserData( bodyId );
-				IndexPair pair = ConvertToPair( userData );
-				DrawTextLine( "indices: (%d, %d)\n", pair.index1, pair.index2 );
+				int index = GetMeshDropBodyIndex( b3Body_GetUserData( bodyId ) );
+				if ( index >= 0 )
+				{
+					DrawTextLine( "indices: (%d, %d)", index / MESH_DROP_GRID_COUNT, index % MESH_DROP_GRID_COUNT );
+				}
 			}
 		}
 
-		for ( int i = 0; i < m_bodyCount && m_failure == false; i += 1 )
+		DrawTextLine( "seed %u", m_seed );
+
+		if ( m_depth.maxIndex >= 0 )
+		{
+			int index = m_depth.maxIndex;
+			DrawTextLine( "deepest: (%d, %d) %.1f slop at step %d", index / MESH_DROP_GRID_COUNT, index % MESH_DROP_GRID_COUNT,
+						  m_depth.maxDepth / B3_LINEAR_SLOP, m_depth.maxStep );
+		}
+
+		float tunnelHeight = GetMeshDropTunnelHeight();
+		for ( int i = 0; i < MESH_DROP_BODY_COUNT && m_failure == false; i += 1 )
 		{
 			b3BodyId bodyId = m_bodies[i];
 			if ( B3_IS_NULL( bodyId ) )
@@ -672,19 +563,14 @@ public:
 			}
 
 			b3Pos massCenter = b3Body_GetWorldCenter( bodyId );
-			if ( massCenter.y < -2.0f )
+			if ( massCenter.y < tunnelHeight )
 			{
-				IndexPair pair = ConvertToPair( b3Body_GetUserData( bodyId ) );
-				printf( "index1: %d - index2: %d\n", pair.index1, pair.index2 );
+				printf( "index1: %d - index2: %d\n", i / MESH_DROP_GRID_COUNT, i % MESH_DROP_GRID_COUNT );
 				printf( "(%6.2f, %6.2f, %6.2f)\n", massCenter.x, massCenter.y, massCenter.z );
 				m_context->pause = true;
 				m_failure = true;
 				m_autoGenerate = false;
 			}
-
-			// This is for debugging the fallback inner sphere
-			// b3Sphere sphere = {massCenter, 0.015f};
-			// DrawSphere( m_scene, b3Transform_identity, sphere, b3_colorLightGray );
 		}
 
 		if ( m_autoGenerate )
@@ -709,13 +595,13 @@ public:
 				for ( int i = 0; i < n; ++i )
 				{
 					b3World_Step( m_worldId, timeStep, m_context->subStepCount );
+					UpdateMeshDropDepth( m_worldId, &m_depth );
 				}
 
 				m_stepCount += n;
 			}
 
-			int maxSteps = m_shapeType == e_capsule ? 3000 : 1000;
-			if ( m_stepCount > maxSteps )
+			if ( m_stepCount > GetMeshDropStepLimit( m_settings.shape ) )
 			{
 				m_context->pause = true;
 				m_failure = true;
@@ -729,20 +615,18 @@ public:
 		return new MeshDrop( context );
 	}
 
-	static constexpr int m_gridCount = 32;
-	// static constexpr int m_gridCount = 3;
-	static constexpr int m_bodyCount = m_gridCount * m_gridCount;
-
+	MeshDropSettings m_settings;
+	MeshDropDepth m_depth;
 	b3MeshData* m_groundMesh;
-	float m_groundAmplitude;
 	b3BodyId m_groundId;
 	b3HullData* m_cylinder;
-	b3BodyId* m_bodies;
-	ShapeType m_shapeType;
+	b3BodyId m_bodies[MESH_DROP_BODY_COUNT];
+	uint32_t m_seed;
 	int m_runCount;
 	bool m_failure;
 	bool m_autoGenerate;
-	bool m_collide;
+	uint32_t m_replaySeed = 0;
+	int m_solo[2] = { -1, -1 };
 };
 
 static int sampleMeshDrop = RegisterSample( "Continuous", "Mesh Drop", MeshDrop::Create );

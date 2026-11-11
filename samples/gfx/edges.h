@@ -6,18 +6,14 @@
 // into two submission paths to match the silhouette quality of the
 // rest of the scene:
 //
-// Opaque path (RenderEdgesInMSAA): opaque-arena batches (meshes,
-//   heightfields, opaque hulls if policy 1b is ever relaxed). Draws
-//   inside the caller's currently-open MSAA scene pass, picking up the
-//   same 4x MSAA as the opaque shapes. Pipeline tracks scene_target's
-//   color/depth formats and sample_count.
+// Opaque path (RenderEdgesInMSAA): opaque-arena batches (meshes, heightfields, opaque hulls). Draws inside the caller's
+// currently-open MSAA scene pass, picking up the same 4x MSAA as the opaque shapes. Pipeline tracks scene_target's
+// color/depth formats and sample_count.
 //
-// Transparent path (RenderEdgesPostTransparent): transparent-arena batches
-//   (hulls per policy 1b). Opens its own single-sample pass against the
-//   resolved scene color + GTAO prepass depth, so edges sit on top of the
-//   transparent draws that have already blended into the resolve. MSAA
-//   isn't available here (the resolve already happened), the FS's
-//   fwidth-based AA does what it can.
+// Transparent path (RenderEdgesPostTransparent): transparent-arena batches (just hulls). Opens its own single-sample
+// pass against the resolved scene color + GTAO prepass depth, so edges sit on top of the transparent draws that have
+// already blended into the resolve. MSAA isn't available here (the resolve already happened), the FS's fwidth-based AA
+// does what it can.
 
 #pragma once
 
@@ -43,6 +39,7 @@ typedef struct EdgeOverlayParams
 	Vec4 convexColor; // straight (non-premultiplied) linear RGBA, premultiplied inside
 	Vec4 concaveColor;
 	Vec4 flatColor;
+	float alphaScale; // multiplies the alpha of every edge color, clamped to 1
 } EdgeOverlayParams;
 
 EdgeOverlayParams GetDefaultEdgeParams( void );

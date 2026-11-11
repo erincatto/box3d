@@ -80,14 +80,13 @@ B3_API b3ContactEvents b3World_GetContactEvents( b3WorldId worldId );
 B3_API b3JointEvents b3World_GetJointEvents( b3WorldId worldId );
 
 /// Overlap test for all shapes that *potentially* overlap the provided AABB
-B3_API b3TreeStats b3World_OverlapAABB( b3WorldId worldId, b3AABB aabb, b3QueryFilter filter,
-										b3OverlapResultFcn* fcn, void* context );
+B3_API b3TreeStats b3World_OverlapAABB( b3WorldId worldId, b3AABB aabb, b3QueryFilter filter, b3OverlapResultFcn* fcn,
+										void* context );
 
 /// Overlap test for all shapes that overlap the provided shape proxy. The proxy points are relative
 /// to the world origin, which lets the query stay precise far from the world origin.
 B3_API b3TreeStats b3World_OverlapShape( b3WorldId worldId, b3Pos origin, const b3ShapeProxy* proxy,
-										 b3QueryFilter filter, b3OverlapResultFcn* fcn,
-										 void* context );
+										 b3QueryFilter filter, b3OverlapResultFcn* fcn, void* context );
 
 /// Cast a ray into the world to collect shapes in the path of the ray.
 /// Your callback function controls whether you get the closest point, any point, or n-points.
@@ -100,23 +99,21 @@ B3_API b3TreeStats b3World_OverlapShape( b3WorldId worldId, b3Pos origin, const 
 /// @param fcn A user implemented callback function
 /// @param context A user context that is passed along to the callback function
 ///	@return traversal performance counters
-B3_API b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation,
-									b3QueryFilter filter, b3CastResultFcn* fcn, void* context );
+B3_API b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter,
+									b3CastResultFcn* fcn, void* context );
 
 /// Cast a ray into the world to collect the closest hit. This is a convenience function. Ignores
 /// initial overlap. This is less general than b3World_CastRay() and does not allow for custom
 /// filtering. Ignores back-side collision on meshes and height-fields.
-B3_API b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Pos origin, b3Vec3 translation,
-										   b3QueryFilter filter );
+B3_API b3RayResult b3World_CastRayClosest( b3WorldId worldId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter );
 
 /// Cast a shape through the world. Similar to a cast ray except that a shape is cast instead of a
 /// point. The proxy points are relative to the origin and the hit points come back as world
 /// positions, so the cast stays precise far from the world origin. Ignores back-side collision on
 /// meshes and height-fields.
 ///	@see b3World_CastRay
-B3_API b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3ShapeProxy* proxy,
-									  b3Vec3 translation, b3QueryFilter filter,
-									  b3CastResultFcn* fcn, void* context );
+B3_API b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3ShapeProxy* proxy, b3Vec3 translation,
+									  b3QueryFilter filter, b3CastResultFcn* fcn, void* context );
 
 /// Cast a capsule mover through the world. This is a special shape cast that handles sliding along
 /// other shapes while reducing clipping. This is not a good source of information about what the
@@ -130,15 +127,14 @@ B3_API b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3S
 /// @param fcn Optional callback for custom shape filtering
 /// @param context A user context that is passed along to the callback function
 /// @return the translation fraction
-B3_API float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover,
-								b3Vec3 translation, b3QueryFilter filter, b3MoverFilterFcn* fcn,
-								void* context );
+B3_API float b3World_CastMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover, b3Vec3 translation,
+								b3QueryFilter filter, b3MoverFilterFcn* fcn, void* context );
 
 /// Collide a capsule mover with the world, gathering collision planes that can be fed to
 /// b3SolvePlanes. Useful for kinematic character movement. The mover and the returned planes are
 /// relative to the origin. Ignores back-side collision on meshes and height-fields.
-B3_API void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover,
-								  b3QueryFilter filter, b3PlaneResultFcn* fcn, void* context );
+B3_API void b3World_CollideMover( b3WorldId worldId, b3Pos origin, const b3Capsule* mover, b3QueryFilter filter,
+								  b3PlaneResultFcn* fcn, void* context );
 
 /// Enable/disable sleep. If your application does not need sleeping, you can gain some performance
 /// by disabling sleep completely at the world level.
@@ -187,8 +183,7 @@ B3_API void b3World_SetHitEventThreshold( b3WorldId worldId, float value );
 B3_API float b3World_GetHitEventThreshold( b3WorldId worldId );
 
 /// Register the custom filter callback. This is optional.
-B3_API void b3World_SetCustomFilterCallback( b3WorldId worldId, b3CustomFilterFcn* fcn,
-											 void* context );
+B3_API void b3World_SetCustomFilterCallback( b3WorldId worldId, b3CustomFilterFcn* fcn, void* context );
 
 /// Register the pre-solve callback. This is optional.
 B3_API void b3World_SetPreSolveCallback( b3WorldId worldId, b3PreSolveFcn* fcn, void* context );
@@ -212,8 +207,7 @@ B3_API void b3World_Explode( b3WorldId worldId, const b3ExplosionDef* explosionD
 /// @param dampingRatio The contact bounciness with 1 being critical damping (non-dimensional)
 /// @param contactSpeed The maximum contact constraint push out speed (meters per second)
 /// @note Advanced feature
-B3_API void b3World_SetContactTuning( b3WorldId worldId, float hertz, float dampingRatio,
-									  float contactSpeed );
+B3_API void b3World_SetContactTuning( b3WorldId worldId, float hertz, float dampingRatio, float contactSpeed );
 
 /// Set the contact point recycling distance. Setting this to zero disables contact point recycling.
 /// Usually in meters.
@@ -421,8 +415,7 @@ B3_API void b3RecPlayer_SetWorkerCount( b3RecPlayer* player, int count );
 /// @param minIntervalFrames finest spacing between keyframes, in frames
 /// A zero budget or a non-positive interval keeps that value. Clears the existing ring, so call
 /// b3RecPlayer_Restart afterward to repopulate it under the new policy.
-B3_API void b3RecPlayer_SetKeyframePolicy( b3RecPlayer* player, size_t budgetBytes,
-										   int minIntervalFrames );
+B3_API void b3RecPlayer_SetKeyframePolicy( b3RecPlayer* player, size_t budgetBytes, int minIntervalFrames );
 
 /// @return the keyframe memory budget in bytes
 B3_API size_t b3RecPlayer_GetKeyframeBudget( const b3RecPlayer* player );
@@ -453,10 +446,8 @@ B3_API b3BodyId b3RecPlayer_GetBodyId( const b3RecPlayer* player, int index );
 /// @param createDebugShape called when a replayed shape is added; returns a user draw handle
 /// @param destroyDebugShape called when a replayed shape is removed; may be NULL
 /// @param context user context passed to both callbacks
-B3_API void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player,
-												b3CreateDebugShapeCallback* createDebugShape,
-												b3DestroyDebugShapeCallback* destroyDebugShape,
-												void* context );
+B3_API void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player, b3CreateDebugShapeCallback* createDebugShape,
+												b3DestroyDebugShapeCallback* destroyDebugShape, void* context );
 
 /// Draw the spatial queries recorded during the most recently replayed frame, layered on top of the
 /// world. Call after b3World_Draw. NULL draw function pointers are skipped.
@@ -465,8 +456,7 @@ B3_API void b3RecPlayer_SetDebugShapeCallbacks( b3RecPlayer* player,
 /// @param queryIndex index of the frame query to draw, or -1 to draw all of them
 /// @param selectedIndex index of the query to emphasize (reserved color plus a label), or -1 for
 /// none
-B3_API void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int queryIndex,
-										  int selectedIndex );
+B3_API void b3RecPlayer_DrawFrameQueries( b3RecPlayer* player, b3DebugDraw* draw, int queryIndex, int selectedIndex );
 
 /// The kind of a recorded spatial query, matching the public query and cast functions.
 typedef enum b3RecQueryType
@@ -510,8 +500,7 @@ B3_API int b3RecPlayer_GetFrameQueryCount( const b3RecPlayer* player );
 B3_API b3RecQueryInfo b3RecPlayer_GetFrameQuery( const b3RecPlayer* player, int index );
 
 /// Get one result of a recorded query from the most recently replayed frame.
-B3_API b3RecQueryHit b3RecPlayer_GetFrameQueryHit( const b3RecPlayer* player, int queryIndex,
-												   int hitIndex );
+B3_API b3RecQueryHit b3RecPlayer_GetFrameQueryHit( const b3RecPlayer* player, int queryIndex, int hitIndex );
 
 /**@}*/ // recording
 
@@ -601,8 +590,7 @@ B3_API void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 /// The result will be close but maybe not exact. This is meant for kinematic bodies.
 /// The target is not applied if the velocity would be below the sleep threshold.
 /// This will optionally wake the body if asleep, but only if the movement is significant.
-B3_API void b3Body_SetTargetTransform( b3BodyId bodyId, b3WorldTransform target, float timeStep,
-									   bool wake );
+B3_API void b3Body_SetTargetTransform( b3BodyId bodyId, b3WorldTransform target, float timeStep, bool wake );
 
 /// Get the linear velocity of a local point attached to a body. Usually in meters per second.
 B3_API b3Vec3 b3Body_GetLocalPointVelocity( b3BodyId bodyId, b3Vec3 localPoint );
@@ -828,35 +816,30 @@ B3_API float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 tar
 
 /// Cast a ray at a specific body using a specified body transform.
 /// Ignores back-side collision on meshes and height-fields.
-B3_API b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translation,
-										b3QueryFilter filter, float maxFraction,
-										b3WorldTransform bodyTransform );
+B3_API b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter,
+										float maxFraction, b3WorldTransform bodyTransform );
 
 /// Cast a shape at a specific body using a specified body transform.
 /// Ignores back-side collision on meshes and height-fields.
-B3_API b3BodyCastResult b3Body_CastShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy,
-										  b3Vec3 translation, b3QueryFilter filter,
-										  float maxFraction, bool canEncroach,
+B3_API b3BodyCastResult b3Body_CastShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy, b3Vec3 translation,
+										  b3QueryFilter filter, float maxFraction, bool canEncroach,
 										  b3WorldTransform bodyTransform );
 
 /// Overlap a shape with a specific body using a specified body transform.
-B3_API bool b3Body_OverlapShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy,
-								 b3QueryFilter filter, b3WorldTransform bodyTransform );
+B3_API bool b3Body_OverlapShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy, b3QueryFilter filter,
+								 b3WorldTransform bodyTransform );
 
 /// Collide a character mover with a specific body using a specified body transform.
 /// Only considers convex shapes on the body.
-B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity,
-								b3Pos origin, const b3Capsule* mover, b3QueryFilter filter,
-								b3WorldTransform bodyTransform );
+B3_API int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin,
+								const b3Capsule* mover, b3QueryFilter filter, b3WorldTransform bodyTransform );
 
 /// Perform a time of impact between a character mover and a body using specified sweep transforms.
 /// Initial overlap of any shape on the body is ignored. A non-overlapped shape can still be hit.
 /// Only considers convex shapes on the body.
-B3_API b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin,
-												 const b3Capsule* mover, b3Vec3 moverTranslation,
-												 b3QueryFilter filter,
-												 b3WorldTransform bodyTransform1,
-												 b3WorldTransform bodyTransform2 );
+B3_API b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover,
+												 b3Vec3 moverTranslation, b3QueryFilter filter,
+												 b3WorldTransform bodyTransform1, b3WorldTransform bodyTransform2 );
 
 /** @} */ // body
 
@@ -875,29 +858,25 @@ B3_API b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin,
 /// Create a circle shape and attach it to a body. The shape definition and geometry are fully
 /// cloned. Contacts are not created until the next time step.
 /// @return the shape id for accessing the shape
-B3_API b3ShapeId b3CreateSphereShape( b3BodyId bodyId, const b3ShapeDef* def,
-									  const b3Sphere* sphere );
+B3_API b3ShapeId b3CreateSphereShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Sphere* sphere );
 
 /// Create a capsule shape and attach it to a body. The shape definition and geometry are fully
 /// cloned. Contacts are not created until the next time step.
 /// @return the shape id for accessing the shape
-B3_API b3ShapeId b3CreateCapsuleShape( b3BodyId bodyId, const b3ShapeDef* def,
-									   const b3Capsule* capsule );
+B3_API b3ShapeId b3CreateCapsuleShape( b3BodyId bodyId, const b3ShapeDef* def, const b3Capsule* capsule );
 
 /// Create a convex hull shape and attach it to a body. The shape definition is fully cloned.
 /// Contacts are not created until the next time step.
 /// @return the shape id for accessing the shape
-B3_API b3ShapeId b3CreateHullShape( b3BodyId bodyId, const b3ShapeDef* def,
-									const b3HullData* hull );
+B3_API b3ShapeId b3CreateHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HullData* hull );
 
 /// Create a convex hull shape and attach it to a body. The hull is cloned then transformed with
 /// scale applied first. Use this for non-uniform or mirrored scale or a baked local transform. The
 /// baked result is shared through the world hull database. The shape definition and geometry are
 /// fully cloned. Contacts are not created until the next time step.
 /// @return the shape id for accessing the shape
-B3_API b3ShapeId b3CreateTransformedHullShape( b3BodyId bodyId, const b3ShapeDef* def,
-											   const b3HullData* hull, b3Transform transform,
-											   b3Vec3 scale );
+B3_API b3ShapeId b3CreateTransformedHullShape( b3BodyId bodyId, const b3ShapeDef* def, const b3HullData* hull,
+											   b3Transform transform, b3Vec3 scale );
 
 /// Create a mesh hull shape and attach it to a body. The shape definition is fully cloned but the
 /// mesh is not. Contacts are not created until the next time step. Mesh collision only creates
@@ -905,8 +884,7 @@ B3_API b3ShapeId b3CreateTransformedHullShape( b3BodyId bodyId, const b3ShapeDef
 /// @warning this holds reference to the input mesh data which must remain valid for the lifetime of
 /// this shape
 /// @return the shape id for accessing the shape
-B3_API b3ShapeId b3CreateMeshShape( b3BodyId bodyId, const b3ShapeDef* def, const b3MeshData* mesh,
-									b3Vec3 scale );
+B3_API b3ShapeId b3CreateMeshShape( b3BodyId bodyId, const b3ShapeDef* def, const b3MeshData* mesh, b3Vec3 scale );
 
 /// Create a height-field shape and attach it to a body. The shape definition is fully cloned but
 /// the height field is not. Contacts are not created until the next time step. Height field is only
@@ -920,8 +898,7 @@ B3_API b3ShapeId b3CreateHeightFieldShape( b3BodyId bodyId, const b3ShapeDef* de
 /// Baked compound shapes are only allowed on static bodies.
 /// Note: runtime compounds are achieved by adding multiple shapes to a body.
 /// Runtime compounds can be dynamic and/or kinematic.
-B3_API b3ShapeId b3CreateBakedCompoundShape( b3BodyId bodyId, b3ShapeDef* def,
-											 const b3CompoundData* compound );
+B3_API b3ShapeId b3CreateBakedCompoundShape( b3BodyId bodyId, b3ShapeDef* def, const b3CompoundData* compound );
 
 /// Destroy a shape. You may defer the body mass update which can improve performance if several
 /// shapes on a
@@ -987,8 +964,7 @@ B3_API b3SurfaceMaterial b3Shape_GetSurfaceMaterial( b3ShapeId shapeId );
 B3_API int b3Shape_GetMeshMaterialCount( b3ShapeId shapeId );
 
 /// Set a surface material for a mesh shape.
-B3_API void b3Shape_SetMeshMaterial( b3ShapeId shapeId, b3SurfaceMaterial surfaceMaterial,
-									 int index );
+B3_API void b3Shape_SetMeshMaterial( b3ShapeId shapeId, b3SurfaceMaterial surfaceMaterial, int index );
 
 /// Get a surface material for a mesh shape
 B3_API b3SurfaceMaterial b3Shape_GetMeshSurfaceMaterial( b3ShapeId shapeId, int index );
@@ -1121,8 +1097,7 @@ B3_API b3Vec3 b3Shape_GetClosestPoint( b3ShapeId shapeId, b3Vec3 target );
 /// @param maxSpeed the maximum relative speed. Speed cap is necessary for stability. Typically
 /// 10m/s or less.
 /// @param wake should this wake the body
-B3_API void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift,
-							   float maxSpeed, bool wake );
+B3_API void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift, float maxSpeed, bool wake );
 
 /** @} */ // shape
 
@@ -1271,12 +1246,10 @@ B3_API void b3DistanceJoint_EnableSpring( b3JointId jointId, bool enableSpring )
 B3_API bool b3DistanceJoint_IsSpringEnabled( b3JointId jointId );
 
 /// Set the force range for the spring.
-B3_API void b3DistanceJoint_SetSpringForceRange( b3JointId jointId, float lowerForce,
-												 float upperForce );
+B3_API void b3DistanceJoint_SetSpringForceRange( b3JointId jointId, float lowerForce, float upperForce );
 
 /// Get the force range for the spring.
-B3_API void b3DistanceJoint_GetSpringForceRange( b3JointId jointId, float* lowerForce,
-												 float* upperForce );
+B3_API void b3DistanceJoint_GetSpringForceRange( b3JointId jointId, float* lowerForce, float* upperForce );
 
 /// Set the spring stiffness in Hertz
 B3_API void b3DistanceJoint_SetSpringHertz( b3JointId jointId, float hertz );
@@ -1651,8 +1624,7 @@ B3_API float b3RevoluteJoint_GetLowerLimit( b3JointId jointId );
 B3_API float b3RevoluteJoint_GetUpperLimit( b3JointId jointId );
 
 /// Set the revolute joint limits in radians
-B3_API void b3RevoluteJoint_SetLimits( b3JointId jointId, float lowerLimitRadians,
-									   float upperLimitRadians );
+B3_API void b3RevoluteJoint_SetLimits( b3JointId jointId, float lowerLimitRadians, float upperLimitRadians );
 
 /// Enable/disable a revolute joint motor
 B3_API void b3RevoluteJoint_EnableMotor( b3JointId jointId, bool enableMotor );
@@ -1718,8 +1690,7 @@ B3_API float b3SphericalJoint_GetLowerTwistLimit( b3JointId jointId );
 B3_API float b3SphericalJoint_GetUpperTwistLimit( b3JointId jointId );
 
 /// Set the spherical joint limits in radians
-B3_API void b3SphericalJoint_SetTwistLimits( b3JointId jointId, float lowerLimitRadians,
-											 float upperLimitRadians );
+B3_API void b3SphericalJoint_SetTwistLimits( b3JointId jointId, float lowerLimitRadians, float upperLimitRadians );
 
 /// Get the spherical joint current twist angle in radians.
 B3_API float b3SphericalJoint_GetTwistAngle( b3JointId jointId );
@@ -1924,8 +1895,7 @@ B3_API float b3WheelJoint_GetLowerSteeringLimit( b3JointId jointId );
 B3_API float b3WheelJoint_GetUpperSteeringLimit( b3JointId jointId );
 
 /// Set the wheel joint steering limits in radians.
-B3_API void b3WheelJoint_SetSteeringLimits( b3JointId jointId, float lowerRadians,
-											float upperRadians );
+B3_API void b3WheelJoint_SetSteeringLimits( b3JointId jointId, float lowerRadians, float upperRadians );
 
 /// Set the wheel joint target steering angle in radians.
 B3_API void b3WheelJoint_SetTargetSteeringAngle( b3JointId jointId, float radians );

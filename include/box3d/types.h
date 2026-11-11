@@ -31,8 +31,7 @@ typedef void b3TaskCallback( void* taskContext );
 /// @param userContext the scheduler context object that is opaque to Box3D
 /// @param taskName the Box3D task name that the scheduler can use for diagnostics
 /// @ingroup world
-typedef void* b3EnqueueTaskCallback( b3TaskCallback* task, void* taskContext, void* userContext,
-									 const char* taskName );
+typedef void* b3EnqueueTaskCallback( b3TaskCallback* task, void* taskContext, void* userContext, const char* taskName );
 
 /// Finishes a user task object that wraps a Box3D task. This must block until the task has
 /// completed. The step blocks here on the tasks it spawned, so b3World_Step holds its stack across
@@ -64,8 +63,8 @@ typedef float b3FrictionCallback( float frictionA, uint64_t userMaterialIdA, flo
 /// this is called from a worker thread.
 /// @warning This function should not attempt to modify Box3D state or user application state.
 /// @ingroup world
-typedef float b3RestitutionCallback( float restitutionA, uint64_t userMaterialIdA,
-									 float restitutionB, uint64_t userMaterialIdB );
+typedef float b3RestitutionCallback( float restitutionA, uint64_t userMaterialIdA, float restitutionB,
+									 uint64_t userMaterialIdB );
 
 /// Prototype for a contact filter callback.
 /// This is called when a contact pair is considered for collision. This allows you to
@@ -93,8 +92,7 @@ typedef bool b3CustomFilterFcn( b3ShapeId shapeIdA, b3ShapeId shapeIdB, void* co
 /// full contact manifold.
 /// @warning Do not attempt to modify the world inside this callback
 /// @ingroup world
-typedef bool b3PreSolveFcn( b3ShapeId shapeIdA, b3ShapeId shapeIdB, b3Pos point, b3Vec3 normal,
-							void* context );
+typedef bool b3PreSolveFcn( b3ShapeId shapeIdA, b3ShapeId shapeIdB, b3Pos point, b3Vec3 normal, void* context );
 
 /// Prototype callback for overlap queries.
 /// Called for each shape found in the query.
@@ -122,9 +120,8 @@ typedef bool b3OverlapResultFcn( b3ShapeId shapeId, void* context );
 /// @return -1 to filter, 0 to terminate, fraction to clip the ray for closest hit, 1 to continue
 /// @see b3World_CastRay
 /// @ingroup world
-typedef float b3CastResultFcn( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction,
-							   uint64_t userMaterialId, int triangleIndex, int childIndex,
-							   void* context );
+typedef float b3CastResultFcn( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+							   int triangleIndex, int childIndex, void* context );
 
 /// Optional world capacities that can be use to avoid run-time allocations
 /// @ingroup world
@@ -1628,7 +1625,6 @@ typedef struct b3SimplexCache
 	/// Value use to compare length, area, volume of two simplexes.
 	float metric;
 
-	// todo use an index of 0xFF as a sentinel and remove the count
 	/// The number of stored simplex points
 	uint16_t count;
 
@@ -1650,7 +1646,7 @@ typedef struct b3ShapeCastPairInput
 	b3Transform transform; ///< Transform of shape B in shape A's frame, the relative pose B in A
 	b3Vec3 translationB;   ///< The translation of shape B, in A's frame
 	float maxFraction;	   ///< The fraction of the translation to consider, typically 1
-	bool canEncroach; ///< Allows shapes with a radius to move slightly closer if already touching
+	bool canEncroach;	   ///< Allows shapes with a radius to move slightly closer if already touching
 } b3ShapeCastPairInput;
 
 /// Input for b3ShapeDistance
@@ -1905,24 +1901,21 @@ typedef bool b3TreeQueryCallbackFcn( int proxyId, uint64_t userData, void* conte
 /// This function receives the minimum distance squared so far and proxy to check in the closest
 /// query.
 /// @return minimum distance squared to user objects in the proxy
-typedef float b3TreeQueryClosestCallbackFcn( float distanceSqrMin, int proxyId, uint64_t userData,
-											 void* context );
+typedef float b3TreeQueryClosestCallbackFcn( float distanceSqrMin, int proxyId, uint64_t userData, void* context );
 
 /// This function receives clipped AABB cast input for a proxy. The function returns the new cast
 /// fraction.
 /// - return a value of 0 to terminate the cast
 /// - return a value less than input->maxFraction to clip the cast
 /// - return a value of input->maxFraction to continue the cast without clipping
-typedef float b3TreeBoxCastCallbackFcn( const b3BoxCastInput* input, int proxyId, uint64_t userData,
-										void* context );
+typedef float b3TreeBoxCastCallbackFcn( const b3BoxCastInput* input, int proxyId, uint64_t userData, void* context );
 
 /// This function receives clipped ray cast input for a proxy. The function
 /// returns the new ray fraction.
 /// - return a value of 0 to terminate the ray cast
 /// - return a value less than input->maxFraction to clip the ray
 /// - return a value of input->maxFraction to continue the ray cast without clipping
-typedef float b3TreeRayCastCallbackFcn( const b3RayCastInput* input, int proxyId, uint64_t userData,
-										void* context );
+typedef float b3TreeRayCastCallbackFcn( const b3RayCastInput* input, int proxyId, uint64_t userData, void* context );
 
 /**@}*/ // tree
 
@@ -2009,8 +2002,7 @@ typedef struct b3BodyTOIResult
 
 /// Used to collect collision planes for character movers.
 /// Return true to continue gathering planes.
-typedef bool b3PlaneResultFcn( b3ShapeId shapeId, const b3PlaneResult* plane, int planeCount,
-							   void* context );
+typedef bool b3PlaneResultFcn( b3ShapeId shapeId, const b3PlaneResult* plane, int planeCount, void* context );
 
 /// Used to filter shapes for shape casting character movers.
 /// Return true to accept the collision
@@ -2260,7 +2252,7 @@ typedef struct b3MeshDef
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.
-#define B3_MESH_VERSION 0xAAAB9A00F1A8AAF7ull
+#define B3_MESH_VERSION 0x24AA0BF74682501Dull
 
 /// Triangle mesh edge flags.
 typedef enum b3MeshEdgeFlags
@@ -2290,6 +2282,16 @@ typedef struct b3MeshTriangle
 	int32_t index2; ///< Index of vertex 2.
 	int32_t index3; ///< Index of vertex 3.
 } b3MeshTriangle;
+
+/// Indicates an isolated edge (treated as a cliff).
+#define B3_BOUNDARY_EDGE_ANGLE ( -128 )
+
+/// Mesh vertex flags. Used for ghost collision handling.
+typedef enum b3MeshVertexFlags
+{
+	b3_flatVertex = 0x01,	 ///< All edges are flat.
+	b3_concaveVertex = 0x02, ///< Any edge is concave.
+} b3MeshVertexFlags;
 
 /// A mesh BVH node.
 typedef struct b3MeshNode
@@ -2327,7 +2329,8 @@ typedef struct b3MeshNode
 	uint32_t triangleOffset;
 } b3MeshNode;
 
-/// This is a sorted triangle collision bounding volume hierarchy.
+/// This is a sorted triangle collision bounding volume hierarchy. Offsets are a byte
+/// count offset from the struct address.
 /// @note This struct has data hanging off the end and cannot be directly copied.
 typedef struct b3MeshData
 {
@@ -2352,35 +2355,41 @@ typedef struct b3MeshData
 	/// The number of degenerate triangles. Diagnostic.
 	int32_t degenerateCount;
 
-	/// Offset of the node array in bytes from the struct address.
+	/// Offset of the node array.
 	int32_t nodeOffset;
 
 	/// The number of BVH nodes.
 	int32_t nodeCount;
 
-	/// Offset of the vertex array in bytes from the struct address.
+	/// Offset of the vertex array.
 	int32_t vertexOffset;
 
 	/// The number of vertices.
 	int32_t vertexCount;
 
-	/// Offset of the triangle array in bytes from the struct address.
+	/// Offset of the triangle array.
 	int32_t triangleOffset;
 
 	/// The number of triangles.
 	int32_t triangleCount;
 
-	/// Offset of the material array in bytes from the struct address.
+	/// Offset of the material array.
 	int32_t materialOffset;
 
 	/// The number of materials.
 	int32_t materialCount;
 
-	/// Offset of the triangle flag array in bytes from the struct address.
+	/// Offset of the triangle flag array.
 	int32_t flagsOffset;
 
-	/// Explicit padding.
-	int32_t padding;
+	// Offset to the edge neighbor angles.
+	int32_t edgeAngleOffset;
+
+	/// Offset of the vertex flag array.
+	int32_t vertexFlagOffset;
+
+	/// Offset the vertex neighbor angle ring.
+	int32_t vertexRingOffset;
 } b3MeshData;
 
 /// This allows mesh data to be re-used with different scales.
@@ -2441,7 +2450,7 @@ typedef struct b3HeightFieldDef
 #define B3_HEIGHT_FIELD_HOLE 0xFF
 
 /// 64-bit height-field version. Useful for validating serialized data.
-#define B3_HEIGHT_FIELD_VERSION 0x8E41E5FB084848F8ull
+#define B3_HEIGHT_FIELD_VERSION 0x5A69A297D7ACE1CDull
 
 /// A height field with compressed storage.
 /// @note This data structure has data hanging off the end and cannot be directly copied.
@@ -2489,11 +2498,15 @@ typedef struct b3HeightFieldData
 	/// uint8_t, one per triangle.
 	int32_t flagsOffset;
 
+	/// Offset to the vertex ghost collision flag. Array of bits.
+	int32_t vertexFlagOffset;
+
 	/// Triangle winding.
 	uint8_t clockwise;
 
 	/// Explicit padding.
-	uint8_t padding[7];
+	uint8_t padding[3];
+
 } b3HeightFieldData;
 
 /**@}*/ // height_field
@@ -2797,6 +2810,12 @@ typedef struct b3ManifoldPoint
 
 	/// Did this contact point exist in the previous step?
 	bool persisted;
+
+	// b3TriangleFeature
+	uint8_t triangleFeature;
+
+	// b3MeshContactFlags
+	uint8_t meshFlags;
 } b3ManifoldPoint;
 
 /// A contact manifold describes the contact points between colliding shapes.
@@ -2824,7 +2843,7 @@ typedef struct b3Manifold
 } b3Manifold;
 
 /// Cached separating axis feature.
-typedef enum
+typedef enum b3SeparatingFeature
 {
 	b3_invalidAxis = 0,
 	b3_backsideAxis,
@@ -2840,7 +2859,7 @@ typedef enum
 } b3SeparatingFeature;
 
 /// Cached triangle feature.
-typedef enum
+typedef enum b3TriangleFeature
 {
 	b3_featureNone = 0,
 	b3_featureTriangleFace,
@@ -2855,6 +2874,14 @@ typedef enum
 	b3_featureVertex2,
 	b3_featureVertex3
 } b3TriangleFeature;
+
+/// This gives debug information about how a contact point was generated.
+typedef enum b3MeshContactFlags
+{
+	b3_meshContactHullFace = 0x01, ///< Normal is a hull face normal.
+	b3_meshContactSnapped = 0x02, ///< The normal is snapped to the triangle normal.
+	b3_meshContactDeep = 0x04, ///< The contact is considered deep (2 * linear slop).
+} b3MeshContactFlags;
 
 /// Separating axis test cache. Provides temporal acceleration of collision routines.
 typedef struct
@@ -2907,6 +2934,12 @@ typedef struct b3LocalManifoldPoint
 
 	/// The triangle index when collide with a mesh or height-field.
 	int triangleIndex;
+
+	// b3TriangleFeature
+	uint8_t triangleFeature;
+
+	// b3MeshContactFlags
+	uint8_t meshFlags;
 } b3LocalManifoldPoint;
 
 /// A local manifold with no dynamic information. Used by b3Collide functions.
@@ -2927,18 +2960,8 @@ typedef struct b3LocalManifold
 	/// The index of the triangle.
 	int triangleIndex;
 
-	int i1; ///< Vertex 1 index.
-	int i2; ///< Vertex 2 index.
-	int i3; ///< Vertex 3 index.
-
-	/// The squared distance of a sphere from a triangle. For ghost collision reduction.
-	float squaredDistance;
-
 	/// The triangle feature involved.
 	b3TriangleFeature feature;
-
-	/// b3MeshEdgeFlags.
-	int triangleFlags;
 } b3LocalManifold;
 
 /**@}*/ // collision
@@ -3157,8 +3180,7 @@ typedef struct b3DebugDraw
 	/// Draws a user shape. The userShape pointer is owned by the application and is known to Box3D
 	/// as an opaque pointer returned from b3CreateDebugShapeCallback. When this is called the drawn
 	/// shape has passed a culling test against drawingBounds below.
-	void ( *DrawShapeFcn )( void* userShape, b3WorldTransform transform, b3HexColor color,
-							void* context );
+	void ( *DrawShapeFcn )( void* userShape, b3WorldTransform transform, b3HexColor color, void* context );
 
 	/// Draw a line segment.
 	void ( *DrawSegmentFcn )( b3Pos p1, b3Pos p2, b3HexColor color, void* context );
@@ -3173,15 +3195,13 @@ typedef struct b3DebugDraw
 	void ( *DrawSphereFcn )( b3Pos p, float radius, b3HexColor color, float alpha, void* context );
 
 	/// Draw a capsule.
-	void ( *DrawCapsuleFcn )( b3Pos p1, b3Pos p2, float radius, b3HexColor color, float alpha,
-							  void* context );
+	void ( *DrawCapsuleFcn )( b3Pos p1, b3Pos p2, float radius, b3HexColor color, float alpha, void* context );
 
 	/// Draw a bounding box.
 	void ( *DrawBoundsFcn )( b3AABB aabb, b3HexColor color, void* context );
 
 	/// Draw an oriented box.
-	void ( *DrawBoxFcn )( b3Vec3 extents, b3WorldTransform transform, b3HexColor color,
-						  void* context );
+	void ( *DrawBoxFcn )( b3Vec3 extents, b3WorldTransform transform, b3HexColor color, void* context );
 
 	/// Draw a string in world space
 	void ( *DrawStringFcn )( b3Pos p, const char* s, b3HexColor color, void* context );

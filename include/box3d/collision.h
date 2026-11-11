@@ -39,25 +39,28 @@ B3_API void b3DynamicTree_SetCategoryBits( b3DynamicTree* tree, int proxyId, uin
 /// Get the category bits on a proxy.
 B3_API uint64_t b3DynamicTree_GetCategoryBits( b3DynamicTree* tree, int proxyId );
 
-/// Query an AABB for overlapping proxies. The callback function is called for each proxy that overlaps the supplied AABB.
+/// Query an AABB for overlapping proxies. The callback function is called for each proxy that overlaps the supplied
+/// AABB.
 ///	@return performance data
 B3_API b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
 										b3TreeQueryCallbackFcn* callback, void* context );
 
-/// Query an AABB for the closest object. The callback function is called for each proxy that might be closest to the supplied
-/// point.
+/// Query an AABB for the closest object. The callback function is called for each proxy that might be closest to the
+/// supplied point.
 /// @param tree the dynamic tree to query
 /// @param point the query point
 /// @param maskBits proxies are skipped if the bit-wise AND with the proxy category bits is zero
-/// @param requireAllBits proxies are skipped if the bit-wise AND with the proxy category bits does not equal the maskBits
+/// @param requireAllBits proxies are skipped if the bit-wise AND with the proxy category bits does not equal the
+/// maskBits
 /// @param callback a user provided instance of b3TreeQueryClosestCallbackFcn
 /// @param context a user context object that is provided to the callback
-/// @param minDistanceSqr the initial and final minimum squared distance. Provide a small initial to restrict the search and
-/// improve performance. If the value is large this query has performance that scales linearly with the number of proxies and
-/// would be slower than a brute force search.
+/// @param minDistanceSqr the initial and final minimum squared distance. Provide a small initial to restrict the search
+/// and improve performance. If the value is large this query has performance that scales linearly with the number of
+/// proxies and would be slower than a brute force search.
 ///	@return performance data
-B3_API b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
-											   b3TreeQueryClosestCallbackFcn* callback, void* context, float* minDistanceSqr );
+B3_API b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point, uint64_t maskBits,
+											   bool requireAllBits, b3TreeQueryClosestCallbackFcn* callback,
+											   void* context, float* minDistanceSqr );
 
 /// Ray cast against the proxies in the tree. This relies on the callback
 /// to perform an exact ray cast in the case where the proxy contains a shape.
@@ -342,6 +345,28 @@ B3_INLINE const uint8_t* b3GetMeshFlags( const b3MeshData* mesh )
 	return (const uint8_t*)( (intptr_t)mesh + mesh->flagsOffset );
 }
 
+/// Get read only quantized angles between neighboring triangle normals.
+B3_INLINE const int8_t* b3GetMeshEdgeAngles( const b3MeshData* mesh )
+{
+	if ( mesh->edgeAngleOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (const int8_t*)( (intptr_t)mesh + mesh->edgeAngleOffset );
+}
+
+/// Get read only vertex flags.
+B3_INLINE const uint8_t* b3GetMeshVertexFlags( const b3MeshData* mesh )
+{
+	if ( mesh->vertexFlagOffset == 0 )
+	{
+		return NULL;
+	}
+
+	return (const uint8_t*)( (intptr_t)mesh + mesh->vertexFlagOffset );
+}
+
 /// Create a grid mesh along the x and z axes.
 /// @param xCount the number of rows in the x direction
 /// @param zCount the number of rows in the z direction
@@ -422,8 +447,8 @@ B3_API b3HeightFieldData* b3CreateHeightField( const b3HeightFieldDef* data );
 B3_API b3HeightFieldData* b3CreateGrid( int rowCount, int columnCount, b3Vec3 scale, bool makeHoles );
 
 /// Create a wave grid as a height field.
-B3_API b3HeightFieldData* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, float rowFrequency, float columnFrequency,
-										bool makeHoles );
+B3_API b3HeightFieldData* b3CreateWave( int rowCount, int columnCount, b3Vec3 scale, float rowFrequency,
+										float columnFrequency, bool makeHoles );
 
 /// Destroy a height field.
 B3_API void b3DestroyHeightField( b3HeightFieldData* heightField );
@@ -522,7 +547,8 @@ B3_API bool b3OverlapCapsule( const b3Capsule* shape, b3Transform shapeTransform
 B3_API bool b3OverlapCompound( const b3CompoundData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
 
 /// Overlap shape versus height field
-B3_API bool b3OverlapHeightField( const b3HeightFieldData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
+B3_API bool b3OverlapHeightField( const b3HeightFieldData* shape, b3Transform shapeTransform,
+								  const b3ShapeProxy* proxy );
 
 /// Overlap shape versus hull
 B3_API bool b3OverlapHull( const b3HullData* shape, b3Transform shapeTransform, const b3ShapeProxy* proxy );
@@ -580,29 +606,34 @@ B3_API b3CastOutput b3ShapeCastHeightField( const b3HeightFieldData* shape, cons
 /// Query callback.
 typedef bool b3MeshQueryFcn( b3Vec3 a, b3Vec3 b, b3Vec3 c, int triangleIndex, void* context );
 
-/// Query a mesh for triangles overlapping a bounding box in local space. May have false positives. Useful for debug draw.
+/// Query a mesh for triangles overlapping a bounding box in local space. May have false positives. Useful for debug
+/// draw.
 /// @param mesh the mesh to query, includes scale
 /// @param bounds the bounding box in local space
 /// @param fcn a user function to collect triangles
 /// @param context the context sent to the user function.
 B3_API void b3QueryMesh( const b3Mesh* mesh, const b3AABB bounds, b3MeshQueryFcn* fcn, void* context );
 
-/// Query a height field for triangles overlapping a bounding box in local space. May have false positives. Useful for debug draw.
+/// Query a height field for triangles overlapping a bounding box in local space. May have false positives. Useful for
+/// debug draw.
 /// @param heightField the height field to query
 /// @param bounds the bounding box in local space
 /// @param fcn a user function to collect triangles
 /// @param context the context sent to the user function.
-B3_API void b3QueryHeightField( const b3HeightFieldData* heightField, b3AABB bounds, b3MeshQueryFcn* fcn, void* context );
+B3_API void b3QueryHeightField( const b3HeightFieldData* heightField, b3AABB bounds, b3MeshQueryFcn* fcn,
+								void* context );
 
 /// Compute the closest points between two shapes represented as point clouds.
 /// b3SimplexCache cache is input/output. On the first call set b3SimplexCache.count to zero.
 /// The query runs in frame A, so the witness points and normal are returned in frame A.
-/// The underlying GJK algorithm may be debugged by passing in debug simplexes and capacity. You may pass in NULL and 0 for these.
+/// The underlying GJK algorithm may be debugged by passing in debug simplexes and capacity. You may pass in NULL and 0
+/// for these.
 B3_API b3DistanceOutput b3ShapeDistance( const b3DistanceInput* input, b3SimplexCache* cache, b3Simplex* simplexes,
 										 int simplexCapacity );
 
-/// Perform a linear shape cast of shape B moving and shape A fixed. Determines the hit point, normal, and translation fraction.
-/// The query runs in frame A, so the hit point and normal are returned in frame A. Initially touching shapes are a miss.
+/// Perform a linear shape cast of shape B moving and shape A fixed. Determines the hit point, normal, and translation
+/// fraction. The query runs in frame A, so the hit point and normal are returned in frame A. Initially touching shapes
+/// are a miss.
 B3_API b3CastOutput b3ShapeCast( const b3ShapeCastPairInput* input );
 
 /// Evaluate the transform sweep at a specific time.
@@ -630,16 +661,16 @@ B3_API void b3CollideCapsuleAndSphere( b3LocalManifold* manifold, int capacity, 
 									   const b3Sphere* sphereB, b3Transform transformBtoA );
 
 /// Collide a hull and a sphere.
-B3_API void b3CollideHullAndSphere( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3Sphere* sphereB,
-									b3Transform transformBtoA, b3SimplexCache* cache );
+B3_API void b3CollideHullAndSphere( b3LocalManifold* manifold, int capacity, const b3HullData* hullA,
+									const b3Sphere* sphereB, b3Transform transformBtoA, b3SimplexCache* cache );
 
 /// Collide two capsules.
-B3_API void b3CollideCapsules( b3LocalManifold* manifold, int capacity, const b3Capsule* capsuleA, const b3Capsule* capsuleB,
-							   b3Transform transformBtoA );
+B3_API void b3CollideCapsules( b3LocalManifold* manifold, int capacity, const b3Capsule* capsuleA,
+							   const b3Capsule* capsuleB, b3Transform transformBtoA );
 
 /// Collide a hull and a capsule.
-B3_API void b3CollideHullAndCapsule( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3Capsule* capsuleB,
-									 b3Transform transformBtoA, b3SimplexCache* cache );
+B3_API void b3CollideHullAndCapsule( b3LocalManifold* manifold, int capacity, const b3HullData* hullA,
+									 const b3Capsule* capsuleB, b3Transform transformBtoA, b3SimplexCache* cache );
 
 /// Collide two hulls.
 B3_API void b3CollideHulls( b3LocalManifold* manifold, int capacity, const b3HullData* hullA, const b3HullData* hullB,
@@ -650,24 +681,46 @@ B3_API void b3CollideTriangleAndCapsule( b3LocalManifold* manifold, int capacity
 										 const b3Capsule* capsuleB, b3SimplexCache* cache );
 
 /// Collide a triangle and hull. Normal points from triangle to hull.
-B3_API void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v1, b3Vec3 v2, b3Vec3 v3, int triangleFlags,
-									  const b3HullData* hullB, b3SATCache* cache, bool enableSpeculative );
+B3_API void b3CollideTriangleAndHull( b3LocalManifold* manifold, int capacity, b3Vec3 v1, b3Vec3 v2, b3Vec3 v3,
+									  const b3HullData* hullB, b3SATCache* cache,
+									  bool enableSpeculative );
 
 /// Collide a triangle and sphere. Normal points from triangle to sphere.
 B3_API void b3CollideTriangleAndSphere( b3LocalManifold* manifold, int capacity, const b3Vec3* triangleA,
 										const b3Sphere* sphereB );
 
+/// Collide a mesh and hull for testing.
+B3_API int b3CollideMeshAndHull( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3HullData* hull,
+								 b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts );
+
+/// Collide a mesh and sphere for testing.
+B3_API int b3CollideMeshAndSphere( b3Manifold* manifolds, int capacity, const b3Mesh* mesh, const b3Sphere* sphere,
+								   b3Transform transformBtoA, bool enableSpeculative, bool handleGhosts );
+
 /// This is used for computing 2D hulls in service of contact manifold simplification.
 /// Placed here for testing. Internal.
 typedef struct b3Point2D
 {
-	b3Vec2 p;		   // 2D point
-	float separation;  // separation of the associated contact point
-	int originalIndex; // original index of the associated contact point
+	b3Vec2 p;		   ///< 2D point
+	float separation;  ///< separation of the associated contact point
+	int originalIndex; ///< original index of the associated contact point
 } b3Point2D;
 
+/// Options for how a 2D hull is built.
+typedef enum b3Hull2DFlags
+{
+	/// Keep collinear points.
+	b3_hull2DKeepCollinear = 0x01,
+
+	/// Only merge identical points.
+	b3_hull2DExactMerge = 0x02,
+
+	/// Order the output points by the input order.
+	b3_hull2DIndexOrder = 0x04,
+} b3Hull2DFlags;
+
 /// Compute a 2D hull. Used internally for contact manifold simplification. Here for testing.
-B3_API int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull );
+B3_API int b3Hull2D( b3Point2D* pts, int count, b3Point2D* hull, int flags );
 
 /// Simplify a 2D hull. Used internally for contact manifold simplification. Here for testing.
 B3_API int b3SimplifyHull2D( b3Point2D* hull, int count, int target );

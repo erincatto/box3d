@@ -9,8 +9,6 @@
 #include "box3d/collision.h"
 #include "box3d/types.h"
 
-#define B3_FORCE_GHOST_COLLISIONS 0
-
 typedef struct b3Shape b3Shape;
 typedef struct b3World b3World;
 

@@ -580,7 +580,7 @@ static int Hull2DSquareTest( void )
 	b3Point2D hull[16];
 	FillPoints2D( pts, input, 8 );
 
-	int count = b3Hull2D( pts, 8, hull );
+	int count = b3Hull2D( pts, 8, hull, 0 );
 	ENSURE( count == 4 );
 
 	// The reduction code assumes counter clockwise winding
@@ -616,7 +616,7 @@ static int Hull2DCollinearTest( void )
 	b3Point2D hull[10];
 	FillPoints2D( pts, input, 5 );
 
-	ENSURE( b3Hull2D( pts, 5, hull ) == 2 );
+	ENSURE( b3Hull2D( pts, 5, hull, 0 ) == 2 );
 
 	return 0;
 }
@@ -635,7 +635,7 @@ static int Hull2DWeldTest( void )
 	b3Point2D hull[10];
 	FillPoints2D( pts, input, 5 );
 
-	int count = b3Hull2D( pts, 5, hull );
+	int count = b3Hull2D( pts, 5, hull, 0 );
 	ENSURE( count == 4 );
 
 	for ( int i = 0; i < count; ++i )
@@ -659,7 +659,7 @@ static int SimplifyHull2DTargetTest( void )
 		pts[i].originalIndex = i;
 	}
 
-	int hullCount = b3Hull2D( pts, 20, hull );
+	int hullCount = b3Hull2D( pts, 20, hull, 0 );
 	ENSURE( hullCount == 20 );
 
 	int count = b3SimplifyHull2D( hull, hullCount, 6 );
@@ -682,7 +682,7 @@ static int SimplifyHull2DNoopTest( void )
 	b3Point2D hull[8];
 	FillPoints2D( pts, input, 4 );
 
-	int hullCount = b3Hull2D( pts, 4, hull );
+	int hullCount = b3Hull2D( pts, 4, hull, 0 );
 	ENSURE( hullCount == 4 );
 
 	ENSURE( b3SimplifyHull2D( hull, hullCount, 8 ) == 4 );
@@ -706,7 +706,7 @@ static int Hull2DOrderTest( void )
 	b3Point2D hull[16];
 	FillPoints2D( pts, input, 8 );
 
-	int count1 = b3Hull2D( pts, 8, hull );
+	int count1 = b3Hull2D( pts, 8, hull, 0 );
 	ENSURE( count1 == 7 );
 
 	bool onHull1[8] = { false };
@@ -724,7 +724,7 @@ static int Hull2DOrderTest( void )
 		shuffled[i].originalIndex = i;
 	}
 
-	int count2 = b3Hull2D( shuffled, 8, shuffledHull );
+	int count2 = b3Hull2D( shuffled, 8, shuffledHull, 0 );
 	ENSURE( count2 == count1 );
 
 	bool onHull2[8] = { false };
@@ -736,6 +736,143 @@ static int Hull2DOrderTest( void )
 	for ( int i = 0; i < 8; ++i )
 	{
 		ENSURE( onHull1[i] == onHull2[i] );
+	}
+
+	return 0;
+}
+
+// Float rounding can call the middle of three nearly collinear points a left turn in both chains.
+// Listing it twice gave the mesh manifold a duplicate point.
+static int Hull2DNearCollinearTest( void )
+{
+	b3Vec2 input[3] = {
+		{ 0.42742428183555603f, -0.9914372563362122f },
+		{ 0.8582707643508911f, -0.7915351390838623f },
+		{ 1.5856003761291504f, -0.45407217741012573f },
+	};
+
+	b3Point2D pts[3];
+	b3Point2D hull[6];
+	FillPoints2D( pts, input, 3 );
+
+	int count = b3Hull2D( pts, 3, hull, 0 );
+	ENSURE( 2 <= count && count <= 3 );
+
+	for ( int i = 0; i < count; ++i )
+	{
+		for ( int j = i + 1; j < count; ++j )
+		{
+			ENSURE( hull[i].originalIndex != hull[j].originalIndex );
+		}
+	}
+
+	return 0;
+}
+
+// A 3 by 3 grid has three points on each side. Only the corners are strict hull vertices.
+static int Hull2DKeepCollinearTest( void )
+{
+	b3Vec2 input[9];
+	for ( int i = 0; i < 9; ++i )
+	{
+		input[i] = (b3Vec2){ (float)( i % 3 ), (float)( i / 3 ) };
+	}
+
+	b3Point2D pts[9];
+	b3Point2D hull[18];
+	FillPoints2D( pts, input, 9 );
+	ENSURE( b3Hull2D( pts, 9, hull, 0 ) == 4 );
+
+	FillPoints2D( pts, input, 9 );
+	int count = b3Hull2D( pts, 9, hull, b3_hull2DKeepCollinear );
+	ENSURE( count == 8 );
+	ENSURE( Hull2DArea( hull, count ) > 0.0f );
+
+	for ( int i = 0; i < count; ++i )
+	{
+		ENSURE( hull[i].originalIndex != 4 );
+	}
+
+	// All collinear keeps every point
+	b3Vec2 line[4] = { { 0.0f, 0.0f }, { 1.0f, 0.0f }, { 2.0f, 0.0f }, { 3.0f, 0.0f } };
+	FillPoints2D( pts, line, 4 );
+	ENSURE( b3Hull2D( pts, 4, hull, b3_hull2DKeepCollinear ) == 4 );
+
+	return 0;
+}
+
+// Coincident points under the exact merge: the earlier point survives unless a later one is deeper by
+// more than the linear slop. The default weld always keeps the earlier point.
+static int Hull2DExactMergeTest( void )
+{
+	b3Vec2 input[5] = {
+		{ -1.0f, -1.0f }, { 1.0f, -1.0f }, { 1.0f, 1.0f }, { -1.0f, 1.0f }, { -1.0f, -1.0f },
+	};
+
+	float depths[2] = { 2.0f * B3_LINEAR_SLOP, 0.5f * B3_LINEAR_SLOP };
+	int expected[2] = { 4, 0 };
+
+	for ( int k = 0; k < 2; ++k )
+	{
+		b3Point2D pts[5];
+		b3Point2D hull[10];
+		FillPoints2D( pts, input, 5 );
+		pts[4].separation = -depths[k];
+
+		int count = b3Hull2D( pts, 5, hull, b3_hull2DExactMerge );
+		ENSURE( count == 4 );
+
+		int survivor = -1;
+		for ( int i = 0; i < count; ++i )
+		{
+			if ( hull[i].originalIndex == 0 || hull[i].originalIndex == 4 )
+			{
+				survivor = hull[i].originalIndex;
+			}
+		}
+		ENSURE( survivor == expected[k] );
+
+		FillPoints2D( pts, input, 5 );
+		pts[4].separation = -depths[k];
+		count = b3Hull2D( pts, 5, hull, 0 );
+		ENSURE( count == 4 );
+
+		for ( int i = 0; i < count; ++i )
+		{
+			ENSURE( hull[i].originalIndex != 4 );
+		}
+	}
+
+	return 0;
+}
+
+// The index order flag returns the same points sorted by input index
+static int Hull2DIndexOrderTest( void )
+{
+	b3Vec2 input[8] = {
+		{ 1.0f, 2.0f },	 { -2.5f, 0.4f }, { 2.0f, -1.0f }, { 0.2f, 0.1f },
+		{ -2.0f, -1.0f }, { 2.5f, 0.5f }, { 0.0f, -1.5f }, { -1.0f, 1.8f },
+	};
+
+	b3Point2D pts[8];
+	b3Point2D hull[16];
+	FillPoints2D( pts, input, 8 );
+	int count1 = b3Hull2D( pts, 8, hull, 0 );
+
+	bool onHull[8] = { false };
+	for ( int i = 0; i < count1; ++i )
+	{
+		onHull[hull[i].originalIndex] = true;
+	}
+
+	FillPoints2D( pts, input, 8 );
+	int count2 = b3Hull2D( pts, 8, hull, b3_hull2DIndexOrder );
+	ENSURE( count2 == count1 );
+
+	for ( int i = 0; i < count2; ++i )
+	{
+		ENSURE( onHull[hull[i].originalIndex] );
+		ENSURE( i == 0 || hull[i - 1].originalIndex < hull[i].originalIndex );
 	}
 
 	return 0;
@@ -759,6 +896,10 @@ int HullTest( void )
 	RUN_SUBTEST( Hull2DCollinearTest );
 	RUN_SUBTEST( Hull2DWeldTest );
 	RUN_SUBTEST( Hull2DOrderTest );
+	RUN_SUBTEST( Hull2DNearCollinearTest );
+	RUN_SUBTEST( Hull2DKeepCollinearTest );
+	RUN_SUBTEST( Hull2DExactMergeTest );
+	RUN_SUBTEST( Hull2DIndexOrderTest );
 	RUN_SUBTEST( SimplifyHull2DTargetTest );
 	RUN_SUBTEST( SimplifyHull2DNoopTest );
 

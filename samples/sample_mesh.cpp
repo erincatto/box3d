@@ -10,9 +10,13 @@
 
 #include "box3d/box3d.h"
 
+#include <algorithm>
+#include <float.h>
 #include <imgui.h>
 #include <queue>
 #include <stdio.h>
+#include <string.h>
+#include <vector>
 
 enum class ShapeType
 {
@@ -1621,3 +1625,4 @@ public:
 };
 
 static int sampleHollowBox = RegisterSample( "Mesh", "Hollow Box", HollowBox::Create );
+

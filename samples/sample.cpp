@@ -126,6 +126,7 @@ void SampleContext::Save()
 	fprintf( file, "  \"drawDistance\": %g,\n", drawDistance );
 	fprintf( file, "  \"showHullEdges\": %s,\n", GetEdgeOverlayParams().showHulls ? "true" : "false" );
 	fprintf( file, "  \"showEdgeConvexity\": %s,\n", GetEdgeOverlayParams().showEdgeConvexity ? "true" : "false" );
+	fprintf( file, "  \"edgeAlpha\": %g,\n", GetEdgeOverlayParams().alphaScale );
 	fprintf( file, "  \"showMetrics\": %s,\n", showMetrics ? "true" : "false" );
 	fprintf( file, "  \"showProfile\": %s,\n", showProfile ? "true" : "false" );
 	fprintf( file, "  \"replayKeyframeBudgetMB\": %d,\n", replayKeyframeBudgetMB );
@@ -272,6 +273,12 @@ void SampleContext::Load()
 			const char* s = data + tokens[i + 1].start;
 			EdgeOverlayParams p = GetEdgeOverlayParams();
 			p.showEdgeConvexity = strncmp( s, "true", 4 ) == 0;
+			SetEdgeOverlayParams( &p );
+		}
+		else if ( jsoneq( data, &tokens[i], "edgeAlpha" ) == 0 )
+		{
+			EdgeOverlayParams p = GetEdgeOverlayParams();
+			p.alphaScale = b3ClampFloat( ParseFloat( data, tokens[i + 1] ), 0.0f, 4.0f );
 			SetEdgeOverlayParams( &p );
 		}
 		else if ( jsoneq( data, &tokens[i], "showMetrics" ) == 0 )
@@ -1376,8 +1383,52 @@ void Sample::DrawTextLine( const char* text, ... )
 	char buffer[512];
 	vsnprintf( buffer, sizeof( buffer ), text, args );
 	va_end( args );
-	DrawScreenString( m_textX, m_textLine, MakeColor( b3_colorWhite ), buffer );
-	m_textLine += m_textIncrement;
+
+	// The text arena keeps 63 characters per string, so wrap long lines at spaces and indent the rest
+	constexpr int capacity = 63;
+	constexpr int indent = 2;
+	const char* start = buffer;
+	bool first = true;
+	while ( true )
+	{
+		int width = first ? capacity : capacity - indent;
+		int length = (int)strlen( start );
+		int cut = length;
+		if ( length > width )
+		{
+			cut = width;
+			while ( cut > 0 && start[cut] != ' ' )
+			{
+				cut -= 1;
+			}
+
+			if ( cut == 0 )
+			{
+				cut = width;
+			}
+		}
+
+		char line[capacity + 1];
+		int offset = first ? 0 : indent;
+		memset( line, ' ', offset );
+		memcpy( line + offset, start, cut );
+		line[offset + cut] = '\0';
+		DrawScreenString( m_textX, m_textLine, MakeColor( b3_colorWhite ), line );
+		m_textLine += m_textIncrement;
+
+		start += cut;
+		while ( *start == ' ' )
+		{
+			start += 1;
+		}
+
+		if ( *start == '\0' )
+		{
+			break;
+		}
+
+		first = false;
+	}
 }
 
 SampleEntry g_sampleEntries[MAX_SAMPLES];
@@ -1712,6 +1763,11 @@ static void DrawRenderMenu( SampleContext& ctx )
 	ImGui::Separator();
 
 	ImGui::PushItemWidth( 8.0f * ImGui::GetFontSize() );
+	if ( ImGui::SliderFloat( "Edge Alpha", &edgeParams.alphaScale, 0.0f, 4.0f, "%.2f" ) )
+	{
+		SetEdgeOverlayParams( &edgeParams );
+	}
+
 	float ev = GetExposure();
 	if ( ImGui::SliderFloat( "Exposure", &ev, -8.0f, 4.0f, "%.2f" ) )
 	{

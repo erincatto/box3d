@@ -129,6 +129,10 @@ float b3ComputeHullProjectedArea( const b3HullData* hull, b3Vec3 direction );
 b3Triangle b3GetHeightFieldTriangle( const b3HeightFieldData* heightField, int triangleIndex );
 int b3GetHeightFieldMaterial( const b3HeightFieldData* heightField, int triangleIndex );
 
+bool b3GetHeightFieldNeighborNormal( const b3HeightFieldData* heightField, int triangleIndex, int edgeIndex, b3Vec3* normal );
+bool b3IsHeightFieldVertexConvex( const b3HeightFieldData* heightField, int triangleIndex, int vertexIndex );
+int b3GetHeightFieldVertexTriangles( const b3HeightFieldData* heightField, int vertex, int triangles[6] );
+
 static inline int b3GetHeightFieldTriangleCount( const b3HeightFieldData* heightField )
 {
 	int cellCount = ( heightField->rowCount - 1 ) * ( heightField->columnCount - 1 );
@@ -143,12 +147,10 @@ static inline b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleInde
 	B3_ASSERT( 0 <= triangleIndex && triangleIndex < mesh->data->triangleCount );
 
 	const b3MeshTriangle* triangles = b3GetMeshTriangles( mesh->data );
-	const uint8_t* flags = b3GetMeshFlags( mesh->data );
 	const b3Vec3* vertices = b3GetMeshVertices( mesh->data );
 
 	b3Triangle result;
 	b3MeshTriangle triangle = triangles[triangleIndex];
-	uint8_t triangleFlags = flags[triangleIndex];
 
 	b3Vec3 scale = mesh->scale;
 
@@ -163,11 +165,6 @@ static inline b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleInde
 		result.i2 = triangle.index3;
 		result.i3 = triangle.index2;
 
-		// mesh is inverted, so concave edges are now convex
-		result.flags = 0;
-		result.flags |= ( triangleFlags & b3_inverseConcaveEdge1 ) ? b3_concaveEdge1 : 0;
-		result.flags |= ( triangleFlags & b3_inverseConcaveEdge2 ) ? b3_concaveEdge2 : 0;
-		result.flags |= ( triangleFlags & b3_inverseConcaveEdge3 ) ? b3_concaveEdge3 : 0;
 	}
 	else
 	{
@@ -176,10 +173,39 @@ static inline b3Triangle b3GetMeshTriangle( const b3Mesh* mesh, int triangleInde
 
 		result.i2 = triangle.index2;
 		result.i3 = triangle.index3;
-		result.flags = triangleFlags;
 	}
 
 	return result;
+}
+
+bool b3GetMeshNeighborNormal( const b3Mesh* mesh, int triangleIndex, int edgeIndex, b3Vec3* normal );
+
+// Returns false if edge is isolated.
+static inline bool b3GetNeighborNormal( const b3Shape* shape, int triangleIndex, int edgeIndex, b3Vec3* normal )
+{
+	if ( shape->type == b3_meshShape )
+	{
+		return b3GetMeshNeighborNormal( &shape->mesh, triangleIndex, edgeIndex, normal );
+	}
+
+	B3_ASSERT( shape->type == b3_heightShape );
+	return b3GetHeightFieldNeighborNormal( shape->heightField, triangleIndex, edgeIndex, normal );
+}
+
+int b3GetMeshVertexFlag( const b3Mesh* mesh, int triangleIndex, int vertexIndex );
+bool b3IsInMeshVertexRing( const b3Mesh* mesh, int triangleIndex, int vertexIndex, b3Vec3 normal, float tolerance );
+int8_t b3QuantizeEdgeAngle( float radians );
+
+static inline bool b3IsConvexVertex( const b3Shape* shape, int triangleIndex, int vertexIndex )
+{
+	if ( shape->type == b3_meshShape )
+	{
+		int flags = b3GetMeshVertexFlag( &shape->mesh, triangleIndex, vertexIndex );
+		return ( flags & ( b3_flatVertex | b3_concaveVertex ) ) == 0;
+	}
+
+	B3_ASSERT( shape->type == b3_heightShape );
+	return b3IsHeightFieldVertexConvex( shape->heightField, triangleIndex, vertexIndex );
 }
 
 bool b3IsValidMesh( const b3MeshData* meshData );

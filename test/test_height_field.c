@@ -11,6 +11,7 @@
 #include "box3d/math_functions.h"
 
 #include <float.h>
+#include <math.h>
 #include <stdio.h>
 
 static int HeightFieldCreate( void )
@@ -673,6 +674,146 @@ static int RayCastClockwiseWinding( void )
 	return 0;
 }
 
+#define BUMPY_COUNT_X 9
+#define BUMPY_COUNT_Z 7
+
+// A bumpy field with holes, so cells have every mix of interior, border and hole neighbors
+static b3HeightFieldData* MakeBumpyField( bool clockwise )
+{
+	float heights[BUMPY_COUNT_X * BUMPY_COUNT_Z];
+	for ( int i = 0; i < BUMPY_COUNT_Z; ++i )
+	{
+		for ( int j = 0; j < BUMPY_COUNT_X; ++j )
+		{
+			heights[i * BUMPY_COUNT_X + j] = sinf( 0.9f * (float)i ) * cosf( 0.7f * (float)j ) + 0.1f * (float)( ( i * j ) % 3 );
+		}
+	}
+
+	uint8_t materials[( BUMPY_COUNT_X - 1 ) * ( BUMPY_COUNT_Z - 1 )] = { 0 };
+	materials[9] = B3_HEIGHT_FIELD_HOLE;
+	materials[20] = B3_HEIGHT_FIELD_HOLE;
+	materials[47] = B3_HEIGHT_FIELD_HOLE;
+
+	b3HeightFieldDef def = { 0 };
+	def.heights = heights;
+	def.materialIndices = materials;
+	def.scale = (b3Vec3){ 1.5f, 0.8f, 0.5f };
+	def.countX = BUMPY_COUNT_X;
+	def.countZ = BUMPY_COUNT_Z;
+	def.globalMinimumHeight = -2.0f;
+	def.globalMaximumHeight = 2.0f;
+	def.clockwiseWinding = clockwise;
+	return b3CreateHeightField( &def );
+}
+
+static bool IsHole( const b3HeightFieldData* hf, int triangleIndex )
+{
+	return b3GetHeightFieldMaterial( hf, triangleIndex ) == B3_HEIGHT_FIELD_HOLE;
+}
+
+static b3Vec3 TriangleNormal( b3Triangle triangle )
+{
+	b3Vec3 e1 = b3Sub( triangle.vertices[1], triangle.vertices[0] );
+	b3Vec3 e2 = b3Sub( triangle.vertices[2], triangle.vertices[0] );
+	return b3Normalize( b3Cross( e1, e2 ) );
+}
+
+// Neighbors found by brute force over shared grid points must match the grid walk
+static int HeightFieldNeighborNormals( void )
+{
+	for ( int pass = 0; pass < 2; ++pass )
+	{
+		b3HeightFieldData* hf = MakeBumpyField( pass == 1 );
+		int triangleCount = b3GetHeightFieldTriangleCount( hf );
+		int interiorCount = 0;
+		int boundaryCount = 0;
+
+		for ( int i = 0; i < triangleCount; ++i )
+		{
+			if ( IsHole( hf, i ) )
+			{
+				continue;
+			}
+
+			b3Triangle triangle = b3GetHeightFieldTriangle( hf, i );
+			int indices[3] = { triangle.i1, triangle.i2, triangle.i3 };
+
+			for ( int k = 0; k < 3; ++k )
+			{
+				int a = indices[k];
+				int b = indices[( k + 1 ) % 3];
+
+				int neighbor = B3_NULL_INDEX;
+				for ( int j = 0; j < triangleCount && neighbor == B3_NULL_INDEX; ++j )
+				{
+					if ( j == i || IsHole( hf, j ) )
+					{
+						continue;
+					}
+
+					b3Triangle other = b3GetHeightFieldTriangle( hf, j );
+					int otherIndices[3] = { other.i1, other.i2, other.i3 };
+					for ( int m = 0; m < 3; ++m )
+					{
+						if ( otherIndices[m] == b && otherIndices[( m + 1 ) % 3] == a )
+						{
+							neighbor = j;
+						}
+					}
+				}
+
+				b3Vec3 normal;
+				bool found = b3GetHeightFieldNeighborNormal( hf, i, k, &normal );
+				ENSURE( found == ( neighbor != B3_NULL_INDEX ) );
+
+				if ( found == false )
+				{
+					boundaryCount += 1;
+					continue;
+				}
+
+				interiorCount += 1;
+				b3Vec3 expected = TriangleNormal( b3GetHeightFieldTriangle( hf, neighbor ) );
+				ENSURE( b3Dot( normal, expected ) > 0.99999f );
+			}
+		}
+
+		ENSURE( interiorCount > 0 );
+		ENSURE( boundaryCount > 0 );
+		b3DestroyHeightField( hf );
+	}
+
+	return 0;
+}
+
+// The shape level lookup dispatches to the mesh and height field versions
+static int NeighborNormalDispatch( void )
+{
+	b3HeightFieldData* hf = MakeBumpyField( false );
+	b3Shape heightShape = { 0 };
+	heightShape.type = b3_heightShape;
+	heightShape.heightField = hf;
+
+	b3Vec3 normal1, normal2;
+	ENSURE( b3GetNeighborNormal( &heightShape, 1, 1, &normal1 ) );
+	ENSURE( b3GetHeightFieldNeighborNormal( hf, 1, 1, &normal2 ) );
+	ENSURE( normal1.x == normal2.x && normal1.y == normal2.y && normal1.z == normal2.z );
+	b3DestroyHeightField( hf );
+
+	b3MeshData* data = b3CreateWaveMesh( 4, 4, 1.0f, 0.5f, 0.2f, 0.15f );
+	b3Shape meshShape = { 0 };
+	meshShape.type = b3_meshShape;
+	meshShape.mesh = (b3Mesh){ data, { 2.0f, 0.5f, -1.0f } };
+
+	bool found1 = b3GetNeighborNormal( &meshShape, 5, 1, &normal1 );
+	bool found2 = b3GetMeshNeighborNormal( &meshShape.mesh, 5, 1, &normal2 );
+	ENSURE( found1 && found2 );
+	ENSURE( normal1.x == normal2.x && normal1.y == normal2.y && normal1.z == normal2.z );
+	b3DestroyMesh( data );
+
+	return 0;
+}
+
 int HeightFieldTest( void )
 {
 	RUN_SUBTEST( HeightFieldCreate );
@@ -688,6 +829,8 @@ int HeightFieldTest( void )
 	RUN_SUBTEST( ShapeCastClockwiseWinding );
 	RUN_SUBTEST( RayCastBackside );
 	RUN_SUBTEST( RayCastClockwiseWinding );
+	RUN_SUBTEST( HeightFieldNeighborNormals );
+	RUN_SUBTEST( NeighborNormalDispatch );
 
 	return 0;
 }
