@@ -693,20 +693,25 @@ public:
 
 		if ( m_gridSize == 100 )
 		{
-			CreateTrees100( m_worldId );
+			m_useHeightField ? CreateTrees100HeightField( m_worldId ) : CreateTrees100( m_worldId );
 		}
 		else if ( m_gridSize == 50 )
 		{
-			CreateTrees50( m_worldId );
+			m_useHeightField ? CreateTrees50HeightField( m_worldId ) : CreateTrees50( m_worldId );
 		}
 		else
 		{
-			CreateTrees25( m_worldId );
+			m_useHeightField ? CreateTrees25HeightField( m_worldId ) : CreateTrees25( m_worldId );
 		}
 	}
 
 	bool DrawControls() override
 	{
+		if ( ImGui::Checkbox( "Height Field", &m_useHeightField ) )
+		{
+			Generate();
+		}
+
 		if ( ImGui::RadioButton( "100cm", &m_gridSize, 100 ) )
 		{
 			Generate();
@@ -731,6 +736,7 @@ public:
 	}
 
 	int m_gridSize;
+	bool m_useHeightField = false;
 };
 
 static int sampleFallingTrees = RegisterSample( "Benchmark", "Falling Trees", BenchmarkFallingTrees::Create );
