@@ -126,6 +126,7 @@ void SampleContext::Save()
 	fprintf( file, "  \"drawDistance\": %g,\n", drawDistance );
 	fprintf( file, "  \"showHullEdges\": %s,\n", GetEdgeOverlayParams().showHulls ? "true" : "false" );
 	fprintf( file, "  \"showEdgeConvexity\": %s,\n", GetEdgeOverlayParams().showEdgeConvexity ? "true" : "false" );
+	fprintf( file, "  \"edgeAlpha\": %g,\n", GetEdgeOverlayParams().alphaScale );
 	fprintf( file, "  \"showMetrics\": %s,\n", showMetrics ? "true" : "false" );
 	fprintf( file, "  \"showProfile\": %s,\n", showProfile ? "true" : "false" );
 	fprintf( file, "  \"replayKeyframeBudgetMB\": %d,\n", replayKeyframeBudgetMB );
@@ -272,6 +273,12 @@ void SampleContext::Load()
 			const char* s = data + tokens[i + 1].start;
 			EdgeOverlayParams p = GetEdgeOverlayParams();
 			p.showEdgeConvexity = strncmp( s, "true", 4 ) == 0;
+			SetEdgeOverlayParams( &p );
+		}
+		else if ( jsoneq( data, &tokens[i], "edgeAlpha" ) == 0 )
+		{
+			EdgeOverlayParams p = GetEdgeOverlayParams();
+			p.alphaScale = b3ClampFloat( ParseFloat( data, tokens[i + 1] ), 0.0f, 4.0f );
 			SetEdgeOverlayParams( &p );
 		}
 		else if ( jsoneq( data, &tokens[i], "showMetrics" ) == 0 )
@@ -1756,6 +1763,11 @@ static void DrawRenderMenu( SampleContext& ctx )
 	ImGui::Separator();
 
 	ImGui::PushItemWidth( 8.0f * ImGui::GetFontSize() );
+	if ( ImGui::SliderFloat( "Edge Alpha", &edgeParams.alphaScale, 0.0f, 4.0f, "%.2f" ) )
+	{
+		SetEdgeOverlayParams( &edgeParams );
+	}
+
 	float ev = GetExposure();
 	if ( ImGui::SliderFloat( "Exposure", &ev, -8.0f, 4.0f, "%.2f" ) )
 	{

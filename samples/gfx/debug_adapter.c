@@ -50,11 +50,27 @@ typedef struct
 	float radius;
 } DebugCapsule;
 
-// Hull/mesh/heightfield. Scale only for mesh.
+// A slice of a mesh holding the triangles that share one material color.
+// A zero color draws with the shape color.
+typedef struct
+{
+	MeshHandle handle;
+	uint32_t color;
+} DebugMeshPart;
+
+// Hull/mesh/heightfield. Scale only for mesh. A top-level mesh whose material
+// slots carry different custom colors is drawn as parts, one per color. The
+// slot colors are snapshot so a runtime material change rebuilds the parts.
+// The whole mesh handle is kept for highlight and material overrides.
 typedef struct
 {
 	MeshHandle handle;
 	b3Vec3 scale;
+	const b3MeshData* data;
+	uint32_t* slotColors;
+	int slotCount;
+	DebugMeshPart* parts;
+	int partCount;
 } DebugMesh;
 
 typedef struct
@@ -148,6 +164,138 @@ static const float kBodyTypeRoughness[3] = { 0.70f, 0.55f, 0.40f };
 static const float kDebugMaterialMetallic[6] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.85f };
 static const float kDebugMaterialRoughness[6] = { 0.50f, 0.85f, 0.65f, 0.95f, 0.30f, 0.35f };
 
+static void ReleaseMeshParts( DebugMesh* geom )
+{
+	for ( int i = 0; i < geom->partCount; ++i )
+	{
+		ReleaseMeshReference( geom->parts[i].handle );
+	}
+	free( geom->parts );
+	free( geom->slotColors );
+	geom->parts = NULL;
+	geom->partCount = 0;
+	geom->slotColors = NULL;
+	geom->slotCount = 0;
+}
+
+// Group the mesh triangles by the custom color of their material slot. Slots
+// sharing a color share a part, so a conveyor with many belt slots of one
+// color costs one draw. Nothing is split when every used slot has one color.
+static void BuildMeshParts( DebugShape* us )
+{
+	DebugMesh* geom = &us->geom;
+	ReleaseMeshParts( geom );
+
+	const b3MeshData* data = geom->data;
+	const uint8_t* indices = data != NULL ? b3GetMeshMaterialIndices( data ) : NULL;
+	const int slotCount = b3Shape_GetMeshMaterialCount( us->shapeId );
+	if ( indices == NULL || slotCount <= 1 )
+	{
+		return;
+	}
+
+	geom->slotColors = (uint32_t*)malloc( (size_t)slotCount * sizeof( uint32_t ) );
+	uint8_t* used = (uint8_t*)calloc( (size_t)slotCount, 1 );
+	uint8_t* mask = (uint8_t*)malloc( (size_t)slotCount );
+	uint32_t* colors = (uint32_t*)malloc( (size_t)slotCount * sizeof( uint32_t ) );
+	if ( geom->slotColors == NULL || used == NULL || mask == NULL || colors == NULL )
+	{
+		free( used );
+		free( mask );
+		free( colors );
+		free( geom->slotColors );
+		geom->slotColors = NULL;
+		return;
+	}
+	geom->slotCount = slotCount;
+
+	for ( int i = 0; i < slotCount; ++i )
+	{
+		geom->slotColors[i] = b3Shape_GetMeshSurfaceMaterial( us->shapeId, i ).customColor;
+	}
+
+	for ( int t = 0; t < data->triangleCount; ++t )
+	{
+		const int slot = indices[t] < slotCount ? indices[t] : slotCount - 1;
+		used[slot] = 1;
+	}
+
+	int colorCount = 0;
+	for ( int i = 0; i < slotCount; ++i )
+	{
+		if ( used[i] == 0 )
+		{
+			continue;
+		}
+		bool found = false;
+		for ( int j = 0; j < colorCount; ++j )
+		{
+			if ( colors[j] == geom->slotColors[i] )
+			{
+				found = true;
+				break;
+			}
+		}
+		if ( found == false )
+		{
+			colors[colorCount++] = geom->slotColors[i];
+		}
+	}
+
+	if ( colorCount > 1 )
+	{
+		geom->parts = (DebugMeshPart*)malloc( (size_t)colorCount * sizeof( DebugMeshPart ) );
+		for ( int j = 0; geom->parts != NULL && j < colorCount; ++j )
+		{
+			for ( int i = 0; i < slotCount; ++i )
+			{
+				mask[i] = ( used[i] != 0 && geom->slotColors[i] == colors[j] ) ? 1 : 0;
+			}
+
+			MeshHandle handle = FindOrAddMeshSubset( data, mask, slotCount );
+			if ( IsMeshHandleValid( handle ) == false )
+			{
+				// Fall back to drawing the whole mesh in the shape color
+				for ( int k = 0; k < geom->partCount; ++k )
+				{
+					ReleaseMeshReference( geom->parts[k].handle );
+				}
+				free( geom->parts );
+				geom->parts = NULL;
+				geom->partCount = 0;
+				break;
+			}
+
+			geom->parts[geom->partCount].handle = handle;
+			geom->parts[geom->partCount].color = colors[j];
+			geom->partCount += 1;
+		}
+	}
+
+	free( used );
+	free( mask );
+	free( colors );
+}
+
+// Rebuild the parts when a slot color changed since they were built
+static void RefreshMeshParts( DebugShape* us )
+{
+	DebugMesh* geom = &us->geom;
+	if ( geom->slotCount <= 1 )
+	{
+		return;
+	}
+
+	for ( int i = 0; i < geom->slotCount; ++i )
+	{
+		if ( b3Shape_GetMeshSurfaceMaterial( us->shapeId, i ).customColor != geom->slotColors[i] )
+		{
+			BuildMeshParts( us );
+			return;
+		}
+	}
+}
+
 void InitAdapter( void )
 {
 	for ( int i = 0; i < BOX3D_USER_SHAPE_CAPACITY; ++i )
@@ -183,6 +331,7 @@ void ResetAdapterPool( void )
 		DebugShape* us = &s_adapter.pool[i];
 		if ( us->kind == Box3DUS_Hull || us->kind == Box3DUS_Mesh || us->kind == Box3DUS_HeightField )
 		{
+			ReleaseMeshParts( &us->geom );
 			ReleaseMeshReference( us->geom.handle );
 		}
 		else if ( us->kind == Box3DUS_Compound )
@@ -532,11 +681,13 @@ static int CreateCompoundChild( const b3ChildShape* child, const DebugShape* par
 			break;
 		case b3_hullShape:
 			us->kind = Box3DUS_Hull;
+			us->geom = (DebugMesh){ 0 };
 			us->geom.handle = handle;
 			us->geom.scale = b3Vec3_one;
 			break;
 		case b3_meshShape:
 			us->kind = Box3DUS_Mesh;
+			us->geom = (DebugMesh){ 0 };
 			us->geom.handle = handle;
 			us->geom.scale = (b3Vec3){ child->mesh.scale.x, child->mesh.scale.y, child->mesh.scale.z };
 			break;
@@ -603,6 +754,7 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 		DebugShape* us = &s_adapter.pool[index];
 		us->kind = Box3DUS_Hull;
 		PopulateCommonFields( us, debugShape );
+		us->geom = (DebugMesh){ 0 };
 		us->geom.handle = handle;
 		us->geom.scale = b3Vec3_one;
 		return us;
@@ -625,8 +777,11 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 		DebugShape* us = &s_adapter.pool[index];
 		us->kind = Box3DUS_Mesh;
 		PopulateCommonFields( us, debugShape );
+		us->geom = (DebugMesh){ 0 };
 		us->geom.handle = handle;
 		us->geom.scale = (b3Vec3){ mesh->scale.x, mesh->scale.y, mesh->scale.z };
+		us->geom.data = mesh->data;
+		BuildMeshParts( us );
 		return us;
 	}
 
@@ -647,6 +802,7 @@ static void* AdapterCreateDebugShape( const b3DebugShape* debugShape, void* cont
 		DebugShape* us = &s_adapter.pool[index];
 		us->kind = Box3DUS_HeightField;
 		PopulateCommonFields( us, debugShape );
+		us->geom = (DebugMesh){ 0 };
 		us->geom.handle = handle;
 		us->geom.scale = b3Vec3_one;
 		return us;
@@ -740,6 +896,7 @@ static void DestroyDebugShape( void* userShape, void* context )
 	}
 	else if ( us->kind == Box3DUS_Hull || us->kind == Box3DUS_Mesh || us->kind == Box3DUS_HeightField )
 	{
+		ReleaseMeshParts( &us->geom );
 		ReleaseMeshReference( us->geom.handle );
 	}
 
@@ -757,8 +914,8 @@ static void DestroyDebugShape( void* userShape, void* context )
 // center, capsule frame) layers on top of baseTransform, so the same path
 // serves a top-level shape (base = body transform) and a compound child
 // (base = body transform composed with the child transform).
-static void AppendResolvedShape( const DebugShape* us, b3Transform baseTransform, Vec4 c, float metallic, float roughness,
-								 TransparentShadowCast shadowCast, HighlightKind hk )
+static void AppendResolvedShape( const DebugShape* us, b3Transform baseTransform, Vec4 c, float metallic,
+								 float roughness, TransparentShadowCast shadowCast, HighlightKind hk )
 {
 	if ( us->kind == Box3DUS_Sphere )
 	{
@@ -782,7 +939,24 @@ static void AppendResolvedShape( const DebugShape* us, b3Transform baseTransform
 	{
 		MeshMaterialMode mode = us->isGround ? MESH_MATERIAL_MODE_GROUND_GRID : MESH_MATERIAL_MODE_SOLID;
 		float cell = us->isGround ? BOX3D_GROUND_GRID_CELL_SIZE : 0.0f;
-		AppendMesh( us->geom.handle, baseTransform, us->geom.scale, c, metallic, roughness, mode, cell, shadowCast );
+		if ( us->geom.partCount > 0 && us->hasMaterial == false )
+		{
+			for ( int i = 0; i < us->geom.partCount; ++i )
+			{
+				const DebugMeshPart* part = &us->geom.parts[i];
+				Vec4 pc = c;
+				if ( part->color != 0 )
+				{
+					pc = HexColorToLinear( (b3HexColor)part->color );
+					pc.w = c.w;
+				}
+				AppendMesh( part->handle, baseTransform, us->geom.scale, pc, metallic, roughness, mode, cell, shadowCast );
+			}
+		}
+		else
+		{
+			AppendMesh( us->geom.handle, baseTransform, us->geom.scale, c, metallic, roughness, mode, cell, shadowCast );
+		}
 		if ( hk != HIGHLIGHT_KIND_NONE )
 		{
 			AppendHighlightGeometry( us->geom.handle, baseTransform, us->geom.scale, hk );
@@ -790,9 +964,8 @@ static void AppendResolvedShape( const DebugShape* us, b3Transform baseTransform
 	}
 }
 
-// Context for the compound cull query. Carries the resolved material and the
-// body relative transform so each visited child appends exactly as the full
-// walk would.
+// Context for the compound cull query. Carries the resolved material and the body relative transform so each visited
+// child appends exactly as the full walk would.
 typedef struct
 {
 	const DebugShape* parent;
@@ -841,6 +1014,11 @@ static void DrawShape( void* userShape, b3WorldTransform shapeTransform, b3HexCo
 	DebugShape* us = (DebugShape*)userShape;
 
 	RefreshMaterialFromOverride( us );
+
+	if ( us->kind == Box3DUS_Mesh )
+	{
+		RefreshMeshParts( us );
+	}
 
 	Vec4 c;
 	float metallic;
@@ -964,8 +1142,8 @@ static void DrawTransformFcn( b3WorldTransform transform, void* context )
 	Vec4 blue = MakeVec4( 0.0f, 0.0f, 1.0f, 1.0f );
 	OverlayAppendLine( origin, b3MulAdd( origin, L, basis.cx ), red, BOX3D_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS,
 					   OVERLAY_OCCLUSION_HIDE );
-	OverlayAppendLine( origin, b3MulAdd( origin, L, basis.cy ), green, BOX3D_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS,
-					   OVERLAY_OCCLUSION_HIDE );
+	OverlayAppendLine( origin, b3MulAdd( origin, L, basis.cy ), green, BOX3D_LINE_THICKNESS_PX,
+					   OVERLAY_THICKNESS_PIXELS, OVERLAY_OCCLUSION_HIDE );
 	OverlayAppendLine( origin, b3MulAdd( origin, L, basis.cz ), blue, BOX3D_LINE_THICKNESS_PX, OVERLAY_THICKNESS_PIXELS,
 					   OVERLAY_OCCLUSION_HIDE );
 }
@@ -988,22 +1166,22 @@ static void DrawCapsuleFcn( b3Pos p1, b3Pos p2, float radius, b3HexColor color, 
 {
 	(void)context;
 
-	b3Vec3 e = b3SubPos(p2, p1);
+	b3Vec3 e = b3SubPos( p2, p1 );
 	float length = b3Length( e );
-	if (length < FLT_EPSILON)
+	if ( length < FLT_EPSILON )
 	{
-		DrawSphereEx( (b3WorldTransform){ p1, b3Quat_identity }, radius, HexColorAToVec4( color, alpha ), DEFAULT_METALLIC,
-					  DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_NONE );
+		DrawSphereEx( (b3WorldTransform){ p1, b3Quat_identity }, radius, HexColorAToVec4( color, alpha ),
+					  DEFAULT_METALLIC, DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_NONE );
 		return;
 	}
 
 	b3Vec3 en = b3MulSV( 1.0f / length, e );
 	b3WorldTransform transform;
-	transform.p = b3OffsetPos( p1, b3MulSV( 0.5f, e ));
+	transform.p = b3OffsetPos( p1, b3MulSV( 0.5f, e ) );
 	transform.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisX, en );
 
 	DrawCapsuleEx( transform, 0.5f * length, radius, HexColorAToVec4( color, alpha ), DEFAULT_METALLIC,
-				  DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_NONE );
+				   DEFAULT_ROUGHNESS, TRANSPARENT_SHADOW_NONE );
 }
 
 static void DrawBoundsFcn( b3AABB aabb, b3HexColor color, void* context )

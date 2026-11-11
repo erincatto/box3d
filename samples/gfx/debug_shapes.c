@@ -420,11 +420,14 @@ static inline int MeshEdgeLess( const EdgeRecord* a, const EdgeRecord* b )
 	return a->v1 < b->v1;
 }
 
-static MeshHandle BuildMeshData( const b3MeshData* meshData )
+// A NULL slotMask builds every triangle. Otherwise only triangles whose material
+// slot has a nonzero mask entry are emitted, and their edges with them.
+static MeshHandle BuildMeshData( const b3MeshData* meshData, uint64_t hash, const uint8_t* slotMask, int slotCount )
 {
 	const b3Vec3* verts = b3GetMeshVertices( meshData );
 	const b3MeshTriangle* tris = b3GetMeshTriangles( meshData );
 	const uint8_t* flags = b3GetMeshFlags( meshData );
+	const uint8_t* materialIndices = slotMask != NULL ? b3GetMeshMaterialIndices( meshData ) : NULL;
 	if ( !verts || !tris || meshData->triangleCount <= 0 )
 	{
 		fprintf( stderr, "error: mesh missing arrays or empty (hash=0x%016" PRIx64 ")\n", meshData->hash );
@@ -436,6 +439,15 @@ static MeshHandle BuildMeshData( const b3MeshData* meshData )
 
 	for ( int t = 0; t < meshData->triangleCount; ++t )
 	{
+		if ( materialIndices != NULL )
+		{
+			const int slot = materialIndices[t] < slotCount ? materialIndices[t] : slotCount - 1;
+			if ( slotMask[slot] == 0 )
+			{
+				continue;
+			}
+		}
+
 		const b3MeshTriangle tri = tris[t];
 		const b3Vec3 a = verts[tri.index1];
 		const b3Vec3 b = verts[tri.index2];
@@ -523,7 +535,7 @@ static MeshHandle BuildMeshData( const b3MeshData* meshData )
 		eb.count = write + 1;
 	}
 
-	const MeshHandle h = RegisterMesh( meshData->hash, buf.vertices, buf.vertexCount, buf.indices, buf.indexCount, "geom_mesh" );
+	const MeshHandle h = RegisterMesh( hash, buf.vertices, buf.vertexCount, buf.indices, buf.indexCount, "geom_mesh" );
 
 	if ( IsMeshHandleValid( h ) )
 	{
@@ -821,7 +833,37 @@ MeshHandle FindOrAddMesh( const b3MeshData* meshData )
 		return existing;
 	}
 
-	return BuildMeshData( meshData );
+	return BuildMeshData( meshData, meshData->hash, NULL, 0 );
+}
+
+MeshHandle FindOrAddMeshSubset( const b3MeshData* meshData, const uint8_t* slotMask, int slotCount )
+{
+	if ( !meshData || meshData->hash == 0 || slotMask == NULL || slotCount <= 0 ||
+		 b3GetMeshMaterialIndices( meshData ) == NULL )
+	{
+		return FindOrAddMesh( meshData );
+	}
+
+	// FNV-1a over the mask, seeded with the mesh hash
+	uint64_t hash = meshData->hash ^ 0xcbf29ce484222325ull;
+	for ( int i = 0; i < slotCount; ++i )
+	{
+		hash ^= slotMask[i] != 0 ? 1u : 0u;
+		hash *= 0x100000001b3ull;
+	}
+	if ( hash == 0 || hash == meshData->hash )
+	{
+		hash += 1;
+	}
+
+	MeshHandle existing = FindMesh( hash );
+	if ( IsMeshHandleValid( existing ) )
+	{
+		AddMeshReference( existing );
+		return existing;
+	}
+
+	return BuildMeshData( meshData, hash, slotMask, slotCount );
 }
 
 MeshHandle FindOrAddHeightField( const b3HeightFieldData* heightField )

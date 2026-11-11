@@ -39,6 +39,12 @@ MeshHandle FindOrAddHull( const b3HullData* hull );
 // draw time. Two b3Mesh sharing the same b3MeshData share one entry.
 MeshHandle FindOrAddMesh( const b3MeshData* meshData );
 
+// Acquire the subset of a mesh whose triangles sit in a material slot with a
+// nonzero slotMask entry. Keyed by the mesh hash mixed with the mask, so shapes
+// sharing a mesh and a slot grouping share one entry. Falls back to the whole
+// mesh when the mesh carries no material indices.
+MeshHandle FindOrAddMeshSubset( const b3MeshData* meshData, const uint8_t* slotMask, int slotCount );
+
 // Acquire for b3HeightFieldData. The `scale` vector is part of the height
 // field's hash (folded into construction), so two heightfields with
 // different scales hash to different entries, per-instance scale stays

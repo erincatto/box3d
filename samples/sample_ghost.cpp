@@ -2832,14 +2832,14 @@ public:
 		if ( index == 0 )
 		{
 			material.friction = 0.2f;
-			material.customColor = b3_colorGoldenRod;
+			material.customColor = b3_colorCadetBlue;
 			return material;
 		}
 
 		if ( index == m_slideMaterial )
 		{
 			material.friction = m_slideFriction;
-			material.customColor = b3_colorSteelBlue;
+			material.customColor = b3_colorSilver;
 			return material;
 		}
 
@@ -2847,7 +2847,7 @@ public:
 		float yaw = -B3_PI + 2.0f * B3_PI * (float)( index - m_firstBeltMaterial ) / (float)m_yawBinCount;
 		material.friction = 0.8f;
 		material.tangentVelocity = { m_beltSpeed * cosf( yaw ), 0.0f, m_beltSpeed * sinf( yaw ) };
-		material.customColor = b3_colorSlateGray;
+		material.customColor = b3_colorLightSteelBlue;
 		return material;
 	}
 
@@ -3541,7 +3541,7 @@ public:
 
 				b3Vec3 p = m_stations[k] + 0.05f * m_ups[k];
 				b3Vec3 t = m_tangents[k];
-				DrawArrow( b3ToPos( p ), b3ToPos( p + 0.25f * m_beltSpeed * t ), MakeColor( b3_colorBlueViolet ) );
+				DrawArrow( b3ToPos( p ), b3ToPos( p + 0.25f * m_beltSpeed * t ), MakeColor( b3_colorGold ) );
 			}
 		}
 

@@ -40,7 +40,8 @@ EdgeOverlayParams GetDefaultEdgeParams( void )
 	p.zBias = 1.0e-6f;
 	p.convexColor = MakeVec4( 0.1f, 0.8f, 0.1f, 0.75f );
 	p.concaveColor = MakeVec4( 0.8f, 0.10f, 0.10f, 0.75f );
-	p.flatColor = MakeVec4( 0.6f, 0.6f, 0.6f, 0.5f );
+	p.flatColor = MakeVec4( 0.6f, 0.6f, 0.6f, 0.2f );
+	p.alphaScale = 1.0f;
 	return p;
 }
 
@@ -106,9 +107,11 @@ void ShutdownEdges( void )
 	s_edges.ready = false;
 }
 
-static inline Vec4 Premultiply( Vec4 c )
+static inline Vec4 Premultiply( Vec4 c, float alphaScale )
 {
-	return MakeVec4( c.x * c.w, c.y * c.w, c.z * c.w, c.w );
+	float a = c.w * alphaScale;
+	a = a < 1.0f ? a : 1.0f;
+	return MakeVec4( c.x * a, c.y * a, c.z * a, a );
 }
 
 // Per-batch policy: does the toggle want this batch drawn at all?
@@ -160,13 +163,13 @@ static void SubmitBatches( int width, int height, const Mat4* view, const Mat4* 
 	edge_ub_pass_t passMesh = { 0 };
 	if ( params->showEdgeConvexity )
 	{
-		passMesh.convex_color = Premultiply( params->convexColor );
-		passMesh.concave_color = Premultiply( params->concaveColor );
-		passMesh.flat_color = Premultiply( params->flatColor );
+		passMesh.convex_color = Premultiply( params->convexColor, params->alphaScale );
+		passMesh.concave_color = Premultiply( params->concaveColor, params->alphaScale );
+		passMesh.flat_color = Premultiply( params->flatColor, params->alphaScale );
 	}
 	else
 	{
-		Vec4 flat = Premultiply( params->flatColor );
+		Vec4 flat = Premultiply( params->flatColor, params->alphaScale );
 		passMesh.convex_color = flat;
 		passMesh.concave_color = flat;
 		passMesh.flat_color = flat;
@@ -175,7 +178,7 @@ static void SubmitBatches( int width, int height, const Mat4* view, const Mat4* 
 	edge_ub_pass_t passHull = { 0 };
 
 	Vec4 hullEdgeColor = { 0.5f, 0.5f, 0.5f, 0.5f };
-	Vec4 hull = Premultiply( hullEdgeColor );
+	Vec4 hull = Premultiply( hullEdgeColor, params->alphaScale );
 	passHull.convex_color = hull;
 	passHull.concave_color = hull;
 	passHull.flat_color = hull;
