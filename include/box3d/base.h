@@ -134,7 +134,7 @@ B3_API void b3SetAssertFcn( b3AssertFcn* assertFcn );
 /// Internal assertion handler. Allows for host intervention.
 B3_API int b3InternalAssert( const char* condition, const char* fileName, int lineNumber );
 /// Assert that a condition is true.
-#define B3_ASSERT( condition )                                                                                                   \
+#define B3_ASSERT( condition )                                                                                         \
 	( (void)( ( !!( condition ) ) || ( b3InternalAssert( #condition, __FILE__, (int)( __LINE__ ) ), 0 ) ) )
 #else
 #define B3_ASSERT( ... ) ( (void)0 )

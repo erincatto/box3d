@@ -111,12 +111,23 @@ static inline uint32_t b3AtomicLoadU32( b3AtomicU32* a )
 }
 
 // Relaxed load on a plain word. Lets a racing reader peek before paying for a read modify write.
-static inline uint32_t b3AtomicLoadU32Raw( uint32_t* a )
+static inline uint32_t b3AtomicLoadU32Raw( const uint32_t* a )
 {
 #if defined( _MSC_VER ) && !defined( __clang__ )
-	return (uint32_t)__iso_volatile_load32( (volatile __int32*)a );
+	return (uint32_t)__iso_volatile_load32( (const volatile __int32*)a );
 #elif defined( __GNUC__ ) || defined( __clang__ )
 	return __atomic_load_n( a, __ATOMIC_RELAXED );
+#else
+#error "Unsupported platform"
+#endif
+}
+
+static inline void b3AtomicStoreU32Raw( uint32_t* a, uint32_t value )
+{
+#if defined( _MSC_VER ) && !defined( __clang__ )
+	__iso_volatile_store32( (volatile __int32*)a, (__int32)value );
+#elif defined( __GNUC__ ) || defined( __clang__ )
+	__atomic_store_n( a, value, __ATOMIC_RELAXED );
 #else
 #error "Unsupported platform"
 #endif

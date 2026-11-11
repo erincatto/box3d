@@ -867,21 +867,28 @@ B3_FORCE_INLINE bool b3TestCategory( uint64_t categoryBits, uint64_t maskBits, b
 	return requireAllBits ? ( categoryBits & maskBits ) == maskBits : ( categoryBits & maskBits ) != 0;
 }
 
+B3_FORCE_INLINE uint32_t b3LoadNodeFlags( const b3TreeNode* node, bool relaxedFlags )
+{
+	return relaxedFlags ? b3AtomicLoadU32Raw( &node->flagIndex ) : node->flagIndex;
+}
+
 B3_FORCE_INLINE b3TreeStats b3QueryTreeView( const b3TreeView* view, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
-											 b3TreeQueryCallbackFcn* callback, void* context, bool hasProxies )
+											 b3TreeQueryCallbackFcn* callback, void* context, bool hasProxies,
+											 bool relaxedFlags )
 {
 	b3TreeStats result = { 0 };
 
-	if ( b3IsEmptyNode( view->nodes + B3_ROOT_NODE ) )
+	const b3TreeNode* nodes = view->nodes;
+
+	uint32_t rootFlags = b3LoadNodeFlags( nodes + B3_ROOT_NODE, relaxedFlags );
+	if ( rootFlags == B3_EMPTY_NODE )
 	{
 		return result;
 	}
 
-	const b3TreeNode* nodes = view->nodes;
-
 	int stack[B3_TREE_STACK_SIZE];
 	int stackCount = 0;
-	stack[stackCount++] = b3GetRootPair( nodes );
+	stack[stackCount++] = ( rootFlags & B3_LEAF_NODE ) ? B3_ROOT_NODE : (int)( rootFlags & B3_NODE_INDEX_MASK );
 
 	b3AABBV boxv = b3LoadAABBV( &aabb );
 
@@ -898,9 +905,10 @@ B3_FORCE_INLINE b3TreeStats b3QueryTreeView( const b3TreeView* view, b3AABB aabb
 				continue;
 			}
 
-			if ( b3IsLeaf( node ) )
+			uint32_t flags = b3LoadNodeFlags( node, relaxedFlags );
+			if ( flags & B3_LEAF_NODE )
 			{
-				int proxyId = b3GetProxyId( node );
+				int proxyId = (int)( flags & B3_NODE_INDEX_MASK );
 				uint64_t userData = (uint64_t)(uint32_t)node->shapeIndex;
 				if ( hasProxies )
 				{
@@ -924,7 +932,7 @@ B3_FORCE_INLINE b3TreeStats b3QueryTreeView( const b3TreeView* view, b3AABB aabb
 			{
 				if ( stackCount < B3_TREE_STACK_SIZE - 1 )
 				{
-					stack[stackCount++] = b3GetLeftChild( node );
+					stack[stackCount++] = (int)( flags & B3_NODE_INDEX_MASK );
 				}
 				else
 				{
@@ -1354,7 +1362,19 @@ b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_
 	}
 
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context, true );
+	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context, true, false );
+}
+
+b3TreeStats b3DynamicTree_QueryRelaxed( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
+										b3TreeQueryCallbackFcn* callback, void* context )
+{
+	if ( tree->proxyCount == 0 )
+	{
+		return B3_LITERAL( b3TreeStats ){ 0 };
+	}
+
+	b3TreeView view = b3MakeTreeView( tree );
+	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context, true, true );
 }
 
 b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
@@ -1398,10 +1418,10 @@ b3TreeStats b3TreeView_Query( const b3TreeView* view, b3AABB aabb, uint64_t mask
 {
 	if ( view->proxies == NULL )
 	{
-		return b3QueryTreeView( view, aabb, maskBits, requireAllBits, callback, context, false );
+		return b3QueryTreeView( view, aabb, maskBits, requireAllBits, callback, context, false, false );
 	}
 
-	return b3QueryTreeView( view, aabb, maskBits, requireAllBits, callback, context, true );
+	return b3QueryTreeView( view, aabb, maskBits, requireAllBits, callback, context, true, false );
 }
 
 b3TreeStats b3TreeView_QueryClosest( const b3TreeView* view, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
@@ -2176,7 +2196,7 @@ void b3DynamicTree_ClearMoved( b3DynamicTree* tree )
 		return;
 	}
 
-	root->flagIndex &= ~B3_MOVED_NODE;
+	b3AtomicStoreU32Raw( &root->flagIndex, root->flagIndex & ~B3_MOVED_NODE );
 	if ( b3IsLeaf( root ) )
 	{
 		return;
@@ -2194,7 +2214,7 @@ void b3DynamicTree_ClearMoved( b3DynamicTree* tree )
 			b3TreeNode* node = nodes + pair + i;
 			if ( node->flagIndex & B3_MOVED_NODE )
 			{
-				node->flagIndex &= ~B3_MOVED_NODE;
+				b3AtomicStoreU32Raw( &node->flagIndex, node->flagIndex & ~B3_MOVED_NODE );
 				if ( b3IsLeaf( node ) == false )
 				{
 					if ( stackCount < B3_TREE_STACK_SIZE )

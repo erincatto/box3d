@@ -79,9 +79,15 @@ B3_API b3ContactEvents b3World_GetContactEvents( b3WorldId worldId );
 /// reference to this data.
 B3_API b3JointEvents b3World_GetJointEvents( b3WorldId worldId );
 
-/// Overlap test for all shapes that *potentially* overlap the provided AABB
+/// Overlap test for all shapes that *potentially* overlap the provided AABB.
 B3_API b3TreeStats b3World_OverlapAABB( b3WorldId worldId, b3AABB aabb, b3QueryFilter filter, b3OverlapResultFcn* fcn,
 										void* context );
+
+/// Overlap test for all shapes that *potentially* overlap the provided AABB. This only considers static bodies,
+/// so it may be invoked concurrently with b3World_Step. This is not thread-safe with shape creation or destruction.
+/// This is a workaround for The Legend of California and may be removed later if the workaround is no longer needed.
+B3_API b3TreeStats b3World_OverlapAABB_Static( b3WorldId worldId, b3AABB aabb, b3QueryFilter filter,
+											   b3OverlapResultFcn* fcn, void* context );
 
 /// Overlap test for all shapes that overlap the provided shape proxy. The proxy points are relative
 /// to the world origin, which lets the query stay precise far from the world origin.

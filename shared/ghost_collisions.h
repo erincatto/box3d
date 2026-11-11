@@ -23,6 +23,9 @@ extern "C"
 #define GHOST_RAIL_HEIGHT 0.35f
 #define GHOST_RAIL_THICKNESS 0.08f
 
+// The beam ghost depends on how the body phases with the pits, at the default speed the box misses it
+#define GHOST_BEAM_SPEED 8.0f
+
 typedef enum GhostScene
 {
 	e_ghostFlat,
@@ -33,6 +36,7 @@ typedef enum GhostScene
 	e_ghostInternal,
 	e_ghostChamfer,
 	e_ghostRail,
+	e_ghostBeams,
 	e_ghostSceneCount
 } GhostScene;
 

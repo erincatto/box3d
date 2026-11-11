@@ -236,14 +236,14 @@ B3_INLINE float b3Atan2( float y, float x )
 /// for cross-platform determinism.
 B3_API b3CosSin b3ComputeCosSin( float radians );
 
-/// @deprecated 
+/// @deprecated
 B3_INLINE float b3Sin( float radians )
 {
 	b3CosSin cs = b3ComputeCosSin( radians );
 	return cs.sine;
 }
 
-/// @deprecated 
+/// @deprecated
 B3_INLINE float b3Cos( float radians )
 {
 	b3CosSin cs = b3ComputeCosSin( radians );
@@ -797,7 +797,7 @@ B3_INLINE b3WorldTransform b3MakeWorldTransform( b3Transform t )
 	return w;
 }
 
-/// Translate a local AABB by a world position, rounding outward so the single precision box 
+/// Translate a local AABB by a world position, rounding outward so the single precision box
 /// encloses the double precision box. Far from the origin a plain conversion could clip a
 /// shape out of its own box.
 /// In single precision mode the the rounding is a no-op.
@@ -1099,13 +1099,11 @@ B3_INLINE b3Vec3 b3ClosestPointToAABB( b3Vec3 point, b3AABB a )
 /// position += timeStep * newVelocity
 /// This drives towards a zero position. By using implicit integration we get a stable solution that
 /// doesn't require transcendental functions.
-B3_INLINE float b3SpringDamper( float hertz, float dampingRatio, float position, float velocity,
-								float timeStep )
+B3_INLINE float b3SpringDamper( float hertz, float dampingRatio, float position, float velocity, float timeStep )
 {
 	float omega = 2.0f * B3_PI * hertz;
 	float omegaH = omega * timeStep;
-	return ( velocity - omega * omegaH * position ) /
-		   ( 1.0f + 2.0f * dampingRatio * omegaH + omegaH * omegaH );
+	return ( velocity - omega * omegaH * position ) / ( 1.0f + 2.0f * dampingRatio * omegaH + omegaH * omegaH );
 }
 
 /// The closest points between to segments or infinite lines.

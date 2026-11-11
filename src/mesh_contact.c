@@ -1551,7 +1551,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			}
 
 			// Padding
-			hullBottom -= b3MaxFloat( 0.0f, restingSeparation ) + linearSlop;
+			hullBottom = b3MinFloat( hullBottom, hullBottom - restingSeparation + 0.25f * linearSlop );
 
 			for ( int i = 0; i < survivorCount; ++i )
 			{
