@@ -149,7 +149,7 @@ b3JointSim* b3GetJointSim( b3World* world, b3Joint* joint )
 		return b3Array_Get( color->jointSims, joint->localIndex );
 	}
 
-	b3SolverSet* set = b3Array_Get( world->solverSets, joint->setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, joint->setIndex );
 	return b3Array_Get( set->jointSims, joint->localIndex );
 }
 
@@ -287,7 +287,7 @@ static b3JointPair b3CreateJoint( b3World* world, const b3JointDef* def, b3Joint
 	if ( bodyA->setIndex == b3_disabledSet || bodyB->setIndex == b3_disabledSet )
 	{
 		// if either body is disabled, create in disabled set
-		b3SolverSet* set = b3Array_Get( world->solverSets, b3_disabledSet );
+		b3SolverSet* set = b3GetSolverSet( world, b3_disabledSet );
 		joint->setIndex = b3_disabledSet;
 		joint->localIndex = set->jointSims.count;
 
@@ -301,7 +301,7 @@ static b3JointPair b3CreateJoint( b3World* world, const b3JointDef* def, b3Joint
 	else if ( bodyA->type != b3_dynamicBody && bodyB->type != b3_dynamicBody )
 	{
 		// joint is not attached to a dynamic body
-		b3SolverSet* set = b3Array_Get( world->solverSets, b3_staticSet );
+		b3SolverSet* set = b3GetSolverSet( world, b3_staticSet );
 		joint->setIndex = b3_staticSet;
 		joint->localIndex = set->jointSims.count;
 
@@ -337,7 +337,7 @@ static b3JointPair b3CreateJoint( b3World* world, const b3JointDef* def, b3Joint
 		// joint should go into the sleeping set (not static set)
 		int setIndex = maxSetIndex;
 
-		b3SolverSet* set = b3Array_Get( world->solverSets, setIndex );
+		b3SolverSet* set = b3GetSolverSet( world, setIndex );
 		joint->setIndex = setIndex;
 		joint->localIndex = set->jointSims.count;
 
@@ -358,7 +358,7 @@ static b3JointPair b3CreateJoint( b3World* world, const b3JointDef* def, b3Joint
 			// fix potentially invalid set index
 			setIndex = bodyA->setIndex;
 
-			b3SolverSet* mergedSet = b3Array_Get( world->solverSets, setIndex );
+			b3SolverSet* mergedSet = b3GetSolverSet( world, setIndex );
 
 			// Careful! The joint sim pointer was orphaned by the set merge.
 			jointSim = b3Array_Get( mergedSet->jointSims, joint->localIndex );
@@ -888,7 +888,7 @@ void b3DestroyJointInternal( b3World* world, b3Joint* joint, bool wakeBodies )
 	}
 	else
 	{
-		b3SolverSet* set = b3Array_Get( world->solverSets, setIndex );
+		b3SolverSet* set = b3GetSolverSet( world, setIndex );
 		int movedIndex = b3Array_RemoveSwap( set->jointSims, localIndex );
 		if ( movedIndex != B3_NULL_INDEX )
 		{

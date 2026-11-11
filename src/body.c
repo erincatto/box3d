@@ -33,21 +33,9 @@ b3Body* b3GetBodyFullId( b3World* world, b3BodyId bodyId )
 
 b3WorldTransform b3GetBodyTransformQuick( b3World* world, b3Body* body )
 {
-	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, body->setIndex );
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, body->localIndex );
 	return bodySim->transform;
-}
-
-b3WorldTransform b3GetQueryBodyTransform( b3World* world, b3Body* body )
-{
-	if ( body->setIndex == b3_staticSet )
-	{
-		// todo comment
-		B3_ASSERT( 0 <= body->localIndex );
-		return world->staticBodySims[body->localIndex].transform;
-	}
-
-	return b3GetBodyTransformQuick( world, body );
 }
 
 b3WorldTransform b3GetBodyTransform( b3World* world, int bodyId )
@@ -65,7 +53,7 @@ b3BodyId b3MakeBodyId( b3World* world, int bodyId )
 
 b3BodySim* b3GetBodySim( b3World* world, b3Body* body )
 {
-	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, body->setIndex );
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, body->localIndex );
 	return bodySim;
 }
@@ -74,7 +62,7 @@ b3BodyState* b3GetBodyState( b3World* world, b3Body* body )
 {
 	if ( body->setIndex == b3_awakeSet )
 	{
-		b3SolverSet* set = b3Array_Get( world->solverSets, b3_awakeSet );
+		b3SolverSet* set = b3GetSolverSet( world, b3_awakeSet );
 		return b3Array_Get( set->bodyStates, body->localIndex );
 	}
 
@@ -229,20 +217,20 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	{
 		// new set for a sleeping body in its own island
 		setId = b3AllocId( &world->solverSetIdPool );
-		if ( setId == world->solverSets.count )
+		if ( setId == b3GetSolverSetCount( world ) )
 		{
 			// Create a zero initialized solver set. All sub-arrays are also zero initialized.
-			b3Array_Push( world->solverSets, (b3SolverSet){ 0 } );
+			b3Array_Push( world->sleepingSets, (b3SolverSet){ 0 } );
 		}
 		else
 		{
-			B3_ASSERT( world->solverSets.data[setId].setIndex == B3_NULL_INDEX );
+			B3_ASSERT( b3GetSolverSet( world, setId )->setIndex == B3_NULL_INDEX );
 		}
 
-		world->solverSets.data[setId].setIndex = setId;
+		b3GetSolverSet( world, setId )->setIndex = setId;
 	}
 
-	B3_ASSERT( 0 <= setId && setId < world->solverSets.count );
+	B3_ASSERT( 0 <= setId && setId < b3GetSolverSetCount( world ) );
 
 	int bodyId = b3AllocId( &world->bodyIdPool );
 
@@ -254,13 +242,8 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	lockFlags |= def->motionLocks.angularY ? b3_lockAngularY : 0;
 	lockFlags |= def->motionLocks.angularZ ? b3_lockAngularZ : 0;
 
-	b3SolverSet* set = b3Array_Get( world->solverSets, setId );
+	b3SolverSet* set = b3GetSolverSet( world, setId );
 	b3BodySim* bodySim = b3Array_Emplace( set->bodySims );
-	if ( setId == b3_staticSet )
-	{
-		world->staticBodySims = set->bodySims.data;
-	}
-
 	*bodySim = (b3BodySim){ 0 };
 	bodySim->transform.p = def->position;
 	bodySim->transform.q = def->rotation;
@@ -440,7 +423,7 @@ void b3DestroyBody( b3BodyId bodyId )
 	b3RemoveBodyFromIsland( world, body );
 
 	// Remove body sim from solver set that owns it
-	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, body->setIndex );
 	int movedIndex = b3Array_RemoveSwap( set->bodySims, body->localIndex );
 	if ( movedIndex != B3_NULL_INDEX )
 	{
@@ -1381,7 +1364,7 @@ b3Vec3 b3Body_GetLocalPointVelocity( b3BodyId bodyId, b3Vec3 localPoint )
 		return b3Vec3_zero;
 	}
 
-	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, body->setIndex );
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, body->localIndex );
 
 	b3Vec3 r = b3RotateVector( bodySim->transform.q, b3Sub( localPoint, bodySim->localCenter ) );
@@ -1399,7 +1382,7 @@ b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Pos worldPoint )
 		return b3Vec3_zero;
 	}
 
-	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, body->setIndex );
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, body->localIndex );
 
 	b3Vec3 r = b3SubPos( worldPoint, bodySim->center );
@@ -1493,7 +1476,7 @@ void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Pos point, bo
 	if ( body->setIndex == b3_awakeSet )
 	{
 		int localIndex = body->localIndex;
-		b3SolverSet* set = b3Array_Get( world->solverSets, b3_awakeSet );
+		b3SolverSet* set = b3GetSolverSet( world, b3_awakeSet );
 		b3BodyState* state = b3Array_Get( set->bodyStates, localIndex );
 		b3BodySim* bodySim = b3Array_Get( set->bodySims, localIndex );
 
@@ -1528,7 +1511,7 @@ void b3Body_ApplyLinearImpulseToCenter( b3BodyId bodyId, b3Vec3 impulse, bool wa
 	if ( body->setIndex == b3_awakeSet )
 	{
 		int localIndex = body->localIndex;
-		b3SolverSet* set = b3Array_Get( world->solverSets, b3_awakeSet );
+		b3SolverSet* set = b3GetSolverSet( world, b3_awakeSet );
 		b3BodyState* state = b3Array_Get( set->bodyStates, localIndex );
 		b3BodySim* bodySim = b3Array_Get( set->bodySims, localIndex );
 		state->linearVelocity = b3MulAdd( state->linearVelocity, bodySim->invMass, impulse );
@@ -1563,7 +1546,7 @@ void b3Body_ApplyAngularImpulse( b3BodyId bodyId, b3Vec3 impulse, bool wake )
 	if ( body->setIndex == b3_awakeSet )
 	{
 		int localIndex = body->localIndex;
-		b3SolverSet* set = b3Array_Get( world->solverSets, b3_awakeSet );
+		b3SolverSet* set = b3GetSolverSet( world, b3_awakeSet );
 		b3BodyState* state = b3Array_Get( set->bodyStates, localIndex );
 		b3BodySim* bodySim = b3Array_Get( set->bodySims, localIndex );
 
@@ -1676,7 +1659,7 @@ void b3Body_SetType( b3BodyId bodyId, b3BodyType type )
 	b3WakeBody( world, body );
 
 	// Stage 4: move joints to temporary storage
-	b3SolverSet* staticSet = b3Array_Get( world->solverSets, b3_staticSet );
+	b3SolverSet* staticSet = b3GetSolverSet( world, b3_staticSet );
 
 	int jointKey = body->headJointKey;
 	while ( jointKey != B3_NULL_INDEX )
@@ -1706,7 +1689,7 @@ void b3Body_SetType( b3BodyId bodyId, b3BodyType type )
 
 		// It is necessary to transfer all joints to the static set
 		// so they can be added to the constraint graph below and acquire consistent colors.
-		b3SolverSet* jointSourceSet = b3Array_Get( world->solverSets, joint->setIndex );
+		b3SolverSet* jointSourceSet = b3GetSolverSet( world, joint->setIndex );
 		b3TransferJoint( world, staticSet, jointSourceSet, joint );
 	}
 
@@ -1722,8 +1705,8 @@ void b3Body_SetType( b3BodyId bodyId, b3BodyType type )
 		body->flags &= ~b3_dynamicFlag;
 	}
 
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
-	b3SolverSet* sourceSet = b3Array_Get( world->solverSets, body->setIndex );
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
+	b3SolverSet* sourceSet = b3GetSolverSet( world, body->setIndex );
 	b3SolverSet* targetSet = type == b3_staticBody ? staticSet : awakeSet;
 
 	// Transfer body
@@ -2249,10 +2232,10 @@ void b3Body_Disable( b3BodyId bodyId )
 	b3DestroyBodyContacts( world, body, wakeBodies );
 
 	// The current solver set of the body
-	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, body->setIndex );
 
 	// Disabled bodies and connected joints are moved to the disabled set
-	b3SolverSet* disabledSet = b3Array_Get( world->solverSets, b3_disabledSet );
+	b3SolverSet* disabledSet = b3GetSolverSet( world, b3_disabledSet );
 
 	// Unlink joints and transfer them to the disabled set
 	int jointKey = body->headJointKey;
@@ -2276,7 +2259,7 @@ void b3Body_Disable( b3BodyId bodyId )
 		b3UnlinkJoint( world, joint );
 
 		// Transfer joint to disabled set
-		b3SolverSet* jointSet = b3Array_Get( world->solverSets, joint->setIndex );
+		b3SolverSet* jointSet = b3GetSolverSet( world, joint->setIndex );
 		b3TransferJoint( world, disabledSet, jointSet, joint );
 	}
 
@@ -2317,9 +2300,9 @@ void b3Body_Enable( b3BodyId bodyId )
 		return;
 	}
 
-	b3SolverSet* disabledSet = b3Array_Get( world->solverSets, b3_disabledSet );
+	b3SolverSet* disabledSet = b3GetSolverSet( world, b3_disabledSet );
 	int setId = body->type == b3_staticBody ? b3_staticSet : b3_awakeSet;
-	b3SolverSet* targetSet = b3Array_Get( world->solverSets, setId );
+	b3SolverSet* targetSet = b3GetSolverSet( world, setId );
 
 	b3TransferBody( world, targetSet, disabledSet, body );
 
@@ -2380,7 +2363,7 @@ void b3Body_Enable( b3BodyId bodyId )
 			jointSetId = bodyA->setIndex;
 		}
 
-		b3SolverSet* jointSet = b3Array_Get( world->solverSets, jointSetId );
+		b3SolverSet* jointSet = b3GetSolverSet( world, jointSetId );
 		b3TransferJoint( world, jointSet, disabledSet, joint );
 
 		// Now that the joint is in the correct set, I can link the joint in the island.

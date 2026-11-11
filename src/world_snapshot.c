@@ -1056,11 +1056,11 @@ int b3SerializeWorld( b3World* world, b3RecBuffer* buf, b3Recording* rec )
 	b3SerIdPool( buf, &world->solverSetIdPool );
 
 	// Solver sets
-	int setCount = world->solverSets.count;
+	int setCount = b3GetSolverSetCount( world );
 	b3SnapW_I32( buf, setCount );
 	for ( int i = 0; i < setCount; ++i )
 	{
-		b3SerSolverSet( buf, world->solverSets.data + i );
+		b3SerSolverSet( buf, b3GetSolverSet( world, i ) );
 	}
 
 	// Sparse body array (userData is host wiring, zero it on the copy)
@@ -1200,9 +1200,10 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 	b3DesIdPool( r, &world->solverSetIdPool );
 
 	// 3. Solver sets: destroy inner arrays of existing sets first
-	for ( int i = 0; i < world->solverSets.count; ++i )
+	int oldSetCount = b3GetSolverSetCount( world );
+	for ( int i = 0; i < oldSetCount; ++i )
 	{
-		b3SolverSet* set = world->solverSets.data + i;
+		b3SolverSet* set = b3GetSolverSet( world, i );
 		b3Array_Destroy( set->bodySims );
 		b3Array_Destroy( set->bodyStates );
 		b3Array_Destroy( set->jointSims );
@@ -1211,20 +1212,25 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 	}
 
 	int setCount = b3SnapR_I32( r );
-	if ( r->ok && b3SnapCheckCount( r, setCount, (int)sizeof( b3SolverSet ), 6 * (int)sizeof( int ) ) == false )
+	if ( r->ok && ( setCount < b3_firstSleepingSet ||
+					b3SnapCheckCount( r, setCount, (int)sizeof( b3SolverSet ), 6 * (int)sizeof( int ) ) == false ) )
 	{
 		r->ok = false;
 	}
 	if ( r->ok )
 	{
-		b3Array_Resize( world->solverSets, setCount );
-		memset( world->solverSets.data, 0, (size_t)setCount * sizeof( b3SolverSet ) );
-		for ( int i = 0; i < setCount; ++i )
+		int sleepingSetCount = setCount - b3_firstSleepingSet;
+		b3Array_Resize( world->sleepingSets, sleepingSetCount );
+		memset( world->fixedSets, 0, sizeof( world->fixedSets ) );
+		if ( sleepingSetCount > 0 )
 		{
-			b3DesSolverSet( r, world->solverSets.data + i );
+			memset( world->sleepingSets.data, 0, (size_t)sleepingSetCount * sizeof( b3SolverSet ) );
 		}
 
-		world->staticBodySims = setCount > b3_staticSet ? world->solverSets.data[b3_staticSet].bodySims.data : NULL;
+		for ( int i = 0; i < setCount; ++i )
+		{
+			b3DesSolverSet( r, b3GetSolverSet( world, i ) );
+		}
 	}
 
 	if ( !r->ok )

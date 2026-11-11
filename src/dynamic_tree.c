@@ -1363,8 +1363,9 @@ B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3B
 	return result;
 }
 
-b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
-								 b3TreeQueryCallbackFcn* callback, void* context )
+B3_FORCE_INLINE b3TreeStats b3QueryDynamicTree( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits,
+												bool requireAllBits, b3TreeQueryCallbackFcn* callback, void* context,
+												bool relaxedFlags )
 {
 	if ( tree->proxyCount == 0 )
 	{
@@ -1372,19 +1373,19 @@ b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_
 	}
 
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context, true, false );
+	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context, true, relaxedFlags );
+}
+
+b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
+								 b3TreeQueryCallbackFcn* callback, void* context )
+{
+	return b3QueryDynamicTree( tree, aabb, maskBits, requireAllBits, callback, context, false );
 }
 
 b3TreeStats b3DynamicTree_QueryRelaxed( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
 										b3TreeQueryCallbackFcn* callback, void* context )
 {
-	if ( tree->proxyCount == 0 )
-	{
-		return B3_LITERAL( b3TreeStats ){ 0 };
-	}
-
-	b3TreeView view = b3MakeTreeView( tree );
-	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context, true, true );
+	return b3QueryDynamicTree( tree, aabb, maskBits, requireAllBits, callback, context, true );
 }
 
 b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
@@ -1399,8 +1400,9 @@ b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point,
 	return b3QueryClosestTreeView( &view, point, maskBits, requireAllBits, callback, context, minDistanceSqr, true );
 }
 
-b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits, bool requireAllBits,
-								   b3TreeRayCastCallbackFcn* callback, void* context )
+B3_FORCE_INLINE b3TreeStats b3RayCastDynamicTree( const b3DynamicTree* tree, const b3RayCastInput* input,
+												  uint64_t maskBits, bool requireAllBits,
+												  b3TreeRayCastCallbackFcn* callback, void* context, bool relaxedFlags )
 {
 	if ( tree->proxyCount == 0 )
 	{
@@ -1408,43 +1410,44 @@ b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInp
 	}
 
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3RayCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true, false );
+	return b3RayCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true, relaxedFlags );
+}
+
+b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits,
+								   bool requireAllBits, b3TreeRayCastCallbackFcn* callback, void* context )
+{
+	return b3RayCastDynamicTree( tree, input, maskBits, requireAllBits, callback, context, false );
 }
 
 b3TreeStats b3DynamicTree_RayCastRelaxed( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits,
 										  bool requireAllBits, b3TreeRayCastCallbackFcn* callback, void* context )
 {
+	return b3RayCastDynamicTree( tree, input, maskBits, requireAllBits, callback, context, true );
+}
+
+B3_FORCE_INLINE b3TreeStats b3BoxCastDynamicTree( const b3DynamicTree* tree, const b3BoxCastInput* input,
+												  uint64_t maskBits, bool requireAllBits,
+												  b3TreeBoxCastCallbackFcn* callback, void* context, bool relaxedFlags )
+{
 	if ( tree->proxyCount == 0 )
 	{
 		return B3_LITERAL( b3TreeStats ){ 0 };
 	}
 
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3RayCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true, true );
+	return b3BoxCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true, relaxedFlags );
 }
 
 b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
 								   b3TreeBoxCastCallbackFcn* callback, void* context )
 {
-	if ( tree->proxyCount == 0 )
-	{
-		return B3_LITERAL( b3TreeStats ){ 0 };
-	}
-
-	b3TreeView view = b3MakeTreeView( tree );
-	return b3BoxCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true, false );
+	return b3BoxCastDynamicTree( tree, input, maskBits, requireAllBits, callback, context, false );
 }
 
 b3TreeStats b3DynamicTree_BoxCastRelaxed( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits,
 										  bool requireAllBits, b3TreeBoxCastCallbackFcn* callback, void* context )
 {
-	if ( tree->proxyCount == 0 )
-	{
-		return B3_LITERAL( b3TreeStats ){ 0 };
-	}
-
-	b3TreeView view = b3MakeTreeView( tree );
-	return b3BoxCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true, true );
+	return b3BoxCastDynamicTree( tree, input, maskBits, requireAllBits, callback, context, true );
 }
 
 b3TreeStats b3TreeView_Query( const b3TreeView* view, b3AABB aabb, uint64_t maskBits, bool requireAllBits,

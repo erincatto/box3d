@@ -29,7 +29,7 @@ b3Island* b3CreateIsland( b3World* world, int setIndex )
 		B3_ASSERT( world->islands.data[islandId].setIndex == B3_NULL_INDEX );
 	}
 
-	b3SolverSet* set = b3Array_Get( world->solverSets, setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, setIndex );
 
 	b3Island* island = b3Array_Get( world->islands, islandId );
 	island->setIndex = setIndex;
@@ -55,7 +55,7 @@ void b3DestroyIsland( b3World* world, int islandId )
 
 	// assume island is empty
 	b3Island* island = b3Array_Get( world->islands, islandId );
-	b3SolverSet* set = b3Array_Get( world->solverSets, island->setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, island->setIndex );
 	{
 		int localIndex = island->localIndex;
 		int lastIndex = set->islandSims.count - 1;

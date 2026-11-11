@@ -1959,7 +1959,7 @@ static int TestOverlapStaticDuringStep( void )
 	}
 
 	// Islands falling asleep during the step grow the solver set array under the reader
-	int setCapacity = b3GetWorldFromId( worldId )->solverSets.capacity;
+	int setCapacity = b3GetWorldFromId( worldId )->sleepingSets.capacity;
 
 	StaticQueryShared shared = { 0 };
 	shared.worldId = worldId;
@@ -1997,7 +1997,7 @@ static int TestOverlapStaticDuringStep( void )
 
 	ENSURE( b3AtomicLoadInt( &shared.queryCount ) > 0 );
 	ENSURE( b3AtomicLoadInt( &shared.failCount ) == 0 );
-	ENSURE( b3GetWorldFromId( worldId )->solverSets.capacity > setCapacity );
+	ENSURE( b3GetWorldFromId( worldId )->sleepingSets.capacity > setCapacity );
 
 	// The serial path agrees with the regular overlap filtered to static bodies.
 	StaticQueryHits hits = { worldId, 0, false };

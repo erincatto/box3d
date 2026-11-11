@@ -264,7 +264,7 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 
 	int bodyCapacity = b3MaxInt( 16, def->capacity.staticBodyCount + def->capacity.dynamicBodyCount );
 	b3Array_Reserve( world->bodies, bodyCapacity );
-	b3Array_Reserve( world->solverSets, 8 );
+	b3Array_Reserve( world->sleepingSets, 8 );
 
 	// add empty static, active, and disabled body sets
 	world->solverSetIdPool = b3CreateIdPool();
@@ -272,23 +272,22 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 
 	// static set
 	set.setIndex = b3AllocId( &world->solverSetIdPool );
-	b3Array_Push( world->solverSets, set );
-	b3Array_Reserve( world->solverSets.data[b3_staticSet].bodySims, b3MaxInt( 16, def->capacity.staticBodyCount ) );
-	B3_ASSERT( world->solverSets.data[b3_staticSet].setIndex == b3_staticSet );
-	world->staticBodySims = world->solverSets.data[b3_staticSet].bodySims.data;
+	world->fixedSets[set.setIndex] = set;
+	b3Array_Reserve( b3GetSolverSet( world, b3_staticSet )->bodySims, b3MaxInt( 16, def->capacity.staticBodyCount ) );
+	B3_ASSERT( b3GetSolverSet( world, b3_staticSet )->setIndex == b3_staticSet );
 
 	// disabled set
 	set.setIndex = b3AllocId( &world->solverSetIdPool );
-	b3Array_Push( world->solverSets, set );
-	B3_ASSERT( world->solverSets.data[b3_disabledSet].setIndex == b3_disabledSet );
+	world->fixedSets[set.setIndex] = set;
+	B3_ASSERT( b3GetSolverSet( world, b3_disabledSet )->setIndex == b3_disabledSet );
 
 	// awake set
 	set.setIndex = b3AllocId( &world->solverSetIdPool );
-	b3Array_Push( world->solverSets, set );
-	b3Array_Reserve( world->solverSets.data[b3_awakeSet].bodySims, b3MaxInt( 16, def->capacity.dynamicBodyCount ) );
-	b3Array_Reserve( world->solverSets.data[b3_awakeSet].bodyStates, b3MaxInt( 16, def->capacity.dynamicBodyCount ) );
-	b3Array_Reserve( world->solverSets.data[b3_awakeSet].contactIndices, b3MaxInt( 16, def->capacity.contactCount ) );
-	B3_ASSERT( world->solverSets.data[b3_awakeSet].setIndex == b3_awakeSet );
+	world->fixedSets[set.setIndex] = set;
+	b3Array_Reserve( b3GetSolverSet( world, b3_awakeSet )->bodySims, b3MaxInt( 16, def->capacity.dynamicBodyCount ) );
+	b3Array_Reserve( b3GetSolverSet( world, b3_awakeSet )->bodyStates, b3MaxInt( 16, def->capacity.dynamicBodyCount ) );
+	b3Array_Reserve( b3GetSolverSet( world, b3_awakeSet )->contactIndices, b3MaxInt( 16, def->capacity.contactCount ) );
+	B3_ASSERT( b3GetSolverSet( world, b3_awakeSet )->setIndex == b3_awakeSet );
 
 	world->shapeIdPool = b3CreateIdPool();
 
@@ -503,17 +502,17 @@ void b3DestroyWorld( b3WorldId worldId )
 	b3Array_Destroy( world->islands );
 
 	// Destroy solver sets
-	int setCapacity = world->solverSets.count;
+	int setCapacity = b3GetSolverSetCount( world );
 	for ( int i = 0; i < setCapacity; ++i )
 	{
-		b3SolverSet* set = world->solverSets.data + i;
+		b3SolverSet* set = b3GetSolverSet( world, i );
 		if ( set->setIndex != B3_NULL_INDEX )
 		{
 			b3DestroySolverSet( world, i );
 		}
 	}
 
-	b3Array_Destroy( world->solverSets );
+	b3Array_Destroy( world->sleepingSets );
 
 	b3DestroyGraph( &world->constraintGraph );
 	b3DestroyBroadPhase( &world->broadPhase );
@@ -578,7 +577,7 @@ static inline b3BodySim* b3ResolveContactBodySim( b3World* world, b3BodySim* awa
 	}
 
 	b3Body* body = b3Array_Get( world->bodies, bodyId );
-	b3SolverSet* set = b3Array_Get( world->solverSets, body->setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, body->setIndex );
 	return b3Array_Get( set->bodySims, body->localIndex );
 }
 
@@ -594,8 +593,8 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 	b3Contact* contacts = world->contacts.data;
 	b3Shape* shapes = world->shapes.data;
 	const b3AABB* fatAABBs = world->fatAABBs.data;
-	b3BodySim* awakeSims = world->solverSets.data[b3_awakeSet].bodySims.data;
-	b3BodySim* staticSims = world->solverSets.data[b3_staticSet].bodySims.data;
+	b3BodySim* awakeSims = b3GetSolverSet( world, b3_awakeSet )->bodySims.data;
+	b3BodySim* staticSims = b3GetSolverSet( world, b3_staticSet )->bodySims.data;
 
 	B3_ASSERT( startIndex < endIndex );
 
@@ -800,7 +799,7 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 static void b3AddNonTouchingContact( b3World* world, b3Contact* contact )
 {
 	B3_ASSERT( contact->setIndex == b3_awakeSet );
-	b3SolverSet* set = b3Array_Get( world->solverSets, b3_awakeSet );
+	b3SolverSet* set = b3GetSolverSet( world, b3_awakeSet );
 	contact->colorIndex = B3_NULL_INDEX;
 	contact->localIndex = set->contactIndices.count;
 	b3Array_Push( set->contactIndices, contact->contactId );
@@ -808,7 +807,7 @@ static void b3AddNonTouchingContact( b3World* world, b3Contact* contact )
 
 static void b3RemoveNonTouchingContact( b3World* world, int setIndex, int localIndex )
 {
-	b3SolverSet* set = b3Array_Get( world->solverSets, setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, setIndex );
 	int movedIndex = b3Array_RemoveSwap( set->contactIndices, localIndex );
 	if ( movedIndex != B3_NULL_INDEX )
 	{
@@ -839,7 +838,7 @@ static void b3Collide( b3StepContext* context )
 		touchingCount += graphColors[i].convexContacts.count + graphColors[i].contacts.count;
 	}
 
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
 	int nonTouchingCount = awakeSet->contactIndices.count;
 
 	int contactCount = touchingCount + nonTouchingCount;
@@ -1084,7 +1083,7 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 		c->staticShapeCount = b3MaxInt( c->staticShapeCount, world->broadPhase.trees[b3_staticBody].proxyCount );
 		c->dynamicShapeCount = b3MaxInt( c->dynamicShapeCount, world->broadPhase.trees[b3_dynamicBody].proxyCount );
 
-		int staticBodyCount = world->solverSets.data[b3_staticSet].bodySims.count;
+		int staticBodyCount = b3GetSolverSet( world, b3_staticSet )->bodySims.count;
 		c->staticBodyCount = b3MaxInt( c->staticBodyCount, staticBodyCount );
 
 		// this includes kinematic bodies
@@ -1102,7 +1101,7 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 		world->profile.pairs = b3GetMilliseconds( pairTicks );
 	}
 
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
 
 	b3StepContext context = { 0 };
 	context.world = world;
@@ -1998,10 +1997,10 @@ void b3World_EnableSleeping( b3WorldId worldId, bool flag )
 
 	if ( flag == false )
 	{
-		int setCount = world->solverSets.count;
+		int setCount = b3GetSolverSetCount( world );
 		for ( int i = b3_firstSleepingSet; i < setCount; ++i )
 		{
-			b3SolverSet* set = b3Array_Get( world->solverSets, i );
+			b3SolverSet* set = b3GetSolverSet( world, i );
 			if ( set->bodySims.count > 0 )
 			{
 				b3WakeSolverSet( world, i );
@@ -2053,7 +2052,7 @@ int b3World_GetAwakeBodyCount( b3WorldId worldId )
 	{
 		return 0;
 	}
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
 	return awakeSet->bodySims.count;
 }
 
@@ -2383,7 +2382,7 @@ static uint64_t b3GetWorldByteCount( b3World* world, bool log )
 
 	// world arrays
 	int bodyArrayBytes = b3Array_ByteCount( world->bodies );
-	int solverSetArrayBytes = b3Array_ByteCount( world->solverSets );
+	int solverSetArrayBytes = b3Array_ByteCount( world->sleepingSets );
 	int jointArrayBytes = b3Array_ByteCount( world->joints );
 	int contactArrayBytes = b3Array_ByteCount( world->contacts );
 	int islandArrayBytes = b3Array_ByteCount( world->islands );
@@ -2483,10 +2482,10 @@ static uint64_t b3GetWorldByteCount( b3World* world, bool log )
 	int jointSimCapacity = 0;
 	int contactIndexCapacity = 0;
 	int islandSimCapacity = 0;
-	int solverSetCapacity = world->solverSets.count;
+	int solverSetCapacity = b3GetSolverSetCount( world );
 	for ( int i = 0; i < solverSetCapacity; ++i )
 	{
-		b3SolverSet* set = world->solverSets.data + i;
+		b3SolverSet* set = b3GetSolverSet( world, i );
 		if ( set->setIndex == B3_NULL_INDEX )
 		{
 			continue;
@@ -2658,7 +2657,7 @@ b3Counters b3World_GetCounters( b3WorldId worldId )
 		s.colorCounts[i] = colorContactCount + color->jointSims.count;
 		s.awakeContactCount += colorContactCount;
 	}
-	s.awakeContactCount += world->solverSets.data[b3_awakeSet].contactIndices.count;
+	s.awakeContactCount += b3GetSolverSet( world, b3_awakeSet )->contactIndices.count;
 
 	s.recycledContactCount = 0;
 	s.arenaCapacity = 0;
@@ -2801,7 +2800,7 @@ static bool b3TreeOverlapCallback( int proxyId, uint64_t userData, void* context
 
 	// Re-center on the query origin so the overlap test stays in float precision far from the origin
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3ToRelativeTransform( b3GetQueryBodyTransform( world, body ), worldContext->origin );
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), worldContext->origin );
 
 	bool overlapping = b3OverlapShape( shape, transform, &worldContext->proxy );
 	if ( overlapping == false )
@@ -3004,7 +3003,7 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 	}
 
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3WorldTransform bodyTransform = b3GetQueryBodyTransform( world, body );
+	b3WorldTransform bodyTransform = b3GetBodyTransformQuick( world, body );
 	b3Transform transform = b3ToRelativeTransform( bodyTransform, worldContext->origin );
 
 	b3RayCastInput localInput = *input;
@@ -3224,7 +3223,7 @@ static float b3ShapeCastCallback( const b3BoxCastInput* input, int proxyId, uint
 
 	// Re-center on the query origin so the per-shape cast stays in float precision far from the origin
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3ToRelativeTransform( b3GetQueryBodyTransform( world, body ), worldContext->origin );
+	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), worldContext->origin );
 
 	b3CastOutput output = b3ShapeCastShape( shape, transform, &localInput );
 
@@ -3599,7 +3598,7 @@ static bool ExplosionCallback( int proxyId, uint64_t userData, void* context )
 	b3Vec3 impulse = b3MulSV( magnitude, b3RotateVector( xf.q, direction ) );
 
 	int localIndex = body->localIndex;
-	b3SolverSet* set = b3Array_Get( world->solverSets, b3_awakeSet );
+	b3SolverSet* set = b3GetSolverSet( world, b3_awakeSet );
 	b3BodyState* state = b3Array_Get( set->bodyStates, localIndex );
 	b3BodySim* bodySim = b3Array_Get( set->bodySims, localIndex );
 	state->linearVelocity = b3MulAdd( state->linearVelocity, bodySim->invMass, impulse );
@@ -3767,8 +3766,7 @@ void b3ValidateSolverSets( b3World* world )
 	B3_ASSERT( b3GetIdCapacity( &world->contactIdPool ) == world->contacts.count );
 	B3_ASSERT( b3GetIdCapacity( &world->jointIdPool ) == world->joints.count );
 	B3_ASSERT( b3GetIdCapacity( &world->islandIdPool ) == world->islands.count );
-	B3_ASSERT( b3GetIdCapacity( &world->solverSetIdPool ) == world->solverSets.count );
-	B3_ASSERT( world->staticBodySims == world->solverSets.data[b3_staticSet].bodySims.data );
+	B3_ASSERT( b3GetIdCapacity( &world->solverSetIdPool ) == b3GetSolverSetCount( world ) );
 
 	// Ensure the encoded body sim indices are correct.
 	for ( int contactIndex = 0; contactIndex < world->contacts.count; ++contactIndex )
@@ -3792,10 +3790,10 @@ void b3ValidateSolverSets( b3World* world )
 	int totalIslandCount = 0;
 
 	// Validate all solver sets
-	int setCount = world->solverSets.count;
+	int setCount = b3GetSolverSetCount( world );
 	for ( int setIndex = 0; setIndex < setCount; ++setIndex )
 	{
-		b3SolverSet* set = world->solverSets.data + setIndex;
+		b3SolverSet* set = b3GetSolverSet( world, setIndex );
 		if ( set->setIndex != B3_NULL_INDEX )
 		{
 			activeSetCount += 1;
@@ -4168,7 +4166,7 @@ void b3ValidateContacts( b3World* world )
 		bool touching = ( contact->flags & b3_contactTouchingFlag ) != 0;
 
 		int setId = contact->setIndex;
-		b3SolverSet* set = b3Array_Get( world->solverSets, setId );
+		b3SolverSet* set = b3GetSolverSet( world, setId );
 
 		if ( setId == b3_awakeSet )
 		{
