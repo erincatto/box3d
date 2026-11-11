@@ -2252,7 +2252,7 @@ typedef struct b3MeshDef
 } b3MeshDef;
 
 /// 64-bit mesh version. Useful for validating serialized data.
-#define B3_MESH_VERSION 0x2E94C7A1F05B3D68ull
+#define B3_MESH_VERSION 0x24AA0BF74682501Dull
 
 /// Triangle mesh edge flags.
 typedef enum b3MeshEdgeFlags

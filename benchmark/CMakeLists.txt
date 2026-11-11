@@ -2,6 +2,8 @@
 
 set(BOX3D_BENCHMARK_FILES
 	main.c
+	mesh_benchmark.c
+	mesh_benchmark.h
 )
 
 add_executable(benchmark ${BOX3D_BENCHMARK_FILES})

@@ -29,6 +29,30 @@
 
 #endif
 
+static inline b3FloatW4 b3Atan2W4( b3FloatW4 y, b3FloatW4 x )
+{
+	b3FloatW4 zero = b3ZeroW4();
+	b3FloatW4 ax = b3AbsW4( x );
+	b3FloatW4 ay = b3AbsW4( y );
+	b3FloatW4 mx = b3MaxW4( ay, ax );
+	b3FloatW4 mn = b3MinW4( ay, ax );
+	b3FloatW4 a = b3DivW4( mn, mx );
+
+	b3FloatW4 s = b3MulW4( a, a );
+	b3FloatW4 c = b3MulW4( s, a );
+	b3FloatW4 q = b3MulW4( s, s );
+	b3FloatW4 r = b3MulAddW4( b3SplatW4( 0.18681418f ), b3SplatW4( 0.024840285f ), q );
+	b3FloatW4 t = b3SubW4( b3MulW4( b3SplatW4( -0.094097948f ), q ), b3SplatW4( 0.33213072f ) );
+	r = b3MulAddW4( t, r, s );
+	r = b3MulAddW4( a, r, c );
+
+	r = b3BlendW4( r, b3SubW4( b3SplatW4( 1.57079637f ), r ), b3GreaterThanW4( ay, ax ) );
+	r = b3BlendW4( r, b3SubW4( b3SplatW4( 3.14159274f ), r ), b3LessThanW4( x, zero ) );
+	r = b3BlendW4( r, b3NegW4( r ), b3LessThanW4( y, zero ) );
+
+	return b3BlendW4( r, zero, b3EqualsW4( b3AddW4( ax, ay ), zero ) );
+}
+
 #if !defined( B3_SIMD_SSE2 )
 
 // I don't expect the use case of b3V32 to benefit from Neon code.

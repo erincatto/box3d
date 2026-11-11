@@ -6,6 +6,7 @@
 #endif
 
 #include "benchmarks.h"
+#include "mesh_benchmark.h"
 #include "utils.h"
 
 #ifdef BOX3D_INTERNAL_BENCHMARKS
@@ -215,6 +216,9 @@ static void PrintBenchmarks( const Benchmark* benchmarks, int count )
 // Compare GJK and SAT on hull pairs in the speculative regime. Static Box3D only.
 // start /affinity 0x5555 .\build\bin\Release\benchmark.exe --sat -r=5
 
+// Time mesh creation.
+// start /affinity 0x5555 .\build\bin\Release\benchmark.exe --mesh -r=5
+
 int main( int argc, char** argv )
 {
 #ifdef TRACY_ENABLE
@@ -286,6 +290,8 @@ int main( int argc, char** argv )
 	bool enableContinuous = true;
 	bool recordStepTimes = false;
 	bool runSat = false;
+	bool runMesh = false;
+	const char* meshCase = NULL;
 	int simdWidth = 0;
 
 	assert( maxThreadCount <= B3_MAX_WORKERS );
@@ -343,6 +349,15 @@ int main( int argc, char** argv )
 			exit( 1 );
 #endif
 		}
+		else if ( ( value = MatchValue( arg, "-mesh=", "--mesh=" ) ) != NULL )
+		{
+			runMesh = true;
+			meshCase = value;
+		}
+		else if ( strcmp( arg, "-mesh" ) == 0 || strcmp( arg, "--mesh" ) == 0 )
+		{
+			runMesh = true;
+		}
 		else if ( ( value = MatchValue( arg, "-simd=", "--simd-width=" ) ) != NULL )
 		{
 			simdWidth = atoi( value );
@@ -372,6 +387,7 @@ int main( int argc, char** argv )
 					"-nc, --no-continuous: disable continuous collision\n"
 					"-s, --record-steps: record step times\n"
 					"-sat, --sat: compare GJK and SAT on hull pairs, then exit\n"
+					"-mesh, --mesh[=<case>]: time b3CreateMesh on several meshes, or one case, then exit\n"
 					"-simd, --simd-width=<4|8>: force the SIMD width (static Box3D only)\n"
 					"-l, --list: list the registered benchmarks\n"
 					"-h, --help: print this help\n" );
@@ -401,6 +417,13 @@ int main( int argc, char** argv )
 		return 0;
 	}
 #endif
+
+	if ( runMesh )
+	{
+		RunMeshBenchmarks( runCount, meshCase );
+		free( profiles );
+		return 0;
+	}
 
 	printf( "Starting benchmarks\n" );
 	printf( "======================================\n" );
