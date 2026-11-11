@@ -2865,6 +2865,21 @@ b3TreeStats b3World_OverlapShape( b3WorldId worldId, b3Pos origin, const b3Shape
 	return treeStats;
 }
 
+b3TreeStats b3World_OverlapShape_Static( b3WorldId worldId, b3Pos origin, const b3ShapeProxy* proxy,
+										 b3QueryFilter filter, b3OverlapResultFcn* fcn, void* context )
+{
+	b3World* world = b3GetWorldFromId( worldId );
+	B3_ASSERT( b3IsValidPosition( origin ) );
+
+	b3AABB aabb = b3OffsetAABB( b3MakeAABB( proxy->points, proxy->count, proxy->radius ), origin );
+	WorldOverlapContext worldContext = {
+		world, fcn, filter, *proxy, origin, context,
+	};
+
+	return b3DynamicTree_QueryRelaxed( world->broadPhase.trees + b3_staticBody, aabb, filter.maskBits, false,
+									   b3TreeOverlapCallback, &worldContext );
+}
+
 typedef struct WorldMoverContext
 {
 	b3World* world;
@@ -3080,6 +3095,20 @@ b3TreeStats b3World_CastRay( b3WorldId worldId, b3Pos origin, b3Vec3 translation
 	return treeStats;
 }
 
+b3TreeStats b3World_CastRay_Static( b3WorldId worldId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter,
+									b3CastResultFcn* fcn, void* context )
+{
+	b3World* world = b3GetWorldFromId( worldId );
+	B3_ASSERT( b3IsValidPosition( origin ) );
+	B3_ASSERT( b3IsValidVec3( translation ) );
+
+	b3RayCastInput input = { b3ToVec3( origin ), translation, 1.0f };
+	WorldRayCastContext worldContext = { world, fcn, filter, 1.0f, origin, context };
+
+	return b3DynamicTree_RayCastRelaxed( world->broadPhase.trees + b3_staticBody, &input, filter.maskBits, false,
+										 RayCastCallback, &worldContext );
+}
+
 // This callback finds the closest hit. This is the most common callback used in games.
 static float b3RayCastClosestFcn( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
 								  int triangleIndex, int childIndex, void* context )
@@ -3291,6 +3320,32 @@ b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3ShapePro
 	}
 
 	return treeStats;
+}
+
+b3TreeStats b3World_CastShape_Static( b3WorldId worldId, b3Pos origin, const b3ShapeProxy* proxy, b3Vec3 translation,
+									  b3QueryFilter filter, b3CastResultFcn* fcn, void* context )
+{
+	b3World* world = b3GetWorldFromId( worldId );
+	B3_ASSERT( b3IsValidPosition( origin ) );
+	B3_ASSERT( b3IsValidVec3( translation ) );
+
+	WorldShapeCastContext worldContext = { 0 };
+	worldContext.world = world;
+	worldContext.fcn = fcn;
+	worldContext.filter = filter;
+	worldContext.fraction = 1.0f;
+	worldContext.origin = origin;
+	worldContext.input.proxy = *proxy;
+	worldContext.input.translation = translation;
+	worldContext.input.maxFraction = 1.0f;
+	worldContext.input.canEncroach = false;
+	worldContext.userContext = context;
+
+	b3AABB localBox = b3MakeAABB( proxy->points, proxy->count, proxy->radius );
+	b3BoxCastInput treeInput = { b3OffsetAABB( localBox, origin ), translation, 1.0f };
+
+	return b3DynamicTree_BoxCastRelaxed( world->broadPhase.trees + b3_staticBody, &treeInput, filter.maskBits, false,
+										 b3ShapeCastCallback, &worldContext );
 }
 
 typedef struct WorldMoverCastContext

@@ -111,5 +111,9 @@ void b3DynamicTree_MarkProxyMoved( b3DynamicTree* tree, int proxyId, b3AABB aabb
 void b3DynamicTree_ClearMoved( b3DynamicTree* tree );
 b3TreeStats b3DynamicTree_QueryRelaxed( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
 										b3TreeQueryCallbackFcn* callback, void* context );
+b3TreeStats b3DynamicTree_RayCastRelaxed( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits,
+										  bool requireAllBits, b3TreeRayCastCallbackFcn* callback, void* context );
+b3TreeStats b3DynamicTree_BoxCastRelaxed( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits,
+										  bool requireAllBits, b3TreeBoxCastCallbackFcn* callback, void* context );
 int b3DynamicTree_GatherMovedProxies( const b3DynamicTree* tree, int* proxyIds );
 void b3DynamicTree_Refit( b3DynamicTree* tree );
