@@ -1958,12 +1958,15 @@ static int TestOverlapStaticDuringStep( void )
 		b3CreateHullShape( bodyId, &shapeDef, &cube.base );
 	}
 
+	// Islands falling asleep during the step grow the solver set array under the reader
+	int setCapacity = b3GetWorldFromId( worldId )->solverSets.capacity;
+
 	StaticQueryShared shared = { 0 };
 	shared.worldId = worldId;
 	b3Thread* thread = b3CreateThread( StaticQueryThread, &shared, "static query" );
 
 	b3BoxHull post = b3MakeBoxHull( 0.1f, 1.0f, 0.1f );
-	for ( int step = 0; step < 60; ++step )
+	for ( int step = 0; step < 120; ++step )
 	{
 		// The query thread is idle, so the static tree may change.
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -1994,6 +1997,7 @@ static int TestOverlapStaticDuringStep( void )
 
 	ENSURE( b3AtomicLoadInt( &shared.queryCount ) > 0 );
 	ENSURE( b3AtomicLoadInt( &shared.failCount ) == 0 );
+	ENSURE( b3GetWorldFromId( worldId )->solverSets.capacity > setCapacity );
 
 	// The serial path agrees with the regular overlap filtered to static bodies.
 	StaticQueryHits hits = { worldId, 0, false };

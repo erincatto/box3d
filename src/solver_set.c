@@ -579,6 +579,10 @@ void b3TransferBody( b3World* world, b3SolverSet* targetSet, b3SolverSet* source
 	int targetIndex = targetSet->bodySims.count;
 	b3BodySim* targetSim = b3Array_Emplace( targetSet->bodySims );
 	memcpy( targetSim, sourceSim, sizeof( b3BodySim ) );
+	if ( targetSet->setIndex == b3_staticSet )
+	{
+		world->staticBodySims = targetSet->bodySims.data;
+	}
 
 	// Clear transient body flags
 	body->flags &= ~b3_bodyTransientFlags;

@@ -232,6 +232,7 @@ typedef struct b3BodySim
 b3Body* b3GetBodyFullId( b3World* world, b3BodyId bodyId );
 
 b3WorldTransform b3GetBodyTransformQuick( b3World* world, b3Body* body );
+b3WorldTransform b3GetQueryBodyTransform( b3World* world, b3Body* body );
 b3WorldTransform b3GetBodyTransform( b3World* world, int bodyId );
 
 // Create a b3BodyId from a raw id.

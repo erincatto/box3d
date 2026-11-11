@@ -275,6 +275,7 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 	b3Array_Push( world->solverSets, set );
 	b3Array_Reserve( world->solverSets.data[b3_staticSet].bodySims, b3MaxInt( 16, def->capacity.staticBodyCount ) );
 	B3_ASSERT( world->solverSets.data[b3_staticSet].setIndex == b3_staticSet );
+	world->staticBodySims = world->solverSets.data[b3_staticSet].bodySims.data;
 
 	// disabled set
 	set.setIndex = b3AllocId( &world->solverSetIdPool );
@@ -2800,7 +2801,7 @@ static bool b3TreeOverlapCallback( int proxyId, uint64_t userData, void* context
 
 	// Re-center on the query origin so the overlap test stays in float precision far from the origin
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), worldContext->origin );
+	b3Transform transform = b3ToRelativeTransform( b3GetQueryBodyTransform( world, body ), worldContext->origin );
 
 	bool overlapping = b3OverlapShape( shape, transform, &worldContext->proxy );
 	if ( overlapping == false )
@@ -3003,7 +3004,7 @@ static float RayCastCallback( const b3RayCastInput* input, int proxyId, uint64_t
 	}
 
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3WorldTransform bodyTransform = b3GetBodyTransformQuick( world, body );
+	b3WorldTransform bodyTransform = b3GetQueryBodyTransform( world, body );
 	b3Transform transform = b3ToRelativeTransform( bodyTransform, worldContext->origin );
 
 	b3RayCastInput localInput = *input;
@@ -3223,7 +3224,7 @@ static float b3ShapeCastCallback( const b3BoxCastInput* input, int proxyId, uint
 
 	// Re-center on the query origin so the per-shape cast stays in float precision far from the origin
 	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
-	b3Transform transform = b3ToRelativeTransform( b3GetBodyTransformQuick( world, body ), worldContext->origin );
+	b3Transform transform = b3ToRelativeTransform( b3GetQueryBodyTransform( world, body ), worldContext->origin );
 
 	b3CastOutput output = b3ShapeCastShape( shape, transform, &localInput );
 
@@ -3767,6 +3768,7 @@ void b3ValidateSolverSets( b3World* world )
 	B3_ASSERT( b3GetIdCapacity( &world->jointIdPool ) == world->joints.count );
 	B3_ASSERT( b3GetIdCapacity( &world->islandIdPool ) == world->islands.count );
 	B3_ASSERT( b3GetIdCapacity( &world->solverSetIdPool ) == world->solverSets.count );
+	B3_ASSERT( world->staticBodySims == world->solverSets.data[b3_staticSet].bodySims.data );
 
 	// Ensure the encoded body sim indices are correct.
 	for ( int contactIndex = 0; contactIndex < world->contacts.count; ++contactIndex )

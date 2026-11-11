@@ -38,6 +38,18 @@ b3WorldTransform b3GetBodyTransformQuick( b3World* world, b3Body* body )
 	return bodySim->transform;
 }
 
+b3WorldTransform b3GetQueryBodyTransform( b3World* world, b3Body* body )
+{
+	if ( body->setIndex == b3_staticSet )
+	{
+		// todo comment
+		B3_ASSERT( 0 <= body->localIndex );
+		return world->staticBodySims[body->localIndex].transform;
+	}
+
+	return b3GetBodyTransformQuick( world, body );
+}
+
 b3WorldTransform b3GetBodyTransform( b3World* world, int bodyId )
 {
 	b3Body* body = b3Array_Get( world->bodies, bodyId );
@@ -244,6 +256,11 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 
 	b3SolverSet* set = b3Array_Get( world->solverSets, setId );
 	b3BodySim* bodySim = b3Array_Emplace( set->bodySims );
+	if ( setId == b3_staticSet )
+	{
+		world->staticBodySims = set->bodySims.data;
+	}
+
 	*bodySim = (b3BodySim){ 0 };
 	bodySim->transform.p = def->position;
 	bodySim->transform.q = def->rotation;

@@ -1223,6 +1223,8 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 		{
 			b3DesSolverSet( r, world->solverSets.data + i );
 		}
+
+		world->staticBodySims = setCount > b3_staticSet ? world->solverSets.data[b3_staticSet].bodySims.data : NULL;
 	}
 
 	if ( !r->ok )

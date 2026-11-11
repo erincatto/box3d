@@ -152,6 +152,9 @@ typedef struct b3World
 	// sims. The remaining sets are sleeping islands.
 	b3Array( b3SolverSet ) solverSets;
 
+	// todo comment
+	b3BodySim* staticBodySims;
+
 	// Used to create stable ids for joints
 	b3IdPool jointIdPool;
 
