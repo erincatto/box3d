@@ -20,7 +20,9 @@
 #include <string.h>
 
 // Command line and result file keys
-static const char* s_sceneKeys[e_ghostSceneCount] = { "flat", "ramp", "cliff", "crest", "bumps", "peel", "chamfer", "rail" };
+static const char* s_sceneKeys[e_ghostSceneCount] = {
+	"flat", "ramp", "cliff", "crest", "bumps", "peel", "chamfer", "rail", "beams",
+};
 static const char* s_bodyKeys[e_ghostBodyCount] = { "box", "capsule", "upright", "sphere", "cylinder" };
 
 #define MAX_CONFIGS 256
@@ -97,6 +99,15 @@ static void RunConfig( Config* config, GhostSettings settings, int stepCount, bo
 	{
 		settings.fixedRotation = true;
 		settings.speculative = false;
+	}
+
+	// The s&box character over the beam pits, hovering on speculative contacts. A resting cull that keeps
+	// the chamfers flush with the top launches it.
+	if ( config->scene == e_ghostBeams )
+	{
+		settings.fixedRotation = true;
+		settings.speculative = true;
+		settings.speed = GHOST_BEAM_SPEED;
 	}
 
 	b3WorldDef worldDef = b3DefaultWorldDef();
@@ -185,7 +196,8 @@ static int BuildConfigs( Config* configs, int sceneFilter, int presetFilter, int
 					}
 
 					// Only a flat bottom can rest on the chamfer edges
-					if ( scene == e_ghostChamfer && body != e_ghostBox && body != e_ghostCylinder )
+					bool chamferScene = scene == e_ghostChamfer || scene == e_ghostBeams;
+					if ( chamferScene && body != e_ghostBox && body != e_ghostCylinder )
 					{
 						continue;
 					}
@@ -385,8 +397,10 @@ int main( int argc, char** argv )
 		{
 			printf( "Usage: ghost_scan [options]\n"
 					"Runs the Ghost Collisions sample headless and counts ghost manifolds per scene and body.\n"
-					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, peel, chamfer, rail (default all)\n"
+					"  -s, --scene=<key|all>    flat, ramp, cliff, crest, bumps, peel, chamfer, rail, beams (default all)\n"
 					"                           chamfer runs only the box and cylinder, fixed rotation without speculative\n"
+					"                           beams runs only the box and cylinder, fixed rotation with speculative,\n"
+					"                           always at 8 m/s\n"
 					"  -b, --body=<key|all>     box, capsule, upright, sphere, cylinder (default all)\n"
 					"  -m, --mirror=<0|1|all>   mirrored mesh (default all)\n"
 					"  -p, --preset=<0-3|all>   PEEL preset (default all)\n"

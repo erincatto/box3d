@@ -103,3 +103,7 @@ rail,0,1,capsule,0,2
 rail,0,1,upright,0,5
 rail,0,1,sphere,0,4
 rail,0,1,cylinder,0,3
+beams,0,0,box,0,3
+beams,0,0,cylinder,0,3
+beams,0,1,box,0,3
+beams,0,1,cylinder,0,3

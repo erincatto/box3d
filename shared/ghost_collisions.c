@@ -28,6 +28,14 @@
 
 #define GHOST_RAIL_SKIRT 0.4f
 
+// The s&box beam floor at 1/30 m per inch, rounded to whole chamfer cells so a height field grid holds every
+// vertex. Beams with chamfered tops over deep pits, the 0.8 m hull always spans a pit.
+#define GHOST_BEAM_COUNT 20
+#define GHOST_BEAM_START_X -8.0f
+#define GHOST_BEAM_PITCH 0.75f
+#define GHOST_BEAM_WIDTH 0.4f
+#define GHOST_BEAM_PIT_DEPTH 0.8f
+
 typedef struct PeelPreset
 {
 	int columnCount;
@@ -43,7 +51,7 @@ static const PeelPreset s_peelPresets[GHOST_PEEL_PRESET_COUNT] = {
 };
 
 const char* g_ghostSceneNames[e_ghostSceneCount] = {
-	"Flat", "Concave", "Cliff", "Crest", "Bumps", "Internal", "Chamfer", "Rail",
+	"Flat", "Concave", "Cliff", "Crest", "Bumps", "Internal", "Chamfer", "Rail", "Beams",
 };
 
 const char* g_ghostBodyNames[e_ghostBodyCount] = { "Box", "H Capsule", "V Capsule", "Sphere", "Cylinder" };
@@ -484,6 +492,26 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 			PushProfile( data, GHOST_RAIL_THICKNESS, -GHOST_RAIL_SKIRT );
 			break;
 
+		case e_ghostBeams:
+		{
+			// A height field cannot hold the vertical pit walls, so there each wall takes one cell
+			float wallRun = settings->heightField ? GHOST_CHAMFER_WIDTH : 0.0f;
+			PushProfile( data, -h, 0.0f );
+			for ( int i = 0; i + 1 < GHOST_BEAM_COUNT; ++i )
+			{
+				float pitLeft = GHOST_BEAM_START_X + GHOST_BEAM_PITCH * (float)i + GHOST_BEAM_WIDTH;
+				float pitRight = GHOST_BEAM_START_X + GHOST_BEAM_PITCH * (float)( i + 1 );
+				PushProfile( data, pitLeft - GHOST_CHAMFER_WIDTH, 0.0f );
+				PushProfile( data, pitLeft, -GHOST_CHAMFER_DROP );
+				PushProfile( data, pitLeft + wallRun, -GHOST_BEAM_PIT_DEPTH );
+				PushProfile( data, pitRight - wallRun, -GHOST_BEAM_PIT_DEPTH );
+				PushProfile( data, pitRight, -GHOST_CHAMFER_DROP );
+				PushProfile( data, pitRight + GHOST_CHAMFER_WIDTH, 0.0f );
+			}
+			PushProfile( data, h, 0.0f );
+		}
+		break;
+
 		default:
 			PushProfile( data, -h, 0.0f );
 			PushProfile( data, h, 0.0f );
@@ -512,7 +540,7 @@ void CreateGhostGround( b3WorldId worldId, GhostCollisionsData* data )
 			b3ShapeDef shapeDef = b3DefaultShapeDef();
 			b3CreateHullShape( data->groundId, &shapeDef, &box.base );
 		}
-		else if ( settings->scene == e_ghostChamfer )
+		else if ( settings->scene == e_ghostChamfer || settings->scene == e_ghostBeams )
 		{
 			// One cell per chamfer puts every notch vertex on the grid
 			AddHeightField( worldId, data, -h, h, GetCellCount( 2.0f * h, GHOST_CHAMFER_WIDTH ), groundHalfWidth, cellCountZ,
@@ -723,7 +751,8 @@ static bool IsGhost( const GhostCollisionsData* data, b3Vec3 normal, float xMin,
 	}
 
 	GhostBody body = data->settings.body;
-	bool chamferHull = data->settings.scene == e_ghostChamfer && ( body == e_ghostBox || body == e_ghostCylinder );
+	bool chamferScene = data->settings.scene == e_ghostChamfer || data->settings.scene == e_ghostBeams;
+	bool chamferHull = chamferScene && ( body == e_ghostBox || body == e_ghostCylinder );
 
 	float lower = B3_PI;
 	float upper = -B3_PI;

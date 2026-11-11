@@ -2385,6 +2385,19 @@ public:
 				relaunch = true;
 			}
 
+			// The beams ghost needs the s&box character hovering on speculative contacts
+			if ( settings.scene == e_ghostBeams )
+			{
+				settings.fixedRotation = true;
+				settings.speculative = true;
+				settings.speed = GHOST_BEAM_SPEED;
+				if ( settings.body != e_ghostBox && settings.body != e_ghostCylinder )
+				{
+					settings.body = e_ghostBox;
+				}
+				relaunch = true;
+			}
+
 			if ( settings.scene == e_ghostInternal )
 			{
 				m_camera->SetView( 60.0f, 20.0f, 160.0f, { 0.0f, 30.0f, 0.0f } );
