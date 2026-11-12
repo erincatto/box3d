@@ -298,7 +298,7 @@ void b3WarmStartContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 {
 	b3World* world = context->world;
 	b3GraphColor* color = world->constraintGraph.colors + block.colorIndex;
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
 	b3BodyState* states = awakeSet->bodyStates.data;
 	b3ContactConstraint* constraints = color->contactConstraints;
 

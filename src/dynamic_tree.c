@@ -1082,11 +1082,14 @@ B3_FORCE_INLINE b3TreeStats b3QueryClosestTreeView( const b3TreeView* view, b3Ve
 // before either is followed, then the survivors are ordered so the closer one narrows first.
 B3_FORCE_INLINE b3TreeStats b3RayCastTreeView( const b3TreeView* view, const b3RayCastInput* input, uint64_t maskBits,
 											   bool requireAllBits, b3TreeRayCastCallbackFcn* callback, void* context,
-											   bool hasProxies )
+											   bool hasProxies, bool relaxedFlags )
 {
 	b3TreeStats result = { 0 };
 
-	if ( b3IsEmptyNode( view->nodes + B3_ROOT_NODE ) )
+	const b3TreeNode* nodes = view->nodes;
+
+	uint32_t rootFlags = b3LoadNodeFlags( nodes + B3_ROOT_NODE, relaxedFlags );
+	if ( rootFlags == B3_EMPTY_NODE )
 	{
 		return result;
 	}
@@ -1105,11 +1108,9 @@ B3_FORCE_INLINE b3TreeStats b3RayCastTreeView( const b3TreeView* view, const b3R
 	b3AABB segmentAABB = { b3Min( p1, p2 ), b3Max( p1, p2 ) };
 	b3AABBV boxv = b3LoadAABBV( &segmentAABB );
 
-	const b3TreeNode* nodes = view->nodes;
-
 	int stack[B3_TREE_STACK_SIZE];
 	int stackCount = 0;
-	stack[stackCount++] = b3GetRootPair( nodes );
+	stack[stackCount++] = ( rootFlags & B3_LEAF_NODE ) ? B3_ROOT_NODE : (int)( rootFlags & B3_NODE_INDEX_MASK );
 
 	b3RayCastInput subInput = *input;
 
@@ -1120,6 +1121,7 @@ B3_FORCE_INLINE b3TreeStats b3RayCastTreeView( const b3TreeView* view, const b3R
 
 		const b3TreeNode* hit[2];
 		bool isLeaf[2];
+		int index[2];
 		int hitCount = 0;
 		for ( int i = 0; i < 2; ++i )
 		{
@@ -1138,7 +1140,9 @@ B3_FORCE_INLINE b3TreeStats b3RayCastTreeView( const b3TreeView* view, const b3R
 				continue;
 			}
 
-			isLeaf[hitCount] = b3IsLeaf( node );
+			uint32_t flags = b3LoadNodeFlags( node, relaxedFlags );
+			isLeaf[hitCount] = ( flags & B3_LEAF_NODE ) != 0;
+			index[hitCount] = (int)( flags & B3_NODE_INDEX_MASK );
 			hit[hitCount] = node;
 			hitCount += 1;
 		}
@@ -1154,6 +1158,7 @@ B3_FORCE_INLINE b3TreeStats b3RayCastTreeView( const b3TreeView* view, const b3R
 			if ( d1 < d2 )
 			{
 				B3_SWAP( hit[0], hit[1] );
+				B3_SWAP( index[0], index[1] );
 			}
 		}
 
@@ -1161,7 +1166,7 @@ B3_FORCE_INLINE b3TreeStats b3RayCastTreeView( const b3TreeView* view, const b3R
 		{
 			if ( isLeaf[i] )
 			{
-				int proxyId = b3GetProxyId( hit[i] );
+				int proxyId = index[i];
 				uint64_t userData = (uint64_t)(uint32_t)hit[i]->shapeIndex;
 				if ( hasProxies )
 				{
@@ -1200,7 +1205,7 @@ B3_FORCE_INLINE b3TreeStats b3RayCastTreeView( const b3TreeView* view, const b3R
 			{
 				if ( stackCount < B3_TREE_STACK_SIZE - 1 )
 				{
-					stack[stackCount++] = b3GetLeftChild( hit[i] );
+					stack[stackCount++] = index[i];
 				}
 				else
 				{
@@ -1216,11 +1221,14 @@ B3_FORCE_INLINE b3TreeStats b3RayCastTreeView( const b3TreeView* view, const b3R
 // Follows structure of ray cast with small tweaks to handle a swept box.
 B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3BoxCastInput* input, uint64_t maskBits,
 											   bool requireAllBits, b3TreeBoxCastCallbackFcn* callback, void* context,
-											   bool hasProxies )
+											   bool hasProxies, bool relaxedFlags )
 {
 	b3TreeStats result = { 0 };
 
-	if ( b3IsEmptyNode( view->nodes + B3_ROOT_NODE ) )
+	const b3TreeNode* nodes = view->nodes;
+
+	uint32_t rootFlags = b3LoadNodeFlags( nodes + B3_ROOT_NODE, relaxedFlags );
+	if ( rootFlags == B3_EMPTY_NODE )
 	{
 		return result;
 	}
@@ -1247,11 +1255,9 @@ B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3B
 	};
 	b3AABBV boxv = b3LoadAABBV( &totalAABB );
 
-	const b3TreeNode* nodes = view->nodes;
-
 	int stack[B3_TREE_STACK_SIZE];
 	int stackCount = 0;
-	stack[stackCount++] = b3GetRootPair( nodes );
+	stack[stackCount++] = ( rootFlags & B3_LEAF_NODE ) ? B3_ROOT_NODE : (int)( rootFlags & B3_NODE_INDEX_MASK );
 
 	b3BoxCastInput subInput = *input;
 
@@ -1262,6 +1268,7 @@ B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3B
 
 		const b3TreeNode* hit[2];
 		bool isLeaf[2];
+		int index[2];
 		int hitCount = 0;
 		for ( int i = 0; i < 2; ++i )
 		{
@@ -1281,7 +1288,9 @@ B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3B
 				continue;
 			}
 
-			isLeaf[hitCount] = b3IsLeaf( node );
+			uint32_t flags = b3LoadNodeFlags( node, relaxedFlags );
+			isLeaf[hitCount] = ( flags & B3_LEAF_NODE ) != 0;
+			index[hitCount] = (int)( flags & B3_NODE_INDEX_MASK );
 			hit[hitCount] = node;
 			hitCount += 1;
 		}
@@ -1297,6 +1306,7 @@ B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3B
 			if ( d1 < d2 )
 			{
 				B3_SWAP( hit[0], hit[1] );
+				B3_SWAP( index[0], index[1] );
 			}
 		}
 
@@ -1304,7 +1314,7 @@ B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3B
 		{
 			if ( isLeaf[i] )
 			{
-				int proxyId = b3GetProxyId( hit[i] );
+				int proxyId = index[i];
 				uint64_t userData = (uint64_t)(uint32_t)hit[i]->shapeIndex;
 				if ( hasProxies )
 				{
@@ -1340,7 +1350,7 @@ B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3B
 			{
 				if ( stackCount < B3_TREE_STACK_SIZE - 1 )
 				{
-					stack[stackCount++] = b3GetLeftChild( hit[i] );
+					stack[stackCount++] = index[i];
 				}
 				else
 				{
@@ -1353,8 +1363,9 @@ B3_FORCE_INLINE b3TreeStats b3BoxCastTreeView( const b3TreeView* view, const b3B
 	return result;
 }
 
-b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
-								 b3TreeQueryCallbackFcn* callback, void* context )
+B3_FORCE_INLINE b3TreeStats b3QueryDynamicTree( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits,
+												bool requireAllBits, b3TreeQueryCallbackFcn* callback, void* context,
+												bool relaxedFlags )
 {
 	if ( tree->proxyCount == 0 )
 	{
@@ -1362,19 +1373,19 @@ b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_
 	}
 
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context, true, false );
+	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context, true, relaxedFlags );
+}
+
+b3TreeStats b3DynamicTree_Query( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
+								 b3TreeQueryCallbackFcn* callback, void* context )
+{
+	return b3QueryDynamicTree( tree, aabb, maskBits, requireAllBits, callback, context, false );
 }
 
 b3TreeStats b3DynamicTree_QueryRelaxed( const b3DynamicTree* tree, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
 										b3TreeQueryCallbackFcn* callback, void* context )
 {
-	if ( tree->proxyCount == 0 )
-	{
-		return B3_LITERAL( b3TreeStats ){ 0 };
-	}
-
-	b3TreeView view = b3MakeTreeView( tree );
-	return b3QueryTreeView( &view, aabb, maskBits, requireAllBits, callback, context, true, true );
+	return b3QueryDynamicTree( tree, aabb, maskBits, requireAllBits, callback, context, true );
 }
 
 b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point, uint64_t maskBits, bool requireAllBits,
@@ -1389,8 +1400,9 @@ b3TreeStats b3DynamicTree_QueryClosest( const b3DynamicTree* tree, b3Vec3 point,
 	return b3QueryClosestTreeView( &view, point, maskBits, requireAllBits, callback, context, minDistanceSqr, true );
 }
 
-b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits, bool requireAllBits,
-								   b3TreeRayCastCallbackFcn* callback, void* context )
+B3_FORCE_INLINE b3TreeStats b3RayCastDynamicTree( const b3DynamicTree* tree, const b3RayCastInput* input,
+												  uint64_t maskBits, bool requireAllBits,
+												  b3TreeRayCastCallbackFcn* callback, void* context, bool relaxedFlags )
 {
 	if ( tree->proxyCount == 0 )
 	{
@@ -1398,19 +1410,44 @@ b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInp
 	}
 
 	b3TreeView view = b3MakeTreeView( tree );
-	return b3RayCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true );
+	return b3RayCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true, relaxedFlags );
+}
+
+b3TreeStats b3DynamicTree_RayCast( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits,
+								   bool requireAllBits, b3TreeRayCastCallbackFcn* callback, void* context )
+{
+	return b3RayCastDynamicTree( tree, input, maskBits, requireAllBits, callback, context, false );
+}
+
+b3TreeStats b3DynamicTree_RayCastRelaxed( const b3DynamicTree* tree, const b3RayCastInput* input, uint64_t maskBits,
+										  bool requireAllBits, b3TreeRayCastCallbackFcn* callback, void* context )
+{
+	return b3RayCastDynamicTree( tree, input, maskBits, requireAllBits, callback, context, true );
+}
+
+B3_FORCE_INLINE b3TreeStats b3BoxCastDynamicTree( const b3DynamicTree* tree, const b3BoxCastInput* input,
+												  uint64_t maskBits, bool requireAllBits,
+												  b3TreeBoxCastCallbackFcn* callback, void* context, bool relaxedFlags )
+{
+	if ( tree->proxyCount == 0 )
+	{
+		return B3_LITERAL( b3TreeStats ){ 0 };
+	}
+
+	b3TreeView view = b3MakeTreeView( tree );
+	return b3BoxCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true, relaxedFlags );
 }
 
 b3TreeStats b3DynamicTree_BoxCast( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
 								   b3TreeBoxCastCallbackFcn* callback, void* context )
 {
-	if ( tree->proxyCount == 0 )
-	{
-		return B3_LITERAL( b3TreeStats ){ 0 };
-	}
+	return b3BoxCastDynamicTree( tree, input, maskBits, requireAllBits, callback, context, false );
+}
 
-	b3TreeView view = b3MakeTreeView( tree );
-	return b3BoxCastTreeView( &view, input, maskBits, requireAllBits, callback, context, true );
+b3TreeStats b3DynamicTree_BoxCastRelaxed( const b3DynamicTree* tree, const b3BoxCastInput* input, uint64_t maskBits,
+										  bool requireAllBits, b3TreeBoxCastCallbackFcn* callback, void* context )
+{
+	return b3BoxCastDynamicTree( tree, input, maskBits, requireAllBits, callback, context, true );
 }
 
 b3TreeStats b3TreeView_Query( const b3TreeView* view, b3AABB aabb, uint64_t maskBits, bool requireAllBits,
@@ -1440,10 +1477,10 @@ b3TreeStats b3TreeView_RayCast( const b3TreeView* view, const b3RayCastInput* in
 {
 	if ( view->proxies == NULL )
 	{
-		return b3RayCastTreeView( view, input, maskBits, requireAllBits, callback, context, false );
+		return b3RayCastTreeView( view, input, maskBits, requireAllBits, callback, context, false, false );
 	}
 
-	return b3RayCastTreeView( view, input, maskBits, requireAllBits, callback, context, true );
+	return b3RayCastTreeView( view, input, maskBits, requireAllBits, callback, context, true, false );
 }
 
 b3TreeStats b3TreeView_BoxCast( const b3TreeView* view, const b3BoxCastInput* input, uint64_t maskBits, bool requireAllBits,
@@ -1451,10 +1488,10 @@ b3TreeStats b3TreeView_BoxCast( const b3TreeView* view, const b3BoxCastInput* in
 {
 	if ( view->proxies == NULL )
 	{
-		return b3BoxCastTreeView( view, input, maskBits, requireAllBits, callback, context, false );
+		return b3BoxCastTreeView( view, input, maskBits, requireAllBits, callback, context, false, false );
 	}
 
-	return b3BoxCastTreeView( view, input, maskBits, requireAllBits, callback, context, true );
+	return b3BoxCastTreeView( view, input, maskBits, requireAllBits, callback, context, true, false );
 }
 
 // Median split == 0, Surface area heuristic == 1

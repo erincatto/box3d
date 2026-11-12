@@ -14,7 +14,7 @@
 
 void b3DestroySolverSet( b3World* world, int setIndex )
 {
-	b3SolverSet* set = b3Array_Get( world->solverSets, setIndex );
+	b3SolverSet* set = b3GetSolverSet( world, setIndex );
 
 	b3Array_Destroy( set->bodySims );
 	b3Array_Destroy( set->bodyStates );
@@ -36,9 +36,9 @@ void b3DestroySolverSet( b3World* world, int setIndex )
 void b3WakeSolverSet( b3World* world, int setIndex )
 {
 	B3_ASSERT( setIndex >= b3_firstSleepingSet );
-	b3SolverSet* set = b3Array_Get( world->solverSets, setIndex );
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
-	b3SolverSet* disabledSet = b3Array_Get( world->solverSets, b3_disabledSet );
+	b3SolverSet* set = b3GetSolverSet( world, setIndex );
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
+	b3SolverSet* disabledSet = b3GetSolverSet( world, b3_disabledSet );
 
 	b3Body* bodies = world->bodies.data;
 
@@ -193,19 +193,18 @@ void b3TrySleepIsland( b3World* world, int islandId )
 	// - remove old island
 	// - fix island
 	int sleepSetId = b3AllocId( &world->solverSetIdPool );
-	if ( sleepSetId == world->solverSets.count )
+	if ( sleepSetId == b3GetSolverSetCount( world ) )
 	{
 		b3SolverSet set = { 0 };
 		set.setIndex = B3_NULL_INDEX;
-		b3Array_Push( world->solverSets, set );
+		b3Array_Push( world->sleepingSets, set );
 	}
 
-	b3SolverSet* sleepSet = b3Array_Get( world->solverSets, sleepSetId );
+	b3SolverSet* sleepSet = b3GetSolverSet( world, sleepSetId );
 	*sleepSet = (b3SolverSet){ 0 };
 
-	// grab awake set after creating the sleep set because the solver set array may have been resized
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
-	b3SolverSet* disabledSet = b3Array_Get( world->solverSets, b3_disabledSet );
+	b3SolverSet* awakeSet = b3GetFixedSolverSet( world, b3_awakeSet );
+	b3SolverSet* disabledSet = b3GetFixedSolverSet( world, b3_disabledSet );
 	B3_ASSERT( 0 <= island->localIndex && island->localIndex < awakeSet->islandSims.count );
 
 	sleepSet->setIndex = sleepSetId;
@@ -476,8 +475,8 @@ void b3MergeSolverSets( b3World* world, int setId1, int setId2 )
 {
 	B3_ASSERT( setId1 >= b3_firstSleepingSet );
 	B3_ASSERT( setId2 >= b3_firstSleepingSet );
-	b3SolverSet* set1 = b3Array_Get( world->solverSets, setId1 );
-	b3SolverSet* set2 = b3Array_Get( world->solverSets, setId2 );
+	b3SolverSet* set1 = b3GetSolverSet( world, setId1 );
+	b3SolverSet* set2 = b3GetSolverSet( world, setId2 );
 
 	// Move the fewest number of bodies
 	if ( set1->bodySims.count < set2->bodySims.count )

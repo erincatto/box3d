@@ -1834,6 +1834,69 @@ static bool StaticQueryFcn( b3ShapeId shapeId, void* context )
 	return true;
 }
 
+typedef struct StaticCastHit
+{
+	int count;
+	float fraction;
+	bool nonStatic;
+} StaticCastHit;
+
+static float StaticCastFcn( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
+							int triangleIndex, int childIndex, void* context )
+{
+	B3_UNUSED( point, normal, userMaterialId, triangleIndex, childIndex );
+
+	StaticCastHit* hit = context;
+	hit->count += 1;
+	hit->fraction = fraction;
+	if ( b3Body_GetType( b3Shape_GetBody( shapeId ) ) != b3_staticBody )
+	{
+		hit->nonStatic = true;
+	}
+	return fraction;
+}
+
+static bool CheckStaticQueries( b3WorldId worldId, int expectedCount )
+{
+	b3QueryFilter filter = b3DefaultQueryFilter();
+
+	b3Vec3 corners[8];
+	for ( int i = 0; i < 8; ++i )
+	{
+		corners[i] = (b3Vec3){ ( i & 1 ) ? 100.0f : -100.0f, ( i & 2 ) ? 10.0f : -10.0f, ( i & 4 ) ? 100.0f : -100.0f };
+	}
+	b3ShapeProxy boxProxy = { corners, 8, 0.0f };
+
+	StaticQueryHits hits = { worldId, 0, false };
+	b3World_OverlapShape_Static( worldId, b3Pos_zero, &boxProxy, filter, StaticQueryFcn, &hits );
+	if ( hits.count != expectedCount || hits.nonStatic )
+	{
+		return false;
+	}
+
+	// Straight down through the column of a dynamic cube, so only the static tile can answer
+	b3Pos origin = { 0.5f, 5.0f, -9.5f };
+	b3Vec3 translation = { 0.0f, -10.0f, 0.0f };
+
+	StaticCastHit rayHit = { 0, 1.0f, false };
+	b3World_CastRay_Static( worldId, origin, translation, filter, StaticCastFcn, &rayHit );
+	if ( rayHit.count == 0 || rayHit.nonStatic || b3AbsFloat( rayHit.fraction - 0.5f ) > 0.001f )
+	{
+		return false;
+	}
+
+	b3Vec3 center = b3Vec3_zero;
+	b3ShapeProxy sphereProxy = { &center, 1, 0.25f };
+	StaticCastHit shapeHit = { 0, 1.0f, false };
+	b3World_CastShape_Static( worldId, origin, &sphereProxy, translation, filter, StaticCastFcn, &shapeHit );
+	if ( shapeHit.count == 0 || shapeHit.nonStatic || b3AbsFloat( shapeHit.fraction - 0.475f ) > 0.001f )
+	{
+		return false;
+	}
+
+	return true;
+}
+
 static void StaticQueryThread( void* context )
 {
 	StaticQueryShared* shared = context;
@@ -1854,9 +1917,10 @@ static void StaticQueryThread( void* context )
 
 		StaticQueryHits hits = { shared->worldId, 0, false };
 		b3World_OverlapAABB_Static( shared->worldId, box, filter, StaticQueryFcn, &hits );
+		bool castsPassed = CheckStaticQueries( shared->worldId, expected );
 		b3AtomicFetchAddInt( &shared->queryCount, 1 );
 
-		if ( hits.count != expected || hits.nonStatic )
+		if ( hits.count != expected || hits.nonStatic || castsPassed == false )
 		{
 			b3AtomicFetchAddInt( &shared->failCount, 1 );
 		}
@@ -1895,12 +1959,19 @@ static int TestOverlapStaticDuringStep( void )
 		b3CreateHullShape( bodyId, &shapeDef, &cube.base );
 	}
 
+	b3World* world = b3GetWorldFromId( worldId );
+
+	// Islands falling asleep during the step grow the solver set array under the reader. Count the
+	// steps where that happened while at least two full query rounds, which read static transforms,
+	// ran inside the step.
+	int overlappedGrowthCount = 0;
+
 	StaticQueryShared shared = { 0 };
 	shared.worldId = worldId;
 	b3Thread* thread = b3CreateThread( StaticQueryThread, &shared, "static query" );
 
 	b3BoxHull post = b3MakeBoxHull( 0.1f, 1.0f, 0.1f );
-	for ( int step = 0; step < 60; ++step )
+	for ( int step = 0; step < 120; ++step )
 	{
 		// The query thread is idle, so the static tree may change.
 		b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -1910,6 +1981,9 @@ static int TestOverlapStaticDuringStep( void )
 		staticCount += 1;
 
 		ENSURE( b3HasTreeMoved( b3GetWorldFromId( worldId )->broadPhase.trees + b3_staticBody ) );
+
+		int setCapacity = world->sleepingSets.capacity;
+		int queryCount = b3AtomicLoadInt( &shared.queryCount );
 
 		b3AtomicStoreInt( &shared.expectedCount, staticCount );
 		b3AtomicStoreInt( &shared.stepping, 1 );
@@ -1923,6 +1997,11 @@ static int TestOverlapStaticDuringStep( void )
 			b3Yield();
 		}
 
+		if ( world->sleepingSets.capacity > setCapacity && b3AtomicLoadInt( &shared.queryCount ) - queryCount >= 2 )
+		{
+			overlappedGrowthCount += 1;
+		}
+
 		ENSURE( b3HasTreeMoved( b3GetWorldFromId( worldId )->broadPhase.trees + b3_staticBody ) == false );
 	}
 
@@ -1931,6 +2010,7 @@ static int TestOverlapStaticDuringStep( void )
 
 	ENSURE( b3AtomicLoadInt( &shared.queryCount ) > 0 );
 	ENSURE( b3AtomicLoadInt( &shared.failCount ) == 0 );
+	ENSURE( overlappedGrowthCount > 0 );
 
 	// The serial path agrees with the regular overlap filtered to static bodies.
 	StaticQueryHits hits = { worldId, 0, false };
@@ -1938,6 +2018,7 @@ static int TestOverlapStaticDuringStep( void )
 	b3World_OverlapAABB_Static( worldId, box, b3DefaultQueryFilter(), StaticQueryFcn, &hits );
 	ENSURE( hits.count == staticCount );
 	ENSURE( hits.nonStatic == false );
+	ENSURE( CheckStaticQueries( worldId, staticCount ) );
 
 	b3DestroyWorld( worldId );
 	return 0;

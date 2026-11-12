@@ -676,19 +676,15 @@ void CreateWasher( b3WorldId worldId )
 struct
 {
 	b3MeshData* meshData;
+	b3HeightFieldData* heightField;
 } g_treeData;
 
-static void CreateTrees( b3WorldId worldId, int scale )
+static void CreateTrees( b3WorldId worldId, int scale, bool useHeightField )
 {
 	memset( &g_treeData, 0, sizeof( g_treeData ) );
 
 	// float tilt = 0.15f * B3_PI;
 	float tilt = 0.0f * B3_PI;
-	b3BodyDef bodyDef = b3DefaultBodyDef();
-	bodyDef.position = (b3Pos){ 0.0f, 0.0f, 0.0f };
-	bodyDef.rotation = b3MakeQuatFromAxisAngle( (b3Vec3){ 1.0f, 0.0f, 0.0 }, tilt );
-	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
-
 	int xCount = scale * 150;
 	// int zCount = BENCHMARK_DEBUG ? 100 : 400;
 	int zCount = scale * 200;
@@ -698,9 +694,59 @@ static void CreateTrees( b3WorldId worldId, int scale )
 	float rowHz = 0.05f;
 	float columnHz = 0.1f;
 
-	g_treeData.meshData = b3CreateWaveMesh( xCount, zCount, cellWidth, amplitude, rowHz, columnHz );
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.position = (b3Pos){ 0.0f, 0.0f, 0.0f };
+	bodyDef.rotation = b3MakeQuatFromAxisAngle( (b3Vec3){ 1.0f, 0.0f, 0.0 }, tilt );
+	if ( useHeightField )
+	{
+		b3Vec3 corner = { -0.5f * cellWidth * xCount, 0.0f, -0.5f * cellWidth * zCount };
+		corner = b3RotateVector( bodyDef.rotation, corner );
+		bodyDef.position = (b3Pos){ corner.x, corner.y, corner.z };
+	}
+	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
-	b3CreateMeshShape( groundId, &shapeDef, g_treeData.meshData, b3Vec3_one );
+
+	if ( useHeightField )
+	{
+		int countX = xCount + 1;
+		int countZ = zCount + 1;
+		float* heights = malloc( countX * countZ * sizeof( float ) );
+		uint8_t* materialIndices = calloc( xCount * zCount, sizeof( uint8_t ) );
+
+		float omegaX = 2.0f * B3_PI * columnHz * cellWidth;
+		float omegaZ = 2.0f * B3_PI * rowHz * cellWidth;
+		for ( int iz = 0; iz < countZ; ++iz )
+		{
+			float sz = b3ComputeCosSin( omegaZ * iz ).sine;
+			for ( int ix = 0; ix < countX; ++ix )
+			{
+				float sx = b3ComputeCosSin( omegaX * ix ).sine;
+				heights[iz * countX + ix] = sx * sz;
+			}
+		}
+
+		b3HeightFieldDef hfDef = { 0 };
+		hfDef.heights = heights;
+		hfDef.materialIndices = materialIndices;
+		hfDef.scale = (b3Vec3){ cellWidth, amplitude, cellWidth };
+		hfDef.countX = countX;
+		hfDef.countZ = countZ;
+		hfDef.globalMinimumHeight = -1.0f;
+		hfDef.globalMaximumHeight = 1.0f;
+		hfDef.clockwiseWinding = false;
+
+		g_treeData.heightField = b3CreateHeightField( &hfDef );
+		free( heights );
+		free( materialIndices );
+
+		b3CreateHeightFieldShape( groundId, &shapeDef, g_treeData.heightField );
+	}
+	else
+	{
+		g_treeData.meshData = b3CreateWaveMesh( xCount, zCount, cellWidth, amplitude, rowHz, columnHz );
+		b3CreateMeshShape( groundId, &shapeDef, g_treeData.meshData, b3Vec3_one );
+	}
 
 	bodyDef.type = b3_dynamicBody;
 	bodyDef.sleepThreshold = 0.2f;
@@ -767,22 +813,46 @@ static void CreateTrees( b3WorldId worldId, int scale )
 
 void CreateTrees25( b3WorldId worldId )
 {
-	CreateTrees( worldId, 4 );
+	CreateTrees( worldId, 4, false );
 }
 
 void CreateTrees50( b3WorldId worldId )
 {
-	CreateTrees( worldId, 2 );
+	CreateTrees( worldId, 2, false );
 }
 
 void CreateTrees100( b3WorldId worldId )
 {
-	CreateTrees( worldId, 1 );
+	CreateTrees( worldId, 1, false );
+}
+
+void CreateTrees25HeightField( b3WorldId worldId )
+{
+	CreateTrees( worldId, 4, true );
+}
+
+void CreateTrees50HeightField( b3WorldId worldId )
+{
+	CreateTrees( worldId, 2, true );
+}
+
+void CreateTrees100HeightField( b3WorldId worldId )
+{
+	CreateTrees( worldId, 1, true );
 }
 
 void DestroyTrees( void )
 {
-	b3DestroyMesh( g_treeData.meshData );
+	if ( g_treeData.meshData != NULL )
+	{
+		b3DestroyMesh( g_treeData.meshData );
+	}
+
+	if ( g_treeData.heightField != NULL )
+	{
+		b3DestroyHeightField( g_treeData.heightField );
+	}
+
 	memset( &g_treeData, 0, sizeof( g_treeData ) );
 }
 

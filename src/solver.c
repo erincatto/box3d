@@ -67,7 +67,7 @@ static void b3IntegrateVelocitiesTask( b3SolverBlock block, b3StepContext* conte
 {
 	b3TracyCZoneNC( integrate_velocity, "IntVel", b3_colorDeepPink, true );
 
-	B3_VALIDATE( block.startIndex + block.count <= context->world->solverSets.data[b3_awakeSet].bodyStates.count );
+	B3_VALIDATE( block.startIndex + block.count <= b3GetSolverSet( context->world, b3_awakeSet )->bodyStates.count );
 
 	b3BodyState* states = context->states;
 	b3BodySim* sims = context->sims;
@@ -174,7 +174,7 @@ static void b3IntegratePositionsTask( b3SolverBlock block, b3StepContext* contex
 {
 	b3TracyCZoneNC( integrate_positions, "IntPos", b3_colorDarkSeaGreen, true );
 
-	B3_VALIDATE( block.startIndex + block.count <= context->world->solverSets.data[b3_awakeSet].bodyStates.count );
+	B3_VALIDATE( block.startIndex + block.count <= b3GetSolverSet( context->world, b3_awakeSet )->bodyStates.count );
 
 	b3BodyState* states = context->states;
 	float h = context->h;
@@ -491,7 +491,7 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 {
 	b3TracyCZoneNC( ccd, "CCD", b3_colorDarkGoldenRod, true );
 
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
 	b3BodySim* fastBodySim = b3Array_Get( awakeSet->bodySims, bodySimIndex );
 	B3_VALIDATE( fastBodySim->flags & b3_isFast );
 
@@ -1457,7 +1457,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 	// Only count steps that advance the simulation
 	world->stepIndex += 1;
 
-	b3SolverSet* awakeSet = b3Array_Get( world->solverSets, b3_awakeSet );
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
 	int awakeBodyCount = awakeSet->bodySims.count;
 	if ( awakeBodyCount == 0 )
 	{

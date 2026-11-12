@@ -147,10 +147,12 @@ typedef struct b3World
 	// Provides free list for solver sets.
 	b3IdPool solverSetIdPool;
 
-	// Solvers sets allow sims to be stored in contiguous arrays. The first
-	// set is all static sims. The second set is active sims. The third set is disabled
-	// sims. The remaining sets are sleeping islands.
-	b3Array( b3SolverSet ) solverSets;
+	// Solvers sets allow body sims to be stored in contiguous arrays. The first holds static bodies. The second set
+	// holds disabled bodies. The third holds awake bodies. A growable array holds the sleeping islands.
+	// This is split up so that the static set can be accessed without being remapped during a static query while
+	// the physics step is concurrently putting an island to sleep (race condition).
+	b3SolverSet fixedSets[b3_firstSleepingSet];
+	b3Array( b3SolverSet ) sleepingSets;
 
 	// Used to create stable ids for joints
 	b3IdPool jointIdPool;
@@ -299,6 +301,28 @@ typedef struct b3World
 	bool inUse;
 } b3World;
 
+static inline b3SolverSet* b3GetSolverSet( b3World* world, int setIndex )
+{
+	if ( setIndex < b3_firstSleepingSet )
+	{
+		B3_ASSERT( 0 <= setIndex );
+		return world->fixedSets + setIndex;
+	}
+
+	return b3Array_Get( world->sleepingSets, setIndex - b3_firstSleepingSet );
+}
+
+static inline b3SolverSet* b3GetFixedSolverSet( b3World* world, int setIndex )
+{
+	B3_ASSERT( 0 <= setIndex && setIndex < b3_firstSleepingSet );
+	return world->fixedSets + setIndex;
+}
+
+static inline int b3GetSolverSetCount( const b3World* world )
+{
+	return b3_firstSleepingSet + world->sleepingSets.count;
+}
+
 b3World* b3GetUnlockedWorldFromId( b3WorldId id );
 b3World* b3GetWorldFromId( b3WorldId id );
 
@@ -360,4 +384,3 @@ static inline void b3FreeManifolds( b3World* world, b3Manifold* manifolds, int c
 	b3FreeElement( allocator, manifolds );
 	b3UnlockMutex( world->manifoldAllocatorMutex );
 }
-
