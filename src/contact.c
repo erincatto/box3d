@@ -183,7 +183,7 @@ void b3CreateContact( b3World* world, b3Shape* shapeA, b3Shape* shapeB, int chil
 		setIndex = b3_disabledSet;
 	}
 
-	b3SolverSet* set = b3GetSolverSet( world, setIndex );
+	b3SolverSet* set = b3GetFixedSolverSet( world, setIndex );
 
 	// Create contact key and contact
 	int contactId = b3AllocId( &world->contactIdPool );

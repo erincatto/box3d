@@ -312,6 +312,12 @@ static inline b3SolverSet* b3GetSolverSet( b3World* world, int setIndex )
 	return b3Array_Get( world->sleepingSets, setIndex - b3_firstSleepingSet );
 }
 
+static inline b3SolverSet* b3GetFixedSolverSet( b3World* world, int setIndex )
+{
+	B3_ASSERT( 0 <= setIndex && setIndex < b3_firstSleepingSet );
+	return world->fixedSets + setIndex;
+}
+
 static inline int b3GetSolverSetCount( const b3World* world )
 {
 	return b3_firstSleepingSet + world->sleepingSets.count;

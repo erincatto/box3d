@@ -256,8 +256,8 @@ void b3PrepareDistanceJoint( b3JointSim* base, b3StepContext* context )
 
 	B3_ASSERT( bodyA->setIndex == b3_awakeSet || bodyB->setIndex == b3_awakeSet );
 
-	b3SolverSet* setA = b3GetSolverSet( world, bodyA->setIndex );
-	b3SolverSet* setB = b3GetSolverSet( world, bodyB->setIndex );
+	b3SolverSet* setA = b3GetFixedSolverSet( world, bodyA->setIndex );
+	b3SolverSet* setB = b3GetFixedSolverSet( world, bodyB->setIndex );
 
 	int localIndexA = bodyA->localIndex;
 	int localIndexB = bodyB->localIndex;
