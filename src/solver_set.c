@@ -203,9 +203,8 @@ void b3TrySleepIsland( b3World* world, int islandId )
 	b3SolverSet* sleepSet = b3GetSolverSet( world, sleepSetId );
 	*sleepSet = (b3SolverSet){ 0 };
 
-	// grab awake set after creating the sleep set because the solver set array may have been resized
-	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
-	b3SolverSet* disabledSet = b3GetSolverSet( world, b3_disabledSet );
+	b3SolverSet* awakeSet = b3GetFixedSolverSet( world, b3_awakeSet );
+	b3SolverSet* disabledSet = b3GetFixedSolverSet( world, b3_disabledSet );
 	B3_ASSERT( 0 <= island->localIndex && island->localIndex < awakeSet->islandSims.count );
 
 	sleepSet->setIndex = sleepSetId;

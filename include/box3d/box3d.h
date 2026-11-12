@@ -116,8 +116,9 @@ B3_API b3TreeStats b3World_CastShape( b3WorldId worldId, b3Pos origin, const b3S
 									  b3QueryFilter filter, b3CastResultFcn* fcn, void* context );
 
 /// Overlap test for all shapes that *potentially* overlap the provided AABB. This only considers static bodies,
-/// so it may be invoked concurrently with b3World_Step. This is not thread-safe with shape creation or destruction.
-/// This is a workaround for The Legend of California and may be removed later if the workaround is no longer needed.
+/// so it may be invoked concurrently with b3World_Step. This is not thread-safe with creationg and destruction
+/// operations. This is a workaround for The Legend of California and may be removed later if the workaround is no
+/// longer needed. This is not part of a strategy to make concurrent queries thread-safe.
 B3_API b3TreeStats b3World_OverlapAABB_Static( b3WorldId worldId, b3AABB aabb, b3QueryFilter filter,
 											   b3OverlapResultFcn* fcn, void* context );
 

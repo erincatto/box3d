@@ -704,7 +704,6 @@ static void CreateTrees( b3WorldId worldId, int scale, bool useHeightField )
 		bodyDef.position = (b3Pos){ corner.x, corner.y, corner.z };
 	}
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
-	bodyDef.position = (b3Pos){ 0.0f, 0.0f, 0.0f };
 
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
 

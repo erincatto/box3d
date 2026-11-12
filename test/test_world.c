@@ -1917,9 +1917,10 @@ static void StaticQueryThread( void* context )
 
 		StaticQueryHits hits = { shared->worldId, 0, false };
 		b3World_OverlapAABB_Static( shared->worldId, box, filter, StaticQueryFcn, &hits );
+		bool castsPassed = CheckStaticQueries( shared->worldId, expected );
 		b3AtomicFetchAddInt( &shared->queryCount, 1 );
 
-		if ( hits.count != expected || hits.nonStatic || CheckStaticQueries( shared->worldId, expected ) == false )
+		if ( hits.count != expected || hits.nonStatic || castsPassed == false )
 		{
 			b3AtomicFetchAddInt( &shared->failCount, 1 );
 		}
@@ -1958,8 +1959,12 @@ static int TestOverlapStaticDuringStep( void )
 		b3CreateHullShape( bodyId, &shapeDef, &cube.base );
 	}
 
-	// Islands falling asleep during the step grow the solver set array under the reader
-	int setCapacity = b3GetWorldFromId( worldId )->sleepingSets.capacity;
+	b3World* world = b3GetWorldFromId( worldId );
+
+	// Islands falling asleep during the step grow the solver set array under the reader. Count the
+	// steps where that happened while at least two full query rounds, which read static transforms,
+	// ran inside the step.
+	int overlappedGrowthCount = 0;
 
 	StaticQueryShared shared = { 0 };
 	shared.worldId = worldId;
@@ -1977,6 +1982,9 @@ static int TestOverlapStaticDuringStep( void )
 
 		ENSURE( b3HasTreeMoved( b3GetWorldFromId( worldId )->broadPhase.trees + b3_staticBody ) );
 
+		int setCapacity = world->sleepingSets.capacity;
+		int queryCount = b3AtomicLoadInt( &shared.queryCount );
+
 		b3AtomicStoreInt( &shared.expectedCount, staticCount );
 		b3AtomicStoreInt( &shared.stepping, 1 );
 
@@ -1989,6 +1997,11 @@ static int TestOverlapStaticDuringStep( void )
 			b3Yield();
 		}
 
+		if ( world->sleepingSets.capacity > setCapacity && b3AtomicLoadInt( &shared.queryCount ) - queryCount >= 2 )
+		{
+			overlappedGrowthCount += 1;
+		}
+
 		ENSURE( b3HasTreeMoved( b3GetWorldFromId( worldId )->broadPhase.trees + b3_staticBody ) == false );
 	}
 
@@ -1997,7 +2010,7 @@ static int TestOverlapStaticDuringStep( void )
 
 	ENSURE( b3AtomicLoadInt( &shared.queryCount ) > 0 );
 	ENSURE( b3AtomicLoadInt( &shared.failCount ) == 0 );
-	ENSURE( b3GetWorldFromId( worldId )->sleepingSets.capacity > setCapacity );
+	ENSURE( overlappedGrowthCount > 0 );
 
 	// The serial path agrees with the regular overlap filtered to static bodies.
 	StaticQueryHits hits = { worldId, 0, false };
