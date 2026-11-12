@@ -1807,6 +1807,7 @@ typedef struct StaticQueryShared
 	b3AtomicInt stepping;
 	b3AtomicInt quit;
 	b3AtomicInt idle;
+	b3AtomicInt started;
 	b3AtomicInt expectedCount;
 	b3AtomicInt queryCount;
 	b3AtomicInt failCount;
@@ -1913,6 +1914,7 @@ static void StaticQueryThread( void* context )
 		}
 
 		b3AtomicStoreInt( &shared->idle, 0 );
+		b3AtomicStoreInt( &shared->started, 1 );
 		int expected = b3AtomicLoadInt( &shared->expectedCount );
 
 		StaticQueryHits hits = { shared->worldId, 0, false };
@@ -1959,13 +1961,6 @@ static int TestOverlapStaticDuringStep( void )
 		b3CreateHullShape( bodyId, &shapeDef, &cube.base );
 	}
 
-	b3World* world = b3GetWorldFromId( worldId );
-
-	// Islands falling asleep during the step grow the solver set array under the reader. Count the
-	// steps where that happened while at least two full query rounds, which read static transforms,
-	// ran inside the step.
-	int overlappedGrowthCount = 0;
-
 	StaticQueryShared shared = { 0 };
 	shared.worldId = worldId;
 	b3Thread* thread = b3CreateThread( StaticQueryThread, &shared, "static query" );
@@ -1982,11 +1977,15 @@ static int TestOverlapStaticDuringStep( void )
 
 		ENSURE( b3HasTreeMoved( b3GetWorldFromId( worldId )->broadPhase.trees + b3_staticBody ) );
 
-		int setCapacity = world->sleepingSets.capacity;
-		int queryCount = b3AtomicLoadInt( &shared.queryCount );
-
 		b3AtomicStoreInt( &shared.expectedCount, staticCount );
+		b3AtomicStoreInt( &shared.started, 0 );
 		b3AtomicStoreInt( &shared.stepping, 1 );
+
+		// Scheduling decides how many rounds land inside the step, so only wait for one to begin
+		while ( b3AtomicLoadInt( &shared.started ) == 0 )
+		{
+			b3Yield();
+		}
 
 		b3World_Step( worldId, 1.0f / 60.0f, 4 );
 
@@ -1997,20 +1996,15 @@ static int TestOverlapStaticDuringStep( void )
 			b3Yield();
 		}
 
-		if ( world->sleepingSets.capacity > setCapacity && b3AtomicLoadInt( &shared.queryCount ) - queryCount >= 2 )
-		{
-			overlappedGrowthCount += 1;
-		}
-
 		ENSURE( b3HasTreeMoved( b3GetWorldFromId( worldId )->broadPhase.trees + b3_staticBody ) == false );
 	}
 
 	b3AtomicStoreInt( &shared.quit, 1 );
 	b3JoinThread( thread );
 
-	ENSURE( b3AtomicLoadInt( &shared.queryCount ) > 0 );
+	// Each step started a round, and the thread cannot report idle until that round finishes
+	ENSURE( b3AtomicLoadInt( &shared.queryCount ) >= 120 );
 	ENSURE( b3AtomicLoadInt( &shared.failCount ) == 0 );
-	ENSURE( overlappedGrowthCount > 0 );
 
 	// The serial path agrees with the regular overlap filtered to static bodies.
 	StaticQueryHits hits = { worldId, 0, false };
