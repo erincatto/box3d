@@ -149,6 +149,8 @@ typedef struct b3World
 
 	// Solvers sets allow body sims to be stored in contiguous arrays. The first holds static bodies. The second set
 	// holds disabled bodies. The third holds awake bodies. A growable array holds the sleeping islands.
+	// This is split up so that the static set can be accessed without being remapped during a static query while
+	// the physics step is concurrently putting an island to sleep (race condition).
 	b3SolverSet fixedSets[b3_firstSleepingSet];
 	b3Array( b3SolverSet ) sleepingSets;
 
