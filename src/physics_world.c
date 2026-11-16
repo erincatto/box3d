@@ -488,6 +488,18 @@ void b3DestroyWorld( b3WorldId worldId )
 
 	b3DestroyNameCache( &world->names );
 
+	// Pooled manifold arrays go with their block allocators below; directly allocated ones are freed here.
+	for ( int i = 0; i < world->contacts.count; ++i )
+	{
+		b3Contact* contact = world->contacts.data + i;
+		if ( contact->contactId != B3_NULL_INDEX && contact->manifoldCount > B3_POOLED_MANIFOLD_COUNT )
+		{
+			b3FreeManifolds( world, contact->manifolds, contact->manifoldCount );
+			contact->manifolds = NULL;
+			contact->manifoldCount = 0;
+		}
+	}
+
 	b3Array_Destroy( world->shapes );
 	b3Array_Destroy( world->fatAABBs );
 	b3Array_Destroy( world->contacts );
@@ -2467,13 +2479,23 @@ static uint64_t b3GetWorldByteCount( b3World* world, bool log )
 		manifoldBlockBytes += b3Array_ByteCount( allocator->blocks );
 		manifoldBlockBytes += allocator->blocks.count * B3_BLOCK_SIZE * allocator->elementSize;
 	}
-	total += (uint64_t)manifoldArrayBytes + manifoldBlockBytes;
+	int64_t manifoldDirectBytes = 0;
+	for ( int i = 0; i < world->contacts.count; ++i )
+	{
+		const b3Contact* contact = world->contacts.data + i;
+		if ( contact->contactId != B3_NULL_INDEX && contact->manifoldCount > B3_POOLED_MANIFOLD_COUNT )
+		{
+			manifoldDirectBytes += (int64_t)contact->manifoldCount * sizeof( b3Manifold );
+		}
+	}
+	total += (uint64_t)manifoldArrayBytes + manifoldBlockBytes + (uint64_t)manifoldDirectBytes;
 
 	if ( log )
 	{
 		b3Log( "manifold allocators" );
 		b3Log( "allocator array: %d", manifoldArrayBytes );
 		b3Log( "blocks: %d", manifoldBlockBytes );
+		b3Log( "direct arrays: %" PRId64, manifoldDirectBytes );
 	}
 
 	// solver sets

@@ -346,11 +346,21 @@ const b3HullData* b3AddOwnedHullToDatabase( b3World* world, b3HullData* owned );
 // Release a reference to a shared hull. The owned copy is freed when the count reaches zero.
 void b3RemoveHullFromDatabase( b3World* world, const b3HullData* data );
 
+// Manifold arrays up to this count come from per-count block allocators, which the world keeps until it is destroyed.
+// Larger arrays are rare (a dynamic shape on a finely cut triangle mesh), and a block allocator per count up to one
+// of them would hold memory quadratic in the largest count ever seen, so they are allocated and freed directly.
+#define B3_POOLED_MANIFOLD_COUNT 8
+
 static inline b3Manifold* b3AllocateManifolds( b3World* world, int count )
 {
 	if ( count == 0 )
 	{
 		return NULL;
+	}
+
+	if ( count > B3_POOLED_MANIFOLD_COUNT )
+	{
+		return (b3Manifold*)b3AllocZero( count * sizeof( b3Manifold ) );
 	}
 
 	int index = count - 1;
@@ -375,6 +385,12 @@ static inline void b3FreeManifolds( b3World* world, b3Manifold* manifolds, int c
 {
 	if ( count == 0 )
 	{
+		return;
+	}
+
+	if ( count > B3_POOLED_MANIFOLD_COUNT )
+	{
+		b3Free( manifolds, count * sizeof( b3Manifold ) );
 		return;
 	}
 
