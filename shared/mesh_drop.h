@@ -29,7 +29,14 @@ typedef enum MeshDropShape
 	e_meshDropShapeCount
 } MeshDropShape;
 
+// Bodies per axis. A debug build drops a smaller patch at the same spacing so the samples app stays
+// responsive. The soak tools run in release and keep the full grid.
+#ifdef NDEBUG
 #define MESH_DROP_GRID_COUNT 32
+#else
+#define MESH_DROP_GRID_COUNT 16
+#endif
+
 #define MESH_DROP_BODY_COUNT ( MESH_DROP_GRID_COUNT * MESH_DROP_GRID_COUNT )
 #define MESH_DROP_DEPTH_LEVEL_COUNT 4
 

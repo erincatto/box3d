@@ -186,17 +186,11 @@ void CreateMeshDropBodies( b3WorldId worldId, MeshDropSettings settings, uint32_
 		shapeDef.filter.maskBits = 1;
 	}
 
-#ifdef NDEBUG
-	int increment = 1;
-#else
-	int increment = 2;
-#endif
-
 	uint32_t state = seed;
 	int index = 0;
-	for ( int i = 0; i < MESH_DROP_GRID_COUNT; i += increment )
+	for ( int i = 0; i < MESH_DROP_GRID_COUNT; ++i )
 	{
-		for ( int j = 0; j < MESH_DROP_GRID_COUNT; j += increment )
+		for ( int j = 0; j < MESH_DROP_GRID_COUNT; ++j )
 		{
 			// Draw for every body so a solo body gets the same velocity it has in the full drop
 			b3Vec3 linearVelocity = RandomVec3Uniform( &state, -1.0f, 1.0f );

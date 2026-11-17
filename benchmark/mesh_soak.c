@@ -76,11 +76,11 @@ typedef struct Soak
 
 	int completedCount;
 	int failureCount;
-	long long totalSteps;
+	int totalSteps;
 	int maxSteps;
 
 	// Mesh contact updates by manifold count, rough wave only
-	long long manifoldCounts[B3_CONTACT_MANIFOLD_COUNT_BUCKETS];
+	int manifoldCounts[B3_MAX_MANIFOLDS];
 
 	ShapeStats stats[e_meshDropShapeCount];
 	Failure failures[MAX_REPORTED_FAILURES];
@@ -144,7 +144,7 @@ static int RunGeneration( Soak* soak, int generation, uint32_t seed, MeshDropSha
 		if ( soak->settings.rough )
 		{
 			b3Counters counters = b3World_GetCounters( worldId );
-			for ( int i = 0; i < B3_CONTACT_MANIFOLD_COUNT_BUCKETS; ++i )
+			for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
 			{
 				manifoldCounts[i] += counters.manifoldCounts[i];
 			}
@@ -218,7 +218,7 @@ static void SoakWorker( void* context )
 			soak->shapeFilter >= 0 ? (MeshDropShape)soak->shapeFilter : (MeshDropShape)( generation % e_meshDropShapeCount );
 
 		int failureKind = -1;
-		long long manifoldCounts[B3_CONTACT_MANIFOLD_COUNT_BUCKETS] = { 0 };
+		long long manifoldCounts[B3_MAX_MANIFOLDS] = { 0 };
 		int steps = RunGeneration( soak, generation, seed, shape, bodies, depth, &failureKind, manifoldCounts );
 
 		int depthCounts[MESH_DROP_DEPTH_LEVEL_COUNT];
@@ -228,7 +228,7 @@ static void SoakWorker( void* context )
 		soak->completedCount += 1;
 		soak->totalSteps += steps;
 		soak->maxSteps = b3MaxInt( soak->maxSteps, steps );
-		for ( int i = 0; i < B3_CONTACT_MANIFOLD_COUNT_BUCKETS; ++i )
+		for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
 		{
 			soak->manifoldCounts[i] += manifoldCounts[i];
 		}
@@ -685,14 +685,14 @@ int main( int argc, char** argv )
 	if ( settings.rough )
 	{
 		long long total = 0;
-		for ( int i = 0; i < B3_CONTACT_MANIFOLD_COUNT_BUCKETS; ++i )
+		for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
 		{
 			total += soak.manifoldCounts[i];
 		}
 
 		// The last bucket is the cap, so it holds every contact that was reduced
 		printf( "contact updates by manifold count:" );
-		for ( int i = 0; i < B3_CONTACT_MANIFOLD_COUNT_BUCKETS; ++i )
+		for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
 		{
 			printf( " %d: %.1f%%", i + 1, total > 0 ? 100.0 * soak.manifoldCounts[i] / total : 0.0 );
 		}

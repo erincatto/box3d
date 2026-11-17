@@ -545,7 +545,8 @@ public:
 		{
 			PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
+			b3RayResult result =
+				b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
 			if ( result.hit )
 			{
@@ -563,17 +564,18 @@ public:
 		// The last bucket is the cap, so it holds every contact that was reduced
 		b3Counters counters = b3World_GetCounters( m_worldId );
 		int contactCount = 0;
-		for ( int i = 0; i < B3_CONTACT_MANIFOLD_COUNT_BUCKETS; ++i )
+		for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
 		{
 			contactCount += counters.manifoldCounts[i];
 		}
-		DrawTextLine( "contacts at the manifold cap: %d of %d", counters.manifoldCounts[B3_MAX_MANIFOLDS - 1], contactCount );
+		DrawTextLine( "contacts at the manifold cap: %d of %d", counters.manifoldCounts[B3_MAX_MANIFOLDS - 1],
+					  contactCount );
 
 		if ( m_depth.maxIndex >= 0 )
 		{
 			int index = m_depth.maxIndex;
-			DrawTextLine( "deepest: (%d, %d) %.1f slop at step %d", index / MESH_DROP_GRID_COUNT, index % MESH_DROP_GRID_COUNT,
-						  m_depth.maxDepth / B3_LINEAR_SLOP, m_depth.maxStep );
+			DrawTextLine( "deepest: (%d, %d) %.1f slop at step %d", index / MESH_DROP_GRID_COUNT,
+						  index % MESH_DROP_GRID_COUNT, m_depth.maxDepth / B3_LINEAR_SLOP, m_depth.maxStep );
 		}
 
 		float tunnelHeight = GetMeshDropTunnelHeight();

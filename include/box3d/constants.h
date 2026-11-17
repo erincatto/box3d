@@ -41,10 +41,6 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 /// dropped using heuristics until this number is reached.
 #define B3_MAX_MANIFOLDS 8
 
-/// Number of contact point buckets for counting the number of contact points per
-/// shape contact pair. This is just for reporting and doesn't affect simulation.
-#define B3_CONTACT_MANIFOLD_COUNT_BUCKETS B3_MAX_MANIFOLDS
-
 /// A small length used as a collision and constraint tolerance. Usually it is
 /// chosen to be numerically significant, but visually insignificant. In meters.
 /// @warning modifying this can have a significant impact on stability

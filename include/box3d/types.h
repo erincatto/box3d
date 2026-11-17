@@ -573,50 +573,50 @@ B3_API b3ShapeDef b3DefaultShapeDef( void );
 /// @ingroup world
 typedef struct b3Profile
 {
-	float step;				   //
-	float pairs;			   //
-	float collide;			   //
-	float solve;			   //
-	float solverSetup;		   //
-	float constraints;		   //
-	float prepareConstraints;  //
-	float integrateVelocities; //
-	float warmStart;		   //
-	float solveImpulses;	   //
-	float integratePositions;  //
-	float relaxImpulses;	   //
-	float restitution;		   //
-	float storeImpulses;	   //
-	float splitIslands;		   //
-	float transforms;		   //
-	float sensorHits;		   //
-	float jointEvents;		   //
-	float hitEvents;		   //
-	float refit;			   //
-	float bullets;			   //
-	float sleepIslands;		   //
-	float sensors;			   //
+	float step;				   ///<
+	float pairs;			   ///<
+	float collide;			   ///<
+	float solve;			   ///<
+	float solverSetup;		   ///<
+	float constraints;		   ///<
+	float prepareConstraints;  ///<
+	float integrateVelocities; ///<
+	float warmStart;		   ///<
+	float solveImpulses;	   ///<
+	float integratePositions;  ///<
+	float relaxImpulses;	   ///<
+	float restitution;		   ///<
+	float storeImpulses;	   ///<
+	float splitIslands;		   ///<
+	float transforms;		   ///<
+	float sensorHits;		   ///<
+	float jointEvents;		   ///<
+	float hitEvents;		   ///<
+	float refit;			   ///<
+	float bullets;			   ///<
+	float sleepIslands;		   ///<
+	float sensors;			   ///<
 } b3Profile;
 
 /// Counters that give details of the simulation size.
 /// @ingroup world
 typedef struct b3Counters
 {
-	int64_t byteCount;									   //
-	int bodyCount;										   //
-	int shapeCount;										   //
-	int contactCount;									   //
-	int jointCount;										   //
-	int islandCount;									   //
-	int stackUsed;										   //
-	int arenaCapacity;									   //
-	int staticTreeHeight;								   //
-	int treeHeight;										   //
-	int satCallCount;									   //
-	int satCacheHitCount;								   //
-	int taskCount;										   //
-	int colorCounts[24];								   //
-	int manifoldCounts[B3_CONTACT_MANIFOLD_COUNT_BUCKETS]; //
+	int64_t byteCount;					  ///<
+	int bodyCount;						  ///<
+	int shapeCount;						  ///<
+	int contactCount;					  ///<
+	int jointCount;						  ///<
+	int islandCount;					  ///<
+	int stackUsed;						  ///<
+	int arenaCapacity;					  ///<
+	int staticTreeHeight;				  ///<
+	int treeHeight;						  ///<
+	int satCallCount;					  ///<
+	int satCacheHitCount;				  ///<
+	int taskCount;						  ///<
+	int colorCounts[24];				  ///<
+	int manifoldCounts[B3_MAX_MANIFOLDS]; ///<
 
 	/// Number of contacts touched by the collide pass
 	/// graph contacts + awake-set non-touching

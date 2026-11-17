@@ -115,7 +115,7 @@ typedef struct b3TaskContext
 	b3DebugLine lines[B3_DEBUG_LINE_CAPACITY];
 	int lineCount;
 
-	int manifoldCounts[B3_CONTACT_MANIFOLD_COUNT_BUCKETS];
+	int manifoldCounts[B3_MAX_MANIFOLDS];
 	// Prevent false sharing
 	char cacheLine[64];
 } b3TaskContext;
@@ -254,7 +254,7 @@ typedef struct b3World
 	b3Profile profile;
 	int satCallCount;
 	int satCacheHitCount;
-	int manifoldCounts[B3_CONTACT_MANIFOLD_COUNT_BUCKETS];
+	int manifoldCounts[B3_MAX_MANIFOLDS];
 
 	b3Capacity maxCapacity;
 

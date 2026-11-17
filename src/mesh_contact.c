@@ -1670,7 +1670,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 		int keptCount = 0;
 
-		// If there are more than 8 manifolds then find the best per octant region.
+		// If there are 8 or more manifolds then find the best per octant region.
 		if ( manifoldCapacity >= 8 )
 		{
 			int octantClusters[8] = { B3_NULL_INDEX, B3_NULL_INDEX, B3_NULL_INDEX, B3_NULL_INDEX,

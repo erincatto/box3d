@@ -724,7 +724,7 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 
 					// Diagnostics
 					taskContext->recycledContactCount += 1;
-					int bucketIndex = b3MinInt( manifoldCount, B3_CONTACT_MANIFOLD_COUNT_BUCKETS );
+					int bucketIndex = b3MinInt( manifoldCount, B3_MAX_MANIFOLDS );
 					if ( bucketIndex > 0 )
 					{
 						taskContext->manifoldCounts[bucketIndex - 1] += 1;
@@ -748,7 +748,7 @@ static void b3CollideTask( int startIndex, int endIndex, int workerIndex, void* 
 										 transformA, shapeB,
 										 bodySimB->localCenter, transformB, isFast, taskContext->arena );
 
-		int bucketIndex = b3MinInt( contact->manifoldCount, B3_CONTACT_MANIFOLD_COUNT_BUCKETS );
+		int bucketIndex = b3MinInt( contact->manifoldCount, B3_MAX_MANIFOLDS );
 		if ( bucketIndex > 0 )
 		{
 			taskContext->manifoldCounts[bucketIndex - 1] += 1;
@@ -910,15 +910,14 @@ static void b3Collide( b3StepContext* context )
 	b3BitSet* bitSet = &world->taskContexts.data[0].contactStateBitSet;
 	world->satCallCount = satMultiplier * world->taskContexts.data[0].satCallCount;
 	world->satCacheHitCount = satMultiplier * world->taskContexts.data[0].satCacheHitCount;
-	memcpy( world->manifoldCounts, world->taskContexts.data[0].manifoldCounts,
-			B3_CONTACT_MANIFOLD_COUNT_BUCKETS * sizeof( int ) );
+	memcpy( world->manifoldCounts, world->taskContexts.data[0].manifoldCounts, B3_MAX_MANIFOLDS * sizeof( int ) );
 
 	for ( int i = 1; i < world->workerCount; ++i )
 	{
 		b3InPlaceUnion( bitSet, &world->taskContexts.data[i].contactStateBitSet );
 		world->satCallCount += world->taskContexts.data[i].satCallCount;
 		world->satCacheHitCount += world->taskContexts.data[i].satCacheHitCount;
-		for ( int j = 0; j < B3_CONTACT_MANIFOLD_COUNT_BUCKETS; ++j )
+		for ( int j = 0; j < B3_MAX_MANIFOLDS; ++j )
 		{
 			world->manifoldCounts[j] += world->taskContexts.data[i].manifoldCounts[j];
 		}
@@ -2642,7 +2641,7 @@ b3Counters b3World_GetCounters( b3WorldId worldId )
 
 	s.satCallCount = world->satCallCount;
 	s.satCacheHitCount = world->satCacheHitCount;
-	memcpy( s.manifoldCounts, world->manifoldCounts, B3_CONTACT_MANIFOLD_COUNT_BUCKETS * sizeof( int ) );
+	memcpy( s.manifoldCounts, world->manifoldCounts, B3_MAX_MANIFOLDS * sizeof( int ) );
 	s.stackUsed = world->stack.maxAllocation;
 	s.byteCount = (int64_t)b3GetWorldByteCount( world, false );
 	s.taskCount = world->taskCount;
