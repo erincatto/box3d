@@ -1115,7 +1115,6 @@ static void b3LaunchTreeTask( b3StepContext* context, bool deferred )
 	if ( deferred == false )
 	{
 		context->tasks[0].deferred = false;
-		context->stepTasks[0].deferred = false;
 		b3AtomicStoreInt( &context->treePending, 0 );
 	}
 }
@@ -1460,8 +1459,6 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 		return;
 	}
 
-	B3_ASSERT( 0 < subStepCount );
-
 	b3TracyCZoneNC( world_step, "Step", b3_colorBox2DGreen, true );
 
 	if ( world->useScheduler )
@@ -1552,8 +1549,6 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 
 b3TaskBatch b3World_BeginStep( b3WorldId worldId, float timeStep, int subStepCount )
 {
-	B3_ASSERT( 0 < subStepCount );
-
 	b3World* world = b3GetWorldFromId( worldId );
 	B3_ASSERT( world->locked == false );
 	if ( world->locked )
@@ -2840,6 +2835,14 @@ static uint64_t b3GetWorldByteCount( b3World* world, bool log )
 		b3Log( "kinematic tree: %d", kinematicTreeBytes );
 		b3Log( "dynamic tree: %d", dynamicTreeBytes );
 		b3Log( "pairSet: %d (%d, %d)", pairSetBytes, pairSet->count, pairSet->capacity );
+	}
+
+	int stepContextBytes = (int)sizeof( b3StepContext );
+	total += (uint64_t)stepContextBytes;
+
+	if ( log )
+	{
+		b3Log( "step context: %d", stepContextBytes );
 	}
 
 	// Manifold block allocators, one per manifold point count

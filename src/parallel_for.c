@@ -20,7 +20,8 @@ static void b3RunStepTask( void* taskContext )
 
 	task->fcn( task->context );
 
-	if ( task->deferred )
+	int index = (int)( task - stepContext->stepTasks );
+	if ( stepContext->tasks[index].deferred )
 	{
 		if ( b3AtomicFetchAddInt( &stepContext->treePending, -1 ) == 1 && stepContext->signalSemaphores )
 		{
@@ -52,7 +53,6 @@ void b3AddTask( b3StepContext* stepContext, b3TaskType type, b3TaskCallback* fcn
 	stepTask->fcn = fcn;
 	stepTask->context = context;
 	stepTask->stepContext = stepContext;
-	stepTask->deferred = false;
 
 	stepContext->tasks[index] = (b3Task){
 		.fcn = b3RunStepTask,
@@ -73,7 +73,6 @@ void b3StageDeferredTask( b3StepContext* stepContext, b3TaskType type, b3TaskCal
 	stepTask->fcn = fcn;
 	stepTask->context = context;
 	stepTask->stepContext = stepContext;
-	stepTask->deferred = true;
 
 	stepContext->tasks[0] = (b3Task){
 		.fcn = b3RunStepTask,

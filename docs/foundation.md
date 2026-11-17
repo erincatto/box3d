@@ -159,12 +159,12 @@ You can optionally connect your own task scheduler if you want more control.  Mu
 ```c
 // Implement b3EnqueueTaskCallback
 void* MyEnqueueTask(b3TaskCallback* task, void* taskContext,
-                    void* userContext, const char* taskName)
+                    void* userContext, b3TaskType taskType)
 {
     MyTask* t = AllocTask();
     t->task        = task;
     t->taskContext = taskContext;
-    Scheduler* myScheduler = (Scheduler*)userContact;
+    Scheduler* myScheduler = (Scheduler*)userContext;
     SubmitToThreadPool(myScheduler, t);
     return t;
 }
