@@ -11,6 +11,7 @@
 #include "box3d/box3d.h"
 
 #include <ctype.h>
+#include <float.h>
 #include <iterator>
 #include <stdio.h>
 #include <stdlib.h>
@@ -2581,3 +2582,514 @@ public:
 
 static int sampleRaycastVehicle =
 	RegisterSample( "Vehicle", "Raycast Vehicle", RaycastVehicle::Create );
+
+// A user wants the load on a static body C when a box A lands on it, sometimes through a thin sleeping
+// plate B. Hit events report approach speed, and a resting plate has none against C, so C gets no hit
+// event when B is in the middle. Summing the contact impulses on C each step gives the load either way.
+class StaticLoad : public Sample
+{
+public:
+	static constexpr float m_boxHalf = 1.0f;
+	static constexpr float m_tableTop = 3.0f;
+	static constexpr float m_dropX = 1.5f;
+	static constexpr int m_settleSteps = 10;
+	static constexpr int m_historyCapacity = 240;
+	static constexpr int m_maxHits = 12;
+
+	explicit StaticLoad( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 20.0f, 15.0f, 22.0f, { 0.0f, 5.0f, 0.0f } );
+		}
+
+		// The weld to the wall lives in game code, so Box3D only sees two static bodies
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.name = "wall";
+			bodyDef.position = { -4.25f, 4.0f, 0.0f };
+			b3BodyId wallId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3BoxHull box = b3MakeBoxHull( 0.25f, 4.0f, 3.0f );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			b3CreateHullShape( wallId, &shapeDef, &box.base );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.name = "C";
+			bodyDef.position = { 0.0f, m_tableTop - 1.0f, 0.0f };
+			m_bodyC = b3CreateBody( m_worldId, &bodyDef );
+
+			b3BoxHull box = b3MakeBoxHull( 4.0f, 1.0f, 2.0f );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.enableHitEvents = true;
+			m_shapeC = b3CreateHullShape( m_bodyC, &shapeDef, &box.base );
+		}
+
+		Reset();
+	}
+
+	void Reset()
+	{
+		if ( B3_IS_NON_NULL( m_bodyA ) )
+		{
+			b3DestroyBody( m_bodyA );
+		}
+
+		if ( B3_IS_NON_NULL( m_bodyB ) )
+		{
+			b3DestroyBody( m_bodyB );
+		}
+
+		m_bodyA = b3_nullBodyId;
+		m_bodyB = b3_nullBodyId;
+		m_shapeA = b3_nullShapeId;
+		m_shapeB = b3_nullShapeId;
+
+		m_resetStep = m_stepCount;
+		m_lastStep = m_stepCount;
+		m_dropped = false;
+		m_massA = 0.0f;
+		m_massB = 0.0f;
+		m_impactStep = -1;
+		m_impactSpeed = 0.0f;
+		m_excessImpulse = 0.0f;
+		m_stepImpulseC = 0.0f;
+		m_stepImpulseAB = 0.0f;
+		m_stepImpulseAC = 0.0f;
+		m_stepImpulseBC = 0.0f;
+		m_peakForceC = 0.0f;
+		m_peakForceAB = 0.0f;
+		m_peakForceAC = 0.0f;
+		m_peakForceBC = 0.0f;
+		m_peakStep = -1;
+		m_hitCountC = 0;
+		m_hitCountB = 0;
+		m_hitCount = 0;
+		m_historyCount = 0;
+		m_historyIndex = 0;
+
+		if ( m_includeB )
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.name = "B";
+			bodyDef.position = { m_dropX, m_tableTop + m_plateHalfHeight, 0.0f };
+			m_bodyB = b3CreateBody( m_worldId, &bodyDef );
+
+			b3BoxHull box = b3MakeBoxHull( 1.5f, m_plateHalfHeight, 1.0f );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.density = m_densityB;
+			shapeDef.enableHitEvents = true;
+			m_shapeB = b3CreateHullShape( m_bodyB, &shapeDef, &box.base );
+		}
+		else
+		{
+			DropA();
+		}
+	}
+
+	// B rests on C long enough to build its contact, then sleeps the way a settled game object would
+	void DropA()
+	{
+		float baseY = m_tableTop;
+		if ( m_includeB )
+		{
+			if ( m_sleepB )
+			{
+				b3Body_SetAwake( m_bodyB, false );
+			}
+
+			baseY += 2.0f * m_plateHalfHeight;
+		}
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.name = "A";
+		bodyDef.position = { m_dropX, baseY + m_dropHeight + m_boxHalf, 0.0f };
+		m_bodyA = b3CreateBody( m_worldId, &bodyDef );
+
+		b3BoxHull box = b3MakeBoxHull( m_boxHalf, m_boxHalf, m_boxHalf );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.density = m_densityA;
+		shapeDef.enableHitEvents = true;
+		m_shapeA = b3CreateHullShape( m_bodyA, &shapeDef, &box.base );
+
+		m_massA = b3Body_GetMass( m_bodyA );
+		m_massB = m_includeB ? b3Body_GetMass( m_bodyB ) : 0.0f;
+		m_dropped = true;
+	}
+
+	const char* Label( b3ShapeId shapeId ) const
+	{
+		if ( B3_ID_EQUALS( shapeId, m_shapeA ) )
+		{
+			return "A";
+		}
+
+		if ( B3_ID_EQUALS( shapeId, m_shapeB ) )
+		{
+			return "B";
+		}
+
+		if ( B3_ID_EQUALS( shapeId, m_shapeC ) )
+		{
+			return "C";
+		}
+
+		return "?";
+	}
+
+	// Total normal impulse a contact applied over the step, sub-steps and restitution included.
+	// A speculative point that never pushed contributes zero.
+	static float ContactImpulse( const b3ContactData& data )
+	{
+		float impulse = 0.0f;
+		for ( int i = 0; i < data.manifoldCount; ++i )
+		{
+			const b3Manifold& manifold = data.manifolds[i];
+			for ( int j = 0; j < manifold.pointCount; ++j )
+			{
+				impulse += manifold.points[j].totalNormalImpulse;
+			}
+		}
+
+		return impulse;
+	}
+
+	// Sum the impulse on a shape from every touching contact, or only the one against a given shape
+	float ShapeImpulse( b3ShapeId shapeId, b3ShapeId otherId, bool drawArrows )
+	{
+		if ( B3_IS_NULL( shapeId ) )
+		{
+			return 0.0f;
+		}
+
+		int capacity = b3Shape_GetContactCapacity( shapeId );
+		m_contactData.resize( capacity );
+		int count = b3Shape_GetContactData( shapeId, m_contactData.data(), capacity );
+
+		float hertz = m_context->hertz;
+		float arrowScale = m_restingWeight > 0.0f ? 1.0f / m_restingWeight : 0.0f;
+
+		float impulse = 0.0f;
+		for ( int i = 0; i < count; ++i )
+		{
+			const b3ContactData& data = m_contactData[i];
+			bool isShapeA = B3_ID_EQUALS( data.shapeIdA, shapeId );
+			b3ShapeId other = isShapeA ? data.shapeIdB : data.shapeIdA;
+			if ( B3_IS_NON_NULL( otherId ) && B3_ID_EQUALS( other, otherId ) == false )
+			{
+				continue;
+			}
+
+			impulse += ContactImpulse( data );
+
+			if ( drawArrows == false )
+			{
+				continue;
+			}
+
+			// The normal points from shape A to shape B, so it pushes on B and pulls on A
+			b3Pos center = b3Body_GetWorldCenter( b3Shape_GetBody( data.shapeIdA ) );
+			for ( int j = 0; j < data.manifoldCount; ++j )
+			{
+				const b3Manifold& manifold = data.manifolds[j];
+				b3Vec3 direction = isShapeA ? -manifold.normal : manifold.normal;
+				for ( int k = 0; k < manifold.pointCount; ++k )
+				{
+					const b3ManifoldPoint& mp = manifold.points[k];
+					if ( mp.totalNormalImpulse <= 0.0f )
+					{
+						continue;
+					}
+
+					// One meter per resting weight, clamped so an impact spike stays on screen
+					float length = b3MinFloat( mp.totalNormalImpulse * hertz * arrowScale, 4.0f );
+					b3Pos p = b3OffsetPos( center, mp.anchorA );
+					DrawArrow( b3OffsetPos( p, -length * direction ), p, MakeColor( b3_colorRed ) );
+				}
+			}
+		}
+
+		return impulse;
+	}
+
+	void Step() override
+	{
+		b3Vec3 velocityA = B3_IS_NON_NULL( m_bodyA ) ? b3Body_GetLinearVelocity( m_bodyA ) : b3Vec3_zero;
+
+		Sample::Step();
+
+		float gravity = -b3World_GetGravity( m_worldId ).y;
+		m_restingWeight = ( m_massA + m_massB ) * gravity;
+
+		// A thin B leaves A within speculative reach of C, so part of the load can skip B entirely
+		m_stepImpulseC = ShapeImpulse( m_shapeC, b3_nullShapeId, true );
+		m_stepImpulseAC = ShapeImpulse( m_shapeC, m_shapeA, false );
+		m_stepImpulseBC = ShapeImpulse( m_shapeC, m_shapeB, false );
+		m_stepImpulseAB = ShapeImpulse( m_shapeA, m_shapeB, false );
+		float impulseA = ShapeImpulse( m_shapeA, b3_nullShapeId, false );
+
+		// Pausing keeps the last step's events, so only consume a step once
+		if ( m_stepCount != m_lastStep )
+		{
+			m_lastStep = m_stepCount;
+			ProcessStep( impulseA, velocityA );
+		}
+
+		DrawHits();
+		DrawStats();
+	}
+
+	void ProcessStep( float impulseA, b3Vec3 velocityA )
+	{
+		if ( m_dropped == false )
+		{
+			if ( m_stepCount - m_resetStep >= m_settleSteps )
+			{
+				DropA();
+			}
+			return;
+		}
+
+		float hertz = m_context->hertz;
+		float timeStep = hertz > 0.0f ? 1.0f / hertz : 0.0f;
+
+		if ( m_impactStep < 0 && impulseA > 0.0f )
+		{
+			m_impactStep = m_stepCount;
+			m_impactSpeed = -velocityA.y;
+
+			if ( m_pauseOnImpact )
+			{
+				m_context->pause = true;
+			}
+		}
+
+		// From impact on, the impulse on C beyond the resting weight removes the momentum A brought in
+		if ( m_impactStep >= 0 )
+		{
+			m_excessImpulse += m_stepImpulseC - m_restingWeight * timeStep;
+		}
+
+		float forceC = m_stepImpulseC * hertz;
+		float forceAB = m_stepImpulseAB * hertz;
+		if ( forceC > m_peakForceC )
+		{
+			m_peakForceC = forceC;
+			m_peakStep = m_stepCount;
+		}
+
+		m_peakForceAB = b3MaxFloat( m_peakForceAB, forceAB );
+		m_peakForceAC = b3MaxFloat( m_peakForceAC, m_stepImpulseAC * hertz );
+		m_peakForceBC = b3MaxFloat( m_peakForceBC, m_stepImpulseBC * hertz );
+
+		m_historyC[m_historyIndex] = forceC;
+		m_historyAB[m_historyIndex] = forceAB;
+		m_historyIndex = ( m_historyIndex + 1 ) % m_historyCapacity;
+		m_historyCount = b3MinInt( m_historyCount + 1, m_historyCapacity );
+
+		b3ContactEvents events = b3World_GetContactEvents( m_worldId );
+		for ( int i = 0; i < events.hitCount; ++i )
+		{
+			const b3ContactHitEvent& event = events.hitEvents[i];
+			bool touchesC = B3_ID_EQUALS( event.shapeIdA, m_shapeC ) || B3_ID_EQUALS( event.shapeIdB, m_shapeC );
+			bool touchesB = B3_ID_EQUALS( event.shapeIdA, m_shapeB ) || B3_ID_EQUALS( event.shapeIdB, m_shapeB );
+			m_hitCountC += touchesC ? 1 : 0;
+			m_hitCountB += touchesB ? 1 : 0;
+
+			HitRecord record = {};
+			record.event = event;
+			record.step = m_stepCount;
+			if ( b3Contact_IsValid( event.contactId ) )
+			{
+				record.impulse = ContactImpulse( b3Contact_GetData( event.contactId ) );
+			}
+
+			// Newest first, dropping the oldest when full
+			int count = b3MinInt( m_hitCount, m_maxHits - 1 );
+			for ( int j = count; j > 0; --j )
+			{
+				m_hits[j] = m_hits[j - 1];
+			}
+
+			m_hits[0] = record;
+			m_hitCount = count + 1;
+		}
+	}
+
+	void DrawHits()
+	{
+		for ( int i = 0; i < m_hitCount; ++i )
+		{
+			const b3ContactHitEvent& event = m_hits[i].event;
+			b3Pos p1 = event.point;
+			b3Pos p2 = b3OffsetPos( p1, -event.approachSpeed * event.normal );
+			DrawPoint( p1, 10.0f, MakeColor( b3_colorYellow ) );
+			DrawLine( p1, p2, MakeColor( b3_colorYellow ) );
+			DrawString3D( p1, MakeColor( b3_colorWhite ), "%s-%s %.1f m/s", Label( event.shapeIdA ),
+						  Label( event.shapeIdB ), event.approachSpeed );
+		}
+	}
+
+	void DrawStats()
+	{
+		float hertz = m_context->hertz;
+
+		if ( m_dropped == false )
+		{
+			DrawTextLine( "B settling on C" );
+			return;
+		}
+
+		DrawTextLine( "mass A = %.2f kg, mass B = %.2f kg, resting weight on C = %.1f N", m_massA, m_massB,
+					  m_restingWeight );
+
+		if ( m_includeB )
+		{
+			DrawTextLine( "B is %s", b3Body_IsAwake( m_bodyB ) ? "awake" : "asleep" );
+		}
+
+		if ( m_impactStep < 0 )
+		{
+			DrawTextLine( "A falling" );
+			return;
+		}
+
+		float momentum = m_massA * m_impactSpeed;
+		DrawTextLine( "impact at step %d, speed %.2f m/s, momentum %.1f N*s", m_impactStep - m_resetStep,
+					  m_impactSpeed, momentum );
+
+		// No continuous collision between dynamic bodies, so A can sink a full step of travel into B before
+		// they get a contact. If that reaches within speculative distance of C, A loads C directly.
+		if ( m_includeB )
+		{
+			DrawTextLine( "A travels %.2f m per step, B is %.2f m thick", m_impactSpeed / hertz,
+						  2.0f * m_plateHalfHeight );
+		}
+		DrawTextLine( "step load on C = %.1f N (impulse %.3f N*s)", m_stepImpulseC * hertz, m_stepImpulseC );
+		DrawTextLine( "peak load on C = %.1f N at step %d, %.1fx resting weight", m_peakForceC, m_peakStep - m_resetStep,
+					  m_restingWeight > 0.0f ? m_peakForceC / m_restingWeight : 0.0f );
+
+		if ( m_includeB )
+		{
+			DrawTextLine( "  from B = %.1f N, peak %.1f N", m_stepImpulseBC * hertz, m_peakForceBC );
+			DrawTextLine( "  from A directly = %.1f N, peak %.1f N", m_stepImpulseAC * hertz, m_peakForceAC );
+			DrawTextLine( "load A on B = %.1f N, peak %.1f N", m_stepImpulseAB * hertz, m_peakForceAB );
+		}
+
+		DrawTextLine( "impulse on C beyond resting weight = %.1f N*s (A brought %.1f N*s)", m_excessImpulse,
+					  momentum );
+		DrawTextLine( "hit events touching C = %d, touching B = %d", m_hitCountC, m_hitCountB );
+
+		for ( int i = 0; i < m_hitCount; ++i )
+		{
+			const HitRecord& record = m_hits[i];
+			DrawTextLine( "  step %d: %s-%s approach %.2f m/s, contact impulse %.3f N*s", record.step - m_resetStep,
+						  Label( record.event.shapeIdA ), Label( record.event.shapeIdB ), record.event.approachSpeed,
+						  record.impulse );
+		}
+	}
+
+	bool DrawControls() override
+	{
+		bool reset = false;
+		reset |= ImGui::Checkbox( "Include B", &m_includeB );
+		reset |= ImGui::Checkbox( "B Asleep", &m_sleepB );
+		reset |= ImGui::SliderFloat( "B Half Thickness", &m_plateHalfHeight, 0.02f, 0.5f, "%.2f m" );
+		reset |= ImGui::SliderFloat( "B Density", &m_densityB, 100.0f, 10000.0f, "%.0f kg/m^3",
+									 ImGuiSliderFlags_Logarithmic );
+		reset |= ImGui::SliderFloat( "A Density", &m_densityA, 100.0f, 10000.0f, "%.0f kg/m^3",
+									 ImGuiSliderFlags_Logarithmic );
+		reset |= ImGui::SliderFloat( "Drop Height", &m_dropHeight, 0.0f, 10.0f, "%.1f m" );
+
+		float threshold = b3World_GetHitEventThreshold( m_worldId );
+		if ( ImGui::SliderFloat( "Hit Threshold", &threshold, 0.0f, 5.0f, "%.2f m/s" ) )
+		{
+			b3World_SetHitEventThreshold( m_worldId, threshold );
+		}
+
+		ImGui::Checkbox( "Pause On Impact", &m_pauseOnImpact );
+
+		if ( ImGui::Button( "Drop Again" ) )
+		{
+			reset = true;
+		}
+
+		if ( reset )
+		{
+			Reset();
+		}
+
+		int offset = m_historyCount < m_historyCapacity ? 0 : m_historyIndex;
+		ImGui::PlotLines( "##loadC", m_historyC, m_historyCount, offset, "load on C (N)", 0.0f, FLT_MAX,
+						  ImVec2( 0.0f, 80.0f ) );
+		ImGui::PlotLines( "##loadAB", m_historyAB, m_historyCount, offset, "load A on B (N)", 0.0f, FLT_MAX,
+						  ImVec2( 0.0f, 80.0f ) );
+
+		return true;
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new StaticLoad( context );
+	}
+
+	struct HitRecord
+	{
+		b3ContactHitEvent event;
+		float impulse;
+		int step;
+	};
+
+	std::vector<b3ContactData> m_contactData;
+
+	b3BodyId m_bodyA = {};
+	b3BodyId m_bodyB = {};
+	b3BodyId m_bodyC = {};
+	b3ShapeId m_shapeA = {};
+	b3ShapeId m_shapeB = {};
+	b3ShapeId m_shapeC = {};
+
+	HitRecord m_hits[m_maxHits] = {};
+	float m_historyC[m_historyCapacity] = {};
+	float m_historyAB[m_historyCapacity] = {};
+
+	float m_dropHeight = 3.0f;
+	float m_plateHalfHeight = 0.15f;
+	float m_densityA = 1000.0f;
+	float m_densityB = 1000.0f;
+	float m_massA = 0.0f;
+	float m_massB = 0.0f;
+	float m_restingWeight = 0.0f;
+	float m_impactSpeed = 0.0f;
+	float m_excessImpulse = 0.0f;
+	float m_stepImpulseC = 0.0f;
+	float m_stepImpulseAB = 0.0f;
+	float m_stepImpulseAC = 0.0f;
+	float m_stepImpulseBC = 0.0f;
+	float m_peakForceC = 0.0f;
+	float m_peakForceAB = 0.0f;
+	float m_peakForceAC = 0.0f;
+	float m_peakForceBC = 0.0f;
+
+	int m_resetStep = 0;
+	int m_lastStep = 0;
+	int m_impactStep = -1;
+	int m_peakStep = -1;
+	int m_hitCountC = 0;
+	int m_hitCountB = 0;
+	int m_hitCount = 0;
+	int m_historyCount = 0;
+	int m_historyIndex = 0;
+
+	bool m_includeB = true;
+	bool m_sleepB = true;
+	bool m_pauseOnImpact = false;
+	bool m_dropped = false;
+};
+
+static int sampleStaticLoad = RegisterSample( "Issues", "Static Load", StaticLoad::Create );

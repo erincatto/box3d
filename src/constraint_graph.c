@@ -154,7 +154,7 @@ void b3AddContactToGraph( b3World* world, b3Contact* contact )
 
 	if ( isScalar )
 	{
-		B3_ASSERT( contact->manifoldCount < UINT16_MAX );
+		B3_ASSERT( contact->manifoldCount <= B3_MAX_MANIFOLDS );
 		b3ContactSpec spec = {
 			.contactId = contact->contactId,
 			.manifoldStart = 0,

@@ -1043,8 +1043,9 @@ void Sample::DrawMetrics()
 
 	if ( ImGui::BeginTabItem( "Counters" ) )
 	{
-		b3Counters s = b3World_GetCounters( m_worldId );
-		b3Capacity c = b3World_GetMaxCapacity( m_worldId );
+		b3WorldId worldId = GetMetricsWorldId();
+		b3Counters s = b3World_GetCounters( worldId );
+		b3Capacity c = b3World_GetMaxCapacity( worldId );
 
 		constexpr int colorCount = sizeof( s.colorCounts ) / sizeof( s.colorCounts[0] );
 		constexpr int overflowIndex = colorCount - 1;
@@ -1087,9 +1088,8 @@ void Sample::DrawMetrics()
 			ImGui::Text( "toi %d / %d / %d", s.distanceIterations, s.pushBackIterations, s.rootIterations );
 			ImGui::SetItemTooltip( "TOI distance / push back / root iterations" );
 
-			// The world clamps into the second to last bucket, so the last is always empty and the
-			// second to last means that many or more
-			constexpr int manifoldBarCount = manifoldBucketCount - 1;
+			// One bucket per manifold count, up to the cap
+			constexpr int manifoldBarCount = manifoldBucketCount;
 			int totalManifolds = 0;
 			int maxManifolds = 0;
 			ImU32 manifoldColors[manifoldBarCount];
@@ -1106,8 +1106,7 @@ void Sample::DrawMetrics()
 				DrawBarChart( "##manifolds", s.manifoldCounts, manifoldColors, manifoldBarCount, maxManifolds, manifoldSize );
 			if ( hoveredBucket >= 0 )
 			{
-				const char* plus = hoveredBucket == manifoldBarCount - 1 ? "+" : "";
-				ImGui::SetTooltip( "%d%s manifolds: %d of %d pairs", hoveredBucket + 1, plus, s.manifoldCounts[hoveredBucket],
+				ImGui::SetTooltip( "%d manifolds: %d of %d pairs", hoveredBucket + 1, s.manifoldCounts[hoveredBucket],
 								   totalManifolds );
 			}
 

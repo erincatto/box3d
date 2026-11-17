@@ -6,7 +6,8 @@
 // or the pile is still awake at the step limit. Tunnels are rare, so the soak also counts bodies that
 // sink into the wave past a few depth levels and can compare those counts against a baseline.
 // Generations run in parallel, one single threaded world per thread. The printed seed reproduces a
-// generation in the sample.
+// generation in the sample. The rough wave has bumps smaller than the bodies, so mesh contacts reach
+// the manifold cap. It is far slower per generation, so run it with fewer of them.
 
 #define _CRT_SECURE_NO_WARNINGS
 
@@ -75,8 +76,12 @@ typedef struct Soak
 
 	int completedCount;
 	int failureCount;
-	long long totalSteps;
+	int64_t totalSteps;
 	int maxSteps;
+
+	// Mesh contact updates by manifold count, rough wave only
+	int64_t manifoldCounts[B3_MAX_MANIFOLDS];
+
 	ShapeStats stats[e_meshDropShapeCount];
 	Failure failures[MAX_REPORTED_FAILURES];
 } Soak;
@@ -100,7 +105,7 @@ static void RecordFailure( Soak* soak, const Failure* failure )
 
 // Mirrors MeshDrop::Generate and the auto generate step loop. Returns the step count.
 static int RunGeneration( Soak* soak, int generation, uint32_t seed, MeshDropShape shape, b3BodyId* bodies,
-						  MeshDropDepth* depth, int* failureKind )
+						  MeshDropDepth* depth, int* failureKind, int64_t* manifoldCounts )
 {
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	worldDef.workerCount = 1;
@@ -115,7 +120,7 @@ static int RunGeneration( Soak* soak, int generation, uint32_t seed, MeshDropSha
 		b3World_SetContactRecycleDistance( worldId, 0.0f );
 	}
 
-	CreateMeshDropGround( worldId, soak->groundMesh );
+	CreateMeshDropGround( worldId, soak->groundMesh, soak->settings );
 
 	MeshDropSettings settings = soak->settings;
 	settings.shape = shape;
@@ -134,6 +139,16 @@ static int RunGeneration( Soak* soak, int generation, uint32_t seed, MeshDropSha
 		b3World_Step( worldId, timeStep, subStepCount );
 		UpdateMeshDropDepth( worldId, depth );
 		step += 1;
+
+		// Counters walk the world, so only pay for them where the cap matters
+		if ( soak->settings.rough )
+		{
+			b3Counters counters = b3World_GetCounters( worldId );
+			for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
+			{
+				manifoldCounts[i] += counters.manifoldCounts[i];
+			}
+		}
 
 		for ( int i = 0; i < MESH_DROP_BODY_COUNT; ++i )
 		{
@@ -203,7 +218,8 @@ static void SoakWorker( void* context )
 			soak->shapeFilter >= 0 ? (MeshDropShape)soak->shapeFilter : (MeshDropShape)( generation % e_meshDropShapeCount );
 
 		int failureKind = -1;
-		int steps = RunGeneration( soak, generation, seed, shape, bodies, depth, &failureKind );
+		int64_t manifoldCounts[B3_MAX_MANIFOLDS] = { 0 };
+		int steps = RunGeneration( soak, generation, seed, shape, bodies, depth, &failureKind, manifoldCounts );
 
 		int depthCounts[MESH_DROP_DEPTH_LEVEL_COUNT];
 		GetMeshDropDepthCounts( depth, depthCounts );
@@ -212,6 +228,10 @@ static void SoakWorker( void* context )
 		soak->completedCount += 1;
 		soak->totalSteps += steps;
 		soak->maxSteps = b3MaxInt( soak->maxSteps, steps );
+		for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
+		{
+			soak->manifoldCounts[i] += manifoldCounts[i];
+		}
 
 		ShapeStats* stats = soak->stats + shape;
 		stats->generationCount += 1;
@@ -247,15 +267,24 @@ static void SoakWorker( void* context )
 	free( bodies );
 }
 
-static const char* GetFilterName( int shapeFilter )
+// The rough wave gets its own names so its baseline rows never match a run on the broad wave
+static const char* GetFilterName( int shapeFilter, bool rough )
 {
-	return shapeFilter >= 0 ? g_meshDropShapeNames[shapeFilter] : "all";
+	static const char* roughNames[e_meshDropShapeCount] = { "rough_box", "rough_capsule", "rough_cylinder", "rough_sphere" };
+
+	if ( shapeFilter < 0 )
+	{
+		return rough ? "rough_all" : "all";
+	}
+
+	return rough ? roughNames[shapeFilter] : g_meshDropShapeNames[shapeFilter];
 }
 
 // A baseline row starts with the run that made it, so one file can hold several runs
 static void GetBaselineKey( const Soak* soak, char* key, int size )
 {
-	snprintf( key, size, "%s,%u,%d,", GetFilterName( soak->shapeFilter ), soak->baseSeed, soak->generationCount );
+	snprintf( key, size, "%s,%u,%d,", GetFilterName( soak->shapeFilter, soak->settings.rough ), soak->baseSeed,
+			  soak->generationCount );
 }
 
 // Replaces the rows of this run and keeps the rest
@@ -327,8 +356,8 @@ static void WriteBaseline( const Soak* soak, const char* path )
 			continue;
 		}
 
-		fprintf( file, "%s,%u,%d,%s,%d,%d", GetFilterName( soak->shapeFilter ), soak->baseSeed, soak->generationCount,
-				 g_meshDropShapeNames[shape], stats->tunnelCount, stats->awakeCount );
+		fprintf( file, "%s,%u,%d,%s,%d,%d", GetFilterName( soak->shapeFilter, soak->settings.rough ), soak->baseSeed,
+				 soak->generationCount, g_meshDropShapeNames[shape], stats->tunnelCount, stats->awakeCount );
 		for ( int i = 0; i < MESH_DROP_DEPTH_LEVEL_COUNT; ++i )
 		{
 			fprintf( file, ",%d", stats->depthCounts[i] );
@@ -378,7 +407,7 @@ static int CompareBaseline( const Soak* soak, const char* path )
 			continue;
 		}
 
-		if ( strcmp( filter, GetFilterName( soak->shapeFilter ) ) != 0 || base != soak->baseSeed ||
+		if ( strcmp( filter, GetFilterName( soak->shapeFilter, soak->settings.rough ) ) != 0 || base != soak->baseSeed ||
 			 generations != soak->generationCount )
 		{
 			continue;
@@ -440,8 +469,8 @@ static int CompareBaseline( const Soak* soak, const char* path )
 
 	if ( matchedCount == 0 )
 	{
-		printf( "%s has no rows for -s=%s -b=%u -g=%d\n", path, GetFilterName( soak->shapeFilter ), soak->baseSeed,
-				soak->generationCount );
+		printf( "%s has no rows for %s-s=%s -b=%u -g=%d\n", path, soak->settings.rough ? "--rough " : "",
+				GetFilterName( soak->shapeFilter, false ), soak->baseSeed, soak->generationCount );
 		return 2;
 	}
 
@@ -474,6 +503,7 @@ int main( int argc, char** argv )
 	uint32_t seed = (uint32_t)b3GetTicks();
 	bool fixedSeed = false;
 	bool recycling = true;
+	bool amplitudeSet = false;
 	const char* writePath = NULL;
 	const char* comparePath = NULL;
 	MeshDropSettings settings = GetDefaultMeshDropSettings();
@@ -525,6 +555,11 @@ int main( int argc, char** argv )
 		else if ( ( value = MatchValue( arg, "-a=", "--amplitude=" ) ) != NULL )
 		{
 			settings.amplitude = (float)atof( value );
+			amplitudeSet = true;
+		}
+		else if ( strcmp( arg, "--rough" ) == 0 )
+		{
+			settings.rough = true;
 		}
 		else if ( ( value = MatchValue( arg, "-w=", "--write=" ) ) != NULL )
 		{
@@ -549,15 +584,21 @@ int main( int argc, char** argv )
 					"  -s, --shape=<name>       box, capsule, cylinder, sphere or all (default box)\n"
 					"  -b, --base-seed=<uint>   base seed, each generation hashes its own seed from it (default random)\n"
 					"  --seed=<uint>            run every generation with this exact seed (replay)\n"
-					"  -a, --amplitude=<float>  wave amplitude (default 0.5)\n"
+					"  -a, --amplitude=<float>  wave amplitude (default 0.5, rough 0.015)\n"
+					"  --rough                  fine bumps smaller than the bodies, reaches the manifold cap\n"
 					"  -w, --write=<csv>        write the counts as a baseline, replacing only the rows of this run\n"
-					"  -c, --compare=<csv>      compare the counts with the baseline rows from the same -s, -b and -g\n"
+					"  -c, --compare=<csv>      compare the counts with the baseline rows from the same wave, -s, -b and -g\n"
 					"  --no-recycling           disable contact recycling\n"
 					"Exit code is 0 when every generation passes and no count grew past noise, 1 otherwise,\n"
 					"2 for bad arguments or a baseline from a different run.\n",
 					MESH_DROP_BODY_COUNT );
 			return 2;
 		}
+	}
+
+	if ( settings.rough && amplitudeSet == false )
+	{
+		settings.amplitude = GetMeshDropDefaultAmplitude( true );
 	}
 
 	if ( fixedSeed && ( writePath != NULL || comparePath != NULL ) )
@@ -570,7 +611,7 @@ int main( int argc, char** argv )
 	soak.mutex = b3CreateMutex();
 	soak.settings = settings;
 	soak.recycling = recycling;
-	soak.groundMesh = CreateMeshDropMesh( settings.amplitude );
+	soak.groundMesh = CreateMeshDropMesh( settings );
 	soak.cylinder = CreateMeshDropCylinder();
 	soak.baseSeed = seed;
 	soak.fixedSeed = fixedSeed;
@@ -583,8 +624,8 @@ int main( int argc, char** argv )
 		soak.stats[i].maxGeneration = INT32_MAX;
 	}
 
-	printf( "mesh soak: %d generations, %d threads, shape %s, %s seed %u\n", generationCount, threadCount,
-			GetFilterName( shapeFilter ), fixedSeed ? "fixed" : "base", seed );
+	printf( "mesh soak: %d generations, %d threads, %sshape %s, %s seed %u\n", generationCount, threadCount,
+			settings.rough ? "rough wave, " : "", GetFilterName( shapeFilter, false ), fixedSeed ? "fixed" : "base", seed );
 	fflush( stdout );
 
 	uint64_t ticks = b3GetTicks();
@@ -640,6 +681,23 @@ int main( int argc, char** argv )
 	}
 
 	printf( "\nsteps to sleep: average %.0f, max %d, time %.1f s\n", averageSteps, soak.maxSteps, seconds );
+
+	if ( settings.rough )
+	{
+		int64_t total = 0;
+		for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
+		{
+			total += soak.manifoldCounts[i];
+		}
+
+		// The last bucket is the cap, so it holds every contact that was reduced
+		printf( "contact updates by manifold count:" );
+		for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
+		{
+			printf( " %d: %.1f%%", i + 1, total > 0 ? 100.0 * soak.manifoldCounts[i] / total : 0.0 );
+		}
+		printf( "\n" );
+	}
 
 	int reported = b3MinInt( soak.failureCount, MAX_REPORTED_FAILURES );
 	for ( int i = 0; i < reported; ++i )

@@ -206,6 +206,11 @@ public:
 	// Bottom metrics drawer (Frame Time / Counters / Renderer).
 	void DrawMetrics();
 
+	virtual b3WorldId GetMetricsWorldId() const
+	{
+		return m_worldId;
+	}
+
 	// Append extra tabs to the metrics drawer's tab bar (the Replay viewer adds Timeline).
 	virtual void DrawMetricsTab()
 	{

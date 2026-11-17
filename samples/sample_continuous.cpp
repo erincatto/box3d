@@ -388,19 +388,23 @@ public:
 
 static int sampleNeedleMesh = RegisterSample( "Continuous", "Needle Mesh", NeedleMesh::Create );
 
+// The rough wave has bumps smaller than the bodies, so a mesh contact reaches the manifold cap. Registered
+// a second time as Rough Mesh Drop with that wave on.
 class MeshDrop : public Sample
 {
 public:
-	explicit MeshDrop( SampleContext* context )
+	MeshDrop( SampleContext* context, bool rough )
 		: Sample( context )
 	{
 		if ( context->restart == false )
 		{
-			m_camera->SetView( 0.0f, 30.0f, 20.0f, b3Pos_zero );
+			m_camera->SetView( 0.0f, 30.0f, rough ? 12.0f : 20.0f, b3Pos_zero );
 			GetGuiDraw()->forceScale = 0.1f;
 		}
 
 		m_settings = GetDefaultMeshDropSettings();
+		m_settings.rough = rough;
+		m_settings.amplitude = GetMeshDropDefaultAmplitude( rough );
 		m_groundId = b3_nullBodyId;
 		m_groundMesh = nullptr;
 		CreateGround();
@@ -440,8 +444,8 @@ public:
 			m_groundMesh = nullptr;
 		}
 
-		m_groundMesh = CreateMeshDropMesh( m_settings.amplitude );
-		m_groundId = CreateMeshDropGround( m_worldId, m_groundMesh );
+		m_groundMesh = CreateMeshDropMesh( m_settings );
+		m_groundId = CreateMeshDropGround( m_worldId, m_groundMesh, m_settings );
 	}
 
 	void Generate()
@@ -484,7 +488,17 @@ public:
 			Generate();
 		}
 
-		if ( ImGui::SliderFloat( "Amplitude", &m_settings.amplitude, 0.0f, 1.0f ) )
+		if ( ImGui::Checkbox( "Rough", &m_settings.rough ) )
+		{
+			m_settings.amplitude = GetMeshDropDefaultAmplitude( m_settings.rough );
+			CreateGround();
+			Generate();
+		}
+
+		// The rough mesh is slow to build, so wait for the slider to settle
+		float maxAmplitude = m_settings.rough ? 0.05f : 1.0f;
+		bool amplitudeChanged = ImGui::SliderFloat( "Amplitude", &m_settings.amplitude, 0.0f, maxAmplitude, "%.3f" );
+		if ( m_settings.rough ? ImGui::IsItemDeactivatedAfterEdit() : amplitudeChanged )
 		{
 			CreateGround();
 			Generate();
@@ -531,7 +545,8 @@ public:
 		{
 			PickRay pickRay = m_camera->BuildPickRay( m_context->mouseX, m_context->mouseY );
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
+			b3RayResult result =
+				b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
 			if ( result.hit )
 			{
@@ -546,11 +561,21 @@ public:
 
 		DrawTextLine( "seed %u", m_seed );
 
+		// The last bucket is the cap, so it holds every contact that was reduced
+		b3Counters counters = b3World_GetCounters( m_worldId );
+		int contactCount = 0;
+		for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
+		{
+			contactCount += counters.manifoldCounts[i];
+		}
+		DrawTextLine( "contacts at the manifold cap: %d of %d", counters.manifoldCounts[B3_MAX_MANIFOLDS - 1],
+					  contactCount );
+
 		if ( m_depth.maxIndex >= 0 )
 		{
 			int index = m_depth.maxIndex;
-			DrawTextLine( "deepest: (%d, %d) %.1f slop at step %d", index / MESH_DROP_GRID_COUNT, index % MESH_DROP_GRID_COUNT,
-						  m_depth.maxDepth / B3_LINEAR_SLOP, m_depth.maxStep );
+			DrawTextLine( "deepest: (%d, %d) %.1f slop at step %d", index / MESH_DROP_GRID_COUNT,
+						  index % MESH_DROP_GRID_COUNT, m_depth.maxDepth / B3_LINEAR_SLOP, m_depth.maxStep );
 		}
 
 		float tunnelHeight = GetMeshDropTunnelHeight();
@@ -612,7 +637,12 @@ public:
 
 	static Sample* Create( SampleContext* context )
 	{
-		return new MeshDrop( context );
+		return new MeshDrop( context, false );
+	}
+
+	static Sample* CreateRough( SampleContext* context )
+	{
+		return new MeshDrop( context, true );
 	}
 
 	MeshDropSettings m_settings;
@@ -630,6 +660,7 @@ public:
 };
 
 static int sampleMeshDrop = RegisterSample( "Continuous", "Mesh Drop", MeshDrop::Create );
+static int sampleRoughMeshDrop = RegisterSample( "Continuous", "Rough Mesh Drop", MeshDrop::CreateRough );
 
 // This sample shows that clustering based on the manifold normal can lead to clipping and/or tunneling.
 class HumpMesh : public Sample

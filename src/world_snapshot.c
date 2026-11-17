@@ -925,7 +925,8 @@ static void b3DesContacts( b3SnapReader* r, b3World* world )
 
 		if ( isLive && manifoldCount > 0 )
 		{
-			if ( b3SnapCheckCount( r, manifoldCount, (int)sizeof( b3Manifold ), (int)sizeof( b3Manifold ) ) == false )
+			if ( manifoldCount > B3_MAX_MANIFOLDS ||
+				 b3SnapCheckCount( r, manifoldCount, (int)sizeof( b3Manifold ), (int)sizeof( b3Manifold ) ) == false )
 			{
 				r->ok = false;
 				break;

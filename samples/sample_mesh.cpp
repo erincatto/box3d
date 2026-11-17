@@ -1626,3 +1626,249 @@ public:
 
 static int sampleHollowBox = RegisterSample( "Mesh", "Hollow Box", HollowBox::Create );
 
+// A sphere fitted inside an inward facing sphere mesh. Every triangle is in range and every contact
+// normal is different, so the manifolds cannot be merged. From a voxel cavity filled with wedged debris.
+// The sphere should stay inside and go to sleep.
+class WedgedSphere : public Sample
+{
+public:
+	explicit WedgedSphere( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 45.0f, 20.0f, 4.0f, b3Pos_zero );
+		}
+
+		m_mesh = nullptr;
+		m_groundId = b3_nullBodyId;
+		m_bodyId = b3_nullBodyId;
+		m_subdivisions = 3;
+		m_fit = 5.0f;
+
+		Build();
+	}
+
+	~WedgedSphere() override
+	{
+		b3DestroyMesh( m_mesh );
+	}
+
+	static void Subdivide( std::vector<b3Vec3>& vertices, b3Vec3 a, b3Vec3 b, b3Vec3 c, int depth )
+	{
+		if ( depth == 0 )
+		{
+			vertices.push_back( a );
+			vertices.push_back( b );
+			vertices.push_back( c );
+			return;
+		}
+
+		b3Vec3 ab = b3Normalize( b3Add( a, b ) );
+		b3Vec3 bc = b3Normalize( b3Add( b, c ) );
+		b3Vec3 ca = b3Normalize( b3Add( c, a ) );
+		Subdivide( vertices, a, ab, ca, depth - 1 );
+		Subdivide( vertices, ab, b, bc, depth - 1 );
+		Subdivide( vertices, ca, bc, c, depth - 1 );
+		Subdivide( vertices, ab, bc, ca, depth - 1 );
+	}
+
+	void Build()
+	{
+		if ( B3_IS_NON_NULL( m_bodyId ) )
+		{
+			b3DestroyBody( m_bodyId );
+			b3DestroyBody( m_groundId );
+			b3DestroyMesh( m_mesh );
+		}
+
+		// Unit icosphere as a triangle soup, welded by the mesh builder
+		float t = 0.5f * ( 1.0f + sqrtf( 5.0f ) );
+		b3Vec3 corners[12] = {
+			{ -1.0f, t, 0.0f }, { 1.0f, t, 0.0f }, { -1.0f, -t, 0.0f }, { 1.0f, -t, 0.0f },
+			{ 0.0f, -1.0f, t }, { 0.0f, 1.0f, t }, { 0.0f, -1.0f, -t }, { 0.0f, 1.0f, -t },
+			{ t, 0.0f, -1.0f }, { t, 0.0f, 1.0f }, { -t, 0.0f, -1.0f }, { -t, 0.0f, 1.0f },
+		};
+
+		int faces[20][3] = {
+			{ 0, 11, 5 }, { 0, 5, 1 },	{ 0, 1, 7 },  { 0, 7, 10 }, { 0, 10, 11 }, { 1, 5, 9 }, { 5, 11, 4 },
+			{ 11, 10, 2 }, { 10, 7, 6 }, { 7, 1, 8 },  { 3, 9, 4 },	{ 3, 4, 2 },   { 3, 2, 6 }, { 3, 6, 8 },
+			{ 3, 8, 9 },   { 4, 9, 5 },	{ 2, 4, 11 }, { 6, 2, 10 }, { 8, 6, 7 },   { 9, 8, 1 },
+		};
+
+		std::vector<b3Vec3> vertices;
+		for ( int i = 0; i < 20; ++i )
+		{
+			Subdivide( vertices, b3Normalize( corners[faces[i][0]] ), b3Normalize( corners[faces[i][1]] ),
+					   b3Normalize( corners[faces[i][2]] ), m_subdivisions );
+		}
+
+		m_triangleCount = (int)vertices.size() / 3;
+
+		// The flat faces sit inside the unit sphere. The closest one bounds the largest sphere that fits.
+		m_inscribedRadius = 1.0f;
+		std::vector<int32_t> indices( vertices.size() );
+		for ( int i = 0; i < m_triangleCount; ++i )
+		{
+			b3Vec3 a = vertices[3 * i + 0];
+			b3Vec3 b = vertices[3 * i + 1];
+			b3Vec3 c = vertices[3 * i + 2];
+			b3Vec3 normal = b3Normalize( b3Cross( b3Sub( b, a ), b3Sub( c, a ) ) );
+			m_inscribedRadius = b3MinFloat( m_inscribedRadius, b3AbsFloat( b3Dot( normal, a ) ) );
+
+			// Reverse the winding so the triangles face the center
+			indices[3 * i + 0] = 3 * i + 0;
+			indices[3 * i + 1] = 3 * i + 2;
+			indices[3 * i + 2] = 3 * i + 1;
+		}
+
+		b3MeshDef meshDef = {};
+		meshDef.vertices = vertices.data();
+		meshDef.indices = indices.data();
+		meshDef.vertexCount = (int)vertices.size();
+		meshDef.triangleCount = m_triangleCount;
+		meshDef.weldVertices = true;
+		meshDef.weldTolerance = 1.0e-4f;
+		meshDef.identifyEdges = true;
+		m_mesh = b3CreateMesh( &meshDef, nullptr, 0 );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		m_groundId = b3CreateBody( m_worldId, &bodyDef );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		b3CreateMeshShape( m_groundId, &shapeDef, m_mesh, b3Vec3_one );
+
+		bodyDef.type = b3_dynamicBody;
+		m_bodyId = b3CreateBody( m_worldId, &bodyDef );
+
+		m_radius = m_inscribedRadius + 0.001f * m_fit;
+		b3Sphere sphere = { b3Vec3_zero, m_radius };
+		b3CreateSphereShape( m_bodyId, &shapeDef, &sphere );
+
+		m_buildStep = m_stepCount;
+		m_sleepStep = -1;
+		m_maxManifoldCount = 0;
+		m_maxOffset = 0.0f;
+		m_maxSpeed = 0.0f;
+	}
+
+	bool DrawControls() override
+	{
+		bool rebuild = false;
+
+		if ( ImGui::RadioButton( "320 triangles", m_subdivisions == 2 ) )
+		{
+			m_subdivisions = 2;
+			rebuild = true;
+		}
+
+		if ( ImGui::RadioButton( "1280 triangles", m_subdivisions == 3 ) )
+		{
+			m_subdivisions = 3;
+			rebuild = true;
+		}
+
+		if ( ImGui::RadioButton( "5120 triangles", m_subdivisions == 4 ) )
+		{
+			m_subdivisions = 4;
+			rebuild = true;
+		}
+
+		// Positive is a sphere larger than the cavity
+		ImGui::SliderFloat( "Fit (mm)", &m_fit, -20.0f, 20.0f, "%.0f" );
+		rebuild = rebuild || ImGui::IsItemDeactivatedAfterEdit();
+
+		if ( ImGui::Button( "Reset" ) )
+		{
+			rebuild = true;
+		}
+
+		if ( rebuild )
+		{
+			Build();
+		}
+
+		if ( ImGui::Button( "Kick" ) )
+		{
+			b3Body_SetLinearVelocity( m_bodyId, { 6.0f, 7.0f, 3.9f } );
+			b3Body_SetAwake( m_bodyId, true );
+			m_sleepStep = -1;
+		}
+
+		return true;
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		int manifoldCount = 0;
+		b3ContactData contactData;
+		if ( b3Body_GetContactData( m_bodyId, &contactData, 1 ) == 1 )
+		{
+			manifoldCount = contactData.manifoldCount;
+		}
+
+		// Surface speed counts spin
+		b3Vec3 v = b3Body_GetLinearVelocity( m_bodyId );
+		b3Vec3 w = b3Body_GetAngularVelocity( m_bodyId );
+		float speed = b3Length( v ) + m_radius * b3Length( w );
+		float offset = b3Length( b3SubPos( b3Body_GetPosition( m_bodyId ), b3Pos_zero ) );
+		bool awake = b3Body_IsAwake( m_bodyId );
+
+		m_maxManifoldCount = b3MaxInt( m_maxManifoldCount, manifoldCount );
+		m_maxOffset = b3MaxFloat( m_maxOffset, offset );
+		m_maxSpeed = b3MaxFloat( m_maxSpeed, speed );
+
+		if ( awake )
+		{
+			m_sleepStep = -1;
+		}
+		else if ( m_sleepStep < 0 )
+		{
+			m_sleepStep = m_stepCount - m_buildStep;
+		}
+
+		DrawTextLine( "triangles = %d, sphere radius = %.4f m, cavity radius = %.4f m", m_triangleCount, m_radius,
+					  m_inscribedRadius );
+		DrawTextLine( "manifolds = %d, max %d", manifoldCount, m_maxManifoldCount );
+		DrawTextLine( "speed = %.3f m/s, max %.3f", speed, m_maxSpeed );
+		DrawTextLine( "center offset = %.1f mm, max %.1f", 1000.0f * offset, 1000.0f * m_maxOffset );
+
+		if ( awake )
+		{
+			DrawTextLine( "awake for %d steps", m_stepCount - m_buildStep );
+		}
+		else
+		{
+			DrawTextLine( "asleep after %d steps", m_sleepStep );
+		}
+
+		// The center cannot leave the cavity unless the sphere tunnels
+		if ( m_maxOffset > m_inscribedRadius )
+		{
+			DrawTextLine( "FAIL: tunneled" );
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new WedgedSphere( context );
+	}
+
+	b3MeshData* m_mesh;
+	b3BodyId m_groundId;
+	b3BodyId m_bodyId;
+	int m_subdivisions;
+	int m_triangleCount;
+	int m_buildStep;
+	int m_sleepStep;
+	int m_maxManifoldCount;
+	float m_fit;
+	float m_radius;
+	float m_inscribedRadius;
+	float m_maxOffset;
+	float m_maxSpeed;
+};
+
+static int sampleWedgedSphere = RegisterSample( "Mesh", "Wedged Sphere", WedgedSphere::Create );

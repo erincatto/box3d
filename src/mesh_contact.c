@@ -1154,8 +1154,8 @@ static void b3CollideBoundaryEdge( b3LocalManifold* manifold, const b3Shape* sha
 
 static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shapeA, const b3Shape* shapeB,
 								   b3Transform transformAtoB, b3TriangleCache* triangleCaches, int triangleCount,
-								   bool enableSpeculative, bool handleGhosts, bool isFast, b3TaskContext* context,
-								   b3Arena* arena )
+								   bool enableSpeculative, bool handleGhosts, bool isFast, int manifoldCapacity,
+								   b3TaskContext* context, b3Arena* arena )
 {
 	*clustersOut = NULL;
 
@@ -1647,6 +1647,100 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 		return 0;
 	}
 
+	if ( clusterCount > manifoldCapacity )
+	{
+		float* clusterSeparations = b3Bump( arena, clusterCount * sizeof( float ) );
+		int* clusterRemap = b3Bump( arena, clusterCount * sizeof( int ) );
+		for ( int i = 0; i < clusterCount; ++i )
+		{
+			clusterSeparations[i] = FLT_MAX;
+			clusterRemap[i] = B3_NULL_INDEX;
+		}
+
+		// Compute cluster separations.
+		for ( int i = 0; i < acceptedManifoldCount; ++i )
+		{
+			const b3LocalManifold* manifold = acceptedManifolds[i];
+			int clusterIndex = clusterMemberships[i];
+			for ( int j = 0; j < manifold->pointCount; ++j )
+			{
+				clusterSeparations[clusterIndex] = b3MinFloat( clusterSeparations[clusterIndex], manifold->points[j].separation );
+			}
+		}
+
+		int keptCount = 0;
+
+		// If there are 8 or more manifolds then find the best per octant region.
+		if ( manifoldCapacity >= 8 )
+		{
+			int octantClusters[8] = { B3_NULL_INDEX, B3_NULL_INDEX, B3_NULL_INDEX, B3_NULL_INDEX,
+									  B3_NULL_INDEX, B3_NULL_INDEX, B3_NULL_INDEX, B3_NULL_INDEX };
+			for ( int i = 0; i < clusterCount; ++i )
+			{
+				b3Vec3 normal = b3InvRotateVector( transformAtoB.q, clusters[i].manifoldNormal );
+				int octant = ( normal.x > 0.0f ? 1 : 0 ) | ( normal.y > 0.0f ? 2 : 0 ) | ( normal.z > 0.0f ? 4 : 0 );
+				int best = octantClusters[octant];
+				if ( best == B3_NULL_INDEX || clusterSeparations[i] < clusterSeparations[best] )
+				{
+					octantClusters[octant] = i;
+				}
+			}
+
+			for ( int i = 0; i < 8; ++i )
+			{
+				if ( octantClusters[i] != B3_NULL_INDEX )
+				{
+					// This cluster wins the octant.
+					clusterRemap[octantClusters[i]] = 0;
+					keptCount += 1;
+				}
+			}
+		}
+
+		// If the octant culling left some capacity then find the deepest remaining clusters.
+		while ( keptCount < manifoldCapacity )
+		{
+			int best = B3_NULL_INDEX;
+			for ( int i = 0; i < clusterCount; ++i )
+			{
+				if ( clusterRemap[i] != B3_NULL_INDEX )
+				{
+					continue;
+				}
+
+				if ( best == B3_NULL_INDEX || clusterSeparations[i] < clusterSeparations[best] )
+				{
+					best = i;
+				}
+			}
+
+			B3_ASSERT( best != B3_NULL_INDEX );
+
+			// This cluster wins the separation test.
+			clusterRemap[best] = 0;
+			keptCount += 1;
+		}
+
+		// Remap the winning clusters.
+		keptCount = 0;
+		for ( int i = 0; i < clusterCount; ++i )
+		{
+			if ( clusterRemap[i] != B3_NULL_INDEX )
+			{
+				clusters[keptCount] = clusters[i];
+				clusterRemap[i] = keptCount;
+				keptCount += 1;
+			}
+		}
+
+		for ( int i = 0; i < acceptedManifoldCount; ++i )
+		{
+			clusterMemberships[i] = clusterRemap[clusterMemberships[i]];
+		}
+
+		clusterCount = keptCount;
+	}
+
 	// Setup clusters
 	b3LocalManifoldPoint* clusterPoints = b3Bump( arena, clusterPointCount * sizeof( b3LocalManifoldPoint ) );
 	int pointOffset = 0;
@@ -1718,7 +1812,8 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 	b3Cluster* clusters;
 	int clusterCount = b3CollideMeshTriangles( &clusters, shapeA, shapeB, transformAtoB,
 											   meshContact->triangleCache.data, meshContact->triangleCache.count,
-											   enableSpeculative, handleGhosts, isFast, context, &arena );
+											   enableSpeculative, handleGhosts, isFast, B3_MAX_MANIFOLDS, context,
+											   &arena );
 
 	if ( clusterCount == 0 )
 	{
@@ -1985,8 +2080,10 @@ static int b3CollideMeshAndShape( b3Manifold* manifolds, int capacity, const b3M
 	b3Transform transformAtoB = b3InvertTransform( transformBtoA );
 
 	b3Cluster* clusters;
+	int manifoldCapacity = b3MinInt( capacity, B3_MAX_MANIFOLDS );
 	int clusterCount = b3CollideMeshTriangles( &clusters, &meshShape, shapeB, transformAtoB, triangleCaches,
-											   triangleCount, enableSpeculative, handleGhosts, false, NULL, &arena );
+											   triangleCount, enableSpeculative, handleGhosts, false, manifoldCapacity,
+											   NULL, &arena );
 
 	int count = b3MinInt( clusterCount, capacity );
 	b3Matrix3 matrixB = b3MakeMatrixFromQuat( transformBtoA.q );
