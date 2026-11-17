@@ -76,11 +76,11 @@ typedef struct Soak
 
 	int completedCount;
 	int failureCount;
-	int totalSteps;
+	int64_t totalSteps;
 	int maxSteps;
 
 	// Mesh contact updates by manifold count, rough wave only
-	int manifoldCounts[B3_MAX_MANIFOLDS];
+	int64_t manifoldCounts[B3_MAX_MANIFOLDS];
 
 	ShapeStats stats[e_meshDropShapeCount];
 	Failure failures[MAX_REPORTED_FAILURES];
@@ -105,7 +105,7 @@ static void RecordFailure( Soak* soak, const Failure* failure )
 
 // Mirrors MeshDrop::Generate and the auto generate step loop. Returns the step count.
 static int RunGeneration( Soak* soak, int generation, uint32_t seed, MeshDropShape shape, b3BodyId* bodies,
-						  MeshDropDepth* depth, int* failureKind, long long* manifoldCounts )
+						  MeshDropDepth* depth, int* failureKind, int64_t* manifoldCounts )
 {
 	b3WorldDef worldDef = b3DefaultWorldDef();
 	worldDef.workerCount = 1;
@@ -218,7 +218,7 @@ static void SoakWorker( void* context )
 			soak->shapeFilter >= 0 ? (MeshDropShape)soak->shapeFilter : (MeshDropShape)( generation % e_meshDropShapeCount );
 
 		int failureKind = -1;
-		long long manifoldCounts[B3_MAX_MANIFOLDS] = { 0 };
+		int64_t manifoldCounts[B3_MAX_MANIFOLDS] = { 0 };
 		int steps = RunGeneration( soak, generation, seed, shape, bodies, depth, &failureKind, manifoldCounts );
 
 		int depthCounts[MESH_DROP_DEPTH_LEVEL_COUNT];
@@ -684,7 +684,7 @@ int main( int argc, char** argv )
 
 	if ( settings.rough )
 	{
-		long long total = 0;
+		int64_t total = 0;
 		for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
 		{
 			total += soak.manifoldCounts[i];
