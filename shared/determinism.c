@@ -396,3 +396,131 @@ void DestroyQuerySpawn( QuerySpawnData* data )
 {
 	(void)data;
 }
+
+FallingHingeData CreateFallingHinges( b3WorldId worldId )
+{
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = (b3Pos){ 0.0f, -1.0f, 0.0f };
+		b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+
+		b3BoxHull box = b3MakeBoxHull( 40.0f, 1.0f, 40.0f );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		b3CreateHullShape( groundId, &shapeDef, &box.base );
+	}
+
+	int columnCount = 4;
+	int rowCount = 20;
+	int bodyCount = rowCount * columnCount;
+
+	b3BodyId* bodyIds = calloc( bodyCount, sizeof( b3BodyId ) );
+
+	float h = 0.25f;
+	b3BoxHull box = b3MakeBoxHull( h, h, h );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+	b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
+	jointDef.enableLimit = true;
+	jointDef.lowerAngle = -0.1f * B3_PI;
+	jointDef.upperAngle = 0.2f * B3_PI;
+	jointDef.enableSpring = true;
+	jointDef.hertz = 1.0f;
+	jointDef.dampingRatio = 1.0f;
+	jointDef.enableMotor = true;
+	jointDef.maxMotorTorque = 0.25f;
+	jointDef.base.localFrameA.p = (b3Vec3){ -h, h, 0.0f };
+	jointDef.base.localFrameB.p = (b3Vec3){ -h, -h, 0.0f };
+	jointDef.base.constraintHertz = 60.0f;
+	jointDef.base.constraintDampingRatio = 0.0f;
+	jointDef.base.drawScale = 0.5f;
+
+	int bodyIndex = 0;
+	float offset = 0.4f * h;
+	float dx = 10.0f * h;
+	float xBase = -0.5f * dx * ( columnCount - 1.0f );
+
+	for ( int j = 0; j < columnCount; ++j )
+	{
+		float x = xBase + j * dx;
+
+		b3BodyId prevBodyId = b3_nullBodyId;
+
+		for ( int i = 0; i < rowCount; ++i )
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+
+			bodyDef.position.x = x + offset * i;
+			bodyDef.position.y = h + 2.0f * h * i;
+
+			// this tests the deterministic cosine and sine functions
+			float angle = ( i & 1 ) == 0 ? -0.1f : 0.1f;
+			bodyDef.rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, angle );
+
+			b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+			if ( ( i & 1 ) == 0 )
+			{
+				prevBodyId = bodyId;
+			}
+			else
+			{
+				jointDef.base.bodyIdA = prevBodyId;
+				jointDef.base.bodyIdB = bodyId;
+				b3CreateRevoluteJoint( worldId, &jointDef );
+				prevBodyId = b3_nullBodyId;
+			}
+
+			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+			assert( bodyIndex < bodyCount );
+			bodyIds[bodyIndex] = bodyId;
+
+			bodyIndex += 1;
+		}
+	}
+
+	assert( bodyIndex == bodyCount );
+
+	FallingHingeData data = {
+		.bodyIds = bodyIds,
+		.bodyCount = bodyCount,
+		.stepCount = 0,
+		.sleepStep = -1,
+		.hash = 0,
+	};
+	return data;
+}
+
+bool UpdateFallingHinges( b3WorldId worldId, FallingHingeData* data )
+{
+	if ( data->hash == 0 )
+	{
+		b3BodyEvents bodyEvents = b3World_GetBodyEvents( worldId );
+
+		if ( bodyEvents.moveCount == 0 )
+		{
+			assert( b3World_GetAwakeBodyCount( worldId ) == 0 );
+
+			data->hash = B3_HASH_INIT;
+			for ( int i = 0; i < data->bodyCount; ++i )
+			{
+				b3WorldTransform transform = b3Body_GetTransform( data->bodyIds[i] );
+				data->hash = b3Hash( data->hash, (uint8_t*)( &transform ), sizeof( b3WorldTransform ) );
+			}
+
+			data->sleepStep = data->stepCount;
+		}
+	}
+
+	data->stepCount += 1;
+
+	return data->hash != 0;
+}
+
+void DestroyFallingHinges( FallingHingeData* data )
+{
+	free( data->bodyIds );
+	data->bodyIds = NULL;
+}

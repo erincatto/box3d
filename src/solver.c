@@ -55,13 +55,6 @@ static void b3Pause( void )
 }
 #endif
 
-typedef struct b3WorkerContext
-{
-	b3StepContext* context;
-	int workerIndex;
-	void* userTask;
-} b3WorkerContext;
-
 // Integrate velocities, apply damping, and gyroscopic torque
 static void b3IntegrateVelocitiesTask( b3SolverBlock block, b3StepContext* context )
 {
@@ -1103,7 +1096,12 @@ static void b3ExecuteStage( b3SolverStage* stage, b3StepContext* context, int pr
 	int startIndex = GetWorkerStartIndex( workerIndex, blockCount, context->workerCount );
 	if ( startIndex == B3_NULL_INDEX )
 	{
-		return;
+		if ( workerIndex != context->orchestratorIndex )
+		{
+			return;
+		}
+
+		startIndex = 0;
 	}
 
 	B3_ASSERT( 0 <= startIndex && startIndex < blockCount );
@@ -1131,7 +1129,7 @@ static void b3ExecuteStage( b3SolverStage* stage, b3StepContext* context, int pr
 	(void)b3AtomicFetchAddInt( &stage->completionCount, completedCount );
 }
 
-// Execute a stage on worker 0 (main thread).
+// Execute a stage on the orchestrator, whichever solver task claimed that role.
 static void b3ExecuteMainStage( b3SolverStage* stage, b3StepContext* context, uint32_t syncBits )
 {
 	int blockCount = stage->blockCount;
@@ -1140,7 +1138,7 @@ static void b3ExecuteMainStage( b3SolverStage* stage, b3StepContext* context, ui
 		return;
 	}
 
-	const int workerIndex = 0;
+	int workerIndex = context->orchestratorIndex;
 
 	if ( blockCount == 1 )
 	{
@@ -1176,19 +1174,11 @@ static void b3SolverTask( void* taskContext )
 	b3SolverStage* stages = context->stages;
 	b3Profile* profile = &context->world->profile;
 
-	if ( workerIndex == 0 )
+	if ( b3AtomicCompareExchangeInt( &context->orchestratorClaimed, 0, 1 ) )
 	{
-		// The orchestrator slot is a race. The calling thread of b3World_Step also enters here
-		// as worker 0, so progress is guaranteed even if the user's task system schedules tasks
-		// out of order, has fewer threads than workerCount, or runs the task synchronously
-		// inside enqueueTaskFcn. Whoever wins the CAS becomes the orchestrator; the loser
-		// returns and lets the spinner-only path handle workers >0.
-		if ( b3AtomicCompareExchangeInt( &context->mainClaimed, 0, 1 ) == false )
-		{
-			return;
-		}
+		context->orchestratorIndex = workerIndex;
 
-		// Main thread synchronizes the workers and does work itself.
+		// The orchestrator synchronizes the workers and does work itself.
 		//
 		// This needs to be a task for the main thread because the user's task system may execute
 		// the tasks serially and this is the first task. This single task is able to fully
@@ -1450,7 +1440,7 @@ static void b3BulletBodyTask( int startIndex, int endIndex, int workerIndex, voi
 }
 
 // Solve with graph coloring
-void b3Solve( b3World* world, b3StepContext* stepContext )
+bool b3BeginSolve( b3World* world, b3StepContext* stepContext )
 {
 	int simdShift = world->simdWidth == 8 ? 3 : 2;
 
@@ -1461,8 +1451,10 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 	int awakeBodyCount = awakeSet->bodySims.count;
 	if ( awakeBodyCount == 0 )
 	{
-		return;
+		return false;
 	}
+
+	stepContext->awakeBodyCount = awakeBodyCount;
 
 	// Solve constraints using graph coloring
 	{
@@ -1671,9 +1663,9 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		// Build the span table for the flat prepare/store parallel-for while I slice the
 		// wide constraint buffer across colors. One entry per active color plus a sentinel
 		// at wideContactCount.
-		b3WidePrepareSpan widePrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
-		b3MeshPrepareSpan meshPrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
-		b3JointPrepareSpan jointPrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
+		b3WidePrepareSpan* widePrepareSpans = stepContext->widePrepareSpans;
+		b3MeshPrepareSpan* meshPrepareSpans = stepContext->meshPrepareSpans;
+		b3JointPrepareSpan* jointPrepareSpans = stepContext->jointPrepareSpans;
 
 		// Distribute transient constraints to each graph color and prepare spans
 		{
@@ -1754,7 +1746,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		}
 
 		//// Special span for overflow to allow for function re-use
-		b3ContactPrepareSpan overflowSpans[2] = { 0 };
+		b3ContactPrepareSpan* overflowSpans = stepContext->overflowSpans;
 		overflowSpans[0].start = 0;
 		overflowSpans[0].count = overflow->contacts.count;
 		overflowSpans[0].contacts = overflow->contacts.data;
@@ -1794,27 +1786,6 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		b3SyncBlock* meshBlocks = b3StackAlloc( &world->stack, meshPrepareDim.count * sizeof( b3SyncBlock ), "mesh blocks" );
 		b3SyncBlock* jointBlocks = b3StackAlloc( &world->stack, jointPrepareDim.count * sizeof( b3SyncBlock ), "joint blocks" );
 		b3SyncBlock* graphBlocks = b3StackAlloc( &world->stack, graphBlockCount * sizeof( b3SyncBlock ), "graph blocks" );
-
-		// Split an awake island. This modifies:
-		// - stack allocator
-		// - world island array and solver set
-		// - island indices on bodies, contacts, and joints
-		// I'm squeezing this task in here because it may be expensive and this is a safe place to put it.
-		// Note: cannot split islands in parallel with FinalizeBodies
-		void* splitIslandTask = NULL;
-		if ( world->splitIslandId != B3_NULL_INDEX )
-		{
-			if ( world->taskCount < B3_MAX_TASKS )
-			{
-				splitIslandTask = world->enqueueTaskFcn( &b3SplitIslandTask, world, world->userTaskContext, "split" );
-				world->taskCount += 1;
-				world->activeTaskCount += splitIslandTask == NULL ? 0 : 1;
-			}
-			else
-			{
-				b3SplitIslandTask( world );
-			}
-		}
 
 		// Prepare body blocks
 		b3InitBlocks( bodyBlocks, bodyDim, awakeBodyCount, b3_bodyBlock, UINT8_MAX );
@@ -1869,29 +1840,30 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 		B3_ASSERT( (int)( stage - stages ) == stageCount );
 
 		B3_ASSERT( workerCount <= B3_MAX_WORKERS );
-		b3WorkerContext workerContext[B3_MAX_WORKERS];
 
 		stepContext->graph = graph;
 		stepContext->activeColorCount = activeColorCount;
 		stepContext->workerCount = workerCount;
 		stepContext->stageCount = stageCount;
 		stepContext->stages = stages;
+		stepContext->bodyBlocks = bodyBlocks;
+		stepContext->convexBlocks = convexBlocks;
+		stepContext->meshBlocks = meshBlocks;
+		stepContext->jointBlocks = jointBlocks;
+		stepContext->graphBlocks = graphBlocks;
 		stepContext->wideConstraints = wideConstraints;
-		stepContext->widePrepareSpans = widePrepareSpans;
 		stepContext->wideContactCount = wideContactCount;
-		stepContext->overflowSpans = overflowSpans;
 		stepContext->wideMeshConstraints = wideMeshConstraints;
 		stepContext->wideMeshManifoldStarts = meshManifoldStarts;
-		stepContext->meshPrepareSpans = meshPrepareSpans;
-		stepContext->jointPrepareSpans = jointPrepareSpans;
+		stepContext->meshLaneOrder = meshLaneOrder;
+		stepContext->orchestratorIndex = B3_NULL_INDEX;
 		b3AtomicStoreU32( &stepContext->atomicSyncBits, 0 );
-		b3AtomicStoreInt( &stepContext->mainClaimed, 0 );
+		b3AtomicStoreInt( &stepContext->orchestratorClaimed, 0 );
 
 		world->profile.solverSetup = b3GetMillisecondsAndReset( &setupTicks );
 		b3TracyCZoneEnd( solver_setup );
 
-		b3TracyCZoneNC( solve_constraints, "Solve Constraints", b3_colorIndigo, true );
-		uint64_t constraintTicks = b3GetTicks();
+		stepContext->constraintTicks = b3GetTicks();
 
 		int jointIdCapacity = b3GetIdCapacity( &world->jointIdPool );
 		int contactIdCapacity = b3GetIdCapacity( &world->contactIdPool );
@@ -1901,101 +1873,90 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			b3SetBitCountAndClear( &taskContext->jointStateBitSet, jointIdCapacity );
 			b3SetBitCountAndClear( &taskContext->hitEventBitSet, contactIdCapacity );
 			taskContext->hasHitEvents = false;
-
-			workerContext[i].context = stepContext;
-			workerContext[i].workerIndex = i;
-
-			if ( world->taskCount < B3_MAX_TASKS )
-			{
-				char buffer[16];
-				snprintf( buffer, sizeof( buffer ), "solve[%d]", i );
-				workerContext[i].userTask =
-					world->enqueueTaskFcn( &b3SolverTask, workerContext + i, world->userTaskContext, buffer );
-				world->taskCount += 1;
-				world->activeTaskCount += workerContext[i].userTask == NULL ? 0 : 1;
-			}
-			else
-			{
-				workerContext[i].userTask = NULL;
-				b3SolverTask( workerContext + i );
-			}
 		}
 
-		// The calling thread of b3World_Step also enters b3SolverTask as worker 0 and races for the
-		// orchestrator slot via the CAS inside. This guarantees progress even when the user's task
-		// system can't run the queued worker 0 promptly: it might schedule out of order, have fewer
-		// threads than workerCount, or invert priority by parking the calling thread in finishTaskFcn.
-		// Whoever wins the CAS becomes the orchestrator; the loser returns and lets the spinner-only
-		// path handle workers >0.
-		b3WorkerContext callerContext = { stepContext, 0, NULL };
-		b3SolverTask( &callerContext );
+		// Split an awake island. This modifies:
+		// - stack allocator
+		// - world island array and solver set
+		// - island indices on bodies, contacts, and joints
+		// I'm squeezing this task in here because it may be expensive and this is a safe place to put it.
+		// Note: cannot split islands in parallel with FinalizeBodies
+		if ( world->splitIslandId != B3_NULL_INDEX )
+		{
+			b3AddTask( stepContext, b3_taskIslandSplit, &b3SplitIslandTask, world );
+		}
 
-		// Finish constraint solve
 		for ( int i = 0; i < workerCount; ++i )
 		{
-			if ( workerContext[i].userTask != NULL )
-			{
-				world->finishTaskFcn( workerContext[i].userTask, world->userTaskContext );
-				world->activeTaskCount -= 1;
-			}
+			b3WorkerContext* workerContext = stepContext->workerContexts + i;
+			workerContext->context = stepContext;
+			workerContext->workerIndex = i;
+
+			b3AddTask( stepContext, b3_taskSolver, &b3SolverTask, workerContext );
 		}
-
-		// Finish island split
-		if ( splitIslandTask != NULL )
-		{
-			world->finishTaskFcn( splitIslandTask, world->userTaskContext );
-			world->activeTaskCount -= 1;
-		}
-		world->splitIslandId = B3_NULL_INDEX;
-
-		world->profile.constraints = b3GetMillisecondsAndReset( &constraintTicks );
-		b3TracyCZoneEnd( solve_constraints );
-
-		b3TracyCZoneNC( update_transforms, "Update Transforms", b3_colorMediumSeaGreen, true );
-		uint64_t transformTicks = b3GetTicks();
-
-		// Prepare the island bit set used in body finalization.
-		int awakeIslandCount = awakeSet->islandSims.count;
-		for ( int i = 0; i < world->workerCount; ++i )
-		{
-			b3TaskContext* taskContext = world->taskContexts.data + i;
-			b3Array_Clear( taskContext->sensorHits );
-			b3SetBitCountAndClear( &taskContext->awakeIslandBitSet, awakeIslandCount );
-			taskContext->splitIslandId = B3_NULL_INDEX;
-			taskContext->splitSleepTime = 0.0f;
-		}
-
-		// Finish the user tree task that was queued earlier in the time step. This must be complete before touching the
-		// broad-phase.
-		if ( world->userTreeTask != NULL )
-		{
-			world->finishTaskFcn( world->userTreeTask, world->userTaskContext );
-			world->userTreeTask = NULL;
-			world->activeTaskCount -= 1;
-		}
-
-		b3ValidateNoMoved( &world->broadPhase );
-
-		// Finalize bodies. Must happen after the constraint solver and after island splitting.
-		b3ParallelFor( world, &b3FinalizeBodiesTask, awakeBodyCount, 8, stepContext, "ccd" );
-
-		// Free in reverse order
-		b3StackFree( &world->stack, graphBlocks );
-		b3StackFree( &world->stack, jointBlocks );
-		b3StackFree( &world->stack, meshBlocks );
-		b3StackFree( &world->stack, convexBlocks );
-		b3StackFree( &world->stack, bodyBlocks );
-		b3StackFree( &world->stack, stages );
-		b3StackFree( &world->stack, overflow->manifoldConstraints );
-		b3StackFree( &world->stack, overflow->contactConstraints );
-		b3StackFree( &world->stack, wideMeshConstraints );
-		b3StackFree( &world->stack, meshManifoldStarts );
-		b3StackFree( &world->stack, meshLaneOrder );
-		b3StackFree( &world->stack, wideConstraints );
-
-		world->profile.transforms = b3GetMilliseconds( transformTicks );
-		b3TracyCZoneEnd( update_transforms );
 	}
+
+	return true;
+}
+
+void b3BeginFinalize( b3World* world, b3StepContext* stepContext )
+{
+	world->splitIslandId = B3_NULL_INDEX;
+	world->profile.constraints = b3GetMilliseconds( stepContext->constraintTicks );
+
+	stepContext->transformTicks = b3GetTicks();
+
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
+	int awakeBodyCount = stepContext->awakeBodyCount;
+	B3_ASSERT( awakeBodyCount == awakeSet->bodySims.count );
+
+	// Prepare the island bit set used in body finalization.
+	int awakeIslandCount = awakeSet->islandSims.count;
+	for ( int i = 0; i < world->workerCount; ++i )
+	{
+		b3TaskContext* taskContext = world->taskContexts.data + i;
+		b3Array_Clear( taskContext->sensorHits );
+		b3SetBitCountAndClear( &taskContext->awakeIslandBitSet, awakeIslandCount );
+		taskContext->splitIslandId = B3_NULL_INDEX;
+		taskContext->splitSleepTime = 0.0f;
+	}
+
+	b3ValidateNoMoved( &world->broadPhase );
+
+	// Finalize bodies. Must happen after the constraint solver and after island splitting.
+	b3StageParallelFor( world, b3_taskFinalize, &b3FinalizeBodiesTask, awakeBodyCount, 8, stepContext );
+}
+
+void b3BeginBullets( b3World* world, b3StepContext* stepContext )
+{
+	// Free in reverse order
+	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
+
+	b3StackFree( &world->stack, stepContext->graphBlocks );
+	b3StackFree( &world->stack, stepContext->jointBlocks );
+	b3StackFree( &world->stack, stepContext->meshBlocks );
+	b3StackFree( &world->stack, stepContext->convexBlocks );
+	b3StackFree( &world->stack, stepContext->bodyBlocks );
+	b3StackFree( &world->stack, stepContext->stages );
+	b3StackFree( &world->stack, overflow->manifoldConstraints );
+	b3StackFree( &world->stack, overflow->contactConstraints );
+	b3StackFree( &world->stack, stepContext->wideMeshConstraints );
+	b3StackFree( &world->stack, stepContext->wideMeshManifoldStarts );
+	b3StackFree( &world->stack, stepContext->meshLaneOrder );
+	b3StackFree( &world->stack, stepContext->wideConstraints );
+
+	stepContext->graphBlocks = NULL;
+	stepContext->jointBlocks = NULL;
+	stepContext->meshBlocks = NULL;
+	stepContext->convexBlocks = NULL;
+	stepContext->bodyBlocks = NULL;
+	stepContext->stages = NULL;
+	stepContext->wideMeshConstraints = NULL;
+	stepContext->wideMeshManifoldStarts = NULL;
+	stepContext->meshLaneOrder = NULL;
+	stepContext->wideConstraints = NULL;
+
+	world->profile.transforms = b3GetMilliseconds( stepContext->transformTicks );
 
 	// Report joint events
 	{
@@ -2180,13 +2141,23 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 	int bulletBodyCount = b3AtomicLoadInt( &stepContext->bulletBodyCount );
 	if ( bulletBodyCount > 0 )
 	{
-		b3TracyCZoneNC( bullets, "Bullets", b3_colorDarkGoldenRod, true );
-		uint64_t bulletTicks = b3GetTicks();
+		stepContext->bulletTicks = b3GetTicks();
 
 		// Fast bullet bodies
 		// Note: a bullet body may be moving slow
 		int minRange = 8;
-		b3ParallelFor( world, &b3BulletBodyTask, bulletBodyCount, minRange, stepContext, "bullets" );
+		b3StageParallelFor( world, b3_taskContinuous, &b3BulletBodyTask, bulletBodyCount, minRange, stepContext );
+	}
+}
+
+void b3EndBullets( b3World* world, b3StepContext* stepContext )
+{
+	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
+
+	int bulletBodyCount = b3AtomicLoadInt( &stepContext->bulletBodyCount );
+	if ( bulletBodyCount > 0 )
+	{
+		b3TracyCZoneNC( bullets, "Bullet Proxies", b3_colorDarkGoldenRod, true );
 
 		// Serially enlarge broad-phase proxies for bullet shapes
 		b3BroadPhase* broadPhase = &world->broadPhase;
@@ -2237,7 +2208,7 @@ void b3Solve( b3World* world, b3StepContext* stepContext )
 			}
 		}
 
-		world->profile.bullets = b3GetMilliseconds( bulletTicks );
+		world->profile.bullets = b3GetMilliseconds( stepContext->bulletTicks );
 		b3TracyCZoneEnd( bullets );
 	}
 

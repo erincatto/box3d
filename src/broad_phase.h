@@ -29,6 +29,8 @@ typedef struct b3BroadPhase
 	// The moved siblings gathered from the dynamic body tree.
 	int* movedSiblings;
 
+	struct b3CrossContext* crossContext;
+
 	// Tracks shape pairs that have a b3Contact
 	// todo pairSet can grow quite large on the first time step and remain large
 	b3HashSet pairSet;
@@ -45,7 +47,9 @@ void b3BroadPhase_MoveProxy( b3BroadPhase* bp, int proxyKey, b3AABB aabb );
 
 int b3BroadPhase_GetShapeIndex( b3BroadPhase* bp, int proxyKey );
 
-void b3UpdateBroadPhasePairs( b3World* world );
+bool b3BeginPairs( b3World* world );
+void b3StageSelfPairs( b3World* world );
+void b3EndPairs( b3World* world );
 bool b3BroadPhase_TestOverlap( const b3BroadPhase* bp, int proxyKeyA, int proxyKeyB );
 
 void b3ValidateBroadPhase( const b3BroadPhase* bp );

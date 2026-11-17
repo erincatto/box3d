@@ -37,11 +37,6 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 /// The compound barrel benchmark has minor overflow with 24 colors
 #define B3_GRAPH_COLOR_COUNT 24
 
-/// The maximum number of contact manifolds between shape pairs. Excess manifolds are dropped using heuristics until
-/// this number is reached. Culling can lead to contact dither across time steps. Contact recycling mitigates the
-/// dithering.
-#define B3_MAX_MANIFOLDS 8
-
 /// A small length used as a collision and constraint tolerance. Usually it is
 /// chosen to be numerically significant, but visually insignificant. In meters.
 /// @warning modifying this can have a significant impact on stability
@@ -102,6 +97,11 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 
 /// The maximum number of restitution iterations. Needed to avoid a solver overflow.
 #define B3_MAX_RESTITUTION_ITERATIONS 63
+
+/// The maximum number of contact manifolds between shape pairs. Excess manifolds are dropped using heuristics until
+/// this number is reached. Culling can lead to contact dither across time steps. Contact recycling mitigates the
+/// dithering.
+#define B3_MAX_MANIFOLDS 8
 
 /// The maximum number of contact points between two touching shapes.
 /// The default and minimum is 4 and this case uses a fast approximate hull to reduce the

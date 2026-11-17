@@ -7,6 +7,7 @@
 
 #include "box3d/base.h"
 #include "box3d/constants.h"
+#include "box3d/types.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -154,9 +155,9 @@ void b3ResetScheduler( b3Scheduler* scheduler )
 	b3AtomicStoreInt( &scheduler->nextSlot, 0 );
 }
 
-void* b3SchedulerEnqueueTask( b3TaskCallback* task, void* taskContext, void* userContext, const char* name )
+void* b3SchedulerEnqueueTask( b3TaskCallback* task, void* taskContext, void* userContext, b3TaskType taskType )
 {
-	B3_UNUSED( name );
+	B3_UNUSED( taskType );
 	b3Scheduler* scheduler = userContext;
 
 	int slot = b3AtomicFetchAddInt( &scheduler->nextSlot, 1 );

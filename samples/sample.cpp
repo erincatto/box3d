@@ -1071,7 +1071,7 @@ void Sample::DrawMetrics()
 			ImGui::SetItemTooltip( "current / max" );
 			ImGui::Text( "joints   %d", s.jointCount );
 			ImGui::Text( "islands  %d", s.islandCount );
-			ImGui::Text( "tasks    %d", s.taskCount );
+			ImGui::Text( "tasks    %d / %d", s.enqueueCount, s.taskCount );
 
 			ImGui::TableNextColumn();
 			ImGui::Text( "static tree  %d", s.staticTreeHeight );
