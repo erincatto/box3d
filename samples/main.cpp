@@ -49,6 +49,7 @@ static SampleContext s_context;
 static int s_frame = 0;
 static int s_frameLimit = -1;
 static int s_sampleOverride = -1;
+static bool s_openReplay = false;
 static int s_exitCode = 0;
 
 static int CompareSamples( const void* a, const void* b )
@@ -133,6 +134,12 @@ static void OnInit( void )
 	if ( s_sampleOverride >= 0 && s_sampleOverride < g_sampleCount )
 	{
 		index = s_sampleOverride;
+	}
+
+	// Resolved here rather than at parse time because sorting moves the slot.
+	if ( s_openReplay && g_replayIndex >= 0 )
+	{
+		index = g_replayIndex;
 	}
 
 	SelectSample( &s_context, index, false );
@@ -535,11 +542,8 @@ static sapp_desc BuildAppDesc( int argc, char** argv )
 		{
 			const char* path = argv[++i];
 
-			if ( g_replayIndex >= 0 )
-			{
-				snprintf( s_context.replayFile, sizeof( s_context.replayFile ), "%s", path );
-				s_sampleOverride = g_replayIndex;
-			}
+			snprintf( s_context.replayFile, sizeof( s_context.replayFile ), "%s", path );
+			s_openReplay = true;
 		}
 		else if ( strcmp( argv[i], "--zup" ) == 0 )
 		{

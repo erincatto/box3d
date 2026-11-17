@@ -1043,8 +1043,9 @@ void Sample::DrawMetrics()
 
 	if ( ImGui::BeginTabItem( "Counters" ) )
 	{
-		b3Counters s = b3World_GetCounters( m_worldId );
-		b3Capacity c = b3World_GetMaxCapacity( m_worldId );
+		b3WorldId worldId = GetMetricsWorldId();
+		b3Counters s = b3World_GetCounters( worldId );
+		b3Capacity c = b3World_GetMaxCapacity( worldId );
 
 		constexpr int colorCount = sizeof( s.colorCounts ) / sizeof( s.colorCounts[0] );
 		constexpr int overflowIndex = colorCount - 1;
