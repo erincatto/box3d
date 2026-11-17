@@ -8,9 +8,19 @@
 #include <float.h>
 #include <math.h>
 
+#define WAVE_COUNT 40
 #define WAVE_CELL_WIDTH 1.0f
 #define WAVE_ROW_FREQUENCY 0.1f
 #define WAVE_COLUMN_FREQUENCY 0.2f
+#define WAVE_AMPLITUDE 0.5f
+
+// Bumps about 20 cm across, close to the curvature of the bodies, on cells a few times smaller. The cell
+// width is a power of two so the mesh builder steps to the same vertices the depth tracker computes.
+#define ROUGH_WAVE_COUNT 640
+#define ROUGH_CELL_WIDTH 0.03125f
+#define ROUGH_ROW_FREQUENCY 4.7f
+#define ROUGH_COLUMN_FREQUENCY 5.9f
+#define ROUGH_AMPLITUDE 0.015f
 #define DROP_SPACING 0.5f
 #define DROP_HEIGHT 5.0f
 #define BODY_RADIUS 0.05f
@@ -53,6 +63,27 @@ static uint32_t HashSeed( uint32_t x )
 	return x != 0 ? x : 1;
 }
 
+typedef struct WaveGrid
+{
+	int count;
+	float cellWidth;
+	float rowFrequency;
+	float columnFrequency;
+} WaveGrid;
+
+static WaveGrid GetWaveGrid( bool rough )
+{
+	_Static_assert( ROUGH_WAVE_COUNT <= MESH_DROP_MAX_WAVE_COUNT && WAVE_COUNT <= MESH_DROP_MAX_WAVE_COUNT,
+					"wave count exceeds the depth tracker tables" );
+
+	if ( rough )
+	{
+		return (WaveGrid){ ROUGH_WAVE_COUNT, ROUGH_CELL_WIDTH, ROUGH_ROW_FREQUENCY, ROUGH_COLUMN_FREQUENCY };
+	}
+
+	return (WaveGrid){ WAVE_COUNT, WAVE_CELL_WIDTH, WAVE_ROW_FREQUENCY, WAVE_COLUMN_FREQUENCY };
+}
+
 static b3BoxHull MakeDropBox( void )
 {
 	// The soft contact solver cannot always resolve a smaller box at 4 sub-steps, and its size gets
@@ -64,11 +95,17 @@ MeshDropSettings GetDefaultMeshDropSettings( void )
 {
 	MeshDropSettings settings = {
 		.shape = e_meshDropBox,
-		.amplitude = 0.5f,
+		.amplitude = WAVE_AMPLITUDE,
+		.rough = false,
 		.collide = false,
 		.soloIndex = -1,
 	};
 	return settings;
+}
+
+float GetMeshDropDefaultAmplitude( bool rough )
+{
+	return rough ? ROUGH_AMPLITUDE : WAVE_AMPLITUDE;
 }
 
 uint32_t GetMeshDropSeed( uint32_t baseSeed, int generation )
@@ -86,10 +123,11 @@ float GetMeshDropTunnelHeight( void )
 	return -2.0f;
 }
 
-b3MeshData* CreateMeshDropMesh( float amplitude )
+b3MeshData* CreateMeshDropMesh( MeshDropSettings settings )
 {
-	return b3CreateWaveMesh( MESH_DROP_WAVE_COUNT, MESH_DROP_WAVE_COUNT, WAVE_CELL_WIDTH, amplitude, WAVE_ROW_FREQUENCY,
-							 WAVE_COLUMN_FREQUENCY );
+	WaveGrid grid = GetWaveGrid( settings.rough );
+	return b3CreateWaveMesh( grid.count, grid.count, grid.cellWidth, settings.amplitude, grid.rowFrequency,
+							 grid.columnFrequency );
 }
 
 b3HullData* CreateMeshDropCylinder( void )
@@ -97,7 +135,7 @@ b3HullData* CreateMeshDropCylinder( void )
 	return b3CreateCylinder( 0.4f, BODY_RADIUS, 0.0f, 6 );
 }
 
-b3BodyId CreateMeshDropGround( b3WorldId worldId, const b3MeshData* mesh )
+b3BodyId CreateMeshDropGround( b3WorldId worldId, const b3MeshData* mesh, MeshDropSettings settings )
 {
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
@@ -106,7 +144,8 @@ b3BodyId CreateMeshDropGround( b3WorldId worldId, const b3MeshData* mesh )
 	shapeDef.filter.categoryBits = 1;
 	b3CreateMeshShape( groundId, &shapeDef, mesh, b3Vec3_one );
 
-	float extent = 0.5f * MESH_DROP_WAVE_COUNT * WAVE_CELL_WIDTH;
+	WaveGrid grid = GetWaveGrid( settings.rough );
+	float extent = 0.5f * grid.count * grid.cellWidth;
 	float halfHeight = 1.0f;
 
 	b3Transform transforms[4] = {
@@ -202,19 +241,18 @@ int GetMeshDropBodyIndex( void* userData )
 void ResetMeshDropDepth( MeshDropDepth* depth, MeshDropSettings settings, const b3HullData* cylinder )
 {
 	// Same heights as b3CreateWaveMesh
-	float omegaZ = 2.0f * B3_PI * WAVE_ROW_FREQUENCY * WAVE_CELL_WIDTH;
-	float omegaX = 2.0f * B3_PI * WAVE_COLUMN_FREQUENCY * WAVE_CELL_WIDTH;
-	int index = 0;
-	for ( int ix = 0; ix <= MESH_DROP_WAVE_COUNT; ++ix )
+	WaveGrid grid = GetWaveGrid( settings.rough );
+	float omegaZ = 2.0f * B3_PI * grid.rowFrequency * grid.cellWidth;
+	float omegaX = 2.0f * B3_PI * grid.columnFrequency * grid.cellWidth;
+	for ( int i = 0; i <= grid.count; ++i )
 	{
-		float rowHeight = b3ComputeCosSin( omegaX * ix ).sine;
-		for ( int iz = 0; iz <= MESH_DROP_WAVE_COUNT; ++iz )
-		{
-			float columnHeight = b3ComputeCosSin( omegaZ * iz ).sine;
-			depth->heights[index++] = settings.amplitude * rowHeight * columnHeight;
-		}
+		depth->rowHeights[i] = b3ComputeCosSin( omegaX * i ).sine;
+		depth->columnHeights[i] = b3ComputeCosSin( omegaZ * i ).sine;
 	}
 
+	depth->waveCount = grid.count;
+	depth->cellWidth = grid.cellWidth;
+	depth->waveAmplitude = settings.amplitude;
 	depth->amplitude = fabsf( settings.amplitude );
 	depth->probeCount = 0;
 	depth->radius = 0.0f;
@@ -272,20 +310,20 @@ void ResetMeshDropDepth( MeshDropDepth* depth, MeshDropSettings settings, const 
 // it reads a little deep on a crest and shallow in a valley.
 static float GetWaveDistance( const MeshDropDepth* depth, b3Vec3 p )
 {
-	float origin = -0.5f * MESH_DROP_WAVE_COUNT * WAVE_CELL_WIDTH;
-	float u = ( p.x - origin ) / WAVE_CELL_WIDTH;
-	float v = ( p.z - origin ) / WAVE_CELL_WIDTH;
-	int ix = b3ClampInt( (int)floorf( u ), 0, MESH_DROP_WAVE_COUNT - 1 );
-	int iz = b3ClampInt( (int)floorf( v ), 0, MESH_DROP_WAVE_COUNT - 1 );
+	float w = depth->cellWidth;
+	float origin = -0.5f * depth->waveCount * w;
+	float u = ( p.x - origin ) / w;
+	float v = ( p.z - origin ) / w;
+	int ix = b3ClampInt( (int)floorf( u ), 0, depth->waveCount - 1 );
+	int iz = b3ClampInt( (int)floorf( v ), 0, depth->waveCount - 1 );
 
-	int stride = MESH_DROP_WAVE_COUNT + 1;
-	float ha = depth->heights[ix * stride + iz];
-	float hb = depth->heights[ix * stride + iz + 1];
-	float hc = depth->heights[( ix + 1 ) * stride + iz + 1];
-	float hd = depth->heights[( ix + 1 ) * stride + iz];
+	float amplitude = depth->waveAmplitude;
+	float ha = amplitude * depth->rowHeights[ix] * depth->columnHeights[iz];
+	float hb = amplitude * depth->rowHeights[ix] * depth->columnHeights[iz + 1];
+	float hc = amplitude * depth->rowHeights[ix + 1] * depth->columnHeights[iz + 1];
+	float hd = amplitude * depth->rowHeights[ix + 1] * depth->columnHeights[iz];
 
 	// The cell diagonal runs from a to c, matching b3CreateWaveMesh
-	float w = WAVE_CELL_WIDTH;
 	b3Vec3 a = { origin + ix * w, ha, origin + iz * w };
 	b3Vec3 ac = { w, hc - ha, w };
 	b3Vec3 side = v - iz >= u - ix ? (b3Vec3){ 0.0f, hb - ha, w } : (b3Vec3){ w, hd - ha, 0.0f };
