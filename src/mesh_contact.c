@@ -1649,26 +1649,28 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 
 	if ( clusterCount > manifoldCapacity )
 	{
-		float* clusterDepths = b3Bump( arena, clusterCount * sizeof( float ) );
+		float* clusterSeparations = b3Bump( arena, clusterCount * sizeof( float ) );
 		int* clusterRemap = b3Bump( arena, clusterCount * sizeof( int ) );
 		for ( int i = 0; i < clusterCount; ++i )
 		{
-			clusterDepths[i] = FLT_MAX;
+			clusterSeparations[i] = FLT_MAX;
 			clusterRemap[i] = B3_NULL_INDEX;
 		}
 
+		// Compute cluster separations.
 		for ( int i = 0; i < acceptedManifoldCount; ++i )
 		{
 			const b3LocalManifold* manifold = acceptedManifolds[i];
 			int clusterIndex = clusterMemberships[i];
 			for ( int j = 0; j < manifold->pointCount; ++j )
 			{
-				clusterDepths[clusterIndex] = b3MinFloat( clusterDepths[clusterIndex], manifold->points[j].separation );
+				clusterSeparations[clusterIndex] = b3MinFloat( clusterSeparations[clusterIndex], manifold->points[j].separation );
 			}
 		}
 
 		int keptCount = 0;
 
+		// If there are more than 8 manifolds then find the best per octant region.
 		if ( manifoldCapacity >= 8 )
 		{
 			int octantClusters[8] = { B3_NULL_INDEX, B3_NULL_INDEX, B3_NULL_INDEX, B3_NULL_INDEX,
@@ -1678,7 +1680,7 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 				b3Vec3 normal = b3InvRotateVector( transformAtoB.q, clusters[i].manifoldNormal );
 				int octant = ( normal.x > 0.0f ? 1 : 0 ) | ( normal.y > 0.0f ? 2 : 0 ) | ( normal.z > 0.0f ? 4 : 0 );
 				int best = octantClusters[octant];
-				if ( best == B3_NULL_INDEX || clusterDepths[i] < clusterDepths[best] )
+				if ( best == B3_NULL_INDEX || clusterSeparations[i] < clusterSeparations[best] )
 				{
 					octantClusters[octant] = i;
 				}
@@ -1688,12 +1690,14 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 			{
 				if ( octantClusters[i] != B3_NULL_INDEX )
 				{
+					// This cluster wins the octant.
 					clusterRemap[octantClusters[i]] = 0;
 					keptCount += 1;
 				}
 			}
 		}
 
+		// If the octant culling left some capacity then find the deepest remaining clusters.
 		while ( keptCount < manifoldCapacity )
 		{
 			int best = B3_NULL_INDEX;
@@ -1704,17 +1708,20 @@ static int b3CollideMeshTriangles( b3Cluster** clustersOut, const b3Shape* shape
 					continue;
 				}
 
-				if ( best == B3_NULL_INDEX || clusterDepths[i] < clusterDepths[best] )
+				if ( best == B3_NULL_INDEX || clusterSeparations[i] < clusterSeparations[best] )
 				{
 					best = i;
 				}
 			}
 
 			B3_ASSERT( best != B3_NULL_INDEX );
+
+			// This cluster wins the separation test.
 			clusterRemap[best] = 0;
 			keptCount += 1;
 		}
 
+		// Remap the winning clusters.
 		keptCount = 0;
 		for ( int i = 0; i < clusterCount; ++i )
 		{
