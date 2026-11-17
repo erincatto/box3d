@@ -37,8 +37,9 @@ B3_API float b3GetLengthUnitsPerMeter( void );
 /// The compound barrel benchmark has minor overflow with 24 colors
 #define B3_GRAPH_COLOR_COUNT 24
 
-/// The maximum number of contact manifolds between shape pairs. Extra manifolds are
-/// dropped using heuristics until this number is reached.
+/// The maximum number of contact manifolds between shape pairs. Excess manifolds are dropped using heuristics until
+/// this number is reached. Culling can lead to contact dither across time steps. Contact recycling mitigates the
+/// dithering.
 #define B3_MAX_MANIFOLDS 8
 
 /// A small length used as a collision and constraint tolerance. Usually it is
