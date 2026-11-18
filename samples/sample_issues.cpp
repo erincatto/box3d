@@ -3093,3 +3093,73 @@ public:
 };
 
 static int sampleStaticLoad = RegisterSample( "Issues", "Static Load", StaticLoad::Create );
+
+class TranslationLockedPlatform : public Sample
+{
+public:
+	explicit TranslationLockedPlatform( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 10.0f, 10.0f, { 0.0f, 0.5f, 0.0f } );
+		}
+
+		context->hertz = 50.0f;
+		context->subStepCount = 4;
+		b3World_SetGravity( m_worldId, { 0.0f, -20.0f, 0.0f } );
+
+		for ( int i = 0; i < 2; ++i )
+		{
+			float x = i == 0 ? -3.0f : 3.0f;
+			b3BodyDef groundDef = b3DefaultBodyDef();
+			groundDef.type = i == 0 ? b3_staticBody : b3_dynamicBody;
+			groundDef.position = { x, 0.0f, 0.0f };
+			groundDef.enableSleep = false;
+			groundDef.motionLocks.linearX = true;
+			groundDef.motionLocks.linearY = true;
+			groundDef.motionLocks.linearZ = true;
+			groundDef.motionLocks.angularX = true;
+			groundDef.motionLocks.angularY = true;
+			b3BodyId groundId = b3CreateBody( m_worldId, &groundDef );
+
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.density = 2.5f;
+			b3BoxHull box = b3MakeBoxHull( 2.0f, 0.05f, 0.5f );
+			b3CreateHullShape( groundId, &shapeDef, &box.base );
+
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { x, 0.65f, 0.0f };
+			bodyDef.enableSleep = false;
+			m_spheres[i] = b3CreateBody( m_worldId, &bodyDef );
+
+			b3Sphere sphere = { b3Vec3_zero, 0.5f };
+			b3CreateSphereShape( m_spheres[i], &shapeDef, &sphere );
+
+			b3MassData massData = b3Body_GetMassData( m_spheres[i] );
+			massData.inertia = b3MulSM( 10.0f / massData.mass, massData.inertia );
+			massData.mass = 10.0f;
+			b3Body_SetMassData( m_spheres[i], massData );
+		}
+	}
+
+	void Render() override
+	{
+		DrawTextLine( "10 kg spheres dropped onto 0.1 m thick platforms." );
+		DrawTextLine( "Right platform: 1 kg, translation locked, rotation about Z free." );
+		DrawTextLine( "Expected: both gaps settle near zero. Negative means penetration." );
+		DrawTextLine( "Left  (static): gap = %.3f m", (float)b3Body_GetPosition( m_spheres[0] ).y - 0.55f );
+		DrawTextLine( "Right (locked): gap = %.3f m", (float)b3Body_GetPosition( m_spheres[1] ).y - 0.55f );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new TranslationLockedPlatform( context );
+	}
+
+	b3BodyId m_spheres[2];
+};
+
+static int sampleTranslationLockedPlatform =
+	RegisterSample( "Issues", "Translation Locked Platform", TranslationLockedPlatform::Create );

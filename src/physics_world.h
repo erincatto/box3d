@@ -355,7 +355,8 @@ static inline b3Manifold* b3AllocateManifolds( b3World* world, int count )
 
 	int index = count - 1;
 
-	// Need lock because this is called from the parallel narrow phase
+	// Need lock because this is called from the parallel narrow phase.
+	// todo use atomic?
 	b3LockMutex( world->manifoldAllocatorMutex );
 	int currentCount = world->manifoldAllocators.count;
 	for ( int i = currentCount; i < count; ++i )

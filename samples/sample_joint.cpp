@@ -2035,6 +2035,9 @@ public:
 		}
 
 		m_motionLocks = {};
+		m_motionLocks.linearX = true;
+		m_motionLocks.linearY = true;
+		m_motionLocks.linearZ = true;
 
 		for ( int i = 0; i < m_capacity; ++i )
 		{
@@ -2045,6 +2048,7 @@ public:
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.enableSleep = false;
+		bodyDef.motionLocks = m_motionLocks;
 
 		b3BoxHull box = b3MakeBoxHull( 1.0f, 1.0f, 0.5f );
 
@@ -2056,6 +2060,7 @@ public:
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.density = 1.0f;
 
+#if 1
 		// distance joint
 		{
 			assert( m_count < m_capacity );
@@ -2086,30 +2091,28 @@ public:
 		++m_count;
 
 		// motor joint
-#if 0
 		{
-			assert( m_bodyCount < e_count );
+			assert( m_count < m_capacity );
 
 			bodyDef.position = position;
-			m_bodyIds[m_bodyCount] = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( m_bodyIds[m_bodyCount], &shapeDef, &box.base );
+			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
 
 			b3MotorJointDef jointDef = b3DefaultMotorJointDef();
 			jointDef.base.bodyIdA = groundId;
-			jointDef.base.bodyIdB = m_bodyIds[m_bodyCount];
+			jointDef.base.bodyIdB = m_bodyIds[m_count];
 			jointDef.base.localFrameA.p = position;
-			jointDef.maxForce = 1000.0f;
-			jointDef.maxTorque = 20.0f;
+			jointDef.maxSpringForce = 1000.0f;
+			jointDef.maxSpringTorque = 20.0f;
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
 			jointDef.base.collideConnected = true;
-			jointDef.base.userData = (void*)(intptr_t)m_bodyCount;
+			jointDef.base.userData = (void*)(intptr_t)m_count;
 			b3CreateMotorJoint( m_worldId, &jointDef );
 		}
 
 		position.x += 5.0f;
 		++m_count;
-#endif
 
 		// prismatic joint
 		{
@@ -2131,6 +2134,7 @@ public:
 			jointDef.base.userData = (void*)(intptr_t)m_count;
 			b3CreatePrismaticJoint( m_worldId, &jointDef );
 		}
+#endif
 
 		position.x += 5.0f;
 		++m_count;
@@ -2159,6 +2163,7 @@ public:
 		position.x += 5.0f;
 		++m_count;
 
+#if 1
 		// weld joint
 		{
 			assert( m_count < m_capacity );
@@ -2186,9 +2191,8 @@ public:
 		++m_count;
 
 		// wheel joint
-#if 0
 		{
-			assert( index < e_count );
+			assert( m_count < m_capacity );
 
 			bodyDef.position = position;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
@@ -2200,18 +2204,18 @@ public:
 			jointDef.base.bodyIdB = bodyId;
 			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
 			jointDef.base.localFrameB.p = b3Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
-			jointDef.hertz = 1.0f;
-			jointDef.dampingRatio = 0.7f;
-			jointDef.lowerTranslation = -1.0f;
-			jointDef.upperTranslation = 1.0f;
-			jointDef.enableLimit = true;
-			jointDef.enableMotor = true;
-			jointDef.maxMotorTorque = 10.0f;
-			jointDef.motorSpeed = 1.0f;
+			jointDef.suspensionHertz = 1.0f;
+			jointDef.suspensionDampingRatio = 0.7f;
+			jointDef.lowerSuspensionLimit = -1.0f;
+			jointDef.upperSuspensionLimit = 1.0f;
+			jointDef.enableSuspensionLimit = true;
+			jointDef.enableSpinMotor = true;
+			jointDef.maxSpinTorque = 10.0f;
+			jointDef.spinSpeed = 1.0f;
 			jointDef.base.forceThreshold = forceThreshold;
 			jointDef.base.torqueThreshold = torqueThreshold;
 			jointDef.base.collideConnected = true;
-			jointDef.base.userData = (void*)(intptr_t)index;
+			jointDef.base.userData = (void*)(intptr_t)m_count;
 			b3CreateWheelJoint( m_worldId, &jointDef );
 		}
 
@@ -2289,7 +2293,7 @@ public:
 		return new MotionLocks( context );
 	}
 
-	static constexpr int m_capacity = 6;
+	static constexpr int m_capacity = 7;
 	b3BodyId m_bodyIds[m_capacity];
 	int m_count;
 	b3MotionLocks m_motionLocks;

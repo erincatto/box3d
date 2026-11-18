@@ -500,7 +500,8 @@ int b3Body_GetContactData( b3BodyId bodyId, b3ContactData* contactData, int capa
 			b3Shape* shapeA = b3Array_Get( world->shapes, contact->shapeIdA );
 			b3Shape* shapeB = b3Array_Get( world->shapes, contact->shapeIdB );
 
-			contactData[index].contactId = (b3ContactId){ contact->contactId + 1, bodyId.world0, 0, contact->generation };
+			contactData[index].contactId =
+				(b3ContactId){ contact->contactId + 1, bodyId.world0, 0, contact->generation };
 			contactData[index].shapeIdA = (b3ShapeId){ shapeA->id + 1, bodyId.world0, shapeA->generation };
 			contactData[index].shapeIdB = (b3ShapeId){ shapeB->id + 1, bodyId.world0, shapeB->generation };
 			contactData[index].manifolds = contact->manifolds;
@@ -593,8 +594,8 @@ float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target )
 	return closestDistance;
 }
 
-b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter, float maxFraction,
-								 b3WorldTransform bodyTransform )
+b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter,
+								 float maxFraction, b3WorldTransform bodyTransform )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -660,7 +661,8 @@ b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translati
 }
 
 b3BodyCastResult b3Body_CastShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy, b3Vec3 translation,
-								   b3QueryFilter filter, float maxFraction, bool canEncroach, b3WorldTransform bodyTransform )
+								   b3QueryFilter filter, float maxFraction, bool canEncroach,
+								   b3WorldTransform bodyTransform )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -757,8 +759,8 @@ bool b3Body_OverlapShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* pro
 	return false;
 }
 
-int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin, const b3Capsule* mover,
-						 b3QueryFilter filter, b3WorldTransform bodyTransform )
+int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin,
+						 const b3Capsule* mover, b3QueryFilter filter, b3WorldTransform bodyTransform )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -811,8 +813,9 @@ int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int pla
 	return resultCount;
 }
 
-b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover, b3Vec3 moverTranslation,
-										  b3QueryFilter filter, b3WorldTransform bodyTransform1, b3WorldTransform bodyTransform2 )
+b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover,
+										  b3Vec3 moverTranslation, b3QueryFilter filter,
+										  b3WorldTransform bodyTransform1, b3WorldTransform bodyTransform2 )
 {
 	b3BodyTOIResult result = { 0 };
 	result.fraction = 1.0f;
@@ -874,7 +877,7 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 		B3_VALIDATE( output.state != b3_toiStateUnknown );
 
 		// Mimic behavior in b3ContinuousQueryCallback. Ignore shapes that initially overlap.
-		if (0.0f < output.fraction && output.fraction < result.fraction)
+		if ( 0.0f < output.fraction && output.fraction < result.fraction )
 		{
 			input.maxFraction = output.fraction;
 
@@ -911,7 +914,8 @@ static void b3UpdateIsotropicInertia( b3World* world, b3Body* body, b3BodySim* b
 
 	float tolerance = world->isotropicInertiaTolerance;
 
-	if ( 2.0f * deviation > 3.0f * tolerance * tolerance * mean * mean )
+	bool fixedRotation = ( body->flags & b3_fixedRotation ) == b3_fixedRotation;
+	if ( fixedRotation == false && 2.0f * deviation > 3.0f * tolerance * tolerance * mean * mean )
 	{
 		body->flags |= b3_enableGyroscopicTorque;
 	}
@@ -921,6 +925,27 @@ static void b3UpdateIsotropicInertia( b3World* world, b3Body* body, b3BodySim* b
 	}
 
 	b3SyncBodyFlags( world, body );
+}
+
+static void b3UpdateInverseInertia( b3BodySim* bodySim )
+{
+	float det = b3Det( bodySim->inertia );
+	B3_ASSERT( det >= 0.0f );
+
+	if ( det > 0.0f && ( bodySim->flags & b3_fixedRotation ) != b3_fixedRotation )
+	{
+		// This call is faster than b3Invert
+		bodySim->invInertiaLocal = b3InvertT( bodySim->inertia );
+
+		b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
+		bodySim->invInertiaWorld =
+			b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
+	}
+	else
+	{
+		bodySim->invInertiaLocal = b3Mat3_zero;
+		bodySim->invInertiaWorld = b3Mat3_zero;
+	}
 }
 
 void b3UpdateBodyMassData( b3World* world, b3Body* body )
@@ -1024,17 +1049,7 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 	b3StackFree( &world->stack, masses );
 	masses = NULL;
 
-	float det = b3Det( bodySim->inertia );
-	B3_ASSERT( det >= 0.0f );
-
-	if ( det > 0.0f )
-	{
-		// This call is faster than b3Invert
-		bodySim->invInertiaLocal = b3InvertT( bodySim->inertia );
-
-		b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
-		bodySim->invInertiaWorld = b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
-	}
+	b3UpdateInverseInertia( bodySim );
 
 	// Move center of mass.
 	b3Pos oldCenter = bodySim->center;
@@ -1074,14 +1089,6 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 		contact->flags &= ~b3_relativeTransformValid;
 
 		edgeKey = contact->edges[edgeIndex].nextKey;
-	}
-
-	// Apply fixed rotation
-	if ( ( bodySim->flags & b3_fixedRotation ) == b3_fixedRotation )
-	{
-		bodySim->inertia = b3Mat3_zero;
-		bodySim->invInertiaLocal = b3Mat3_zero;
-		bodySim->invInertiaWorld = b3Mat3_zero;
 	}
 
 	b3UpdateIsotropicInertia( world, body, bodySim );
@@ -1160,7 +1167,8 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation )
 	bodySim->center = b3TransformWorldPoint( bodySim->transform, bodySim->localCenter );
 
 	b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
-	bodySim->invInertiaWorld = b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
+	bodySim->invInertiaWorld =
+		b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
 
 	bodySim->rotation0 = bodySim->transform.q;
 	bodySim->center0 = bodySim->center;
@@ -1926,31 +1934,7 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 		state->linearVelocity = b3Add( state->linearVelocity, deltaLinear );
 	}
 
-	float det = b3Det( bodySim->inertia );
-	B3_ASSERT( det >= 0.0f );
-
-	if ( det > 0.0f )
-	{
-		// This call is faster than b3Invert
-		bodySim->invInertiaLocal = b3InvertT( bodySim->inertia );
-
-		b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
-		bodySim->invInertiaWorld = b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
-	}
-	else
-	{
-		bodySim->invInertiaLocal = b3Mat3_zero;
-		bodySim->invInertiaWorld = b3Mat3_zero;
-	}
-
-	// Apply fixed rotation
-	if ( ( bodySim->flags & b3_fixedRotation ) == b3_fixedRotation )
-	{
-		bodySim->inertia = b3Mat3_zero;
-		bodySim->invInertiaLocal = b3Mat3_zero;
-		bodySim->invInertiaWorld = b3Mat3_zero;
-	}
-
+	b3UpdateInverseInertia( bodySim );
 	b3UpdateIsotropicInertia( world, body, bodySim );
 
 	// Update extents using supplied mass center.
@@ -2253,7 +2237,8 @@ void b3Body_Disable( b3BodyId bodyId )
 			continue;
 		}
 
-		B3_ASSERT( joint->setIndex == set->setIndex || set->setIndex == b3_staticSet || joint->setIndex == b3_staticSet );
+		B3_ASSERT( joint->setIndex == set->setIndex || set->setIndex == b3_staticSet ||
+				   joint->setIndex == b3_staticSet );
 
 		// Remove joint from island
 		b3UnlinkJoint( world, joint );
@@ -2445,7 +2430,9 @@ void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks )
 
 	if ( fixedRotation1 != fixedRotation2 )
 	{
-		b3UpdateBodyMassData( world, body );
+		b3BodySim* bodySim = b3GetBodySim( world, body );
+		b3UpdateInverseInertia( bodySim );
+		b3UpdateIsotropicInertia( world, body, bodySim );
 	}
 }
 

@@ -1211,7 +1211,7 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.name = "full";
-			bodyDef.position = { 0.0f, 1.0f, 2.0f };
+			bodyDef.position = { 0.0f, 1.0f, 3.0f };
 			bodyDef.motionLocks.linearX = true;
 			bodyDef.motionLocks.linearY = true;
 			bodyDef.motionLocks.linearZ = true;

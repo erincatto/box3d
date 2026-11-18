@@ -315,7 +315,9 @@ typedef enum b3BodyType
 	b3_bodyTypeCount,
 } b3BodyType;
 
-/// Motion locks to restrict the body movement
+/// Motion locks to restrict the body movement. Motion locks are a hack and will likely be removed. The only robust
+/// lock is fully locked rotation. You will see softened contacts and other artifacts with this sytem. Other physics
+/// engines have the same problem and some have stability problems due to this approach.
 /// @ingroup body
 typedef struct b3MotionLocks
 {

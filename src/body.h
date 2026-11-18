@@ -66,11 +66,14 @@ enum b3BodyFlags
 
 	b3_enableGyroscopicTorque = 0x00010000,
 
-	// All lock flags
-	b3_allLocks = b3_lockLinearX | b3_lockLinearY | b3_lockLinearZ | b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
-
 	// If all these flags are set then the body has fixed rotation
 	b3_fixedRotation = b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
+
+	// If all these flags are set then the body has fixed translation
+	b3_fixedTranslation = b3_lockLinearX | b3_lockLinearY | b3_lockLinearZ,
+
+	// All lock flags
+	b3_allLocks = b3_fixedRotation | b3_fixedTranslation,
 
 	// These flags are transient per time step. These may be different across b3Body, b3BodySim, and b3BodyState.
 	b3_bodyTransientFlags = b3_isSpeedCapped | b3_hadTimeOfImpact,
