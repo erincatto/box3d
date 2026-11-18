@@ -50,9 +50,13 @@
 
 #include "container.h"
 #include "core.h"
+#include "parallel_for.h"
 
+#include "box3d/constants.h"
 #include "box3d/math_functions.h"
+#include "box3d/types.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct b3BodySim b3BodySim;
@@ -63,6 +67,34 @@ typedef struct b3JointSim b3JointSim;
 typedef struct b3Manifold b3Manifold;
 typedef struct b3ManifoldConstraint b3ManifoldConstraint;
 typedef struct b3World b3World;
+
+typedef enum b3StepPhase
+{
+	b3_stepIdle,
+	b3_stepBegin,
+	b3_stepCrossPairs,
+	b3_stepSelfPairs,
+	b3_stepCollide,
+	b3_stepSolve,
+	b3_stepFinalize,
+	b3_stepBullets,
+	b3_stepSensors,
+} b3StepPhase;
+
+typedef struct b3StepTask
+{
+	b3TaskCallback* fcn;
+	void* context;
+	b3StepContext* stepContext;
+} b3StepTask;
+
+typedef struct b3WorkerContext
+{
+	b3StepContext* context;
+	int workerIndex;
+} b3WorkerContext;
+
+#define B3_STEP_TASK_CAPACITY ( B3_MAX_WORKERS + 2 )
 
 // Solver stages
 typedef enum b3SolverStageType
@@ -181,6 +213,48 @@ typedef struct b3JointPrepareSpan
 // Context for a time step. Recreated each time step.
 typedef struct b3StepContext
 {
+	b3StepPhase phase;
+	bool pairsUpdated;
+	bool treeStaged;
+	bool treeLaunched;
+	bool solveSkipped;
+	bool joinTree;
+	bool signalSemaphores;
+
+	int batchTaskBase;
+	int batchTaskCount;
+	int taskCount;
+	int enqueueCount;
+
+	b3Task tasks[B3_STEP_TASK_CAPACITY];
+	b3StepTask stepTasks[B3_STEP_TASK_CAPACITY];
+
+	b3ParallelForShared parallelFor;
+	b3ParallelForTask parallelForTasks[B3_MAX_WORKERS];
+	b3WorkerContext workerContexts[B3_MAX_WORKERS];
+
+	b3Semaphore* batchSemaphore;
+	b3Semaphore* treeSemaphore;
+
+	uint64_t stepTicks;
+	uint64_t pairTicks;
+	uint64_t collideTicks;
+	uint64_t solveTicks;
+	uint64_t constraintTicks;
+	uint64_t transformTicks;
+	uint64_t bulletTicks;
+	uint64_t sensorTicks;
+
+	int awakeBodyCount;
+	int collideContactCount;
+
+	b3SyncBlock* bodyBlocks;
+	b3SyncBlock* convexBlocks;
+	b3SyncBlock* meshBlocks;
+	b3SyncBlock* jointBlocks;
+	b3SyncBlock* graphBlocks;
+	int* meshLaneOrder;
+
 	// time step
 	float dt;
 
@@ -222,25 +296,26 @@ typedef struct b3StepContext
 	int* awakeContactIndices;
 
 	// Flat view of the wide contact constraint array used by prepare and store.
-	// prepareSpans has activeColorCount + 1 entries, the last being a sentinel
-	// at wideContactCount. wideContactConstraints is the contiguous base
+	// widePrepareSpans has activeColorCount + 1 entries, the last being a sentinel
+	// at wideContactCount. wideConstraints is the contiguous base
 	// pointer. Per-color slices live at colors[i].wideConstraints.
 	void* wideConstraints;
-	b3WidePrepareSpan* widePrepareSpans;
+	b3WidePrepareSpan widePrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
 	int wideContactCount;
 
 	// Similar for overflow contact constraints.
-	b3ContactPrepareSpan* overflowSpans;
+	b3ContactPrepareSpan overflowSpans[2];
 	void* wideMeshConstraints;
 	int* wideMeshManifoldStarts;
-	b3MeshPrepareSpan* meshPrepareSpans;
-	b3JointPrepareSpan* jointPrepareSpans;
+	b3MeshPrepareSpan meshPrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
+	b3JointPrepareSpan jointPrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
 
 	int activeColorCount;
 	int workerCount;
 
 	b3SolverStage* stages;
 	int stageCount;
+	int orchestratorIndex;
 	bool enableWarmStarting;
 
 	// padding to prevent false sharing
@@ -256,18 +331,19 @@ typedef struct b3StepContext
 	// padding to prevent false sharing
 	char padding2[64];
 
-	// Race flag claimed by whichever runner reaches b3SolverTask with workerIndex 0 first.
-	// The calling thread of b3World_Step also races for this slot so the orchestrator can
-	// always make progress, regardless of how the user's task system schedules tasks (out
-	// of order, fewer threads than workers, or synchronously inside enqueueTaskFcn). The
-	// loser of the race no-ops as workerIndex 0.
-	b3AtomicInt mainClaimed;
+	b3AtomicInt orchestratorClaimed;
 
 	// padding to prevent false sharing
 	char padding3[64];
+
+	b3AtomicInt pendingCount;
+	b3AtomicInt treePending;
 } b3StepContext;
 
-void b3Solve( b3World* world, b3StepContext* stepContext );
+bool b3BeginSolve( b3World* world, b3StepContext* stepContext );
+void b3BeginFinalize( b3World* world, b3StepContext* stepContext );
+void b3BeginBullets( b3World* world, b3StepContext* stepContext );
+void b3EndBullets( b3World* world, b3StepContext* stepContext );
 
 static inline b3Softness b3MakeSoft( float hertz, float zeta, float h )
 {

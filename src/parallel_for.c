@@ -6,29 +6,85 @@
 #include "core.h"
 #include "physics_world.h"
 #include "platform.h"
+#include "solver.h"
 
 #include "box3d/base.h"
 #include "box3d/constants.h"
 
 #include <stddef.h>
 
-// Shared state for one b3ParallelFor invocation. Workers race on nextBlock to
-// claim work, so a slow chunk can't strand the other threads.
-typedef struct b3ParallelForShared
+static void b3RunStepTask( void* taskContext )
 {
-	b3AtomicInt nextBlock;
-	int blockCount;
-	int blockSize;
-	int itemCount;
-	b3ParallelForCallback* callback;
-	void* context;
-} b3ParallelForShared;
+	b3StepTask* task = taskContext;
+	b3StepContext* stepContext = task->stepContext;
 
-typedef struct b3ParallelForTask
+	task->fcn( task->context );
+
+	int index = (int)( task - stepContext->stepTasks );
+	if ( stepContext->tasks[index].deferred )
+	{
+		if ( b3AtomicFetchAddInt( &stepContext->treePending, -1 ) == 1 && stepContext->signalSemaphores )
+		{
+			b3SignalSemaphore( stepContext->treeSemaphore );
+		}
+	}
+	else
+	{
+		if ( b3AtomicFetchAddInt( &stepContext->pendingCount, -1 ) == 1 && stepContext->signalSemaphores )
+		{
+			b3SignalSemaphore( stepContext->batchSemaphore );
+		}
+	}
+}
+
+void b3ResetTaskBatch( b3StepContext* stepContext )
 {
-	b3ParallelForShared* shared;
-	int workerIndex;
-} b3ParallelForTask;
+	stepContext->batchTaskBase = 1;
+	stepContext->batchTaskCount = 0;
+	stepContext->joinTree = false;
+}
+
+void b3AddTask( b3StepContext* stepContext, b3TaskType type, b3TaskCallback* fcn, void* context )
+{
+	int index = stepContext->batchTaskBase + stepContext->batchTaskCount;
+	B3_ASSERT( 1 <= index && index < B3_STEP_TASK_CAPACITY );
+
+	b3StepTask* stepTask = stepContext->stepTasks + index;
+	stepTask->fcn = fcn;
+	stepTask->context = context;
+	stepTask->stepContext = stepContext;
+
+	stepContext->tasks[index] = (b3Task){
+		.fcn = b3RunStepTask,
+		.context = stepTask,
+		.type = type,
+		.deferred = false,
+	};
+
+	stepContext->batchTaskCount += 1;
+	stepContext->taskCount += 1;
+}
+
+void b3StageDeferredTask( b3StepContext* stepContext, b3TaskType type, b3TaskCallback* fcn, void* context )
+{
+	B3_ASSERT( stepContext->treeStaged == false );
+
+	b3StepTask* stepTask = stepContext->stepTasks + 0;
+	stepTask->fcn = fcn;
+	stepTask->context = context;
+	stepTask->stepContext = stepContext;
+
+	stepContext->tasks[0] = (b3Task){
+		.fcn = b3RunStepTask,
+		.context = stepTask,
+		.type = type,
+		.deferred = true,
+	};
+
+	stepContext->treeStaged = true;
+	stepContext->taskCount += 1;
+	b3AtomicStoreInt( &stepContext->treePending, 1 );
+}
 
 static void b3ParallelForTrampoline( void* taskContext )
 {
@@ -61,8 +117,8 @@ static void b3ParallelForTrampoline( void* taskContext )
 	}
 }
 
-void b3ParallelFor( b3World* world, b3ParallelForCallback* callback, int itemCount, int minRange, void* context,
-					const char* name )
+void b3StageParallelFor( b3World* world, b3TaskType type, b3ParallelForCallback* callback, int itemCount, int minRange,
+						 void* context )
 {
 	if ( itemCount <= 0 )
 	{
@@ -78,8 +134,6 @@ void b3ParallelFor( b3World* world, b3ParallelForCallback* callback, int itemCou
 	// block size grows once items exceed maxBlockCount * minRange
 	// so the block count stays bounded and per-block sync overhead stays low.
 	// Benchmarking shows 32 is optimal for the convex pile benchmark and others.
-	// This is a lot different than Box2D because the 3D narrow phase cost
-	// varies a lot.
 	int blocksPerWorker = 32;
 	int maxBlockCount = blocksPerWorker * workerCount;
 
@@ -101,38 +155,20 @@ void b3ParallelFor( b3World* world, b3ParallelForCallback* callback, int itemCou
 	// No point enqueueing more tasks than blocks.
 	int taskCount = workerCount < blockCount ? workerCount : blockCount;
 
-	b3ParallelForShared shared;
-	shared.blockCount = blockCount;
-	shared.blockSize = blockSize;
-	shared.itemCount = itemCount;
-	shared.callback = callback;
-	shared.context = context;
-	b3AtomicStoreInt( &shared.nextBlock, 0 );
-
-	b3ParallelForTask tasks[B3_MAX_WORKERS];
-	void* handles[B3_MAX_WORKERS];
-	for ( int i = 0; i < taskCount; ++i )
-	{
-		tasks[i].shared = &shared;
-		tasks[i].workerIndex = i;
-
-		if (world->taskCount < B3_MAX_TASKS)
-		{
-			handles[i] = world->enqueueTaskFcn( &b3ParallelForTrampoline, tasks + i, world->userTaskContext, name );
-			world->taskCount += 1;
-		}
-		else
-		{
-			handles[i] = NULL;
-			b3ParallelForTrampoline( tasks + i );
-		}
-	}
+	b3StepContext* stepContext = world->stepContext;
+	b3ParallelForShared* shared = &stepContext->parallelFor;
+	shared->blockCount = blockCount;
+	shared->blockSize = blockSize;
+	shared->itemCount = itemCount;
+	shared->callback = callback;
+	shared->context = context;
+	b3AtomicStoreInt( &shared->nextBlock, 0 );
 
 	for ( int i = 0; i < taskCount; ++i )
 	{
-		if ( handles[i] != NULL )
-		{
-			world->finishTaskFcn( handles[i], world->userTaskContext );
-		}
+		b3ParallelForTask* task = stepContext->parallelForTasks + i;
+		task->shared = shared;
+		task->workerIndex = i;
+		b3AddTask( stepContext, type, b3ParallelForTrampoline, task );
 	}
 }

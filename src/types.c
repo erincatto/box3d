@@ -7,6 +7,39 @@
 
 #include "box3d/constants.h"
 
+const char* b3GetTaskTypeName( b3TaskType type )
+{
+	switch ( type )
+	{
+		case b3_taskPairs:
+			return "pairs";
+
+		case b3_taskCollide:
+			return "collide";
+
+		case b3_taskTreeRebuild:
+			return "tree";
+
+		case b3_taskIslandSplit:
+			return "split";
+
+		case b3_taskSolver:
+			return "solve";
+
+		case b3_taskFinalize:
+			return "finalize";
+
+		case b3_taskContinuous:
+			return "continuous";
+
+		case b3_taskSensors:
+			return "sensors";
+
+		default:
+			return "";
+	}
+}
+
 b3WorldDef b3DefaultWorldDef( void )
 {
 	float lengthUnits = b3GetLengthUnitsPerMeter();

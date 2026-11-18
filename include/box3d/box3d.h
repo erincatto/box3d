@@ -56,6 +56,13 @@ B3_API bool b3World_IsValid( b3WorldId id );
 /// accuracy. Usually 4.
 B3_API void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount );
 
+/// The pull model for tasking. Instead of getting task callbacks from b3World_Step you can call
+/// this to kick off a step and get an array of tasks to execute.
+B3_API b3TaskBatch b3World_BeginStep( b3WorldId worldId, float timeStep, int subStepCount );
+
+/// Call this after executing each task batch. The step is done when the batch is empty.
+B3_API b3TaskBatch b3World_ContinueStep( b3WorldId worldId );
+
 /// Call this to draw shapes and other debug draw data
 B3_API void b3World_Draw( b3WorldId worldId, b3DebugDraw* draw, uint64_t maskBits );
 

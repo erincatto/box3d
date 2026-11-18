@@ -269,9 +269,10 @@ typedef struct b3World
 	b3EnqueueTaskCallback* enqueueTaskFcn;
 	b3FinishTaskCallback* finishTaskFcn;
 	void* userTaskContext;
-	void* userTreeTask;
+	struct b3StepContext* stepContext;
 
 	struct b3Scheduler* scheduler;
+	bool useScheduler;
 
 	void* userData;
 
@@ -284,9 +285,6 @@ typedef struct b3World
 
 	// latest inverse full-step
 	float inv_dt;
-
-	int activeTaskCount;
-	int taskCount;
 
 	uint16_t worldId;
 

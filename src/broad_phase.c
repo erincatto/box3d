@@ -36,6 +36,7 @@ void b3CreateBroadPhase( b3BroadPhase* bp, const b3Capacity* capacity )
 	bp->trees[b3_dynamicBody] = b3DynamicTree_Create( dynamicCapacity );
 
 	bp->movedSiblings = NULL;
+	bp->crossContext = NULL;
 }
 
 void b3DestroyBroadPhase( b3BroadPhase* bp )
@@ -50,8 +51,8 @@ void b3DestroyBroadPhase( b3BroadPhase* bp )
 	memset( bp, 0, sizeof( b3BroadPhase ) );
 }
 
-int b3BroadPhase_CreateProxy( b3BroadPhase* bp, b3BodyType proxyType, b3AABB aabb, uint64_t categoryBits, int shapeIndex,
-							  bool forcePairCreation )
+int b3BroadPhase_CreateProxy( b3BroadPhase* bp, b3BodyType proxyType, b3AABB aabb, uint64_t categoryBits,
+							  int shapeIndex, bool forcePairCreation )
 {
 	B3_ASSERT( 0 <= proxyType && proxyType < b3_bodyTypeCount );
 
@@ -232,7 +233,8 @@ static void b3EmitCompoundPairs( b3PairContext* context, int compoundShapeId, in
 		b3DynamicTree_GetAABB( world->broadPhase.trees + B3_PROXY_TYPE( otherProxyKey ), B3_PROXY_ID( otherProxyKey ) );
 
 	// Query bounds are float world space, so the demoted transform is the matching float frame
-	b3Transform compoundTransform = b3ToRelativeTransform( b3GetBodyTransform( world, compoundShape->bodyId ), b3Pos_zero );
+	b3Transform compoundTransform =
+		b3ToRelativeTransform( b3GetBodyTransform( world, compoundShape->bodyId ), b3Pos_zero );
 	b3AABB localAABB = b3AABB_Transform( b3InvertTransform( compoundTransform ), otherAABB );
 
 	b3CompoundPairContext compoundContext = {
@@ -364,7 +366,8 @@ B3_FORCE_INLINE bool b3TestPair( const b3TreeNode* a, const b3TreeNode* b )
 	return b3OverlapV( &a->aabb, &b->aabb );
 }
 
-static void b3CollideProxyAndSubtree( const b3TreeNode* proxy, const b3TreeNode* nodes, int pair, b3PairContext* context )
+static void b3CollideProxyAndSubtree( const b3TreeNode* proxy, const b3TreeNode* nodes, int pair,
+									  b3PairContext* context )
 {
 	uint32_t proxyMark = proxy->flagIndex & B3_MOVED_NODE;
 	b3AABBV boxv = b3LoadAABBV( &proxy->aabb );
@@ -436,7 +439,8 @@ B3_FORCE_INLINE void b3VisitPair( const b3TreeNode* arrayA, const b3TreeNode* ar
 	{
 		if ( *stackCount < B3_TREE_STACK_SIZE )
 		{
-			stack[*stackCount] = B3_LITERAL( b3IndexPair ){ .a = b3GetLeftChild( nodeA ), .b = b3GetLeftChild( nodeB ) };
+			stack[*stackCount] =
+				B3_LITERAL( b3IndexPair ){ .a = b3GetLeftChild( nodeA ), .b = b3GetLeftChild( nodeB ) };
 			*stackCount += 1;
 		}
 		else
@@ -574,8 +578,10 @@ static int b3GatherCrossSeeds( const b3DynamicTree* treeA, const b3DynamicTree* 
 typedef struct b3CrossContext
 {
 	b3World* world;
-	const b3NodePair* seeds;
+	b3NodePair seeds[2 * B3_CROSS_SEED_COUNT];
 	int staticSeedCount;
+	int crossMoveCount;
+	int dynamicMoveCount;
 	bool checkCompounds;
 } b3CrossContext;
 
@@ -629,24 +635,7 @@ static void b3UpdateTreesTask( void* context )
 	b3TracyCZoneEnd( tree_task );
 }
 
-// Task that can be done in parallel with the narrow-phase
-// - rebuild the collision tree for dynamic and kinematic bodies to keep their query performance good
-static void b3EnqueueTreeUpdate( b3World* world )
-{
-	if ( world->taskCount < B3_MAX_TASKS )
-	{
-		world->userTreeTask = world->enqueueTaskFcn( &b3UpdateTreesTask, world, world->userTaskContext, "rebuild tree" );
-		world->taskCount += 1;
-		world->activeTaskCount += world->userTreeTask == NULL ? 0 : 1;
-	}
-	else
-	{
-		world->userTreeTask = NULL;
-		b3UpdateTreesTask( world );
-	}
-}
-
-void b3UpdateBroadPhasePairs( b3World* world )
+bool b3BeginPairs( b3World* world )
 {
 	b3BroadPhase* bp = &world->broadPhase;
 
@@ -656,10 +645,10 @@ void b3UpdateBroadPhasePairs( b3World* world )
 
 	if ( needUpdate == false )
 	{
-		return;
+		return false;
 	}
 
-	b3TracyCZoneNC( update_pairs, "Find Pairs", b3_colorMediumSlateBlue, true );
+	b3TracyCZoneNC( update_pairs, "Find Pairs Setup", b3_colorMediumSlateBlue, true );
 
 	b3Stack* alloc = &world->stack;
 
@@ -677,35 +666,52 @@ void b3UpdateBroadPhasePairs( b3World* world )
 		bp->movedSiblings = b3StackAlloc( alloc, pairCapacity * sizeof( int ), "moved pairs" );
 		int dynamicMoveCount = b3GatherMovedSiblings( dynamicTree, bp->movedSiblings );
 
+		b3CrossContext* crossContext = b3StackAlloc( alloc, sizeof( b3CrossContext ), "cross context" );
+		bp->crossContext = crossContext;
+
 		// Get seeds for colliding against the static and kinematic trees.
-		b3NodePair crossSeeds[2 * B3_CROSS_SEED_COUNT];
-		int staticSeedCount = b3GatherCrossSeeds( dynamicTree, bp->trees + b3_staticBody, crossSeeds );
+		int staticSeedCount = b3GatherCrossSeeds( dynamicTree, bp->trees + b3_staticBody, crossContext->seeds );
 		B3_ASSERT( staticSeedCount <= B3_CROSS_SEED_COUNT );
-		int kinematicSeedCount = b3GatherCrossSeeds( dynamicTree, bp->trees + b3_kinematicBody, crossSeeds + staticSeedCount );
+		int kinematicSeedCount =
+			b3GatherCrossSeeds( dynamicTree, bp->trees + b3_kinematicBody, crossContext->seeds + staticSeedCount );
 		B3_ASSERT( kinematicSeedCount <= B3_CROSS_SEED_COUNT );
-		int crossMoveCount = staticSeedCount + kinematicSeedCount;
+
+		crossContext->world = world;
+		crossContext->staticSeedCount = staticSeedCount;
+		crossContext->crossMoveCount = staticSeedCount + kinematicSeedCount;
+		crossContext->dynamicMoveCount = dynamicMoveCount;
+		crossContext->checkCompounds = world->compoundShapeCount > 0;
 
 		// Collide the dynamic body tree against the static and kinematic trees.
-		b3CrossContext crossContext = {
-			.world = world,
-			.seeds = crossSeeds,
-			.staticSeedCount = staticSeedCount,
-			.checkCompounds = world->compoundShapeCount > 0,
-		};
-		b3ParallelFor( world, &b3CrossPairsTask, crossMoveCount, 1, &crossContext, "cross pairs" );
-
-		// Collide the dynamic body tree against itself.
-		b3ParallelFor( world, &b3SelfPairsTask, dynamicMoveCount, 64, world, "self pairs" );
+		b3StageParallelFor( world, b3_taskPairs, &b3CrossPairsTask, crossContext->crossMoveCount, 1, crossContext );
 	}
 
-	b3DynamicTree_ClearMoved( bp->trees + b3_staticBody );
-
 	b3TracyCZoneEnd( update_pairs );
+
+	return true;
+}
+
+void b3StageSelfPairs( b3World* world )
+{
+	// Collide the dynamic body tree against itself.
+	b3StageParallelFor( world, b3_taskPairs, &b3SelfPairsTask, world->broadPhase.crossContext->dynamicMoveCount, 64,
+						world );
+}
+
+void b3EndPairs( b3World* world )
+{
+	b3BroadPhase* bp = &world->broadPhase;
+	b3Stack* alloc = &world->stack;
+
+	b3StackFree( alloc, bp->crossContext );
+	bp->crossContext = NULL;
+
+	b3DynamicTree_ClearMoved( bp->trees + b3_staticBody );
 
 	b3TracyCZoneNC( create_contacts, "Create Contacts", b3_colorCoral, true );
 
 	// Update stale trees.
-	b3EnqueueTreeUpdate( world );
+	b3StageDeferredTask( world->stepContext, b3_taskTreeRebuild, &b3UpdateTreesTask, world );
 
 	// Pairs arrive in deterministic order but scrambled relative to body and shape order.
 	// Sorting them here improves solver performance and makes contact order independent of
@@ -732,13 +738,13 @@ void b3UpdateBroadPhasePairs( b3World* world )
 
 	{
 #define LESS( i, j ) ( pairKeys[(int)( i )] < pairKeys[(int)( j )] )
-#define SWAP( i, j )                                                                                                             \
-	do                                                                                                                           \
-	{                                                                                                                            \
-		uint64_t tmp_ = pairKeys[(int)( i )];                                                                                    \
-		pairKeys[(int)( i )] = pairKeys[(int)( j )];                                                                             \
-		pairKeys[(int)( j )] = tmp_;                                                                                             \
-	}                                                                                                                            \
+#define SWAP( i, j )                                                                                                   \
+	do                                                                                                                 \
+	{                                                                                                                  \
+		uint64_t tmp_ = pairKeys[(int)( i )];                                                                          \
+		pairKeys[(int)( i )] = pairKeys[(int)( j )];                                                                   \
+		pairKeys[(int)( j )] = tmp_;                                                                                   \
+	}                                                                                                                  \
 	while ( 0 )
 
 		QSORT( pairCount, LESS, SWAP );

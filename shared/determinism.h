@@ -85,6 +85,29 @@ QuerySpawnData CreateQuerySpawn( b3WorldId worldId );
 bool UpdateQuerySpawn( b3WorldId worldId, QuerySpawnData* data );
 void DestroyQuerySpawn( QuerySpawnData* data );
 
+// A grid of short hinged columns that fall and settle. Light enough to step in a unit test
+// and it exercises joints, sleeping islands, and island splitting.
+#if defined( BOX3D_DOUBLE_PRECISION )
+#define FALLING_HINGE_SLEEP_STEP 277
+#define FALLING_HINGE_HASH 0x97A63BFF
+#else
+#define FALLING_HINGE_SLEEP_STEP 248
+#define FALLING_HINGE_HASH 0xF4CAB37C
+#endif
+
+typedef struct FallingHingeData
+{
+	b3BodyId* bodyIds;
+	int bodyCount;
+	int stepCount;
+	int sleepStep;
+	uint32_t hash;
+} FallingHingeData;
+
+FallingHingeData CreateFallingHinges( b3WorldId worldId );
+bool UpdateFallingHinges( b3WorldId worldId, FallingHingeData* data );
+void DestroyFallingHinges( FallingHingeData* data );
+
 #ifdef __cplusplus
 }
 #endif

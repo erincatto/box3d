@@ -14,6 +14,24 @@
 #define B3_DEFAULT_CATEGORY_BITS UINT64_MAX
 #define B3_DEFAULT_MASK_BITS UINT64_MAX
 
+/// The task type for the pull model.
+/// @ingroup world
+typedef enum b3TaskType
+{
+	b3_taskPairs,		///< Finding pairs of potentially colliding shapes. The broad-phase.
+	b3_taskCollide,		///< Computing contact manifolds. The narrow-phase.
+	b3_taskTreeRebuild, ///< Rebuilding the bounding volume hierarchy. A long running side task.
+	b3_taskIslandSplit, ///< Splitting an island in order to let an island sleep.
+	b3_taskSolver,		///< Solving constraints.
+	b3_taskFinalize,	///< Updating body transforms and shape bounding boxes.
+	b3_taskContinuous,	///< Continuous collision detection.
+	b3_taskSensors,		///< Sensor overlaps and events.
+	b3_taskTypeCount	///< The type count.
+} b3TaskType;
+
+/// Helper to get a string for a task type.
+B3_API const char* b3GetTaskTypeName( b3TaskType type );
+
 /// Task interface
 /// This is the prototype for a Box3D task. Your task system is expected to run this callback on a
 /// worker thread, exactly once per enqueue, passing back the same taskContext pointer supplied to
@@ -29,9 +47,9 @@ typedef void b3TaskCallback( void* taskContext );
 /// @param task the Box3D task to be called by the scheduler
 /// @param taskContext the Box3D context object that the scheduler must pass to the task
 /// @param userContext the scheduler context object that is opaque to Box3D
-/// @param taskName the Box3D task name that the scheduler can use for diagnostics
+/// @param taskType the task type that the scheduler can use for diagnostics
 /// @ingroup world
-typedef void* b3EnqueueTaskCallback( b3TaskCallback* task, void* taskContext, void* userContext, const char* taskName );
+typedef void* b3EnqueueTaskCallback( b3TaskCallback* task, void* taskContext, void* userContext, b3TaskType taskType );
 
 /// Finishes a user task object that wraps a Box3D task. This must block until the task has
 /// completed. The step blocks here on the tasks it spawned, so b3World_Step holds its stack across
@@ -40,8 +58,47 @@ typedef void* b3EnqueueTaskCallback( b3TaskCallback* task, void* taskContext, vo
 /// do not call b3World_Step from inside a job: a job that blocks on its own sub-jobs without
 /// yielding its thread can deadlock. The in-tree scheduler instead runs other pending tasks on the
 /// waiting thread.
+/// This callback is optional. Without it b3World_Step waits on an internal semaphore that the last
+/// task of each phase signals, which suits task systems that can launch work but cannot wait on a
+/// single task.
 /// @ingroup world
 typedef void b3FinishTaskCallback( void* userTask, void* userContext );
+
+/// A task in the pull model.
+/// @ingroup world
+typedef struct b3Task
+{
+	/// The task function.
+	b3TaskCallback* fcn;
+
+	/// The context that must be passed to the task function.
+	void* context;
+
+	/// The task type. Informational.
+	b3TaskType type;
+
+	/// Is this task deferred? This indicates that this task must be joined
+	/// at a later stage instead of immediately before the next stage.
+	/// @see b3TaskBatch::joinTasks
+	bool deferred;
+} b3Task;
+
+/// A batch of tasks for the pull model.
+/// @ingroup world
+typedef struct b3TaskBatch
+{
+	/// The regular tasks that must be executed in this stage.
+	const b3Task* tasks;
+
+	/// The task count.
+	int count;
+
+	/// Earlier tasks that must now be joined before the next stage.
+	const b3Task* joinTasks;
+
+	/// The join task count.
+	int joinCount;
+} b3TaskBatch;
 
 typedef struct b3DebugShape b3DebugShape;
 
@@ -209,7 +266,7 @@ typedef struct b3WorldDef
 	/// function to spawn task
 	b3EnqueueTaskCallback* enqueueTask;
 
-	/// function to finish a task
+	/// function to finish a task. Blocks and helps make progress.
 	b3FinishTaskCallback* finishTask;
 
 	/// User context that is provided to enqueueTask and finishTask
@@ -615,6 +672,7 @@ typedef struct b3Counters
 	int satCallCount;					  ///<
 	int satCacheHitCount;				  ///<
 	int taskCount;						  ///<
+	int enqueueCount;					  ///<
 	int colorCounts[24];				  ///<
 	int manifoldCounts[B3_MAX_MANIFOLDS]; ///<
 

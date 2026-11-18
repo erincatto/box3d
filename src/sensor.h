@@ -37,5 +37,6 @@ typedef struct b3SensorTaskContext
 	b3BitSet eventBits;
 } b3SensorTaskContext;
 
-void b3OverlapSensors( b3World* world );
+void b3BeginSensors( b3World* world );
+void b3EndSensors( b3World* world );
 void b3DestroySensor( b3World* world, b3Shape* sensorShape );

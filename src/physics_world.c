@@ -139,9 +139,9 @@ b3World* b3GetUnlockedWorld( int index )
 	return world;
 }
 
-static void* b3DefaultAddTaskFcn( b3TaskCallback* task, void* taskContext, void* userContext, const char* name )
+static void* b3DefaultAddTaskFcn( b3TaskCallback* task, void* taskContext, void* userContext, b3TaskType taskType )
 {
-	B3_UNUSED( userContext, name );
+	B3_UNUSED( userContext, taskType );
 	task( taskContext );
 	return NULL;
 }
@@ -324,8 +324,6 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 
 	world->stepIndex = 0;
 	world->splitIslandId = B3_NULL_INDEX;
-	world->activeTaskCount = 0;
-	world->taskCount = 0;
 	world->gravity = def->gravity;
 	world->hitEventThreshold = def->hitEventThreshold;
 	world->restitutionThreshold = def->restitutionThreshold;
@@ -361,10 +359,10 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 	world->enableWarmStarting = true;
 	world->enableContinuous = def->enableContinuous;
 	world->enableSpeculative = true;
-	world->userTreeTask = NULL;
+	world->useScheduler = false;
 	world->userData = def->userData;
 
-	if ( def->workerCount > 0 && def->enqueueTask != NULL && def->finishTask != NULL )
+	if ( def->workerCount > 0 && def->enqueueTask != NULL )
 	{
 		// External task system
 		world->workerCount = b3MinInt( def->workerCount, B3_MAX_WORKERS );
@@ -375,12 +373,13 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 	}
 	else if ( def->workerCount > 1 )
 	{
-		// Built-in scheduler
+		// Built-in scheduler, created on the first b3World_Step
 		world->workerCount = b3MinInt( def->workerCount, B3_MAX_WORKERS );
-		world->scheduler = b3CreateScheduler( world->workerCount );
+		world->useScheduler = true;
+		world->scheduler = NULL;
 		world->enqueueTaskFcn = b3SchedulerEnqueueTask;
 		world->finishTaskFcn = b3SchedulerFinishTask;
-		world->userTaskContext = world->scheduler;
+		world->userTaskContext = NULL;
 	}
 	else
 	{
@@ -393,6 +392,14 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 	}
 
 	b3CreateWorkerContexts( world );
+
+	world->stepContext = b3AllocZero( sizeof( b3StepContext ) );
+
+	if ( world->finishTaskFcn == NULL )
+	{
+		world->stepContext->batchSemaphore = b3CreateSemaphore( 0 );
+		world->stepContext->treeSemaphore = b3CreateSemaphore( 0 );
+	}
 
 	world->debugBodySet = b3CreateBitSet( 256 );
 	world->debugJointSet = b3CreateBitSet( 256 );
@@ -426,6 +433,15 @@ void b3DestroyWorld( b3WorldId worldId )
 		b3DestroyScheduler( world->scheduler );
 		world->scheduler = NULL;
 	}
+
+	if ( world->stepContext->batchSemaphore != NULL )
+	{
+		b3DestroySemaphore( world->stepContext->batchSemaphore );
+		b3DestroySemaphore( world->stepContext->treeSemaphore );
+	}
+
+	b3Free( world->stepContext, sizeof( b3StepContext ) );
+	world->stepContext = NULL;
 
 	b3DestroyBitSet( &world->debugBodySet );
 	b3DestroyBitSet( &world->debugJointSet );
@@ -821,13 +837,11 @@ static void b3RemoveNonTouchingContact( b3World* world, int setIndex, int localI
 }
 
 // Narrow-phase collision
-static void b3Collide( b3StepContext* context )
+static void b3BeginCollide( b3StepContext* context )
 {
 	b3World* world = context->world;
 
 	B3_ASSERT( world->workerCount > 0 );
-
-	b3TracyCZoneNC( collide, "Collide", b3_colorDarkOrchid, true );
 
 	// Gather contacts from all the graph colors into a single array for easier parallel-for
 	int touchingCount = 0;
@@ -842,12 +856,14 @@ static void b3Collide( b3StepContext* context )
 	int nonTouchingCount = awakeSet->contactIndices.count;
 
 	int contactCount = touchingCount + nonTouchingCount;
+	context->collideContactCount = contactCount;
 
 	if ( contactCount == 0 )
 	{
-		b3TracyCZoneEnd( collide );
 		return;
 	}
+
+	b3TracyCZoneNC( collide, "Narrow Phase Setup", b3_colorDarkOrchid, true );
 
 	int* contactIndices = (int*)b3StackAlloc( &world->stack, contactCount * sizeof( int ), "contact indices" );
 
@@ -894,11 +910,22 @@ static void b3Collide( b3StepContext* context )
 
 	// Task should take at least 40us on a 4GHz CPU (10K cycles)
 	int minRange = 20;
-	b3ParallelFor( world, b3CollideTask, contactCount, minRange, context, "collide" );
+	b3StageParallelFor( world, b3_taskCollide, b3CollideTask, contactCount, minRange, context );
 
-	b3StackFree( &world->stack, contactIndices );
+	b3TracyCZoneEnd( collide );
+}
+
+static void b3EndCollide( b3StepContext* context )
+{
+	b3World* world = context->world;
+
+	if ( context->collideContactCount == 0 )
+	{
+		return;
+	}
+
+	b3StackFree( &world->stack, context->awakeContactIndices );
 	context->awakeContactIndices = NULL;
-	contactIndices = NULL;
 
 	// Serially update contact state
 	// todo bring this zone together with island merge
@@ -1033,154 +1060,102 @@ static void b3Collide( b3StepContext* context )
 	b3ValidateContacts( world );
 
 	b3TracyCZoneEnd( contact_state );
-	b3TracyCZoneEnd( collide );
 }
 
-void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
+static void b3PrepareStepContext( b3World* world, b3StepContext* context )
 {
-	b3World* world = b3GetUnlockedWorldFromId( worldId );
-	if ( world == NULL )
-	{
-		return;
-	}
-
-	B3_REC( world, Step, worldId, timeStep, subStepCount );
-
-	world->locked = true;
-
-	b3TracyCZoneNC( world_step, "Step", b3_colorBox2DGreen, true );
-
-	// Clear debug buffers
-	for ( int i = 0; i < world->workerCount; ++i )
-	{
-		world->taskContexts.data[i].pointCount = 0;
-		world->taskContexts.data[i].lineCount = 0;
-	}
-
-	// Prepare to capture events
-	// Ensure user does not access stale data if there is an early return
-	b3Array_Clear( world->bodyMoveEvents );
-	b3Array_Clear( world->sensorBeginEvents );
-	b3Array_Clear( world->contactBeginEvents );
-	b3Array_Clear( world->contactHitEvents );
-	b3Array_Clear( world->jointEvents );
-
-	world->profile = (b3Profile){ 0 };
-
-	world->activeTaskCount = 0;
-	world->taskCount = 0;
-
-	if ( world->scheduler != NULL )
-	{
-		b3ResetScheduler( world->scheduler );
-	}
-
-	uint64_t stepTicks = b3GetTicks();
-
-	{
-		b3Capacity* c = &world->maxCapacity;
-		c->staticShapeCount = b3MaxInt( c->staticShapeCount, world->broadPhase.trees[b3_staticBody].proxyCount );
-		c->dynamicShapeCount = b3MaxInt( c->dynamicShapeCount, world->broadPhase.trees[b3_dynamicBody].proxyCount );
-
-		int staticBodyCount = b3GetSolverSet( world, b3_staticSet )->bodySims.count;
-		c->staticBodyCount = b3MaxInt( c->staticBodyCount, staticBodyCount );
-
-		// this includes kinematic bodies
-		int totalBodyCount = b3GetIdCount( &world->bodyIdPool );
-		c->dynamicBodyCount = b3MaxInt( c->dynamicBodyCount, totalBodyCount - staticBodyCount );
-
-		int totalContactCount = b3GetIdCount( &world->contactIdPool );
-		c->contactCount = b3MaxInt( c->contactCount, totalContactCount );
-	}
-
-	// Update collision pairs and create contacts
-	{
-		uint64_t pairTicks = b3GetTicks();
-		b3UpdateBroadPhasePairs( world );
-		world->profile.pairs = b3GetMilliseconds( pairTicks );
-	}
-
-	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
-
-	b3StepContext context = { 0 };
-	context.world = world;
-	context.states = awakeSet->bodyStates.data;
-	context.dt = timeStep;
-	context.subStepCount = b3MaxInt( 1, subStepCount );
+	float timeStep = context->dt;
+	context->subStepCount = b3MaxInt( 1, context->subStepCount );
 
 	if ( timeStep > 0.0f )
 	{
-		context.inv_dt = 1.0f / timeStep;
-		context.h = timeStep / context.subStepCount;
-		context.inv_h = context.subStepCount * context.inv_dt;
+		context->inv_dt = 1.0f / timeStep;
+		context->h = timeStep / context->subStepCount;
+		context->inv_h = context->subStepCount * context->inv_dt;
 	}
 	else
 	{
-		context.inv_dt = 0.0f;
-		context.h = 0.0f;
-		context.inv_h = 0.0f;
+		context->inv_dt = 0.0f;
+		context->h = 0.0f;
+		context->inv_h = 0.0f;
 	}
 
-	world->inv_h = context.inv_h;
-	world->inv_dt = context.inv_dt;
+	world->inv_h = context->inv_h;
+	world->inv_dt = context->inv_dt;
 
 	// Hertz values get reduced for large time steps
-	float contactHertz = b3MinFloat( world->contactHertz, 0.125f * context.inv_h );
-	context.contactSoftness = b3MakeSoft( contactHertz, world->contactDampingRatio, context.h );
-	context.staticSoftness = b3MakeSoft( 2.0f * contactHertz, 0.5f * world->contactDampingRatio, context.h );
+	float contactHertz = b3MinFloat( world->contactHertz, 0.125f * context->inv_h );
+	context->contactSoftness = b3MakeSoft( contactHertz, world->contactDampingRatio, context->h );
+	context->staticSoftness = b3MakeSoft( 2.0f * contactHertz, 0.5f * world->contactDampingRatio, context->h );
 
-	context.maxLinearVelocity = world->maxLinearSpeed;
-	context.enableWarmStarting = world->enableWarmStarting;
+	context->maxLinearVelocity = world->maxLinearSpeed;
+	context->enableWarmStarting = world->enableWarmStarting;
+}
 
-	// Narrow phase : update contacts
+static b3TaskBatch b3MakeTaskBatch( b3StepContext* context )
+{
+	int deferredCount = context->batchTaskBase == 0 && context->tasks[0].deferred ? 1 : 0;
+	b3AtomicStoreInt( &context->pendingCount, context->batchTaskCount - deferredCount );
+
+	return (b3TaskBatch){
+		.tasks = context->tasks + context->batchTaskBase,
+		.count = context->batchTaskCount,
+		.joinTasks = context->joinTree ? context->tasks : NULL,
+		.joinCount = context->joinTree ? 1 : 0,
+	};
+}
+
+static void b3LaunchTreeTask( b3StepContext* context, bool deferred )
+{
+	B3_ASSERT( context->treeStaged && context->treeLaunched == false );
+	context->batchTaskBase = 0;
+	context->batchTaskCount += 1;
+	context->treeLaunched = true;
+
+	if ( deferred == false )
 	{
-		uint64_t collideTicks = b3GetTicks();
-		b3Collide( &context );
-		world->profile.collide = b3GetMilliseconds( collideTicks );
+		context->tasks[0].deferred = false;
+		b3AtomicStoreInt( &context->treePending, 0 );
 	}
+}
 
-	// Integrate velocities, solve velocity constraints, and integrate positions.
-	if ( timeStep > 0.0f )
+static void b3JoinTreeTask( b3StepContext* context )
+{
+	if ( context->treeStaged )
 	{
-		uint64_t solveTicks = b3GetTicks();
-		b3Solve( world, &context );
-		world->profile.solve = b3GetMilliseconds( solveTicks );
+		B3_ASSERT( b3AtomicLoadInt( &context->treePending ) == 0 );
+		context->treeStaged = false;
+		b3ValidateNoMoved( &context->world->broadPhase );
 	}
+}
 
-	// Finish the tree task in case b3Solve didn't finish it
-	if ( world->userTreeTask )
-	{
-		world->finishTaskFcn( world->userTreeTask, world->userTaskContext );
-		world->userTreeTask = NULL;
-		world->activeTaskCount -= 1;
-		b3ValidateNoMoved( &world->broadPhase );
-	}
+static void b3EnterSensors( b3World* world, b3StepContext* context )
+{
+	context->phase = b3_stepSensors;
+	context->sensorTicks = b3GetTicks();
+	b3BeginSensors( world );
+}
 
-	// Update sensors
-	{
-		uint64_t sensorTicks = b3GetTicks();
-		b3OverlapSensors( world );
-		world->profile.sensors = b3GetMilliseconds( sensorTicks );
-	}
+static void b3EndStep( b3World* world )
+{
+	b3StepContext* context = world->stepContext;
+	B3_ASSERT( context->treeStaged == false );
 
-	world->profile.step = b3GetMilliseconds( stepTicks );
+	world->profile.step = b3GetMilliseconds( context->stepTicks );
 
 	B3_ASSERT( world->stack.allocation == 0 );
 
 	// Ensure stack is large enough
 	b3GrowStack( &world->stack );
 
-	// Make sure all tasks that were started were also finished
-	B3_ASSERT( world->activeTaskCount == 0 );
-
 	// Swap end event array buffers
 	world->endEventArrayIndex = 1 - world->endEventArrayIndex;
 	b3Array_Clear( world->sensorEndEvents[world->endEventArrayIndex] );
 	b3Array_Clear( world->contactEndEvents[world->endEventArrayIndex] );
-	world->locked = false;
 
 	if ( world->recording != NULL )
 	{
+		b3WorldId worldId = { (uint16_t)( world->worldId + 1 ), world->generation };
 		uint64_t hash = b3HashWorldState( world );
 		b3RecArgs_StateHash stateHash = { worldId, hash };
 		b3RecWrite_StateHash( world->recording, &stateHash );
@@ -1205,8 +1180,396 @@ void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
 		}
 	}
 
-	b3TracyCZoneEnd( world_step );
+	context->phase = b3_stepIdle;
+	world->locked = false;
+
 	b3TracyCFrame;
+}
+
+static b3TaskBatch b3AdvanceStep( b3World* world )
+{
+	b3StepContext* context = world->stepContext;
+
+	for ( ;; )
+	{
+		b3ResetTaskBatch( context );
+
+		switch ( context->phase )
+		{
+			case b3_stepBegin:
+				context->phase = b3_stepCrossPairs;
+				context->pairTicks = b3GetTicks();
+				context->pairsUpdated = b3BeginPairs( world );
+				break;
+
+			case b3_stepCrossPairs:
+				context->phase = b3_stepSelfPairs;
+				if ( context->pairsUpdated )
+				{
+					b3StageSelfPairs( world );
+				}
+				break;
+
+			case b3_stepSelfPairs:
+				if ( context->pairsUpdated )
+				{
+					b3EndPairs( world );
+				}
+				world->profile.pairs = b3GetMilliseconds( context->pairTicks );
+
+				b3PrepareStepContext( world, context );
+
+				context->phase = b3_stepCollide;
+				context->collideTicks = b3GetTicks();
+				context->solveSkipped =
+					( context->dt > 0.0f ) == false || b3GetSolverSet( world, b3_awakeSet )->bodySims.count == 0;
+
+				b3BeginCollide( context );
+
+				if ( context->treeStaged && ( context->batchTaskCount > 0 || context->solveSkipped ) )
+				{
+					b3LaunchTreeTask( context, context->solveSkipped == false );
+				}
+				break;
+
+			case b3_stepCollide:
+				b3EndCollide( context );
+				world->profile.collide = b3GetMilliseconds( context->collideTicks );
+
+				// Integrate velocities, solve velocity constraints, and integrate positions.
+				if ( context->dt > 0.0f )
+				{
+					context->phase = b3_stepSolve;
+					context->solveTicks = b3GetTicks();
+					if ( b3BeginSolve( world, context ) )
+					{
+						B3_ASSERT( context->solveSkipped == false );
+						if ( context->treeStaged )
+						{
+							if ( context->treeLaunched )
+							{
+								context->joinTree = true;
+							}
+							else
+							{
+								b3LaunchTreeTask( context, false );
+							}
+						}
+						break;
+					}
+
+					world->profile.solve = b3GetMilliseconds( context->solveTicks );
+				}
+
+				B3_ASSERT( context->solveSkipped );
+				b3JoinTreeTask( context );
+				b3EnterSensors( world, context );
+				break;
+
+			case b3_stepSolve:
+				b3JoinTreeTask( context );
+				context->phase = b3_stepFinalize;
+				b3BeginFinalize( world, context );
+				break;
+
+			case b3_stepFinalize:
+				context->phase = b3_stepBullets;
+				b3BeginBullets( world, context );
+				break;
+
+			case b3_stepBullets:
+				b3EndBullets( world, context );
+				world->profile.solve = b3GetMilliseconds( context->solveTicks );
+				b3EnterSensors( world, context );
+				break;
+
+			case b3_stepSensors:
+				b3EndSensors( world );
+				world->profile.sensors = b3GetMilliseconds( context->sensorTicks );
+				b3EndStep( world );
+				return (b3TaskBatch){ 0 };
+
+			default:
+				B3_ASSERT( false );
+				return (b3TaskBatch){ 0 };
+		}
+
+		if ( context->batchTaskCount > 0 )
+		{
+			return b3MakeTaskBatch( context );
+		}
+	}
+}
+
+static b3TaskBatch b3StartStep( b3World* world, b3WorldId worldId, float timeStep, int subStepCount,
+								bool signalSemaphores )
+{
+	// Record step inputs before simulation runs
+	B3_REC( world, Step, worldId, timeStep, subStepCount );
+
+	// Clear debug buffers
+	for ( int i = 0; i < world->workerCount; ++i )
+	{
+		world->taskContexts.data[i].pointCount = 0;
+		world->taskContexts.data[i].lineCount = 0;
+	}
+
+	// Prepare to capture events
+	// Ensure user does not access stale data if there is an early return
+	b3Array_Clear( world->bodyMoveEvents );
+	b3Array_Clear( world->sensorBeginEvents );
+	b3Array_Clear( world->contactBeginEvents );
+	b3Array_Clear( world->contactHitEvents );
+	b3Array_Clear( world->jointEvents );
+
+	world->profile = (b3Profile){ 0 };
+
+	world->locked = true;
+
+	b3StepContext* context = world->stepContext;
+	b3Semaphore* batchSemaphore = context->batchSemaphore;
+	b3Semaphore* treeSemaphore = context->treeSemaphore;
+	memset( context, 0, sizeof( b3StepContext ) );
+	context->batchSemaphore = batchSemaphore;
+	context->treeSemaphore = treeSemaphore;
+	context->signalSemaphores = signalSemaphores;
+	B3_ASSERT( signalSemaphores == false || ( batchSemaphore != NULL && treeSemaphore != NULL ) );
+
+	context->world = world;
+	context->dt = timeStep;
+	context->subStepCount = subStepCount;
+	context->phase = b3_stepBegin;
+	context->stepTicks = b3GetTicks();
+
+	{
+		b3Capacity* c = &world->maxCapacity;
+		c->staticShapeCount = b3MaxInt( c->staticShapeCount, world->broadPhase.trees[b3_staticBody].proxyCount );
+		c->dynamicShapeCount = b3MaxInt( c->dynamicShapeCount, world->broadPhase.trees[b3_dynamicBody].proxyCount );
+
+		int staticBodyCount = b3GetSolverSet( world, b3_staticSet )->bodySims.count;
+		c->staticBodyCount = b3MaxInt( c->staticBodyCount, staticBodyCount );
+
+		// this includes kinematic bodies
+		int totalBodyCount = b3GetIdCount( &world->bodyIdPool );
+		c->dynamicBodyCount = b3MaxInt( c->dynamicBodyCount, totalBodyCount - staticBodyCount );
+
+		int totalContactCount = b3GetIdCount( &world->contactIdPool );
+		c->contactCount = b3MaxInt( c->contactCount, totalContactCount );
+	}
+
+	return b3AdvanceStep( world );
+}
+
+static b3TaskBatch b3ContinueStepInternal( b3World* world )
+{
+	b3StepContext* context = world->stepContext;
+	B3_UNUSED( context );
+	B3_ASSERT( b3AtomicLoadInt( &context->pendingCount ) == 0 );
+	B3_ASSERT( context->joinTree == false || b3AtomicLoadInt( &context->treePending ) == 0 );
+	return b3AdvanceStep( world );
+}
+
+typedef struct b3StepDriver
+{
+	b3World* world;
+	void* treeTask;
+	int enqueueCount;
+	bool useFinish;
+} b3StepDriver;
+
+static void b3RunTaskBatch( b3StepDriver* driver, b3TaskBatch batch )
+{
+	b3World* world = driver->world;
+	void* userContext = world->userTaskContext;
+
+	void* handles[B3_STEP_TASK_CAPACITY];
+	bool waitBatch = false;
+	int lastIndex = batch.count - 1;
+	B3_ASSERT( 0 <= lastIndex && lastIndex < B3_STEP_TASK_CAPACITY );
+
+	for ( int i = 0; i < lastIndex; ++i )
+	{
+		const b3Task* task = batch.tasks + i;
+		void* handle = NULL;
+		if ( driver->enqueueCount < B3_MAX_TASKS )
+		{
+			handle = world->enqueueTaskFcn( task->fcn, task->context, userContext, task->type );
+			driver->enqueueCount += 1;
+		}
+		else
+		{
+			task->fcn( task->context );
+		}
+
+		if ( task->deferred )
+		{
+			B3_ASSERT( driver->treeTask == NULL );
+			driver->treeTask = handle;
+			handles[i] = NULL;
+		}
+		else
+		{
+			handles[i] = handle;
+			waitBatch = true;
+		}
+	}
+
+	const b3Task* lastTask = batch.tasks + lastIndex;
+	waitBatch = waitBatch || lastTask->deferred == false;
+	lastTask->fcn( lastTask->context );
+
+	if ( driver->useFinish )
+	{
+		for ( int i = 0; i < lastIndex; ++i )
+		{
+			if ( handles[i] != NULL )
+			{
+				world->finishTaskFcn( handles[i], userContext );
+			}
+		}
+	}
+	else if ( waitBatch )
+	{
+		b3WaitSemaphore( world->stepContext->batchSemaphore );
+	}
+
+	if ( batch.joinCount > 0 )
+	{
+		if ( driver->useFinish )
+		{
+			if ( driver->treeTask != NULL )
+			{
+				world->finishTaskFcn( driver->treeTask, userContext );
+			}
+		}
+		else
+		{
+			b3WaitSemaphore( world->stepContext->treeSemaphore );
+		}
+
+		driver->treeTask = NULL;
+	}
+}
+
+void b3World_Step( b3WorldId worldId, float timeStep, int subStepCount )
+{
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return;
+	}
+
+	b3TracyCZoneNC( world_step, "Step", b3_colorBox2DGreen, true );
+
+	if ( world->useScheduler )
+	{
+		if ( world->scheduler == NULL )
+		{
+			world->scheduler = b3CreateScheduler( world->workerCount );
+			world->userTaskContext = world->scheduler;
+		}
+
+		b3ResetScheduler( world->scheduler );
+	}
+
+	b3StepDriver driver = {
+		.world = world,
+		.treeTask = NULL,
+		.enqueueCount = 0,
+		.useFinish = world->finishTaskFcn != NULL,
+	};
+
+	b3TaskBatch batch = b3StartStep( world, worldId, timeStep, subStepCount, driver.useFinish == false );
+	while ( batch.count > 0 )
+	{
+		switch ( world->stepContext->phase )
+		{
+			case b3_stepCrossPairs:
+			case b3_stepSelfPairs:
+			{
+				b3TracyCZoneNC( find_pairs, "Find Pairs", b3_colorMediumSlateBlue, true );
+				b3RunTaskBatch( &driver, batch );
+				b3TracyCZoneEnd( find_pairs );
+			}
+			break;
+
+			case b3_stepCollide:
+			{
+				b3TracyCZoneNC( collide, "Narrow Phase", b3_colorDarkOrchid, true );
+				b3RunTaskBatch( &driver, batch );
+				b3TracyCZoneEnd( collide );
+			}
+			break;
+
+			case b3_stepSolve:
+			{
+				b3TracyCZoneNC( solve_constraints, "Solve Constraints", b3_colorIndigo, true );
+				b3RunTaskBatch( &driver, batch );
+				b3TracyCZoneEnd( solve_constraints );
+			}
+			break;
+
+			case b3_stepFinalize:
+			{
+				b3TracyCZoneNC( update_transforms, "Update Transforms", b3_colorMediumSeaGreen, true );
+				b3RunTaskBatch( &driver, batch );
+				b3TracyCZoneEnd( update_transforms );
+			}
+			break;
+
+			case b3_stepBullets:
+			{
+				b3TracyCZoneNC( bullets, "Bullets", b3_colorDarkGoldenRod, true );
+				b3RunTaskBatch( &driver, batch );
+				b3TracyCZoneEnd( bullets );
+			}
+			break;
+
+			case b3_stepSensors:
+			{
+				b3TracyCZoneNC( sensors, "Sensors", b3_colorMediumPurple, true );
+				b3RunTaskBatch( &driver, batch );
+				b3TracyCZoneEnd( sensors );
+			}
+			break;
+
+			default:
+				B3_ASSERT( false );
+				break;
+		}
+
+		batch = b3ContinueStepInternal( world );
+	}
+
+	B3_ASSERT( driver.treeTask == NULL );
+	world->stepContext->enqueueCount = driver.enqueueCount;
+
+	b3TracyCZoneEnd( world_step );
+}
+
+b3TaskBatch b3World_BeginStep( b3WorldId worldId, float timeStep, int subStepCount )
+{
+	b3World* world = b3GetWorldFromId( worldId );
+	B3_ASSERT( world->locked == false );
+	if ( world->locked )
+	{
+		return (b3TaskBatch){ 0 };
+	}
+
+	return b3StartStep( world, worldId, timeStep, subStepCount, false );
+}
+
+b3TaskBatch b3World_ContinueStep( b3WorldId worldId )
+{
+	b3World* world = b3GetWorldFromId( worldId );
+	b3StepContext* context = world->stepContext;
+	B3_ASSERT( world->locked && context->phase != b3_stepIdle );
+	if ( context->phase == b3_stepIdle )
+	{
+		return (b3TaskBatch){ 0 };
+	}
+
+	return b3ContinueStepInternal( world );
 }
 
 typedef struct DrawContext
@@ -2300,14 +2663,31 @@ void b3World_SetWorkerCount( b3WorldId worldId, int count )
 		return;
 	}
 
-	if ( count == world->workerCount )
+	int clampedCount = b3ClampInt( count, 1, B3_MAX_WORKERS );
+
+	if ( clampedCount == world->workerCount )
 	{
 		return;
 	}
 
+	if ( world->enqueueTaskFcn == b3DefaultAddTaskFcn && clampedCount > 1 )
+	{
+		world->useScheduler = true;
+		world->enqueueTaskFcn = b3SchedulerEnqueueTask;
+		world->finishTaskFcn = b3SchedulerFinishTask;
+	}
+
 	b3DestroyWorkerContexts( world );
-	world->workerCount = b3ClampInt( count, 1, B3_MAX_WORKERS );
+	world->workerCount = clampedCount;
 	b3CreateWorkerContexts( world );
+
+	if ( world->scheduler != NULL )
+	{
+		// The scheduler will be recreated on the next world step.
+		b3DestroyScheduler( world->scheduler );
+		world->scheduler = NULL;
+		world->userTaskContext = NULL;
+	}
 }
 
 int b3World_GetWorkerCount( b3WorldId worldId )
@@ -2455,6 +2835,14 @@ static uint64_t b3GetWorldByteCount( b3World* world, bool log )
 		b3Log( "kinematic tree: %d", kinematicTreeBytes );
 		b3Log( "dynamic tree: %d", dynamicTreeBytes );
 		b3Log( "pairSet: %d (%d, %d)", pairSetBytes, pairSet->count, pairSet->capacity );
+	}
+
+	int stepContextBytes = (int)sizeof( b3StepContext );
+	total += (uint64_t)stepContextBytes;
+
+	if ( log )
+	{
+		b3Log( "step context: %d", stepContextBytes );
 	}
 
 	// Manifold block allocators, one per manifold point count
@@ -2644,7 +3032,8 @@ b3Counters b3World_GetCounters( b3WorldId worldId )
 	memcpy( s.manifoldCounts, world->manifoldCounts, B3_MAX_MANIFOLDS * sizeof( int ) );
 	s.stackUsed = world->stack.maxAllocation;
 	s.byteCount = (int64_t)b3GetWorldByteCount( world, false );
-	s.taskCount = world->taskCount;
+	s.taskCount = world->stepContext->taskCount;
+	s.enqueueCount = world->stepContext->enqueueCount;
 
 	_Static_assert( B3_GRAPH_COLOR_COUNT == sizeof( s.colorCounts ) / sizeof( s.colorCounts[0] ), "colorCounts size mismatch" );
 
