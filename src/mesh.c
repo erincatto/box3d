@@ -572,6 +572,7 @@ typedef struct b3Primitive
 	b3AABB aabb;
 	b3Vec3 center;
 	int triangleIndex;
+	int8_t binIndex[3];
 } b3Primitive;
 
 _Static_assert( offsetof( b3Primitive, aabb.upperBound ) == 3 * sizeof( float ) &&
@@ -694,6 +695,10 @@ static b3Split b3SplitBinnedSah( int count, b3Primitive* primitives )
 		B3_ASSERT( 0 <= indexY && indexY < B3_BIN_COUNT );
 		B3_ASSERT( 0 <= indexZ && indexZ < B3_BIN_COUNT );
 
+		primitives[i].binIndex[0] = (int8_t)indexX;
+		primitives[i].binIndex[1] = (int8_t)indexY;
+		primitives[i].binIndex[2] = (int8_t)indexZ;
+
 		const float* p = &primitives[i].aabb.lowerBound.x;
 		b3FloatW4 lower = b3LoadW4( p );
 		b3FloatW4 upper = b3LoadW4( p + 2 );
@@ -772,14 +777,11 @@ static b3Split b3SplitBinnedSah( int count, b3Primitive* primitives )
 	if ( bestBucket >= 0 )
 	{
 		int axis = split.axis;
-		float factor = B3_BIN_COUNT * ( 1.0f - FLT_EPSILON ) /
-					   ( b3GetByIndex( bounds.upperBound, axis ) - b3GetByIndex( bounds.lowerBound, axis ) );
 
 		int splitIndex = 0;
 		for ( int i = 0; i < count; ++i )
 		{
-			b3Vec3 center = primitives[i].center;
-			int index = (int)( factor * ( b3GetByIndex( center, axis ) - b3GetByIndex( bounds.lowerBound, axis ) ) );
+			int index = primitives[i].binIndex[axis];
 
 			if ( index <= bestBucket )
 			{
