@@ -253,7 +253,10 @@ b3WorldId b3CreateWorld( const b3WorldDef* def )
 
 	world->stack = b3CreateStack( 2048 );
 
-	b3Array_Reserve( world->manifoldAllocators, 16 );
+	for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
+	{
+		world->manifoldAllocators[i] = b3CreateBlockAllocator( ( i + 1 ) * (int)sizeof( b3Manifold ), 0 );
+	}
 	world->manifoldAllocatorMutex = b3CreateMutex();
 
 	b3CreateBroadPhase( &world->broadPhase, &def->capacity );
@@ -540,11 +543,10 @@ void b3DestroyWorld( b3WorldId worldId )
 	b3DestroyIdPool( &world->islandIdPool );
 	b3DestroyIdPool( &world->solverSetIdPool );
 
-	for ( int i = 0; i < world->manifoldAllocators.count; ++i )
+	for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
 	{
-		b3DestroyBlockAllocator( world->manifoldAllocators.data + i );
+		b3DestroyBlockAllocator( world->manifoldAllocators + i );
 	}
-	b3Array_Destroy( world->manifoldAllocators );
 	b3DestroyMutex( world->manifoldAllocatorMutex );
 
 	b3DestroyStack( &world->stack );
@@ -2846,20 +2848,18 @@ static uint64_t b3GetWorldByteCount( b3World* world, bool log )
 	}
 
 	// Manifold block allocators, one per manifold point count
-	int manifoldArrayBytes = b3Array_ByteCount( world->manifoldAllocators );
 	int manifoldBlockBytes = 0;
-	for ( int i = 0; i < world->manifoldAllocators.count; ++i )
+	for ( int i = 0; i < B3_MAX_MANIFOLDS; ++i )
 	{
-		b3BlockAllocator* allocator = world->manifoldAllocators.data + i;
+		b3BlockAllocator* allocator = world->manifoldAllocators + i;
 		manifoldBlockBytes += b3Array_ByteCount( allocator->blocks );
 		manifoldBlockBytes += allocator->blocks.count * B3_BLOCK_SIZE * allocator->elementSize;
 	}
-	total += (uint64_t)manifoldArrayBytes + manifoldBlockBytes;
+	total += (uint64_t)manifoldBlockBytes;
 
 	if ( log )
 	{
 		b3Log( "manifold allocators" );
-		b3Log( "allocator array: %d", manifoldArrayBytes );
 		b3Log( "blocks: %d", manifoldBlockBytes );
 	}
 
