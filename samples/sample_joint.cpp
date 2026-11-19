@@ -2034,21 +2034,19 @@ public:
 			groundId = b3CreateBody( m_worldId, &bodyDef );
 		}
 
-		m_motionLocks = {};
-		m_motionLocks.linearX = true;
-		m_motionLocks.linearY = true;
-		m_motionLocks.linearZ = true;
+		m_flags = { .linearX = true, .linearY = true, .linearZ = true };
+		m_rotation = e_freeRotation;
 
 		for ( int i = 0; i < m_capacity; ++i )
 		{
 			m_bodyIds[i] = b3_nullBodyId;
+			m_lockIds[i] = b3_nullJointId;
 		}
 
 		b3Pos position = { -12.5f, 10.0, 0.0f };
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.enableSleep = false;
-		bodyDef.motionLocks = m_motionLocks;
 
 		b3BoxHull box = b3MakeBoxHull( 1.0f, 1.0f, 0.5f );
 
@@ -2065,6 +2063,7 @@ public:
 		{
 			assert( m_count < m_capacity );
 
+			bodyDef.name = "distance";
 			bodyDef.position = position;
 			bodyDef.angularDamping = 0.5f;
 
@@ -2094,6 +2093,7 @@ public:
 		{
 			assert( m_count < m_capacity );
 
+			bodyDef.name = "motor";
 			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
@@ -2101,7 +2101,7 @@ public:
 			b3MotorJointDef jointDef = b3DefaultMotorJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = m_bodyIds[m_count];
-			jointDef.base.localFrameA.p = position;
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( jointDef.base.bodyIdA, position );
 			jointDef.maxSpringForce = 1000.0f;
 			jointDef.maxSpringTorque = 20.0f;
 			jointDef.base.forceThreshold = forceThreshold;
@@ -2118,6 +2118,7 @@ public:
 		{
 			assert( m_count < m_capacity );
 
+			bodyDef.name = "prismatic";
 			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
@@ -2143,6 +2144,7 @@ public:
 		{
 			assert( m_count < m_capacity );
 
+			bodyDef.name = "revolute";
 			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
@@ -2168,6 +2170,7 @@ public:
 		{
 			assert( m_count < m_capacity );
 
+			bodyDef.name = "weld";
 			bodyDef.position = position;
 			m_bodyIds[m_count] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[m_count], &shapeDef, &box.base );
@@ -2194,11 +2197,13 @@ public:
 		{
 			assert( m_count < m_capacity );
 
+			bodyDef.name = "wheel";
 			bodyDef.position = position;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &box.base );
+			m_bodyIds[m_count] = bodyId;
 
-			b3Vec3 pivot = { position.x - 1.0f, position.y, 0.0f };
+			b3Pos pivot = { position.x - 1.0f, position.y, 0.0f };
 			b3WheelJointDef jointDef = b3DefaultWheelJointDef();
 			jointDef.base.bodyIdA = groundId;
 			jointDef.base.bodyIdB = bodyId;
@@ -2222,62 +2227,42 @@ public:
 		position.x += 5.0f;
 		++m_count;
 #endif
+
+		ApplyLocks();
+	}
+
+	void ApplyLocks()
+	{
+		MotionLockFlags flags = m_flags;
+		flags.angularX = m_rotation == e_spinY || m_rotation == e_spinZ || m_rotation == e_fixedRotation;
+		flags.angularY = m_rotation == e_spinX || m_rotation == e_spinZ || m_rotation == e_fixedRotation;
+		flags.angularZ = m_rotation == e_spinX || m_rotation == e_spinY || m_rotation == e_fixedRotation;
+
+		for ( int i = 0; i < m_count; ++i )
+		{
+			if ( B3_IS_NON_NULL( m_lockIds[i] ) )
+			{
+				b3DestroyJoint( m_lockIds[i], true );
+			}
+
+			m_lockIds[i] = LockMotion( m_bodyIds[i], flags );
+			b3Body_SetAwake( m_bodyIds[i], true );
+		}
 	}
 
 	bool DrawControls() override
 	{
-		if ( ImGui::Checkbox( "Lock Linear X", &m_motionLocks.linearX ) )
-		{
-			for ( int i = 0; i < m_count; ++i )
-			{
-				b3Body_SetMotionLocks( m_bodyIds[i], m_motionLocks );
-				b3Body_SetAwake( m_bodyIds[i], true );
-			}
-		}
+		bool changed = false;
+		changed = ImGui::Checkbox( "Lock Linear X", &m_flags.linearX ) || changed;
+		changed = ImGui::Checkbox( "Lock Linear Y", &m_flags.linearY ) || changed;
+		changed = ImGui::Checkbox( "Lock Linear Z", &m_flags.linearZ ) || changed;
 
-		if ( ImGui::Checkbox( "Lock Linear Y", &m_motionLocks.linearY ) )
-		{
-			for ( int i = 0; i < m_count; ++i )
-			{
-				b3Body_SetMotionLocks( m_bodyIds[i], m_motionLocks );
-				b3Body_SetAwake( m_bodyIds[i], true );
-			}
-		}
+		const char* rotations[] = { "free", "spin about x", "spin about y", "spin about z", "fixed" };
+		changed = ImGui::Combo( "Rotation", &m_rotation, rotations, IM_ARRAYSIZE( rotations ) ) || changed;
 
-		if ( ImGui::Checkbox( "Lock Linear Z", &m_motionLocks.linearZ ) )
+		if ( changed )
 		{
-			for ( int i = 0; i < m_count; ++i )
-			{
-				b3Body_SetMotionLocks( m_bodyIds[i], m_motionLocks );
-				b3Body_SetAwake( m_bodyIds[i], true );
-			}
-		}
-
-		if ( ImGui::Checkbox( "Lock Angular X", &m_motionLocks.angularX ) )
-		{
-			for ( int i = 0; i < m_count; ++i )
-			{
-				b3Body_SetMotionLocks( m_bodyIds[i], m_motionLocks );
-				b3Body_SetAwake( m_bodyIds[i], true );
-			}
-		}
-
-		if ( ImGui::Checkbox( "Lock Angular Y", &m_motionLocks.angularY ) )
-		{
-			for ( int i = 0; i < m_count; ++i )
-			{
-				b3Body_SetMotionLocks( m_bodyIds[i], m_motionLocks );
-				b3Body_SetAwake( m_bodyIds[i], true );
-			}
-		}
-
-		if ( ImGui::Checkbox( "Lock Angular Z", &m_motionLocks.angularZ ) )
-		{
-			for ( int i = 0; i < m_count; ++i )
-			{
-				b3Body_SetMotionLocks( m_bodyIds[i], m_motionLocks );
-				b3Body_SetAwake( m_bodyIds[i], true );
-			}
+			ApplyLocks();
 		}
 
 		if ( IsKeyDown( KEY_L ) )
@@ -2293,13 +2278,145 @@ public:
 		return new MotionLocks( context );
 	}
 
+	enum Rotation
+	{
+		e_freeRotation,
+		e_spinX,
+		e_spinY,
+		e_spinZ,
+		e_fixedRotation,
+	};
+
 	static constexpr int m_capacity = 7;
 	b3BodyId m_bodyIds[m_capacity];
+	b3JointId m_lockIds[m_capacity];
 	int m_count;
-	b3MotionLocks m_motionLocks;
+	MotionLockFlags m_flags;
+	int m_rotation;
 };
 
 static int sampleMotionLocks = RegisterSample( "Joints", "Motion Locks", MotionLocks::Create );
+
+class MotionLockJoint : public Sample
+{
+public:
+	explicit MotionLockJoint( SampleContext* context )
+		: Sample( context )
+	{
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 20.0f, 30.0f, { 0.0f, 3.0f, 0.0f } );
+		}
+
+		b3BodyId groundId = AddGroundBox( 20.0f );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		b3BoxHull box = b3MakeBoxHull( 1.0f, 0.5f, 0.25f );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.enableSleep = false;
+
+		struct Preset
+		{
+			bool x, y, z, rotation;
+		};
+
+		Preset presets[e_count] = {
+			{ false, true, true, false },
+			{ false, true, false, false },
+			{ true, true, true, false },
+			{ false, false, true, true },
+		};
+
+		for ( int i = 0; i < e_count; ++i )
+		{
+			b3Pos position = { -9.0f + 6.0f * i, 4.0f, 0.0f };
+			bodyDef.position = position;
+			m_bodyIds[i] = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHullShape( m_bodyIds[i], &shapeDef, &box.base );
+
+			b3MotionLockJointDef jointDef = b3DefaultMotionLockJointDef();
+			jointDef.base.bodyIdA = groundId;
+			jointDef.base.bodyIdB = m_bodyIds[i];
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( groundId, position );
+			jointDef.base.collideConnected = true;
+			jointDef.lockLinearX = presets[i].x;
+			jointDef.lockLinearY = presets[i].y;
+			jointDef.lockLinearZ = presets[i].z;
+			jointDef.lockRotation = presets[i].rotation;
+			m_jointIds[i] = b3CreateMotionLockJoint( m_worldId, &jointDef );
+		}
+
+		{
+			b3Pos position = { 0.0f, 8.0f, 6.0f };
+			bodyDef.position = position;
+			b3BodyId platformId = b3CreateBody( m_worldId, &bodyDef );
+			b3BoxHull platform = b3MakeBoxHull( 2.0f, 0.05f, 0.5f );
+			b3CreateHullShape( platformId, &shapeDef, &platform.base );
+
+			b3MassData massData = b3Body_GetMassData( platformId );
+			massData.inertia = b3MulSM( 1.0f / massData.mass, massData.inertia );
+			massData.mass = 1.0f;
+			b3Body_SetMassData( platformId, massData );
+
+			b3MotionLockJointDef jointDef = b3DefaultMotionLockJointDef();
+			jointDef.base.bodyIdA = groundId;
+			jointDef.base.bodyIdB = platformId;
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( groundId, position );
+			jointDef.lockLinearX = true;
+			jointDef.lockLinearY = true;
+			jointDef.lockLinearZ = true;
+			jointDef.lockRotation = true;
+			b3CreateMotionLockJoint( m_worldId, &jointDef );
+
+			bodyDef.position = { 0.0f, 9.0f, 6.0f };
+			m_sphereId = b3CreateBody( m_worldId, &bodyDef );
+			b3Sphere sphere = { b3Vec3_zero, 0.5f };
+			b3CreateSphereShape( m_sphereId, &shapeDef, &sphere );
+
+			massData = b3Body_GetMassData( m_sphereId );
+			massData.inertia = b3MulSM( 10.0f / massData.mass, massData.inertia );
+			massData.mass = 10.0f;
+			b3Body_SetMassData( m_sphereId, massData );
+		}
+	}
+
+	void Step() override
+	{
+		if ( IsKeyDown( KEY_L ) )
+		{
+			for ( int i = 0; i < e_count; ++i )
+			{
+				b3Body_ApplyLinearImpulseToCenter( m_bodyIds[i], { 5.0f, 5.0f, 5.0f }, true );
+				b3Body_ApplyAngularImpulse( m_bodyIds[i], { 2.0f, 2.0f, 2.0f }, true );
+			}
+		}
+
+		Sample::Step();
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+
+		DrawTextLine( "Line, plane, point, planar. Press L to push." );
+		DrawTextLine( "10 kg sphere on a 1 kg locked platform: gap = %.3f m",
+					  (float)b3Body_GetPosition( m_sphereId ).y - 8.55f );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new MotionLockJoint( context );
+	}
+
+	static constexpr int e_count = 4;
+	b3BodyId m_bodyIds[e_count];
+	b3JointId m_jointIds[e_count];
+	b3BodyId m_sphereId;
+};
+
+static int sampleMotionLockJoint = RegisterSample( "Joints", "Motion Lock Joint", MotionLockJoint::Create );
 
 class Driving : public Sample
 {

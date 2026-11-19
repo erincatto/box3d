@@ -136,6 +136,23 @@ struct SampleContext
 	bool newUser = true;
 };
 
+// Stand in for body motion locks, all in world axes. Locking two angular axes keeps spin about the third and
+// locking all three fixes the rotation. A single angular lock is not supported.
+struct MotionLockFlags
+{
+	bool linearX;
+	bool linearY;
+	bool linearZ;
+	bool angularX;
+	bool angularY;
+	bool angularZ;
+};
+
+// Holds the body to a static body with a motion lock joint anchored at its center of mass, so call it after
+// the body's shapes are created. Fixed rotation stays on the body. Returns a null id when the flags only fix
+// the rotation or lock nothing.
+b3JointId CreateMotionLock( b3BodyId groundId, b3BodyId bodyId, MotionLockFlags flags );
+
 class Sample
 {
 public:
@@ -241,6 +258,9 @@ public:
 	// Static ground box at the origin, drawn with the procedural grid material
 	b3BodyId AddGroundBox( float extent );
 
+	// Motion lock against one shared static body at the origin, created on first use
+	b3JointId LockMotion( b3BodyId bodyId, MotionLockFlags flags );
+
 #if defined( NDEBUG )
 	static constexpr bool m_isDebug = false;
 #else
@@ -255,6 +275,7 @@ public:
 	Camera* m_camera;
 
 	b3WorldId m_worldId;
+	b3BodyId m_lockGroundId;
 
 	b3Pos m_mousePoint;
 	b3BodyId m_mouseBodyId;

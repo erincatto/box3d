@@ -326,6 +326,8 @@ _Static_assert( sizeof( void* ) != 8 || sizeof( b3ShapeDef ) == 120,
 				"b3ShapeDef changed: update b3RecW_SHAPEDEF and b3RecR_SHAPEDEF together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3ParallelJointDef ) == 128,
 				"b3ParallelJointDef changed: update b3RecW_PARALLELJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3MotionLockJointDef ) == 120,
+				"b3MotionLockJointDef changed: update b3RecW_MOTIONLOCKJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3DistanceJointDef ) == 160,
 				"b3DistanceJointDef changed: update b3RecW_DISTANCEJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3FilterJointDef ) == 112,
@@ -435,6 +437,15 @@ void b3RecW_PARALLELJOINTDEF( b3RecBuffer* buf, b3ParallelJointDef v )
 	b3RecW_F32( buf, v.hertz );
 	b3RecW_F32( buf, v.dampingRatio );
 	b3RecW_F32( buf, v.maxTorque );
+}
+
+void b3RecW_MOTIONLOCKJOINTDEF( b3RecBuffer* buf, b3MotionLockJointDef v )
+{
+	b3RecW_JointBase( buf, &v.base );
+	b3RecW_BOOL( buf, v.lockLinearX );
+	b3RecW_BOOL( buf, v.lockLinearY );
+	b3RecW_BOOL( buf, v.lockLinearZ );
+	b3RecW_BOOL( buf, v.lockRotation );
 }
 
 void b3RecW_DISTANCEJOINTDEF( b3RecBuffer* buf, b3DistanceJointDef v )

@@ -52,7 +52,7 @@ typedef struct b3World b3World;
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.
 // Minor version 7 made the contact body sim locators persistent
-#define B3_REC_VERSION_MINOR 10
+#define B3_REC_VERSION_MINOR 11
 
 // File header, fixed 48 bytes. Contains the registry locator so the player
 // can load geometry before replaying any ops.
@@ -188,6 +188,7 @@ typedef b3BodyDef b3RecCType_BODYDEF;
 typedef b3ShapeDef b3RecCType_SHAPEDEF;
 typedef b3ExplosionDef b3RecCType_EXPLOSIONDEF;
 typedef b3ParallelJointDef b3RecCType_PARALLELJOINTDEF;
+typedef b3MotionLockJointDef b3RecCType_MOTIONLOCKJOINTDEF;
 typedef b3DistanceJointDef b3RecCType_DISTANCEJOINTDEF;
 typedef b3FilterJointDef b3RecCType_FILTERJOINTDEF;
 typedef b3MotorJointDef b3RecCType_MOTORJOINTDEF;
@@ -260,6 +261,7 @@ void b3RecW_EXPLOSIONDEF( b3RecBuffer* buf, b3ExplosionDef v );
 void b3RecW_BODYDEF( b3RecBuffer* buf, b3BodyDef v );
 void b3RecW_SHAPEDEF( b3RecBuffer* buf, b3ShapeDef v );
 void b3RecW_PARALLELJOINTDEF( b3RecBuffer* buf, b3ParallelJointDef v );
+void b3RecW_MOTIONLOCKJOINTDEF( b3RecBuffer* buf, b3MotionLockJointDef v );
 void b3RecW_DISTANCEJOINTDEF( b3RecBuffer* buf, b3DistanceJointDef v );
 void b3RecW_FILTERJOINTDEF( b3RecBuffer* buf, b3FilterJointDef v );
 void b3RecW_MOTORJOINTDEF( b3RecBuffer* buf, b3MotorJointDef v );

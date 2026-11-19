@@ -226,6 +226,10 @@ B3_REC_OP( 0x88, PogoJointSetMaxTensionForce, RET_NONE, ARG( JOINTID, joint ) AR
 B3_REC_OP( 0x89, PogoJointSetMaxCompressionForce, RET_NONE, ARG( JOINTID, joint ) ARG( F32, force ) )
 B3_REC_OP( 0x8A, PogoJointSetNormal, RET_NONE, ARG( JOINTID, joint ) ARG( VEC3, normal ) )
 
+B3_REC_OP( 0x8B, CreateMotionLockJoint, RET_JOINTID, ARG( WORLDID, world ) ARG( MOTIONLOCKJOINTDEF, def ) )
+B3_REC_OP( 0x8C, MotionLockJointEnableLinearLock, RET_NONE, ARG( JOINTID, joint ) ARG( I32, axis ) ARG( BOOL, flag ) )
+B3_REC_OP( 0x8D, MotionLockJointEnableRotationLock, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, flag ) )
+
 // Spatial queries. Inputs flow through the manifest (reader side). The hit tail and result are
 // hand-written in recording.c / recording_replay.c since they are variable length.
 B3_REC_OP( 0xE8, QueryOverlapAABB, RET_NONE, ARG( WORLDID, world ) ARG( AABB, aabb ) ARG( QUERYFILTER, filter ) )

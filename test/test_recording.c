@@ -1594,6 +1594,16 @@ static int AllOps( void )
 	b3ParallelJoint_SetSpringDampingRatio( parallelId, 0.5f );
 	b3ParallelJoint_SetMaxTorque( parallelId, 20.0f );
 
+	b3MotionLockJointDef motionLockDef = b3DefaultMotionLockJointDef();
+	motionLockDef.base.bodyIdA = groundId;
+	motionLockDef.base.bodyIdB = jb[0];
+	motionLockDef.lockLinearZ = true;
+	motionLockDef.lockRotation = true;
+	b3JointId motionLockId = b3CreateMotionLockJoint( worldId, &motionLockDef );
+	b3MotionLockJoint_EnableLinearLock( motionLockId, 0, true );
+	b3MotionLockJoint_EnableRotationLock( motionLockId, false );
+	b3MotionLockJoint_EnableRotationLock( motionLockId, true );
+
 	// Dynamic mover: a rotation locked capsule driven by a mover joint and held up by a pogo joint
 	b3BodyDef moverBodyDef = b3DefaultBodyDef();
 	moverBodyDef.type = b3_dynamicBody;

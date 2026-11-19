@@ -137,8 +137,7 @@ public:
 	}
 };
 
-static int sampleMultiplePrismatic =
-	RegisterSample( "Issues", "Multiple Prismatic", MultiplePrismatic::Create );
+static int sampleMultiplePrismatic = RegisterSample( "Issues", "Multiple Prismatic", MultiplePrismatic::Create );
 
 // bad hull SM_Waterfall_MED_Wide_01
 static const b3Vec3 waterfallPoints[] = {
@@ -355,8 +354,7 @@ public:
 
 		b3AABB bounds = b3MakeAABB( m_points.data(), (int)m_points.size(), 0.0f );
 		float radius = b3Length( b3AABB_Extents( bounds ) );
-		m_camera->SetView( 0.0f, 15.0f, b3MaxFloat( 3.0f * radius, 1.0f ),
-						   b3ToPos( b3AABB_Center( bounds ) ) );
+		m_camera->SetView( 0.0f, 15.0f, b3MaxFloat( 3.0f * radius, 1.0f ), b3ToPos( b3AABB_Center( bounds ) ) );
 	}
 
 	bool DrawControls() override
@@ -365,8 +363,8 @@ public:
 
 		if ( m_hull != nullptr )
 		{
-			DrawTextLine( "hull: vertices = %d, edges = %d, faces = %d", m_hull->vertexCount,
-						  m_hull->edgeCount / 2, m_hull->faceCount );
+			DrawTextLine( "hull: vertices = %d, edges = %d, faces = %d", m_hull->vertexCount, m_hull->edgeCount / 2,
+						  m_hull->faceCount );
 		}
 		else
 		{
@@ -755,7 +753,7 @@ public:
 			bodyDef.enableSleep = false;
 
 			// With current ghost mitigation this seems unnecessary
-			//bodyDef.enableContactRecycling = false;
+			// bodyDef.enableContactRecycling = false;
 
 			bodyDef.gravityScale = 2.03f; // s&box gravity: 800 inch/s^2
 			bodyDef.name = "character";
@@ -771,7 +769,7 @@ public:
 			shapeDef.density = m_characterMass / volume;
 
 			// With current ghost mitigation this seems unnecessary
-			//shapeDef.enableSpeculativeContact = false;
+			// shapeDef.enableSpeculativeContact = false;
 
 			b3BoxHull box = b3MakeBoxHull( m_bodyHalfWidth, m_bodyHalfHeight, m_bodyHalfWidth );
 			b3CreateHullShape( m_characterId, &shapeDef, &box.base );
@@ -843,8 +841,8 @@ public:
 		return x;
 	}
 
-	static void EmitTriangle( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices,
-							  b3Vec3 a, b3Vec3 b, b3Vec3 c )
+	static void EmitTriangle( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, b3Vec3 a, b3Vec3 b,
+							  b3Vec3 c )
 	{
 		int32_t base = (int32_t)vertices.size();
 		vertices.push_back( a );
@@ -856,8 +854,8 @@ public:
 	}
 
 	// Horizontal patch at height y spanning [x0,x1]x[z0,z1] (inches), normal +y
-	static void EmitPatch( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float x0,
-						   float x1, float z0, float z1, float y, float cell )
+	static void EmitPatch( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float x0, float x1, float z0,
+						   float z1, float y, float cell )
 	{
 		if ( x1 - x0 < 0.01f )
 		{
@@ -897,8 +895,8 @@ public:
 	}
 
 	// Sloped strip from edge (xLow, yLow) to edge (xHigh, yHigh) spanning the full z width
-	static void EmitSlope( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float xLow,
-						   float yLow, float xHigh, float yHigh, float zCell, bool fixWinding )
+	static void EmitSlope( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float xLow, float yLow,
+						   float xHigh, float yHigh, float zCell, bool fixWinding )
 	{
 		// The original winding only faces out for a slope rising toward +x
 		bool flip = fixWinding && xHigh < xLow;
@@ -906,10 +904,8 @@ public:
 		int countZ = (int)( 2.0f * (float)m_halfWidthU / zCell + 0.99f );
 		for ( int iz = 0; iz < countZ; ++iz )
 		{
-			float z0 =
-				-(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)iz / (float)countZ;
-			float z1 = -(float)m_halfWidthU +
-					   2.0f * (float)m_halfWidthU * (float)( iz + 1 ) / (float)countZ;
+			float z0 = -(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)iz / (float)countZ;
+			float z1 = -(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)( iz + 1 ) / (float)countZ;
 
 			b3Vec3 l0 = { SRC * xLow, SRC * yLow, SRC * z0 };
 			b3Vec3 l1 = { SRC * xLow, SRC * yLow, SRC * z1 };
@@ -930,8 +926,8 @@ public:
 	}
 
 	// Vertical wall at x from y0 (bottom) to y1 (top). facing = +1 faces +x, -1 faces -x
-	static void EmitWall( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float x,
-						  float y0, float y1, int facing, float zCell, bool fixWinding )
+	static void EmitWall( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float x, float y0, float y1,
+						  int facing, float zCell, bool fixWinding )
 	{
 		// The original winding faced every wall into the solid
 		bool faceNegativeX = fixWinding ? facing < 0 : facing > 0;
@@ -939,10 +935,8 @@ public:
 		int countZ = (int)( 2.0f * (float)m_halfWidthU / zCell + 0.99f );
 		for ( int iz = 0; iz < countZ; ++iz )
 		{
-			float z0 =
-				-(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)iz / (float)countZ;
-			float z1 = -(float)m_halfWidthU +
-					   2.0f * (float)m_halfWidthU * (float)( iz + 1 ) / (float)countZ;
+			float z0 = -(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)iz / (float)countZ;
+			float z1 = -(float)m_halfWidthU + 2.0f * (float)m_halfWidthU * (float)( iz + 1 ) / (float)countZ;
 
 			b3Vec3 b0 = { SRC * x, SRC * y0, SRC * z0 };
 			b3Vec3 b1 = { SRC * x, SRC * y0, SRC * z1 };
@@ -978,31 +972,29 @@ public:
 	// fixed per call, so a corner locked by a t-junction stays locked after its seam closes.
 	// Repeating reclassifies, but the error limit applies per pass, so deviation can accumulate.
 	// Winding is not repaired. Returns the number of passes.
-	static int Remesh( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices,
-					   float errorLimit, unsigned int options, bool repeat )
+	static int Remesh( std::vector<b3Vec3>& vertices, std::vector<int32_t>& indices, float errorLimit,
+					   unsigned int options, bool repeat )
 	{
 		size_t indexCount = indices.size();
 		const unsigned int* sourceIndices = reinterpret_cast<const unsigned int*>( indices.data() );
 
 		std::vector<unsigned int> remap( vertices.size() );
-		size_t vertexCount =
-			meshopt_generateVertexRemap( remap.data(), sourceIndices, indexCount, vertices.data(),
-										 vertices.size(), sizeof( b3Vec3 ) );
+		size_t vertexCount = meshopt_generateVertexRemap( remap.data(), sourceIndices, indexCount, vertices.data(),
+														  vertices.size(), sizeof( b3Vec3 ) );
 
 		std::vector<unsigned int> welded( indexCount );
 		meshopt_remapIndexBuffer( welded.data(), sourceIndices, indexCount, remap.data() );
 
 		std::vector<b3Vec3> positions( vertexCount );
-		meshopt_remapVertexBuffer( positions.data(), vertices.data(), vertices.size(),
-								   sizeof( b3Vec3 ), remap.data() );
+		meshopt_remapVertexBuffer( positions.data(), vertices.data(), vertices.size(), sizeof( b3Vec3 ), remap.data() );
 
 		std::vector<unsigned int> simplified( indexCount );
 		int passCount = 0;
 		for ( ;; )
 		{
-			size_t simplifiedCount = meshopt_simplify(
-				simplified.data(), welded.data(), welded.size(), &positions[0].x, vertexCount,
-				sizeof( b3Vec3 ), 0, errorLimit, meshopt_SimplifyErrorAbsolute | options, nullptr );
+			size_t simplifiedCount =
+				meshopt_simplify( simplified.data(), welded.data(), welded.size(), &positions[0].x, vertexCount,
+								  sizeof( b3Vec3 ), 0, errorLimit, meshopt_SimplifyErrorAbsolute | options, nullptr );
 			passCount += 1;
 
 			bool reduced = simplifiedCount < welded.size();
@@ -1014,9 +1006,8 @@ public:
 			}
 		}
 
-		size_t usedCount =
-			meshopt_optimizeVertexFetch( positions.data(), welded.data(), welded.size(),
-										 positions.data(), vertexCount, sizeof( b3Vec3 ) );
+		size_t usedCount = meshopt_optimizeVertexFetch( positions.data(), welded.data(), welded.size(),
+														positions.data(), vertexCount, sizeof( b3Vec3 ) );
 		positions.resize( usedCount );
 
 		vertices = positions;
@@ -1034,8 +1025,7 @@ public:
 		// --- Concrete slabs at y = 0 outside the beam region ---
 		// Tiles tessellate at a hash-picked resolution so neighbors meet with T-junctions,
 		// like cooked s&box map collision.
-		float slabSpans[2][2] = { { -(float)m_halfLengthU, m_beamRegion0 },
-								  { m_beamRegion1, (float)m_halfLengthU } };
+		float slabSpans[2][2] = { { -(float)m_halfLengthU, m_beamRegion0 }, { m_beamRegion1, (float)m_halfLengthU } };
 		for ( int i = 0; i < 2; ++i )
 		{
 			if ( ClipSpan( slabSpans[i][0], slabSpans[i][1], x0U, x1U, &s0, &s1 ) == false )
@@ -1051,12 +1041,10 @@ public:
 					// Seeded by side rather than chunk so combined and split floors tessellate the
 					// same
 					uint32_t side = tx < 0.0f ? 0u : 1u;
-					uint32_t h =
-						Hash( (uint32_t)( (int)tx * 73856093 ) ^ (uint32_t)( tz * 19349663 ) ^
-							  (uint32_t)( side * 2654435761u ) );
+					uint32_t h = Hash( (uint32_t)( (int)tx * 73856093 ) ^ (uint32_t)( tz * 19349663 ) ^
+									   (uint32_t)( side * 2654435761u ) );
 					float cells[3] = { 4.0f, 8.0f, 16.0f };
-					EmitPatch( vertices, indices, tx, tx1, (float)tz, (float)( tz + m_tileSizeU ),
-							   0.0f, cells[h % 3] );
+					EmitPatch( vertices, indices, tx, tx1, (float)tz, (float)( tz + m_tileSizeU ), 0.0f, cells[h % 3] );
 				}
 			}
 		}
@@ -1079,20 +1067,18 @@ public:
 			float top1 = pitRight ? bx + m_beamWidthU - m_chamferWidthU : bx + m_beamWidthU;
 			if ( ClipSpan( top0, top1, x0U, x1U, &s0, &s1 ) )
 			{
-				EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU,
-						   0.0f, 8.0f );
+				EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU, 0.0f, 8.0f );
 			}
 
 			// Chamfers sloping below the walkable plane
 			if ( pitLeft && bx >= x0U && bx < x1U )
 			{
-				EmitSlope( vertices, indices, bx, pitTop, bx + m_chamferWidthU, 0.0f, 8.0f,
-						   m_fixWinding );
+				EmitSlope( vertices, indices, bx, pitTop, bx + m_chamferWidthU, 0.0f, 8.0f, m_fixWinding );
 			}
 			if ( pitRight && bx + m_beamWidthU > x0U && bx + m_beamWidthU <= x1U )
 			{
-				EmitSlope( vertices, indices, bx + m_beamWidthU, pitTop,
-						   bx + m_beamWidthU - m_chamferWidthU, 0.0f, 8.0f, m_fixWinding );
+				EmitSlope( vertices, indices, bx + m_beamWidthU, pitTop, bx + m_beamWidthU - m_chamferWidthU, 0.0f,
+						   8.0f, m_fixWinding );
 			}
 
 			// Pit to the right of this beam
@@ -1102,26 +1088,24 @@ public:
 				float pitR = bx + m_beamPitchU;
 				if ( pitL >= x0U && pitL < x1U )
 				{
-					EmitWall( vertices, indices, pitL, pitBottom, pitTop, +1, wellCell,
-							  m_fixWinding );
+					EmitWall( vertices, indices, pitL, pitBottom, pitTop, +1, wellCell, m_fixWinding );
 				}
 				if ( pitR > x0U && pitR <= x1U )
 				{
-					EmitWall( vertices, indices, pitR, pitBottom, pitTop, -1, wellCell,
-							  m_fixWinding );
+					EmitWall( vertices, indices, pitR, pitBottom, pitTop, -1, wellCell, m_fixWinding );
 				}
 				if ( ClipSpan( pitL, pitR, x0U, x1U, &s0, &s1 ) )
 				{
-					EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU,
-							   pitBottom, wellCell );
+					EmitPatch( vertices, indices, s0, s1, -(float)m_halfWidthU, (float)m_halfWidthU, pitBottom,
+							   wellCell );
 				}
 			}
 		}
 
 		if ( m_remesh )
 		{
-			m_simplifyPassCount[chunk] = Remesh(
-				vertices, indices, 0.001f * m_simplifyErrorMillimeters, 0, m_repeatSimplify );
+			m_simplifyPassCount[chunk] =
+				Remesh( vertices, indices, 0.001f * m_simplifyErrorMillimeters, 0, m_repeatSimplify );
 		}
 
 		m_chunkTriangleCount[chunk] = (int)( indices.size() / 3 );
@@ -1206,8 +1190,8 @@ public:
 		}
 
 		b3Vec3 currentVelocity = b3Body_GetLinearVelocity( m_characterId );
-		DrawTextLine( "ghost launches: %d, worst: %.2f m/s (%.0f inch/s)", m_launchCount,
-					  m_maxLaunchSpeed, m_maxLaunchSpeed / SRC );
+		DrawTextLine( "ghost launches: %d, worst: %.2f m/s (%.0f inch/s)", m_launchCount, m_maxLaunchSpeed,
+					  m_maxLaunchSpeed / SRC );
 		DrawTextLine( "vertical velocity: %.2f m/s", currentVelocity.y );
 		if ( m_combineChunks )
 		{
@@ -1215,15 +1199,14 @@ public:
 		}
 		else
 		{
-			DrawTextLine( "floor triangles: %d (chunks %d + %d)",
-						  m_chunkTriangleCount[0] + m_chunkTriangleCount[1],
+			DrawTextLine( "floor triangles: %d (chunks %d + %d)", m_chunkTriangleCount[0] + m_chunkTriangleCount[1],
 						  m_chunkTriangleCount[0], m_chunkTriangleCount[1] );
 		}
 
 		if ( m_remesh )
 		{
-			DrawTextLine( m_combineChunks ? "simplify passes: %d" : "simplify passes: %d + %d",
-						  m_simplifyPassCount[0], m_simplifyPassCount[1] );
+			DrawTextLine( m_combineChunks ? "simplify passes: %d" : "simplify passes: %d + %d", m_simplifyPassCount[0],
+						  m_simplifyPassCount[1] );
 		}
 	}
 
@@ -1249,8 +1232,7 @@ public:
 							ImGuiSliderFlags_Logarithmic );
 		rebuild = ( ImGui::IsItemDeactivatedAfterEdit() && m_remesh ) || rebuild;
 
-		rebuild =
-			( ImGui::Checkbox( "Repeat Simplify", &m_repeatSimplify ) && m_remesh ) || rebuild;
+		rebuild = ( ImGui::Checkbox( "Repeat Simplify", &m_repeatSimplify ) && m_remesh ) || rebuild;
 
 		if ( rebuild )
 		{
@@ -1274,10 +1256,9 @@ public:
 		return new SBoxGhostCollisions( context );
 	}
 
-	static constexpr float m_walkRangeX = 3.5f; // turn around beyond +/- this x (meters)
-	static constexpr float m_walkRangeZ = 0.5f; // turn around beyond +/- this x (meters)
-	static constexpr float m_launchThreshold =
-		0.5f; // upward m/s counted as a ghost launch (~20 inch/s)
+	static constexpr float m_walkRangeX = 3.5f;		 // turn around beyond +/- this x (meters)
+	static constexpr float m_walkRangeZ = 0.5f;		 // turn around beyond +/- this x (meters)
+	static constexpr float m_launchThreshold = 0.5f; // upward m/s counted as a ghost launch (~20 inch/s)
 	static constexpr int m_markerCapacity = 64;
 
 	b3MeshData* m_chunkMesh[2] = {};
@@ -1558,14 +1539,14 @@ public:
 		b3Profile p = b3World_GetProfile( m_worldId );
 		float substepRate = m_context->hertz * m_context->subStepCount;
 
-		DrawTextLine( "wheels %d, hull pieces/wheel %d (%d total shapes)", m_wheelCount,
-					  s_metalWheel1HullCount, m_wheelCount * s_metalWheel1HullCount );
-		DrawTextLine( "step %.0f hz, sub-steps %d -> substep rate %.0f hz", m_context->hertz,
-					  m_context->subStepCount, substepRate );
+		DrawTextLine( "wheels %d, hull pieces/wheel %d (%d total shapes)", m_wheelCount, s_metalWheel1HullCount,
+					  m_wheelCount * s_metalWheel1HullCount );
+		DrawTextLine( "step %.0f hz, sub-steps %d -> substep rate %.0f hz", m_context->hertz, m_context->subStepCount,
+					  substepRate );
 		DrawTextLine( "eff contact hz = min(240, %.0f) = %.0f", 0.125f * substepRate,
 					  b3MinFloat( 240.0f, 0.125f * substepRate ) );
-		DrawTextLine( "step %.3f ms | collide %.3f ms (%.0f%%) | solve %.3f ms (%.0f%%)", p.step,
-					  p.collide, p.step > 0.0f ? 100.0f * p.collide / p.step : 0.0f, p.solve,
+		DrawTextLine( "step %.3f ms | collide %.3f ms (%.0f%%) | solve %.3f ms (%.0f%%)", p.step, p.collide,
+					  p.step > 0.0f ? 100.0f * p.collide / p.step : 0.0f, p.solve,
 					  p.step > 0.0f ? 100.0f * p.solve / p.step : 0.0f );
 	}
 
@@ -1680,11 +1661,10 @@ public:
 		DrawTextLine( "drop height = %.2f m", m_dropHeight );
 		DrawTextLine( "current y   = %.2f m", m_currentY );
 		DrawTextLine( "max bounce  = %.2f m", m_maxBounceY );
-		DrawTextLine( "kinetic     = %.0f J linear + %.0f J angular", energy.linear,
-					  energy.angular );
+		DrawTextLine( "kinetic     = %.0f J linear + %.0f J angular", energy.linear, energy.angular );
 		DrawTextLine( "potential   = %.0f J", energy.potential );
-		DrawTextLine( "total       = %.0f J (%.2f%% of start, peak %.2f%%)", total,
-					  100.0f * total / m_startEnergy, 100.0f * m_maxEnergy / m_startEnergy );
+		DrawTextLine( "total       = %.0f J (%.2f%% of start, peak %.2f%%)", total, 100.0f * total / m_startEnergy,
+					  100.0f * m_maxEnergy / m_startEnergy );
 
 		if ( m_bounced == false )
 		{
@@ -1906,13 +1886,14 @@ public:
 		// Velocity is zeroed every step, so without this the mover falls asleep on the first one
 		bodyDef.enableSleep = false;
 
-		// A room planner slides items on the floor plane and yaws them to face a wall
-		bodyDef.motionLocks = { false, true, false, true, false, true };
 		m_moverId = b3CreateBody( m_worldId, &bodyDef );
 
 		b3BoxHull mover = b3MakeBoxHull( m_moverHalfExtent, m_moverHalfExtent, m_moverHalfExtent );
 		shapeDef.baseMaterial.friction = 0.0f;
 		b3CreateHullShape( m_moverId, &shapeDef, &mover.base );
+
+		// A room planner slides items on the floor plane and yaws them to face a wall
+		LockMotion( m_moverId, { .linearY = true, .angularX = true, .angularZ = true } );
 	}
 
 	void PlaceMover()
@@ -1951,10 +1932,8 @@ public:
 		float interiorRestX = -m_wallHalfThickness - m_moverHalfExtent;
 		float exteriorRestX = m_wallHalfThickness + m_moverHalfExtent;
 
-		b3Vec3 lower = { interiorRestX - m_moverHalfExtent, m_wallHalfHeight - m_moverHalfExtent,
-						 -m_moverHalfExtent };
-		b3Vec3 upper = { interiorRestX + m_moverHalfExtent, m_wallHalfHeight + m_moverHalfExtent,
-						 m_moverHalfExtent };
+		b3Vec3 lower = { interiorRestX - m_moverHalfExtent, m_wallHalfHeight - m_moverHalfExtent, -m_moverHalfExtent };
+		b3Vec3 upper = { interiorRestX + m_moverHalfExtent, m_wallHalfHeight + m_moverHalfExtent, m_moverHalfExtent };
 		DrawAabb( lower, upper, MakeColor( b3_colorLime ) );
 
 		float x = (float)b3Body_GetPosition( m_moverId ).x;
@@ -1985,8 +1964,7 @@ public:
 	float m_startX = 0.2f;
 };
 
-static int sampleThinWallPushOut =
-	RegisterSample( "Issues", "Thin Wall Push Out", ThinWallPushOut::Create );
+static int sampleThinWallPushOut = RegisterSample( "Issues", "Thin Wall Push Out", ThinWallPushOut::Create );
 
 // Two crates resting on a rolling deck, one each side of the roll axis: the orange crate with
 // contact recycling (the default), the blue crate with it off for its body.
@@ -2062,8 +2040,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = { 0.0f, m_deckHalfThickness + m_crateHalf,
-								 i == 0 ? m_crateOffset : -m_crateOffset };
+			bodyDef.position = { 0.0f, m_deckHalfThickness + m_crateHalf, i == 0 ? m_crateOffset : -m_crateOffset };
 
 			// The orange crate recycles its contact with the deck, the blue crate doesn't. Both
 			// stay awake, so a small roll can't put them to sleep.
@@ -2137,10 +2114,8 @@ public:
 
 		if ( timeStep > 0.0f )
 		{
-			b3Quat rotation =
-				b3MakeQuatFromAxisAngle( b3Vec3_axisX, RollAngle( m_time + timeStep ) );
-			b3Body_SetTargetTransform( m_deckId, { { 0.0f, 0.0f, 0.0f }, rotation }, timeStep,
-									   true );
+			b3Quat rotation = b3MakeQuatFromAxisAngle( b3Vec3_axisX, RollAngle( m_time + timeStep ) );
+			b3Body_SetTargetTransform( m_deckId, { { 0.0f, 0.0f, 0.0f }, rotation }, timeStep, true );
 		}
 
 		Sample::Step();
@@ -2168,12 +2143,10 @@ public:
 
 			// The deck's up (white) and the crate's contact normal (in the crate's color), from the
 			// crate's center
-			DrawArrow( center, b3OffsetPos( center, b3MulSV( 2.5f, deckUp ) ),
-					   MakeColor( b3_colorWhite ) );
+			DrawArrow( center, b3OffsetPos( center, b3MulSV( 2.5f, deckUp ) ), MakeColor( b3_colorWhite ) );
 
 			b3ContactData contactData;
-			if ( b3Body_GetContactData( m_crateIds[i], &contactData, 1 ) == 1 &&
-				 contactData.manifoldCount > 0 )
+			if ( b3Body_GetContactData( m_crateIds[i], &contactData, 1 ) == 1 && contactData.manifoldCount > 0 )
 			{
 				b3Vec3 normal = contactData.manifolds[0].normal;
 				if ( b3Dot( normal, deckUp ) < 0.0f )
@@ -2182,8 +2155,7 @@ public:
 				}
 
 				DrawArrow( center, b3OffsetPos( center, b3MulSV( 2.5f, normal ) ), color );
-				normalError[i] =
-					acosf( b3MinFloat( b3Dot( normal, deckUp ), 1.0f ) ) * 180.0f / B3_PI;
+				normalError[i] = acosf( b3MinFloat( b3Dot( normal, deckUp ), 1.0f ) ) * 180.0f / B3_PI;
 			}
 
 			DrawString3D( b3OffsetPos( center, b3MulSV( 3.0f, deckUp ) ), color, "%s",
@@ -2216,8 +2188,7 @@ public:
 			}
 
 			b3Vec3 tip = b3MulAdd( mark, m_slideScale, offset );
-			DrawArrow( b3Body_GetWorldPoint( m_deckId, mark ),
-					   b3Body_GetWorldPoint( m_deckId, tip ), color );
+			DrawArrow( b3Body_GetWorldPoint( m_deckId, mark ), b3Body_GetWorldPoint( m_deckId, tip ), color );
 
 			m_maxSlide[i] = b3MaxFloat( m_maxSlide[i], slide[i] );
 			m_maxNormalError[i] = b3MaxFloat( m_maxNormalError[i], normalError[i] );
@@ -2235,17 +2206,14 @@ public:
 					  b3World_GetCounters( m_worldId ).recycledContactCount );
 		DrawTextLine( "orange, recycling on : normal %4.1f deg off the deck's up (most %4.1f), "
 					  "slid %5.1f mm (most %5.1f)",
-					  normalError[0], m_maxNormalError[0], 1000.0f * slide[0],
-					  1000.0f * m_maxSlide[0] );
+					  normalError[0], m_maxNormalError[0], 1000.0f * slide[0], 1000.0f * m_maxSlide[0] );
 		DrawTextLine( "blue,   recycling off: normal %4.1f deg off the deck's up (most %4.1f), "
 					  "slid %5.1f mm (most %5.1f)",
-					  normalError[1], m_maxNormalError[1], 1000.0f * slide[1],
-					  1000.0f * m_maxSlide[1] );
-		DrawTextLine(
-			"recycled, the crate moves straight up and down: offset * (1 - cos(roll)) = %.1f mm at "
-			"each end; past the "
-			"%.0f cm recycle distance the contact is made again tilted and the crate walks off",
-			1000.0f * expected, 100.0f * b3World_GetContactRecycleDistance( m_worldId ) );
+					  normalError[1], m_maxNormalError[1], 1000.0f * slide[1], 1000.0f * m_maxSlide[1] );
+		DrawTextLine( "recycled, the crate moves straight up and down: offset * (1 - cos(roll)) = %.1f mm at "
+					  "each end; past the "
+					  "%.0f cm recycle distance the contact is made again tilted and the crate walks off",
+					  1000.0f * expected, 100.0f * b3World_GetContactRecycleDistance( m_worldId ) );
 		DrawTextLine( "arrows: white is the deck's up, colored is the contact normal; slide arrows "
 					  "on the deck are drawn %.0fx",
 					  m_slideScale );
@@ -2426,8 +2394,7 @@ public:
 	}
 
 	// Cast one wheel's ray and apply its suspension and tyre forces to the chassis
-	void UpdateWheel( Wheel& wheel, b3WorldTransform transform, float timeStep, float acceleration,
-					  float steer )
+	void UpdateWheel( Wheel& wheel, b3WorldTransform transform, float timeStep, float acceleration, float steer )
 	{
 		b3Vec3 up = b3RotateVector( transform.q, b3Vec3_axisY );
 		b3Vec3 forward = b3RotateVector( transform.q, b3Vec3_axisX );
@@ -2474,8 +2441,7 @@ public:
 		{
 			heading = b3RotateVector( b3MakeQuatFromAxisAngle( up, steer ), forward );
 		}
-		b3Vec3 rolling =
-			b3Normalize( b3MulAdd( heading, -b3Dot( heading, hit.normal ), hit.normal ) );
+		b3Vec3 rolling = b3Normalize( b3MulAdd( heading, -b3Dot( heading, hit.normal ), hit.normal ) );
 		b3Vec3 lateral = b3Cross( hit.normal, rolling );
 
 		// The lateral force cancels the contact point's sideways sliding in one step. The rolling
@@ -2497,8 +2463,7 @@ public:
 			rollingForce *= maxForce / magnitude;
 		}
 
-		b3Vec3 tyreForce =
-			b3Add( b3MulSV( rollingForce, rolling ), b3MulSV( lateralForce, lateral ) );
+		b3Vec3 tyreForce = b3Add( b3MulSV( rollingForce, rolling ), b3MulSV( lateralForce, lateral ) );
 		b3Body_ApplyForce( m_chassisId, tyreForce, hit.point, true );
 	}
 
@@ -2580,8 +2545,7 @@ public:
 	float m_steeringAngle;
 };
 
-static int sampleRaycastVehicle =
-	RegisterSample( "Vehicle", "Raycast Vehicle", RaycastVehicle::Create );
+static int sampleRaycastVehicle = RegisterSample( "Vehicle", "Raycast Vehicle", RaycastVehicle::Create );
 
 // A user wants the load on a static body C when a box A lands on it, sometimes through a thin sleeping
 // plate B. Hit events report approach speed, and a resting plate has none against C, so C gets no hit
@@ -2960,8 +2924,8 @@ public:
 		}
 
 		float momentum = m_massA * m_impactSpeed;
-		DrawTextLine( "impact at step %d, speed %.2f m/s, momentum %.1f N*s", m_impactStep - m_resetStep,
-					  m_impactSpeed, momentum );
+		DrawTextLine( "impact at step %d, speed %.2f m/s, momentum %.1f N*s", m_impactStep - m_resetStep, m_impactSpeed,
+					  momentum );
 
 		// No continuous collision between dynamic bodies, so A can sink a full step of travel into B before
 		// they get a contact. If that reaches within speculative distance of C, A loads C directly.
@@ -2971,8 +2935,8 @@ public:
 						  2.0f * m_plateHalfHeight );
 		}
 		DrawTextLine( "step load on C = %.1f N (impulse %.3f N*s)", m_stepImpulseC * hertz, m_stepImpulseC );
-		DrawTextLine( "peak load on C = %.1f N at step %d, %.1fx resting weight", m_peakForceC, m_peakStep - m_resetStep,
-					  m_restingWeight > 0.0f ? m_peakForceC / m_restingWeight : 0.0f );
+		DrawTextLine( "peak load on C = %.1f N at step %d, %.1fx resting weight", m_peakForceC,
+					  m_peakStep - m_resetStep, m_restingWeight > 0.0f ? m_peakForceC / m_restingWeight : 0.0f );
 
 		if ( m_includeB )
 		{
@@ -2981,8 +2945,7 @@ public:
 			DrawTextLine( "load A on B = %.1f N, peak %.1f N", m_stepImpulseAB * hertz, m_peakForceAB );
 		}
 
-		DrawTextLine( "impulse on C beyond resting weight = %.1f N*s (A brought %.1f N*s)", m_excessImpulse,
-					  momentum );
+		DrawTextLine( "impulse on C beyond resting weight = %.1f N*s (A brought %.1f N*s)", m_excessImpulse, momentum );
 		DrawTextLine( "hit events touching C = %d, touching B = %d", m_hitCountC, m_hitCountB );
 
 		for ( int i = 0; i < m_hitCount; ++i )
@@ -3109,32 +3072,40 @@ public:
 		context->subStepCount = 4;
 		b3World_SetGravity( m_worldId, { 0.0f, -20.0f, 0.0f } );
 
+		AddGroundBox( 20.0f );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.density = 2.5f;
+		b3BoxHull box = b3MakeBoxHull( 2.0f, m_platformHalfHeight, 0.5f );
+		b3Sphere sphere = { b3Vec3_zero, m_radius };
+
 		for ( int i = 0; i < 2; ++i )
 		{
 			float x = i == 0 ? -3.0f : 3.0f;
-			b3BodyDef groundDef = b3DefaultBodyDef();
-			groundDef.type = i == 0 ? b3_staticBody : b3_dynamicBody;
-			groundDef.position = { x, 0.0f, 0.0f };
-			groundDef.enableSleep = false;
-			groundDef.motionLocks.linearX = true;
-			groundDef.motionLocks.linearY = true;
-			groundDef.motionLocks.linearZ = true;
-			groundDef.motionLocks.angularX = true;
-			groundDef.motionLocks.angularY = true;
-			b3BodyId groundId = b3CreateBody( m_worldId, &groundDef );
+			b3BodyDef platformDef = b3DefaultBodyDef();
+			platformDef.type = i == 0 ? b3_staticBody : b3_dynamicBody;
+			platformDef.position = { x, m_platformY, 0.0f };
+			platformDef.gravityScale = 0.0f;
+			platformDef.enableSleep = false;
+			b3BodyId platformId = b3CreateBody( m_worldId, &platformDef );
+			b3CreateHullShape( platformId, &shapeDef, &box.base );
 
-			b3ShapeDef shapeDef = b3DefaultShapeDef();
-			shapeDef.density = 2.5f;
-			b3BoxHull box = b3MakeBoxHull( 2.0f, 0.05f, 0.5f );
-			b3CreateHullShape( groundId, &shapeDef, &box.base );
+			if ( platformDef.type == b3_dynamicBody )
+			{
+				LockMotion( platformId, {
+											.linearX = true,
+											.linearY = true,
+											.linearZ = true,
+											.angularX = true,
+											.angularY = true,
+										} );
+			}
 
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
-			bodyDef.position = { x, 0.65f, 0.0f };
+			bodyDef.position = { x, m_platformY + m_platformHalfHeight + m_radius + 0.1f, 0.0f };
 			bodyDef.enableSleep = false;
 			m_spheres[i] = b3CreateBody( m_worldId, &bodyDef );
-
-			b3Sphere sphere = { b3Vec3_zero, 0.5f };
 			b3CreateSphereShape( m_spheres[i], &shapeDef, &sphere );
 
 			b3MassData massData = b3Body_GetMassData( m_spheres[i] );
@@ -3149,14 +3120,24 @@ public:
 		DrawTextLine( "10 kg spheres dropped onto 0.1 m thick platforms." );
 		DrawTextLine( "Right platform: 1 kg, translation locked, rotation about Z free." );
 		DrawTextLine( "Expected: both gaps settle near zero. Negative means penetration." );
-		DrawTextLine( "Left  (static): gap = %.3f m", (float)b3Body_GetPosition( m_spheres[0] ).y - 0.55f );
-		DrawTextLine( "Right (locked): gap = %.3f m", (float)b3Body_GetPosition( m_spheres[1] ).y - 0.55f );
+		DrawTextLine( "Left  (static): gap = %.3f m", GetGap( 0 ) );
+		DrawTextLine( "Right (locked): gap = %.3f m", GetGap( 1 ) );
+	}
+
+	float GetGap( int index )
+	{
+		float restY = m_platformY + m_platformHalfHeight + m_radius;
+		return (float)b3Body_GetPosition( m_spheres[index] ).y - restY;
 	}
 
 	static Sample* Create( SampleContext* context )
 	{
 		return new TranslationLockedPlatform( context );
 	}
+
+	static constexpr float m_platformY = 2.0f;
+	static constexpr float m_platformHalfHeight = 0.05f;
+	static constexpr float m_radius = 0.5f;
 
 	b3BodyId m_spheres[2];
 };

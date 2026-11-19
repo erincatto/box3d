@@ -711,6 +711,7 @@ typedef enum b3JointType
 	b3_wheelJoint,
 	b3_moverJoint,
 	b3_pogoJoint,
+	b3_motionLockJoint,
 } b3JointType;
 
 /// Base joint definition used by all joint types. The local frames are measured from the
@@ -942,6 +943,20 @@ typedef struct b3ParallelJointDef
 /// Use this to initialize your joint definition
 /// @ingroup parallel_joint
 B3_API b3ParallelJointDef b3DefaultParallelJointDef( void );
+
+// todo comment
+typedef struct b3MotionLockJointDef
+{
+	b3JointDef base;
+
+	bool lockLinearX;
+	bool lockLinearY;
+	bool lockLinearZ;
+	bool lockRotation;
+} b3MotionLockJointDef;
+
+// todo comment
+B3_API b3MotionLockJointDef b3DefaultMotionLockJointDef( void );
 
 /// Prismatic joint definition. Body B may slide along the x-axis in local frame A.
 /// Body B cannot rotate relative to body A. The joint translation is zero when the

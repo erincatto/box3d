@@ -1538,6 +1538,7 @@ b3JointId myJointId = b3CreateWeldJoint(myWorldId, &jointDef);
 ```
 
 ### Motor Joint
+
 A motor joint lets you control the motion of a body by specifying target
 linear and angular velocities. You can set the maximum motor force and
 torque that will be applied. If the body is blocked, it will stop and the
@@ -1560,8 +1561,10 @@ b3JointId myJointId = b3CreateMotorJoint(myWorldId, &jointDef);
 ```
 
 ### Wheel Joint
+
 The wheel joint is designed specifically for vehicles. Body A is the chassis and
 body B is the wheel. The wheel:
+
 - translates along the x-axis of frame A (suspension direction),
 - spins about the z-axis of frame B,
 - optionally steers about the suspension axis.
@@ -1673,7 +1676,78 @@ b3ParallelJoint_SetSpringDampingRatio(myJointId, 0.5f);
 b3ParallelJoint_SetMaxTorque(myJointId, 500.0f);
 ```
 
+### Motion Lock Joint
+
+The motion lock joint restricts the motion of body B relative to frame A. Each linear lock
+keeps the origin of frame B from moving along that axis of frame A, so locking two axes
+gives a point on a line, one axis gives a point on a plane, and all three give a point to
+point lock. The rotation lock keeps the z-axis of frame B parallel to the z-axis of frame A
+and leaves spin about that axis free. A linear lock along z plus the rotation lock gives
+planar 2D motion.
+
+```c
+b3MotionLockJointDef jointDef = b3DefaultMotionLockJointDef();
+jointDef.base.bodyIdA = myGroundId;
+jointDef.base.bodyIdB = myBodyId;
+jointDef.base.localFrameA.p = b3Body_GetLocalPoint(myGroundId, b3Body_GetWorldCenter(myBodyId));
+jointDef.base.localFrameB.p = b3Body_GetLocalCenter(myBodyId);
+jointDef.lockLinearZ = true;
+jointDef.lockRotation = true;
+
+b3JointId myJointId = b3CreateMotionLockJoint(myWorldId, &jointDef);
+```
+
+Locks can be toggled at runtime. Toggling a lock clears its accumulated impulse.
+
+```c
+b3MotionLockJoint_EnableLinearLock(myJointId, 0, true);
+b3MotionLockJoint_EnableRotationLock(myJointId, false);
+```
+
+Anchor frame B at the center of mass when you can. Against a static body this lets the
+solver handle each locked axis independently with no rotational coupling.
+
+#### Zero Inverse Mass Instability
+
+Fixed rotation is implemented by giving a body zero inverse rotational inertia. It is
+tempting to lock translation the same way, by giving the body zero inverse mass. This
+breaks other joints attached to the body.
+
+![Zero Inverse Mass](images/zero_inverse_mass.svg)
+
+Consider a body with a revolute joint whose pivot sits at an offset `r` from the center of
+mass. The joint solver builds an effective mass matrix `K` for the pivot point. The linear
+part of `K` is the inverse mass and the angular part comes from the inverse inertia and `r`.
+Rotation about the center of mass moves the pivot along a circle, perpendicular to `r`. It
+can never move the pivot toward or away from the center of mass. With zero inverse mass the
+linear part is gone, so `K` has no stiffness along `r` and the matrix is singular.
+
+The impulse that removes a position error `C` along `r` is `C / k`, where `k` is the
+stiffness of `K` along `r`. As `k` goes to zero the impulse goes to infinity. In practice
+round-off and small misalignments leave `K` nearly singular rather than exactly singular,
+so the solver applies enormous impulses and the body jitters or explodes. Any joint that
+reaches the body through an offset suffers the same failure. This includes the 2x2 block of
+the prismatic joint and the distance joint. It is also why Box3D does not offer a per-axis
+inverse mass.
+
+A door that is slightly too wide for its frame shows the same failure. The hinge pins the
+door but lets it swing, just as zero inverse mass pins the center of mass and leaves
+rotation free. The latch edge sits at distance `r` from the hinge and swinging only moves it
+along an arc. If the jamb is at a distance `w` less than `r`, the arc runs into the jamb and
+no amount of swinging closes the door. Pushing harder only wedges it tighter. A hinge with a
+little play fixes it: the hinge pin slides by `r - w` and the door seats in the frame.
+
+![Door Analogy](images/door.svg)
+
+The underlying problem is over-constraint. A body pinned at its center and also pinned at
+an offset point has two constraints fighting over the same freedom. Inside a single joint
+this conflict becomes a division by zero. The motion lock joint is the hinge with play. It
+keeps the lock as a separate constraint and leaves the body's mass alone. Each joint then sees an
+effective mass of at least the inverse mass along every axis, and the solver iterations settle the
+conflict between the two soft constraints as a small error rather than a blow up.
+
 ### Filter Joint
+
 The filter (or null) joint is used to disable collision between two specific bodies.
 As a side effect of being a joint, it also keeps the two bodies in the same simulation
 island, which can be useful for performance.

@@ -34,6 +34,13 @@ static b3JointDef b3DefaultJointDef( void )
 	return def;
 }
 
+b3MotionLockJointDef b3DefaultMotionLockJointDef( void )
+{
+	b3MotionLockJointDef def = { 0 };
+	def.base = b3DefaultJointDef();
+	return def;
+}
+
 b3ParallelJointDef b3DefaultParallelJointDef( void )
 {
 	b3ParallelJointDef def = { 0 };
@@ -602,6 +609,30 @@ b3JointId b3CreateFilterJoint( b3WorldId worldId, const b3FilterJointDef* def )
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
 	B3_REC_CREATE( world, CreateFilterJoint, jointId, worldId, *def );
+	return jointId;
+}
+
+b3JointId b3CreateMotionLockJoint( b3WorldId worldId, const b3MotionLockJointDef* def )
+{
+	B3_CHECK_JOINT_DEF( def );
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return (b3JointId){ 0 };
+	}
+
+	b3JointPair pair = b3CreateJoint( world, &def->base, b3_motionLockJoint );
+
+	b3JointSim* joint = pair.jointSim;
+
+	joint->motionLockJoint = (b3MotionLockJoint){ 0 };
+	joint->motionLockJoint.lockLinear[0] = def->lockLinearX;
+	joint->motionLockJoint.lockLinear[1] = def->lockLinearY;
+	joint->motionLockJoint.lockLinear[2] = def->lockLinearZ;
+	joint->motionLockJoint.lockRotation = def->lockRotation;
+
+	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateMotionLockJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -1220,6 +1251,14 @@ void b3GetJointReaction( b3World* world, b3JointSim* sim, float invTimeStep, flo
 		}
 		break;
 
+		case b3_motionLockJoint:
+		{
+			b3MotionLockJoint* joint = &sim->motionLockJoint;
+			linearImpulse = b3Length( joint->linearImpulse );
+			angularImpulse = b3Length2( joint->angularImpulse );
+		}
+		break;
+
 		default:
 			break;
 	}
@@ -1267,6 +1306,9 @@ static b3Vec3 b3GetJointConstraintForce( b3World* world, b3Joint* joint )
 		case b3_pogoJoint:
 			return b3GetPogoJointForce( world, base );
 
+		case b3_motionLockJoint:
+			return b3GetMotionLockJointForce( world, base );
+
 		default:
 			B3_ASSERT( false );
 			return b3Vec3_zero;
@@ -1309,6 +1351,9 @@ static b3Vec3 b3GetJointConstraintTorque( b3World* world, b3Joint* joint )
 		case b3_moverJoint:
 		case b3_pogoJoint:
 			return b3Vec3_zero;
+
+		case b3_motionLockJoint:
+			return b3GetMotionLockJointTorque( world, base );
 
 		default:
 			B3_ASSERT( false );
@@ -1386,6 +1431,16 @@ float b3Joint_GetLinearSeparation( b3JointId jointId )
 
 		case b3_filterJoint:
 			return 0.0f;
+
+		case b3_motionLockJoint:
+		{
+			b3MotionLockJoint* motionLockJoint = &base->motionLockJoint;
+			b3Vec3 localDelta = b3InvRotateVector( b3MulQuat( xfA.q, base->localFrameA.q ), dp );
+			localDelta.x = motionLockJoint->lockLinear[0] ? localDelta.x : 0.0f;
+			localDelta.y = motionLockJoint->lockLinear[1] ? localDelta.y : 0.0f;
+			localDelta.z = motionLockJoint->lockLinear[2] ? localDelta.z : 0.0f;
+			return b3Length( localDelta );
+		}
 
 		case b3_prismaticJoint:
 		{
@@ -1496,6 +1551,18 @@ float b3Joint_GetAngularSeparation( b3JointId jointId )
 
 		case b3_filterJoint:
 			return 0.0f;
+
+		case b3_motionLockJoint:
+		{
+			if ( base->motionLockJoint.lockRotation == false )
+			{
+				return 0.0f;
+			}
+
+			b3Vec3 axisA = b3RotateVector( b3MulQuat( xfA.q, base->localFrameA.q ), b3Vec3_axisZ );
+			b3Vec3 axisB = b3RotateVector( b3MulQuat( xfB.q, base->localFrameB.q ), b3Vec3_axisZ );
+			return b3Atan2( b3Length( b3Cross( axisA, axisB ) ), b3Dot( axisA, axisB ) );
+		}
 
 		case b3_prismaticJoint:
 			return b3GetQuatAngle( relQ );
@@ -1654,6 +1721,10 @@ void b3PrepareJoint( b3JointSim* joint, b3StepContext* context )
 			b3PreparePogoJoint( joint, context );
 			break;
 
+		case b3_motionLockJoint:
+			b3PrepareMotionLockJoint( joint, context );
+			break;
+
 		default:
 			B3_ASSERT( false );
 	}
@@ -1704,6 +1775,10 @@ void b3WarmStartJoint( b3JointSim* joint, b3StepContext* context )
 
 		case b3_pogoJoint:
 			b3WarmStartPogoJoint( joint, context );
+			break;
+
+		case b3_motionLockJoint:
+			b3WarmStartMotionLockJoint( joint, context );
 			break;
 
 		default:
@@ -1758,6 +1833,10 @@ void b3SolveJoint( b3JointSim* joint, b3StepContext* context, bool useBias )
 
 		case b3_pogoJoint:
 			b3SolvePogoJoint( joint, context, useBias );
+			break;
+
+		case b3_motionLockJoint:
+			b3SolveMotionLockJoint( joint, context, useBias );
 			break;
 
 		default:
@@ -1882,6 +1961,10 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 
 		case b3_pogoJoint:
 			b3DrawPogoJoint( draw, world, jointSim, transformA, transformB, scale );
+			break;
+
+		case b3_motionLockJoint:
+			b3DrawMotionLockJoint( draw, jointSim, transformA, transformB, scale );
 			break;
 
 		default:

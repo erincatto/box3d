@@ -518,6 +518,17 @@ b3ParallelJointDef b3RecR_PARALLELJOINTDEF( b3RecReader* rdr )
 	return def;
 }
 
+b3MotionLockJointDef b3RecR_MOTIONLOCKJOINTDEF( b3RecReader* rdr )
+{
+	b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+	b3RecR_JointBase( rdr, &def.base );
+	def.lockLinearX = b3RecR_BOOL( rdr );
+	def.lockLinearY = b3RecR_BOOL( rdr );
+	def.lockLinearZ = b3RecR_BOOL( rdr );
+	def.lockRotation = b3RecR_BOOL( rdr );
+	return def;
+}
+
 b3DistanceJointDef b3RecR_DISTANCEJOINTDEF( b3RecReader* rdr )
 {
 	b3DistanceJointDef def = b3DefaultDistanceJointDef();
@@ -1212,6 +1223,27 @@ static void b3RecDispatch_CreateParallelJoint( const b3RecArgs_CreateParallelJoi
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateParallelJoint( rdr->replayWorldId, &def ), recId );
+}
+
+static void b3RecDispatch_CreateMotionLockJoint( const b3RecArgs_CreateMotionLockJoint* a, b3RecReader* rdr )
+{
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3MotionLockJointDef def = a->def;
+	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
+	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
+	b3RecCheckJointId( rdr, b3CreateMotionLockJoint( rdr->replayWorldId, &def ), recId );
+}
+
+static void b3RecDispatch_MotionLockJointEnableLinearLock( const b3RecArgs_MotionLockJointEnableLinearLock* a,
+															 b3RecReader* rdr )
+{
+	b3MotionLockJoint_EnableLinearLock( b3RecMakeJointId( rdr, a->joint ), a->axis, a->flag );
+}
+
+static void b3RecDispatch_MotionLockJointEnableRotationLock( const b3RecArgs_MotionLockJointEnableRotationLock* a,
+															   b3RecReader* rdr )
+{
+	b3MotionLockJoint_EnableRotationLock( b3RecMakeJointId( rdr, a->joint ), a->flag );
 }
 
 static void b3RecDispatch_CreateDistanceJoint( const b3RecArgs_CreateDistanceJoint* a, b3RecReader* rdr )

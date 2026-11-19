@@ -238,6 +238,7 @@ b3ExplosionDef b3RecR_EXPLOSIONDEF( b3RecReader* rdr );
 b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr );
 b3ShapeDef b3RecR_SHAPEDEF( b3RecReader* rdr );
 b3ParallelJointDef b3RecR_PARALLELJOINTDEF( b3RecReader* rdr );
+b3MotionLockJointDef b3RecR_MOTIONLOCKJOINTDEF( b3RecReader* rdr );
 b3DistanceJointDef b3RecR_DISTANCEJOINTDEF( b3RecReader* rdr );
 b3FilterJointDef b3RecR_FILTERJOINTDEF( b3RecReader* rdr );
 b3MotorJointDef b3RecR_MOTORJOINTDEF( b3RecReader* rdr );

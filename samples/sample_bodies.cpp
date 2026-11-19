@@ -1188,11 +1188,9 @@ public:
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.name = "angular xz";
 			bodyDef.position = { 2.0f, 2.0f, 0.0f };
-			bodyDef.motionLocks.angularX = true;
-			// bodyDef.motionLocks.angularY = true;
-			bodyDef.motionLocks.angularZ = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+			LockMotion( bodyId, { .angularX = true, .angularZ = true } );
 		}
 
 		{
@@ -1200,11 +1198,9 @@ public:
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.name = "linear xyz";
 			bodyDef.position = { -2.0f, 2.0f, 0.0f };
-			bodyDef.motionLocks.linearX = true;
-			bodyDef.motionLocks.linearY = true;
-			bodyDef.motionLocks.linearZ = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+			LockMotion( bodyId, { .linearX = true, .linearY = true, .linearZ = true } );
 		}
 
 		{
@@ -1212,14 +1208,9 @@ public:
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.name = "full";
 			bodyDef.position = { 0.0f, 1.0f, 3.0f };
-			bodyDef.motionLocks.linearX = true;
-			bodyDef.motionLocks.linearY = true;
-			bodyDef.motionLocks.linearZ = true;
-			bodyDef.motionLocks.angularX = true;
-			bodyDef.motionLocks.angularY = true;
-			bodyDef.motionLocks.angularZ = true;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
+			LockMotion( bodyId, { true, true, true, true, true, true } );
 		}
 
 		{
