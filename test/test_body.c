@@ -182,6 +182,13 @@ static int DeferredMassExtents( void )
 // Diagonal inertia with inverses that are exact in float, so tolerances stay tight.
 static const b3Matrix3 kDiagInertia = { { 2.0f, 0.0f, 0.0f }, { 0.0f, 4.0f, 0.0f }, { 0.0f, 0.0f, 8.0f } };
 
+static bool HasGyroscopicTorque( b3BodyId bodyId )
+{
+	b3World* world = b3GetWorld( bodyId.world0 );
+	b3Body* body = b3GetBodyFullId( world, bodyId );
+	return ( body->flags & b3_enableGyroscopicTorque ) != 0;
+}
+
 static int SetMassDataRoundTrip( void )
 {
 	b3WorldDef worldDef = b3DefaultWorldDef();
@@ -277,8 +284,8 @@ static int SetMassDataWorldInertiaRotated( void )
 	return 0;
 }
 
-// Fixed rotation must leave the mass intact but drive the whole angular inertia to zero, even when the
-// caller hands in a real tensor.
+// Fixed rotation zeroes only the inverse inertia. The caller's tensor survives so unlocking restores it
+// without recomputing mass from the shapes.
 static int SetMassDataFixedRotation( void )
 {
 	b3WorldDef worldDef = b3DefaultWorldDef();
@@ -286,9 +293,7 @@ static int SetMassDataFixedRotation( void )
 
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
-	bodyDef.motionLocks.angularX = true;
-	bodyDef.motionLocks.angularY = true;
-	bodyDef.motionLocks.angularZ = true;
+	bodyDef.fixedRotation = true;
 	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
 	b3MassData massData = { 5.0f, { 0.0f, 0.0f, 0.0f }, kDiagInertia };
@@ -298,9 +303,9 @@ static int SetMassDataFixedRotation( void )
 	ENSURE_SMALL( b3Body_GetInverseMass( bodyId ) - 0.2f, 1e-6f );
 
 	b3Matrix3 localInertia = b3Body_GetLocalRotationalInertia( bodyId );
-	ENSURE_SMALL( localInertia.cx.x, 1e-6f );
-	ENSURE_SMALL( localInertia.cy.y, 1e-6f );
-	ENSURE_SMALL( localInertia.cz.z, 1e-6f );
+	ENSURE_SMALL( localInertia.cx.x - 2.0f, 1e-6f );
+	ENSURE_SMALL( localInertia.cy.y - 4.0f, 1e-6f );
+	ENSURE_SMALL( localInertia.cz.z - 8.0f, 1e-6f );
 
 	b3Matrix3 invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
 	ENSURE_SMALL( invWorld.cx.x, 1e-6f );
@@ -308,9 +313,87 @@ static int SetMassDataFixedRotation( void )
 	ENSURE_SMALL( invWorld.cz.z, 1e-6f );
 
 	b3MassData md = b3Body_GetMassData( bodyId );
-	ENSURE_SMALL( md.inertia.cx.x, 1e-6f );
-	ENSURE_SMALL( md.inertia.cy.y, 1e-6f );
-	ENSURE_SMALL( md.inertia.cz.z, 1e-6f );
+	ENSURE_SMALL( md.inertia.cx.x - 2.0f, 1e-6f );
+	ENSURE_SMALL( md.inertia.cy.y - 4.0f, 1e-6f );
+	ENSURE_SMALL( md.inertia.cz.z - 8.0f, 1e-6f );
+
+	// The tensor is anisotropic but the body cannot rotate
+	ENSURE( HasGyroscopicTorque( bodyId ) == false );
+
+	b3Body_SetFixedRotation( bodyId, false );
+	ENSURE( b3Body_IsFixedRotation( bodyId ) == false );
+
+	ENSURE_SMALL( b3Body_GetMass( bodyId ) - 5.0f, 1e-6f );
+
+	invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
+	ENSURE_SMALL( invWorld.cx.x - 0.5f, 1e-6f );
+	ENSURE_SMALL( invWorld.cy.y - 0.25f, 1e-6f );
+	ENSURE_SMALL( invWorld.cz.z - 0.125f, 1e-6f );
+
+	md = b3Body_GetMassData( bodyId );
+	ENSURE_SMALL( md.inertia.cx.x - 2.0f, 1e-6f );
+	ENSURE_SMALL( md.inertia.cy.y - 4.0f, 1e-6f );
+	ENSURE_SMALL( md.inertia.cz.z - 8.0f, 1e-6f );
+
+	ENSURE( HasGyroscopicTorque( bodyId ) );
+
+	b3Body_SetFixedRotation( bodyId, true );
+	ENSURE( b3Body_IsFixedRotation( bodyId ) );
+
+	invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
+	ENSURE_SMALL( invWorld.cx.x, 1e-6f );
+	ENSURE_SMALL( invWorld.cy.y, 1e-6f );
+	ENSURE_SMALL( invWorld.cz.z, 1e-6f );
+	ENSURE( HasGyroscopicTorque( bodyId ) == false );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+// Zero inverse inertia only stops impulses from changing the spin, so every path that writes angular
+// velocity directly has to drop it or the body spins forever.
+static int FixedRotationRejectsSpin( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeCubeHull( 0.5f );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.fixedRotation = true;
+	bodyDef.angularVelocity = (b3Vec3){ 0.0f, 5.0f, 0.0f };
+	b3BodyId dynamicId = b3CreateBody( worldId, &bodyDef );
+	b3CreateHullShape( dynamicId, &shapeDef, &box.base );
+
+	ENSURE( b3Length( b3Body_GetAngularVelocity( dynamicId ) ) == 0.0f );
+
+	bodyDef.type = b3_kinematicBody;
+	bodyDef.angularVelocity = b3Vec3_zero;
+	bodyDef.position = (b3Pos){ 4.0f, 0.0f, 0.0f };
+	b3BodyId kinematicId = b3CreateBody( worldId, &bodyDef );
+	b3CreateHullShape( kinematicId, &shapeDef, &box.base );
+
+	b3WorldTransform target = {
+		.p = { 4.0f, 1.0f, 0.0f },
+		.q = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 1.0f ),
+	};
+	b3Body_SetTargetTransform( kinematicId, target, 1.0f / 60.0f, true );
+	ENSURE( b3Length( b3Body_GetAngularVelocity( kinematicId ) ) == 0.0f );
+	ENSURE( b3Length( b3Body_GetLinearVelocity( kinematicId ) ) > 0.0f );
+
+	b3Body_SetType( kinematicId, b3_dynamicBody );
+	ENSURE( b3Length( b3Body_GetAngularVelocity( kinematicId ) ) == 0.0f );
+
+	for ( int i = 0; i < 10; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	ENSURE( b3Length( b3Body_GetRotation( dynamicId ).v ) == 0.0f );
+	ENSURE( b3Length( b3Body_GetRotation( kinematicId ).v ) == 0.0f );
 
 	b3DestroyWorld( worldId );
 	return 0;
@@ -540,13 +623,6 @@ static b3BodyId CreateSpinningHullBody( b3WorldId worldId, float x, const b3Hull
 	return bodyId;
 }
 
-static bool HasGyroscopicTorque( b3BodyId bodyId )
-{
-	b3World* world = b3GetWorld( bodyId.world0 );
-	b3Body* body = b3GetBodyFullId( world, bodyId );
-	return ( body->flags & b3_enableGyroscopicTorque ) != 0;
-}
-
 // Bodies within the isotropic tolerance skip the gyroscopic solve, so in free flight the world
 // angular velocity is untouched. Anisotropic bodies precess.
 static int IsotropicInertiaTolerance( void )
@@ -591,7 +667,7 @@ static int IsotropicInertiaTolerance( void )
 		w = b3Body_GetAngularVelocity( plankId );
 		ENSURE( b3Length( b3Sub( w, w0 ) ) > 0.01f );
 
-		b3Body_SetMotionLocks( plankId, (b3MotionLocks){ .angularX = true, .angularY = true, .angularZ = true } );
+		b3Body_SetFixedRotation( plankId, true );
 		ENSURE( HasGyroscopicTorque( plankId ) == false );
 
 		// Gyroscopic torque stays off until a mass update proves the body anisotropic
@@ -651,6 +727,7 @@ int BodyTest( void )
 	RUN_SUBTEST( SetMassDataRoundTrip );
 	RUN_SUBTEST( SetMassDataWorldInertiaRotated );
 	RUN_SUBTEST( SetMassDataFixedRotation );
+	RUN_SUBTEST( FixedRotationRejectsSpin );
 	RUN_SUBTEST( SetMassDataZeroMass );
 	RUN_SUBTEST( SetMassDataConsistentVelocity );
 	RUN_SUBTEST( ShapeExtents );

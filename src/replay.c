@@ -363,18 +363,6 @@ b3MassData b3RecR_MASSDATA( b3RecReader* rdr )
 	return md;
 }
 
-b3MotionLocks b3RecR_LOCKS( b3RecReader* rdr )
-{
-	b3MotionLocks locks;
-	locks.linearX = b3RecR_BOOL( rdr );
-	locks.linearY = b3RecR_BOOL( rdr );
-	locks.linearZ = b3RecR_BOOL( rdr );
-	locks.angularX = b3RecR_BOOL( rdr );
-	locks.angularY = b3RecR_BOOL( rdr );
-	locks.angularZ = b3RecR_BOOL( rdr );
-	return locks;
-}
-
 // Rotating set of static string buffers, valid until the next 4 STR reads.
 const char* b3RecR_STR( b3RecReader* rdr )
 {
@@ -431,7 +419,7 @@ b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr )
 	def.safetyFactor = b3RecR_F32( rdr );
 	def.name = b3RecR_STR( rdr );
 	(void)b3RecR_U64( rdr ); // userData placeholder
-	def.motionLocks = b3RecR_LOCKS( rdr );
+	def.fixedRotation = b3RecR_BOOL( rdr );
 	def.enableSleep = b3RecR_BOOL( rdr );
 	def.isAwake = b3RecR_BOOL( rdr );
 	def.isBullet = b3RecR_BOOL( rdr );
@@ -515,6 +503,17 @@ b3ParallelJointDef b3RecR_PARALLELJOINTDEF( b3RecReader* rdr )
 	def.hertz = b3RecR_F32( rdr );
 	def.dampingRatio = b3RecR_F32( rdr );
 	def.maxTorque = b3RecR_F32( rdr );
+	return def;
+}
+
+b3MotionLockJointDef b3RecR_MOTIONLOCKJOINTDEF( b3RecReader* rdr )
+{
+	b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+	b3RecR_JointBase( rdr, &def.base );
+	def.lockLinearX = b3RecR_BOOL( rdr );
+	def.lockLinearY = b3RecR_BOOL( rdr );
+	def.lockLinearZ = b3RecR_BOOL( rdr );
+	def.lockAngularXY = b3RecR_BOOL( rdr );
 	return def;
 }
 
@@ -972,9 +971,9 @@ static void b3RecDispatch_BodyEnable( const b3RecArgs_BodyEnable* a, b3RecReader
 	b3Body_Enable( b3RecMakeBodyId( rdr, a->body ) );
 }
 
-static void b3RecDispatch_BodySetMotionLocks( const b3RecArgs_BodySetMotionLocks* a, b3RecReader* rdr )
+static void b3RecDispatch_BodySetFixedRotation( const b3RecArgs_BodySetFixedRotation* a, b3RecReader* rdr )
 {
-	b3Body_SetMotionLocks( b3RecMakeBodyId( rdr, a->body ), a->locks );
+	b3Body_SetFixedRotation( b3RecMakeBodyId( rdr, a->body ), a->flag );
 }
 
 static void b3RecDispatch_BodySetBullet( const b3RecArgs_BodySetBullet* a, b3RecReader* rdr )
@@ -1212,6 +1211,27 @@ static void b3RecDispatch_CreateParallelJoint( const b3RecArgs_CreateParallelJoi
 	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
 	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
 	b3RecCheckJointId( rdr, b3CreateParallelJoint( rdr->replayWorldId, &def ), recId );
+}
+
+static void b3RecDispatch_CreateMotionLockJoint( const b3RecArgs_CreateMotionLockJoint* a, b3RecReader* rdr )
+{
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3MotionLockJointDef def = a->def;
+	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
+	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
+	b3RecCheckJointId( rdr, b3CreateMotionLockJoint( rdr->replayWorldId, &def ), recId );
+}
+
+static void b3RecDispatch_MotionLockJointEnableLinearLock( const b3RecArgs_MotionLockJointEnableLinearLock* a,
+															 b3RecReader* rdr )
+{
+	b3MotionLockJoint_EnableLinearLock( b3RecMakeJointId( rdr, a->joint ), a->axis, a->flag );
+}
+
+static void b3RecDispatch_MotionLockJointEnableAngularLock( const b3RecArgs_MotionLockJointEnableAngularLock* a,
+															   b3RecReader* rdr )
+{
+	b3MotionLockJoint_EnableAngularLock( b3RecMakeJointId( rdr, a->joint ), a->flag );
 }
 
 static void b3RecDispatch_CreateDistanceJoint( const b3RecArgs_CreateDistanceJoint* a, b3RecReader* rdr )

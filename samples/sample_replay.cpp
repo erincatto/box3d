@@ -98,6 +98,8 @@ static const char* ReplayJointTypeName( b3JointType type )
 			return "mover";
 		case b3_pogoJoint:
 			return "pogo";
+		case b3_motionLockJoint:
+			return "motion lock";
 		default:
 			return "?";
 	}

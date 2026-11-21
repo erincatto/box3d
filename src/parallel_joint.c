@@ -15,7 +15,8 @@
 
 void b3ParallelJoint_SetSpringHertz( b3JointId jointId, float hertz )
 {
-	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, ParallelJointSetSpringHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_parallelJoint );
@@ -30,7 +31,8 @@ float b3ParallelJoint_GetSpringHertz( b3JointId jointId )
 
 void b3ParallelJoint_SetSpringDampingRatio( b3JointId jointId, float dampingRatio )
 {
-	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, ParallelJointSetSpringDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_parallelJoint );
@@ -45,7 +47,8 @@ float b3ParallelJoint_GetSpringDampingRatio( b3JointId jointId )
 
 void b3ParallelJoint_SetMaxTorque( b3JointId jointId, float maxForce )
 {
-	B3_ASSERT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, ParallelJointSetMaxTorque, jointId, maxForce );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_parallelJoint );
@@ -61,11 +64,6 @@ float b3ParallelJoint_GetMaxTorque( b3JointId jointId )
 b3Vec3 b3GetParallelJointTorque( b3World* world, b3JointSim* base )
 {
 	b3ParallelJoint* joint = &base->parallelJoint;
-
-	b3Quat relQ = b3InvMulQuat( joint->quatA, joint->quatB );
-	joint->perpAxisX = b3MulSV( 0.5f, b3RotateVector( joint->quatA, b3Add( b3MulSV( relQ.s, b3Vec3_axisX ), b3Cross( relQ.v, b3Vec3_axisX ) ) ) );
-	joint->perpAxisY = b3MulSV( 0.5f, b3RotateVector( joint->quatA, b3Add( b3MulSV( relQ.s, b3Vec3_axisY ), b3Cross( relQ.v, b3Vec3_axisY ) ) ) );
-
 	b3Vec3 angularImpulse = b3Blend2( joint->perpImpulse.x, joint->perpAxisX, joint->perpImpulse.y, joint->perpAxisY );
 	b3Vec3 torque = b3MulSV( world->inv_h, angularImpulse );
 	return torque;
@@ -117,6 +115,10 @@ void b3PrepareParallelJoint( b3JointSim* base, b3StepContext* context )
 	joint->softness = b3MakeSoft( joint->hertz, joint->dampingRatio, context->h );
 
 	if ( context->enableWarmStarting == false )
+	{
+		joint->perpImpulse = (b3Vec2){ 0.0f, 0.0f };
+	}
+	else if ( base->fixedRotation )
 	{
 		joint->perpImpulse = (b3Vec2){ 0.0f, 0.0f };
 	}

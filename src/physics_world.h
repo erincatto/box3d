@@ -131,7 +131,7 @@ typedef struct b3World
 	b3ConstraintGraph constraintGraph;
 
 	// Manifold allocators have one allocator for each manifold count.
-	b3Array( b3BlockAllocator ) manifoldAllocators;
+	b3BlockAllocator manifoldAllocators[B3_MAX_MANIFOLDS];
 	b3Mutex* manifoldAllocatorMutex;
 
 	// The body id pool is used to allocate and recycle body ids. Body ids
@@ -353,19 +353,9 @@ static inline b3Manifold* b3AllocateManifolds( b3World* world, int count )
 
 	B3_ASSERT( count <= B3_MAX_MANIFOLDS );
 
-	int index = count - 1;
-
-	// Need lock because this is called from the parallel narrow phase
+	// Need lock because this is called from the parallel narrow phase.
 	b3LockMutex( world->manifoldAllocatorMutex );
-	int currentCount = world->manifoldAllocators.count;
-	for ( int i = currentCount; i < count; ++i )
-	{
-		b3BlockAllocator allocator = b3CreateBlockAllocator( ( i + 1 ) * sizeof( b3Manifold ), 2 * B3_BLOCK_SIZE );
-		b3Array_Push( world->manifoldAllocators, allocator );
-	}
-
-	b3BlockAllocator* allocator = b3Array_Get( world->manifoldAllocators, index );
-	b3Manifold* manifolds = (b3Manifold*)b3AllocateElement( allocator );
+	b3Manifold* manifolds = b3AllocateElement( world->manifoldAllocators + count - 1 );
 	b3UnlockMutex( world->manifoldAllocatorMutex );
 	memset( manifolds, 0, count * sizeof( b3Manifold ) );
 	return manifolds;
@@ -380,9 +370,7 @@ static inline void b3FreeManifolds( b3World* world, b3Manifold* manifolds, int c
 
 	B3_ASSERT( count <= B3_MAX_MANIFOLDS );
 
-	int index = count - 1;
 	b3LockMutex( world->manifoldAllocatorMutex );
-	b3BlockAllocator* allocator = b3Array_Get( world->manifoldAllocators, index );
-	b3FreeElement( allocator, manifolds );
+	b3FreeElement( world->manifoldAllocators + count - 1, manifolds );
 	b3UnlockMutex( world->manifoldAllocatorMutex );
 }

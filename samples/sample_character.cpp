@@ -2003,9 +2003,7 @@ struct RigidbodyCharacter
 		bodyDef.type = b3_dynamicBody;
 		bodyDef.position = position;
 		m_massCenterWorld = bodyDef.position;
-		bodyDef.motionLocks.angularX = true;
-		bodyDef.motionLocks.angularY = true;
-		bodyDef.motionLocks.angularZ = true;
+		bodyDef.fixedRotation = true;
 		bodyDef.enableSleep = false;
 		bodyDef.enableContactRecycling = false;
 		bodyDef.name = "character";

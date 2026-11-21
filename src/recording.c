@@ -282,16 +282,6 @@ void b3RecW_MASSDATA( b3RecBuffer* buf, b3MassData v )
 	b3RecW_MATRIX3( buf, v.inertia );
 }
 
-void b3RecW_LOCKS( b3RecBuffer* buf, b3MotionLocks v )
-{
-	b3RecW_BOOL( buf, v.linearX );
-	b3RecW_BOOL( buf, v.linearY );
-	b3RecW_BOOL( buf, v.linearZ );
-	b3RecW_BOOL( buf, v.angularX );
-	b3RecW_BOOL( buf, v.angularY );
-	b3RecW_BOOL( buf, v.angularZ );
-}
-
 static void b3RecW_STR( b3RecBuffer* buf, const char* s )
 {
 	if ( s == NULL )
@@ -326,6 +316,8 @@ _Static_assert( sizeof( void* ) != 8 || sizeof( b3ShapeDef ) == 120,
 				"b3ShapeDef changed: update b3RecW_SHAPEDEF and b3RecR_SHAPEDEF together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3ParallelJointDef ) == 128,
 				"b3ParallelJointDef changed: update b3RecW_PARALLELJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3MotionLockJointDef ) == 120,
+				"b3MotionLockJointDef changed: update b3RecW_MOTIONLOCKJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3DistanceJointDef ) == 160,
 				"b3DistanceJointDef changed: update b3RecW_DISTANCEJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3FilterJointDef ) == 112,
@@ -371,7 +363,7 @@ void b3RecW_BODYDEF( b3RecBuffer* buf, b3BodyDef v )
 	b3RecW_STR( buf, v.name );
 	// userData: not preserved
 	b3RecW_U64( buf, 0u );
-	b3RecW_LOCKS( buf, v.motionLocks );
+	b3RecW_BOOL( buf, v.fixedRotation );
 	b3RecW_BOOL( buf, v.enableSleep );
 	b3RecW_BOOL( buf, v.isAwake );
 	b3RecW_BOOL( buf, v.isBullet );
@@ -435,6 +427,15 @@ void b3RecW_PARALLELJOINTDEF( b3RecBuffer* buf, b3ParallelJointDef v )
 	b3RecW_F32( buf, v.hertz );
 	b3RecW_F32( buf, v.dampingRatio );
 	b3RecW_F32( buf, v.maxTorque );
+}
+
+void b3RecW_MOTIONLOCKJOINTDEF( b3RecBuffer* buf, b3MotionLockJointDef v )
+{
+	b3RecW_JointBase( buf, &v.base );
+	b3RecW_BOOL( buf, v.lockLinearX );
+	b3RecW_BOOL( buf, v.lockLinearY );
+	b3RecW_BOOL( buf, v.lockLinearZ );
+	b3RecW_BOOL( buf, v.lockAngularXY );
 }
 
 void b3RecW_DISTANCEJOINTDEF( b3RecBuffer* buf, b3DistanceJointDef v )

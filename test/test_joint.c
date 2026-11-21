@@ -6,6 +6,8 @@
 #include "box3d/box3d.h"
 #include "box3d/math_functions.h"
 
+#include <math.h>
+
 // One sub-test per joint type. Each creates the joint, exercises the shared
 // b3Joint_* API plus every type-specific accessor, then steps to make sure the
 // joint solves without tripping a validation assert.
@@ -141,6 +143,303 @@ static int ExerciseJointBase( b3JointId jointId, b3WorldId worldId, b3BodyId bod
 
 	return 0;
 }
+
+static int TestMotionLockJoint( void )
+{
+	JointFixture f = CreateJointFixture();
+
+	b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+	SetCommonFrames( &def.base, &f );
+	def.lockLinearY = true;
+	def.lockAngularXY = true;
+	b3JointId jointId = b3CreateMotionLockJoint( f.worldId, &def );
+
+	if ( ExerciseJointBase( jointId, f.worldId, f.groundId, f.bodyId, b3_motionLockJoint ) != 0 )
+	{
+		return 1;
+	}
+
+	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 0 ) == false );
+	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 1 ) );
+	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 2 ) == false );
+	ENSURE( b3MotionLockJoint_IsAngularLockEnabled( jointId ) );
+
+	b3MotionLockJoint_EnableLinearLock( jointId, 0, true );
+	b3MotionLockJoint_EnableLinearLock( jointId, 2, true );
+	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 0 ) );
+	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 2 ) );
+
+	b3MotionLockJoint_EnableAngularLock( jointId, false );
+	ENSURE( b3MotionLockJoint_IsAngularLockEnabled( jointId ) == false );
+
+	return FinishJoint( jointId, f.worldId );
+}
+
+typedef struct MotionLockScene
+{
+	b3WorldId worldId;
+	b3BodyId groundId;
+	b3BodyId bodyId;
+	b3JointId jointId;
+} MotionLockScene;
+
+static const b3Vec3 kLockOrigin = { 1.0f, 4.0f, -2.0f };
+
+// A box under gravity locked to the ground. An anchor at the center of mass takes the decoupled path.
+static MotionLockScene CreateMotionLockScene( b3MotionLockJointDef def, b3Vec3 localAnchor )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = (b3Vec3){ 0.0f, -10.0f, 0.0f };
+
+	MotionLockScene s;
+	s.worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	s.groundId = b3CreateBody( s.worldId, &groundDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ kLockOrigin.x, kLockOrigin.y, kLockOrigin.z };
+	bodyDef.enableSleep = false;
+	s.bodyId = b3CreateBody( s.worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.25f, 1.0f );
+	b3CreateHullShape( s.bodyId, &shapeDef, &box.base );
+
+	def.base.bodyIdA = s.groundId;
+	def.base.bodyIdB = s.bodyId;
+	def.base.localFrameA.p = b3Add( kLockOrigin, localAnchor );
+	def.base.localFrameB.p = localAnchor;
+	s.jointId = b3CreateMotionLockJoint( s.worldId, &def );
+	return s;
+}
+
+static void StepScene( b3WorldId worldId, int count )
+{
+	for ( int i = 0; i < count; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+}
+
+// Every combination of linear locks holds its axes against gravity and a push while the free axes move.
+static int TestMotionLockJointLinear( void )
+{
+	b3Vec3 push = { 2.0f, 3.0f, -1.0f };
+
+	for ( int mask = 1; mask < 8; ++mask )
+	{
+		b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+		def.lockLinearX = ( mask & 1 ) != 0;
+		def.lockLinearY = ( mask & 2 ) != 0;
+		def.lockLinearZ = ( mask & 4 ) != 0;
+
+		MotionLockScene s = CreateMotionLockScene( def, b3Vec3_zero );
+		b3Body_SetLinearVelocity( s.bodyId, push );
+		StepScene( s.worldId, 60 );
+
+		b3Pos p = b3Body_GetPosition( s.bodyId );
+		b3Vec3 delta = { (float)p.x - kLockOrigin.x, (float)p.y - kLockOrigin.y, (float)p.z - kLockOrigin.z };
+
+		ENSURE( def.lockLinearX ? b3AbsFloat( delta.x ) < 0.01f : b3AbsFloat( delta.x ) > 1.0f );
+		ENSURE( def.lockLinearY ? b3AbsFloat( delta.y ) < 0.01f : b3AbsFloat( delta.y ) > 1.0f );
+		ENSURE( def.lockLinearZ ? b3AbsFloat( delta.z ) < 0.01f : b3AbsFloat( delta.z ) > 0.5f );
+		ENSURE( b3Joint_GetLinearSeparation( s.jointId ) < 0.01f );
+
+		b3DestroyWorld( s.worldId );
+	}
+
+	return 0;
+}
+
+// An anchor off the center of mass couples the rows. The point lock becomes a pendulum pivot.
+static int TestMotionLockJointCoupled( void )
+{
+	b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+	def.lockLinearX = true;
+	def.lockLinearY = true;
+	def.lockLinearZ = true;
+
+	MotionLockScene s = CreateMotionLockScene( def, (b3Vec3){ 0.5f, 0.0f, 0.5f } );
+	StepScene( s.worldId, 120 );
+
+	ENSURE( b3Joint_GetLinearSeparation( s.jointId ) < 0.01f );
+	ENSURE( b3IsValidVec3( b3Body_GetLinearVelocity( s.bodyId ) ) );
+
+	b3MotionLockJoint_EnableLinearLock( s.jointId, 1, false );
+	StepScene( s.worldId, 60 );
+	ENSURE( b3Joint_GetLinearSeparation( s.jointId ) < 0.01f );
+
+	b3DestroyWorld( s.worldId );
+	return 0;
+}
+
+// The rotation lock keeps the body z axis on the world z axis while spin about it stays free.
+static int TestMotionLockJointRotation( void )
+{
+	b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+	def.lockLinearX = true;
+	def.lockLinearY = true;
+	def.lockLinearZ = true;
+	def.lockAngularXY = true;
+
+	MotionLockScene s = CreateMotionLockScene( def, b3Vec3_zero );
+	b3Body_SetAngularVelocity( s.bodyId, (b3Vec3){ 3.0f, -2.0f, 4.0f } );
+	StepScene( s.worldId, 60 );
+
+	b3Vec3 w = b3Body_GetAngularVelocity( s.bodyId );
+	ENSURE( b3AbsFloat( w.x ) < 0.01f );
+	ENSURE( b3AbsFloat( w.y ) < 0.01f );
+	ENSURE( b3AbsFloat( w.z ) > 1.0f );
+
+	b3Vec3 axisZ = b3RotateVector( b3Body_GetRotation( s.bodyId ), b3Vec3_axisZ );
+	ENSURE( axisZ.z > 0.999f );
+	ENSURE( b3Joint_GetAngularSeparation( s.jointId ) < 0.01f );
+
+	b3DestroyWorld( s.worldId );
+	return 0;
+}
+
+// Issue 211: a heavy sphere resting on a light platform held by a point lock and a rotation lock.
+// The lock rows iterate with the contact, so the platform supports the sphere like a static body.
+static int TestMotionLockJointPlatform( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = (b3Vec3){ 0.0f, -20.0f, 0.0f };
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+
+	b3BodyDef platformDef = b3DefaultBodyDef();
+	platformDef.type = b3_dynamicBody;
+	platformDef.enableSleep = false;
+	b3BodyId platformId = b3CreateBody( worldId, &platformDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeBoxHull( 2.0f, 0.05f, 0.5f );
+	b3CreateHullShape( platformId, &shapeDef, &box.base );
+
+	b3MassData massData = b3Body_GetMassData( platformId );
+	massData.inertia = b3MulSM( 1.0f / massData.mass, massData.inertia );
+	massData.mass = 1.0f;
+	b3Body_SetMassData( platformId, massData );
+
+	b3MotionLockJointDef lockDef = b3DefaultMotionLockJointDef();
+	lockDef.base.bodyIdA = groundId;
+	lockDef.base.bodyIdB = platformId;
+	lockDef.lockLinearX = true;
+	lockDef.lockLinearY = true;
+	lockDef.lockLinearZ = true;
+	lockDef.lockAngularXY = true;
+	b3CreateMotionLockJoint( worldId, &lockDef );
+
+	b3BodyDef sphereDef = b3DefaultBodyDef();
+	sphereDef.type = b3_dynamicBody;
+	sphereDef.position = (b3Pos){ 0.0f, 0.65f, 0.0f };
+	sphereDef.enableSleep = false;
+	b3BodyId sphereId = b3CreateBody( worldId, &sphereDef );
+
+	b3Sphere sphere = { b3Vec3_zero, 0.5f };
+	b3CreateSphereShape( sphereId, &shapeDef, &sphere );
+
+	massData = b3Body_GetMassData( sphereId );
+	massData.inertia = b3MulSM( 10.0f / massData.mass, massData.inertia );
+	massData.mass = 10.0f;
+	b3Body_SetMassData( sphereId, massData );
+
+	for ( int i = 0; i < 200; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 50.0f, 4 );
+	}
+
+	float gap = (float)b3Body_GetPosition( sphereId ).y - 0.55f;
+	ENSURE( b3AbsFloat( gap ) < 0.02f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+// A revolute pivot off the center of mass plus a full point lock at the center is redundant. The two
+// constraints share the load through iteration instead of forming one singular block.
+static int TestMotionLockJointRedundant( void )
+{
+	b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+	def.lockLinearX = true;
+	def.lockLinearY = true;
+	def.lockLinearZ = true;
+
+	MotionLockScene s = CreateMotionLockScene( def, b3Vec3_zero );
+
+	b3RevoluteJointDef revoluteDef = b3DefaultRevoluteJointDef();
+	revoluteDef.base.bodyIdA = s.groundId;
+	revoluteDef.base.bodyIdB = s.bodyId;
+	revoluteDef.base.localFrameA.p = (b3Vec3){ kLockOrigin.x - 0.5f, kLockOrigin.y, kLockOrigin.z };
+	revoluteDef.base.localFrameB.p = (b3Vec3){ -0.5f, 0.0f, 0.0f };
+	b3CreateRevoluteJoint( s.worldId, &revoluteDef );
+
+	StepScene( s.worldId, 120 );
+
+	ENSURE( b3Length( b3Body_GetLinearVelocity( s.bodyId ) ) < 0.1f );
+	ENSURE( b3Length( b3Body_GetAngularVelocity( s.bodyId ) ) < 0.1f );
+	ENSURE( b3Joint_GetLinearSeparation( s.jointId ) < 0.01f );
+
+	b3DestroyWorld( s.worldId );
+	return 0;
+}
+
+#if defined( BOX3D_DOUBLE_PRECISION )
+// Ground center at the origin with the locks 1e7 m away. The separation must stay in double precision, a
+// float difference of the two centers rounds to 1 m and lets the body sag under gravity.
+static float RunFarMotionLock( b3Vec3 localAnchorB, bool lockZ )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+
+	double far = 1.0e7;
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ far - localAnchorB.x, far - localAnchorB.y, far - localAnchorB.z };
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+	b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+	def.base.bodyIdA = groundId;
+	def.base.bodyIdB = bodyId;
+	def.base.localFrameA.p = (b3Vec3){ (float)far, (float)far, (float)far };
+	def.base.localFrameB.p = localAnchorB;
+	def.lockLinearX = true;
+	def.lockLinearY = true;
+	def.lockLinearZ = lockZ;
+	b3JointId jointId = b3CreateMotionLockJoint( worldId, &def );
+
+	float maxSeparation = 0.0f;
+	for ( int i = 0; i < 240; ++i )
+	{
+		float push = 20.0f * sinf( 0.05f * i );
+		b3Body_ApplyForceToCenter( bodyId, (b3Vec3){ push, 0.0f, push }, true );
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		maxSeparation = b3MaxFloat( maxSeparation, b3Joint_GetLinearSeparation( jointId ) );
+	}
+
+	b3DestroyWorld( worldId );
+	return maxSeparation;
+}
+
+static int TestMotionLockJointFar( void )
+{
+	ENSURE( RunFarMotionLock( b3Vec3_zero, false ) < 1.0e-3f );
+	ENSURE( RunFarMotionLock( (b3Vec3){ 0.5f, 0.5f, 0.5f }, true ) < 1.0e-3f );
+	return 0;
+}
+#endif
 
 static int TestParallelJoint( void )
 {
@@ -675,6 +974,145 @@ static int TestWheelJoint( void )
 	return FinishJoint( jointId, f.worldId );
 }
 
+static void SetHeldFrames( b3JointDef* base, b3BodyId groundId, b3BodyId bodyId, b3Vec3 origin, b3Vec3 anchor, b3Quat q )
+{
+	base->bodyIdA = groundId;
+	base->bodyIdB = bodyId;
+	base->localFrameA = (b3Transform){ b3Add( origin, anchor ), q };
+	base->localFrameB = (b3Transform){ anchor, q };
+}
+
+// A box held still under gravity by one joint. The force at the anchor carries the weight and the
+// torque cancels the moment of that force about the center of mass.
+static int CheckHeldWeight( b3JointType type, float anchorOffset )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = (b3Vec3){ 0.0f, -10.0f, 0.0f };
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+
+	b3Vec3 origin = { 0.0f, 4.0f, 0.0f };
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ origin.x, origin.y, origin.z };
+	bodyDef.enableSleep = false;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.25f, 1.0f );
+	b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+	// Yaw keeps the frame x and z axes level, so neither a slider nor a free spin axis takes gravity
+	b3Quat q = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 0.5f );
+	b3Vec3 anchor = b3RotateVector( q, (b3Vec3){ 0.0f, 0.0f, anchorOffset } );
+
+	b3JointId jointId = b3_nullJointId;
+	switch ( type )
+	{
+		case b3_motionLockJoint:
+		{
+			b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			def.lockLinearX = true;
+			def.lockLinearY = true;
+			def.lockLinearZ = true;
+			def.lockAngularXY = true;
+			jointId = b3CreateMotionLockJoint( worldId, &def );
+		}
+		break;
+
+		case b3_prismaticJoint:
+		{
+			b3PrismaticJointDef def = b3DefaultPrismaticJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreatePrismaticJoint( worldId, &def );
+		}
+		break;
+
+		case b3_revoluteJoint:
+		{
+			b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreateRevoluteJoint( worldId, &def );
+		}
+		break;
+
+		case b3_sphericalJoint:
+		{
+			b3SphericalJointDef def = b3DefaultSphericalJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreateSphericalJoint( worldId, &def );
+		}
+		break;
+
+		case b3_weldJoint:
+		{
+			b3WeldJointDef def = b3DefaultWeldJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreateWeldJoint( worldId, &def );
+		}
+		break;
+
+		case b3_wheelJoint:
+		{
+			b3WheelJointDef def = b3DefaultWheelJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreateWheelJoint( worldId, &def );
+		}
+		break;
+
+		default:
+			ENSURE( false );
+	}
+
+	for ( int i = 0; i < 120; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	float weight = 10.0f * b3Body_GetMass( bodyId );
+	b3Vec3 expectedForce = { 0.0f, weight, 0.0f };
+	b3Vec3 expectedTorque = b3Neg( b3Cross( anchor, expectedForce ) );
+
+	b3Vec3 force = b3Joint_GetConstraintForce( jointId );
+	b3Vec3 torque = b3Joint_GetConstraintTorque( jointId );
+	ENSURE_SMALL( b3Length( b3Sub( force, expectedForce ) ), 0.02f * weight );
+	ENSURE_SMALL( b3Length( b3Sub( torque, expectedTorque ) ), 0.02f * weight );
+
+	// A body that cannot rotate needs no angular impulse, so none may linger for warm starting
+	b3Body_SetFixedRotation( bodyId, true );
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	force = b3Joint_GetConstraintForce( jointId );
+	torque = b3Joint_GetConstraintTorque( jointId );
+	ENSURE_SMALL( b3Length( b3Sub( force, expectedForce ) ), 0.02f * weight );
+	ENSURE( b3Length( torque ) == 0.0f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+static int TestConstraintForceAndTorque( void )
+{
+	b3JointType offsetTypes[] = {
+		b3_motionLockJoint, b3_prismaticJoint, b3_revoluteJoint, b3_weldJoint, b3_wheelJoint,
+	};
+
+	for ( int i = 0; i < (int)( sizeof( offsetTypes ) / sizeof( offsetTypes[0] ) ); ++i )
+	{
+		if ( CheckHeldWeight( offsetTypes[i], 0.0f ) != 0 || CheckHeldWeight( offsetTypes[i], 0.5f ) != 0 )
+		{
+			printf( "joint type %d\n", (int)offsetTypes[i] );
+			return 1;
+		}
+	}
+
+	// A ball joint cannot hold a moment, so its anchor sits at the center of mass
+	return CheckHeldWeight( b3_sphericalJoint, 0.0f );
+}
+
 // Issue #117: a joint created with collideConnected false must clear contacts
 // that already exist between the two bodies.
 static int TestCreateJointClearsContacts( void )
@@ -779,6 +1217,15 @@ static int TestNonDynamicJointDisable( void )
 
 int JointTest( void )
 {
+	RUN_SUBTEST( TestMotionLockJoint );
+	RUN_SUBTEST( TestMotionLockJointLinear );
+	RUN_SUBTEST( TestMotionLockJointCoupled );
+	RUN_SUBTEST( TestMotionLockJointRotation );
+	RUN_SUBTEST( TestMotionLockJointPlatform );
+	RUN_SUBTEST( TestMotionLockJointRedundant );
+#if defined( BOX3D_DOUBLE_PRECISION )
+	RUN_SUBTEST( TestMotionLockJointFar );
+#endif
 	RUN_SUBTEST( TestParallelJoint );
 	RUN_SUBTEST( TestDistanceJoint );
 	RUN_SUBTEST( TestFilterJoint );
@@ -790,6 +1237,7 @@ int JointTest( void )
 	RUN_SUBTEST( TestSphericalJoint );
 	RUN_SUBTEST( TestWeldJoint );
 	RUN_SUBTEST( TestWheelJoint );
+	RUN_SUBTEST( TestConstraintForceAndTorque );
 	RUN_SUBTEST( TestCreateJointClearsContacts );
 	RUN_SUBTEST( TestNonDynamicJointDisable );
 

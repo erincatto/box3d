@@ -43,7 +43,7 @@ static float b3_lengthUnitsPerMeter = 1.0f;
 
 void b3SetLengthUnitsPerMeter( float lengthUnits )
 {
-	B3_ASSERT( b3IsValidFloat( lengthUnits ) && lengthUnits > 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( lengthUnits ) && lengthUnits > 0.0f );
 	b3_lengthUnitsPerMeter = lengthUnits;
 }
 

@@ -121,6 +121,158 @@ public:
 
 static int sampleLargeWorld = RegisterSample( "World", "Far Stack", FarStack::Create );
 
+// Motion lock joints on bodies far from the static ground body's center. The ground sits at the world
+// origin and the locks sit at the offset, so each joint spans the whole distance. The joint keeps the anchor
+// separation in double precision and the error readout stays at solver noise at any offset. Subtracting the
+// two body centers in float instead lets gravity sag the bodies by up to half a float step of the offset,
+// about half a meter at 10000 km.
+class FarMotionLock : public Sample
+{
+public:
+	static constexpr float m_maxOffset = 10000.0f;
+	static constexpr int e_count = 4;
+
+	explicit FarMotionLock( SampleContext* context )
+		: Sample( context )
+	{
+		m_offsetKilometers = b3IsDoublePrecision() ? m_maxOffset : 0.0f;
+
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 20.0f, 30.0f, { 0.0f, 0.0f, 0.0f } );
+		}
+
+		BuildScene();
+	}
+
+	void BuildScene()
+	{
+		// Every coordinate is an integer number of meters so the ground's float anchors are exact at 1e7
+		float offset = 1000.0f * m_offsetKilometers;
+		b3Pos base = { offset, offset, offset };
+		m_camera->m_pivot = b3OffsetPos( base, { 0.0f, -2.0f, 0.0f } );
+		m_camera->UpdateTransform();
+
+		b3BodyDef groundDef = b3DefaultBodyDef();
+		groundDef.name = "ground";
+		b3BodyId groundId = b3CreateBody( m_worldId, &groundDef );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		b3BoxHull box = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.enableSleep = false;
+
+		struct Preset
+		{
+			bool x, y, z, rotation;
+			b3Vec3 localAnchor;
+		};
+
+		Preset presets[e_count] = {
+			{ true, true, false, false, { 0.0f, 0.0f, 0.0f } },
+			{ false, true, false, false, { 0.0f, 0.0f, 0.0f } },
+			{ true, true, true, false, { 0.5f, 0.5f, 0.5f } },
+			{ false, false, true, true, { 0.0f, 0.0f, 0.0f } },
+		};
+
+		for ( int i = 0; i < e_count; ++i )
+		{
+			b3Pos anchor = b3OffsetPos( base, { -6.0f + 4.0f * i, 0.0f, 0.0f } );
+			bodyDef.position = b3OffsetPos( anchor, b3Neg( presets[i].localAnchor ) );
+			m_bodyIds[i] = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateHullShape( m_bodyIds[i], &shapeDef, &box.base );
+
+			b3MotionLockJointDef jointDef = b3DefaultMotionLockJointDef();
+			jointDef.base.bodyIdA = groundId;
+			jointDef.base.bodyIdB = m_bodyIds[i];
+			jointDef.base.localFrameA.p = b3Body_GetLocalPoint( groundId, anchor );
+			jointDef.base.localFrameB.p = presets[i].localAnchor;
+			jointDef.lockLinearX = presets[i].x;
+			jointDef.lockLinearY = presets[i].y;
+			jointDef.lockLinearZ = presets[i].z;
+			jointDef.lockAngularXY = presets[i].rotation;
+			m_jointIds[i] = b3CreateMotionLockJoint( m_worldId, &jointDef );
+
+			m_maxSeparation[i] = 0.0f;
+		}
+
+		m_stepIndex = 0;
+	}
+
+	void Rebuild()
+	{
+		b3Capacity capacity = {};
+		CreateWorld( &capacity );
+		BuildScene();
+	}
+
+	bool DrawControls() override
+	{
+		const float presets[] = { 0.0f, 10.0f, 1000.0f, m_maxOffset };
+		const char* labels[] = { "origin", "10km", "1000km", "10000km" };
+		for ( int i = 0; i < 4; ++i )
+		{
+			if ( ImGui::Button( labels[i] ) )
+			{
+				m_offsetKilometers = presets[i];
+				Rebuild();
+			}
+		}
+
+		return true;
+	}
+
+	void Step() override
+	{
+		if ( m_context->pause == false || m_context->singleStep > 0 )
+		{
+			// Bounded back and forth push along the free axes
+			float push = 2.0f * cosf( m_stepIndex / 60.0f );
+			for ( int i = 0; i < e_count; ++i )
+			{
+				b3Body_ApplyForceToCenter( m_bodyIds[i], { push, 0.0f, -push }, true );
+			}
+			m_stepIndex += 1;
+		}
+
+		Sample::Step();
+
+		for ( int i = 0; i < e_count; ++i )
+		{
+			m_maxSeparation[i] = b3MaxFloat( m_maxSeparation[i], b3Joint_GetLinearSeparation( m_jointIds[i] ) );
+		}
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+
+		DrawTextLine( "double precision: %s", b3IsDoublePrecision() ? "ON" : "OFF" );
+		DrawTextLine( "locks %.0f km from the ground body center", m_offsetKilometers );
+
+		const char* names[e_count] = { "line", "plane", "point at corner", "planar" };
+		for ( int i = 0; i < e_count; ++i )
+		{
+			DrawTextLine( "%s: max lock error %.4f mm", names[i], 1000.0f * m_maxSeparation[i] );
+		}
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new FarMotionLock( context );
+	}
+
+	float m_offsetKilometers;
+	int m_stepIndex;
+	b3BodyId m_bodyIds[e_count];
+	b3JointId m_jointIds[e_count];
+	float m_maxSeparation[e_count];
+};
+
+static int sampleFarMotionLock = RegisterSample( "World", "Far Motion Lock", FarMotionLock::Create );
+
 class FarPyramid : public Sample
 {
 public:

@@ -1157,88 +1157,6 @@ public:
 
 static int sampleKinematic = RegisterSample( "Bodies", "Kinematic", Kinematic::Create );
 
-class LockMixing : public Sample
-{
-public:
-	explicit LockMixing( SampleContext* context )
-		: Sample( context )
-	{
-		if ( context->restart == false )
-		{
-			m_camera->SetView( 45.0f, 30.0f, 40.0f, b3Pos_zero );
-		}
-
-		AddGroundBox( 20.0f );
-
-		b3BoxHull cube = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
-		b3ShapeDef shapeDef = b3DefaultShapeDef();
-
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.type = b3_dynamicBody;
-			bodyDef.name = "free";
-			bodyDef.position = { 0.0f, 2.0f, 0.0f };
-
-			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
-		}
-
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.type = b3_dynamicBody;
-			bodyDef.name = "angular xz";
-			bodyDef.position = { 2.0f, 2.0f, 0.0f };
-			bodyDef.motionLocks.angularX = true;
-			// bodyDef.motionLocks.angularY = true;
-			bodyDef.motionLocks.angularZ = true;
-			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
-		}
-
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.type = b3_dynamicBody;
-			bodyDef.name = "linear xyz";
-			bodyDef.position = { -2.0f, 2.0f, 0.0f };
-			bodyDef.motionLocks.linearX = true;
-			bodyDef.motionLocks.linearY = true;
-			bodyDef.motionLocks.linearZ = true;
-			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
-		}
-
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.type = b3_dynamicBody;
-			bodyDef.name = "full";
-			bodyDef.position = { 0.0f, 1.0f, 2.0f };
-			bodyDef.motionLocks.linearX = true;
-			bodyDef.motionLocks.linearY = true;
-			bodyDef.motionLocks.linearZ = true;
-			bodyDef.motionLocks.angularX = true;
-			bodyDef.motionLocks.angularY = true;
-			bodyDef.motionLocks.angularZ = true;
-			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
-		}
-
-		{
-			b3BodyDef bodyDef = b3DefaultBodyDef();
-			bodyDef.name = "static";
-			bodyDef.position = { 0.0f, 1.0f, -3.0f };
-			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
-			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
-		}
-	}
-
-	static Sample* Create( SampleContext* context )
-	{
-		return new LockMixing( context );
-	}
-};
-
-static int sampleLockMixing = RegisterSample( "Bodies", "Lock Mixing", LockMixing::Create );
-
 // A fully rotation locked body uses a zero inverse inertia tensor
 class FixedRotation : public Sample
 {
@@ -1270,9 +1188,7 @@ public:
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.gravityScale = 0.0f;
 			bodyDef.enableSleep = false;
-			bodyDef.motionLocks.angularX = true;
-			bodyDef.motionLocks.angularY = true;
-			bodyDef.motionLocks.angularZ = true;
+			bodyDef.fixedRotation = true;
 
 			capsule.radius = 0.2f;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );

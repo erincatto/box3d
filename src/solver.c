@@ -183,14 +183,6 @@ static void b3IntegratePositionsTask( b3SolverBlock block, b3StepContext* contex
 		b3Vec3 v = state->linearVelocity;
 		b3Vec3 w = state->angularVelocity;
 
-		// Motion locks - these can be viewed as a constraint that come last
-		v.x = ( state->flags & b3_lockLinearX ) ? 0.0f : v.x;
-		v.y = ( state->flags & b3_lockLinearY ) ? 0.0f : v.y;
-		v.z = ( state->flags & b3_lockLinearZ ) ? 0.0f : v.z;
-		w.x = ( state->flags & b3_lockAngularX ) ? 0.0f : w.x;
-		w.y = ( state->flags & b3_lockAngularY ) ? 0.0f : w.y;
-		w.z = ( state->flags & b3_lockAngularZ ) ? 0.0f : w.z;
-
 		// Clamp to max linear speed
 		if ( b3Dot( v, v ) > maxLinearSpeedSquared )
 		{
@@ -589,9 +581,6 @@ static void b3SolveContinuous( b3World* world, int bodySimIndex, b3TaskContext* 
 		b3Vec3 v = fastBodyState->linearVelocity;
 		float timeLoss = ( 1.0f - context.fraction ) * dt;
 		b3Vec3 dv = b3MulSV( -timeLoss * fastBodySim->gravityScale, world->gravity );
-		dv.x = ( fastBodyState->flags & b3_lockLinearX ) ? 0.0f : dv.x;
-		dv.y = ( fastBodyState->flags & b3_lockLinearY ) ? 0.0f : dv.y;
-		dv.z = ( fastBodyState->flags & b3_lockLinearZ ) ? 0.0f : dv.z;
 		fastBodyState->linearVelocity = b3Add( v, dv );
 
 		// The move event was written before CCD, so correct it with the impact pose

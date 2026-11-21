@@ -162,10 +162,6 @@ public:
 
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.motionLocks.linearZ = true;
-		bodyDef.motionLocks.angularX = true;
-		bodyDef.motionLocks.angularY = true;
-		bodyDef.motionLocks.angularZ = true;
 
 		float r = 0.5f;
 		b3Capsule capsule = { { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, r };
@@ -178,6 +174,7 @@ public:
 			bodyDef.position.y = y;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
+			LockMotion( bodyId, { .linearZ = true, .rotation = e_fixedRotation } );
 
 			y += 2.0f * r;
 		}
@@ -811,18 +808,15 @@ public:
 	{
 		if ( m_context->restart == false )
 		{
-			m_camera->SetView( 40.0f, 15.0f, 50.0f, { 0.0f, 12.0f, 0.0f } );
+			m_camera->SetView( 40.0f, 15.0f, 14.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
-		AddGroundBox( 40.0f );
+		AddGroundBox( 1000.0f );
 
-		float a = 1.0f;
+		float a = 0.25f;
 		b3BoxHull box = b3MakeBoxHull( a, a, a );
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;
-		bodyDef.motionLocks.linearZ = true;
-		bodyDef.motionLocks.angularX = true;
-		bodyDef.motionLocks.angularY = true;
 
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 
@@ -834,6 +828,7 @@ public:
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 				b3CreateHullShape( bodyId, &shapeDef, &box.base );
+				LockMotion( bodyId, { .linearZ = true, .rotation = e_spinZ } );
 			}
 		}
 	}
