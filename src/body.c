@@ -177,15 +177,15 @@ static void b3DestroyBodyContacts( b3World* world, b3Body* body, bool wakeBodies
 b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 {
 	B3_CHECK_DEF( def );
-	B3_ASSERT( b3IsValidPosition( def->position ) );
-	B3_ASSERT( b3IsValidQuat( def->rotation ) );
-	B3_ASSERT( b3IsValidVec3( def->linearVelocity ) );
-	B3_ASSERT( b3IsValidVec3( def->angularVelocity ) );
-	B3_ASSERT( b3IsValidFloat( def->linearDamping ) && def->linearDamping >= 0.0f );
-	B3_ASSERT( b3IsValidFloat( def->angularDamping ) && def->angularDamping >= 0.0f );
-	B3_ASSERT( b3IsValidFloat( def->sleepThreshold ) && def->sleepThreshold >= 0.0f );
-	B3_ASSERT( b3IsValidFloat( def->safetyFactor ) && def->safetyFactor >= 0.0f );
-	B3_ASSERT( b3IsValidFloat( def->gravityScale ) );
+	B3_CHECK_INPUT_RETURN( b3IsValidPosition( def->position ), b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidQuat( def->rotation ), b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidVec3( def->linearVelocity ), b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidVec3( def->angularVelocity ), b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->linearDamping ) && def->linearDamping >= 0.0f, b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->angularDamping ) && def->angularDamping >= 0.0f, b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->sleepThreshold ) && def->sleepThreshold >= 0.0f, b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->safetyFactor ) && def->safetyFactor >= 0.0f, b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->gravityScale ), b3_nullBodyId );
 
 	b3World* world = b3GetUnlockedWorldFromId( worldId );
 
@@ -267,7 +267,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 
 		*bodyState = (b3BodyState){ 0 };
 		bodyState->linearVelocity = def->linearVelocity;
-		bodyState->angularVelocity = def->angularVelocity;
+		bodyState->angularVelocity = def->fixedRotation ? b3Vec3_zero : def->angularVelocity;
 		bodyState->deltaRotation = b3Quat_identity;
 		bodyState->flags = bodySim->flags;
 	}
@@ -1143,8 +1143,8 @@ b3Vec3 b3Body_GetWorldVector( b3BodyId bodyId, b3Vec3 localVector )
 
 void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation )
 {
-	B3_ASSERT( b3IsValidPosition( position ) );
-	B3_ASSERT( b3IsValidQuat( rotation ) );
+	B3_CHECK_INPUT( b3IsValidPosition( position ) );
+	B3_CHECK_INPUT( b3IsValidQuat( rotation ) );
 	B3_ASSERT( b3Body_IsValid( bodyId ) );
 	b3World* world = b3GetWorld( bodyId.world0 );
 	B3_ASSERT( world->locked == false );
@@ -1220,7 +1220,7 @@ b3Vec3 b3Body_GetAngularVelocity( b3BodyId bodyId )
 
 void b3Body_SetLinearVelocity( b3BodyId bodyId, b3Vec3 linearVelocity )
 {
-	B3_ASSERT( b3IsValidVec3( linearVelocity ) );
+	B3_CHECK_INPUT( b3IsValidVec3( linearVelocity ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1249,7 +1249,7 @@ void b3Body_SetLinearVelocity( b3BodyId bodyId, b3Vec3 linearVelocity )
 
 void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 {
-	B3_ASSERT( b3IsValidVec3( angularVelocity ) );
+	B3_CHECK_INPUT( b3IsValidVec3( angularVelocity ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1280,7 +1280,8 @@ void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 
 void b3Body_SetTargetTransform( b3BodyId bodyId, b3WorldTransform target, float timeStep, bool wake )
 {
-	B3_ASSERT( b3IsValidWorldTransform( target ) );
+	B3_CHECK_INPUT( b3IsValidWorldTransform( target ) );
+	B3_CHECK_INPUT( b3IsValidFloat( timeStep ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1327,6 +1328,11 @@ void b3Body_SetTargetTransform( b3BodyId bodyId, b3WorldTransform target, float 
 	b3Quat dq = { b3Sub( q2.v, q1.v ), q2.s - q1.s };
 	b3Quat omega = b3MulQuat( dq, b3Conjugate( q1 ) );
 	b3Vec3 angularVelocity = b3MulSV( 2.0f * invTimeStep, omega.v );
+
+	if ( body->flags & b3_fixedRotation )
+	{
+		angularVelocity = b3Vec3_zero;
+	}
 
 	// Early out if the body is asleep already and the desired movement is small
 	if ( body->setIndex != b3_awakeSet )
@@ -1388,11 +1394,12 @@ b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Pos worldPoint )
 
 void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Pos point, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( force ) );
+	B3_CHECK_INPUT( b3IsValidVec3( force ) );
+	B3_CHECK_INPUT( b3IsValidPosition( point ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
-	B3_REC( world, BodyApplyForce, bodyId, force, point, wake );
+	B3_REC( world, BodyApplyForce,bodyId, force, point, wake );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
@@ -1411,7 +1418,7 @@ void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Pos point, bool wake )
 
 void b3Body_ApplyForceToCenter( b3BodyId bodyId, b3Vec3 force, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( force ) );
+	B3_CHECK_INPUT( b3IsValidVec3( force ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1433,7 +1440,7 @@ void b3Body_ApplyForceToCenter( b3BodyId bodyId, b3Vec3 force, bool wake )
 
 void b3Body_ApplyTorque( b3BodyId bodyId, b3Vec3 torque, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( torque ) );
+	B3_CHECK_INPUT( b3IsValidVec3( torque ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1455,8 +1462,8 @@ void b3Body_ApplyTorque( b3BodyId bodyId, b3Vec3 torque, bool wake )
 
 void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Pos point, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( impulse ) );
-	B3_ASSERT( b3IsValidPosition( point ) );
+	B3_CHECK_INPUT( b3IsValidVec3( impulse ) );
+	B3_CHECK_INPUT( b3IsValidPosition( point ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1491,7 +1498,7 @@ void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Pos point, bo
 
 void b3Body_ApplyLinearImpulseToCenter( b3BodyId bodyId, b3Vec3 impulse, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( impulse ) );
+	B3_CHECK_INPUT( b3IsValidVec3( impulse ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1522,7 +1529,7 @@ void b3Body_ApplyLinearImpulseToCenter( b3BodyId bodyId, b3Vec3 impulse, bool wa
 
 void b3Body_ApplyAngularImpulse( b3BodyId bodyId, b3Vec3 impulse, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( impulse ) );
+	B3_CHECK_INPUT( b3IsValidVec3( impulse ) );
 	B3_ASSERT( b3Body_IsValid( bodyId ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
@@ -1885,9 +1892,9 @@ b3Pos b3Body_GetWorldCenter( b3BodyId bodyId )
 
 void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 {
-	B3_ASSERT( b3IsValidFloat( massData.mass ) && massData.mass >= 0.0f );
-	B3_ASSERT( b3IsValidMatrix3( massData.inertia ) );
-	B3_ASSERT( b3IsValidVec3( massData.center ) );
+	B3_CHECK_INPUT( b3IsValidFloat( massData.mass ) && massData.mass >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidMatrix3( massData.inertia ) );
+	B3_CHECK_INPUT( b3IsValidVec3( massData.center ) );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -1977,7 +1984,7 @@ void b3Body_ApplyMassFromShapes( b3BodyId bodyId )
 
 void b3Body_SetLinearDamping( b3BodyId bodyId, float linearDamping )
 {
-	B3_ASSERT( b3IsValidFloat( linearDamping ) && linearDamping >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( linearDamping ) && linearDamping >= 0.0f );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2002,7 +2009,7 @@ float b3Body_GetLinearDamping( b3BodyId bodyId )
 
 void b3Body_SetAngularDamping( b3BodyId bodyId, float angularDamping )
 {
-	B3_ASSERT( b3IsValidFloat( angularDamping ) && angularDamping >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( angularDamping ) && angularDamping >= 0.0f );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2028,7 +2035,7 @@ float b3Body_GetAngularDamping( b3BodyId bodyId )
 void b3Body_SetGravityScale( b3BodyId bodyId, float gravityScale )
 {
 	B3_ASSERT( b3Body_IsValid( bodyId ) );
-	B3_ASSERT( b3IsValidFloat( gravityScale ) );
+	B3_CHECK_INPUT( b3IsValidFloat( gravityScale ) );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2108,6 +2115,8 @@ bool b3Body_IsSleepEnabled( b3BodyId bodyId )
 
 void b3Body_SetSleepThreshold( b3BodyId bodyId, float sleepThreshold )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( sleepThreshold ) && sleepThreshold >= 0.0f );
+
 	b3World* world = b3GetWorld( bodyId.world0 );
 
 	B3_REC( world, BodySetSleepThreshold, bodyId, sleepThreshold );
@@ -2125,7 +2134,7 @@ float b3Body_GetSleepThreshold( b3BodyId bodyId )
 
 void b3Body_SetSafetyFactor( b3BodyId bodyId, float safetyFactor )
 {
-	B3_ASSERT( b3IsValidFloat( safetyFactor ) && safetyFactor >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( safetyFactor ) && safetyFactor >= 0.0f );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )

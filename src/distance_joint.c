@@ -14,6 +14,8 @@
 
 void b3DistanceJoint_SetLength( b3JointId jointId, float length )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( length ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, DistanceJointSetLength, jointId, length );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
@@ -49,6 +51,9 @@ bool b3DistanceJoint_IsLimitEnabled( b3JointId jointId )
 
 void b3DistanceJoint_SetLengthRange( b3JointId jointId, float minLength, float maxLength )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( minLength ) );
+	B3_CHECK_INPUT( b3IsValidFloat( maxLength ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, DistanceJointSetLengthRange, jointId, minLength, maxLength );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
@@ -114,7 +119,10 @@ bool b3DistanceJoint_IsSpringEnabled( b3JointId jointId )
 
 void b3DistanceJoint_SetSpringForceRange( b3JointId jointId, float lowerForce, float upperForce )
 {
-	B3_ASSERT( lowerForce <= upperForce );
+	B3_CHECK_INPUT( b3IsValidFloat( lowerForce ) );
+	B3_CHECK_INPUT( b3IsValidFloat( upperForce ) );
+	B3_CHECK_INPUT( lowerForce <= upperForce );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, DistanceJointSetSpringForceRange, jointId, lowerForce, upperForce );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
@@ -131,6 +139,8 @@ void b3DistanceJoint_GetSpringForceRange( b3JointId jointId, float* lowerForce, 
 
 void b3DistanceJoint_SetSpringHertz( b3JointId jointId, float hertz )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( hertz ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, DistanceJointSetSpringHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
@@ -139,6 +149,8 @@ void b3DistanceJoint_SetSpringHertz( b3JointId jointId, float hertz )
 
 void b3DistanceJoint_SetSpringDampingRatio( b3JointId jointId, float dampingRatio )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( dampingRatio ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, DistanceJointSetSpringDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_distanceJoint );
@@ -179,6 +191,8 @@ bool b3DistanceJoint_IsMotorEnabled( b3JointId jointId )
 
 void b3DistanceJoint_SetMotorSpeed( b3JointId jointId, float motorSpeed )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( motorSpeed ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, DistanceJointSetMotorSpeed, jointId, motorSpeed );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_distanceJoint );
@@ -200,6 +214,8 @@ float b3DistanceJoint_GetMotorForce( b3JointId jointId )
 
 void b3DistanceJoint_SetMaxMotorForce( b3JointId jointId, float force )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( force ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, DistanceJointSetMaxMotorForce, jointId, force );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_distanceJoint );

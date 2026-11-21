@@ -1228,7 +1228,7 @@ static void b3RecDispatch_MotionLockJointEnableLinearLock( const b3RecArgs_Motio
 	b3MotionLockJoint_EnableLinearLock( b3RecMakeJointId( rdr, a->joint ), a->axis, a->flag );
 }
 
-static void b3RecDispatch_MotionLockJointEnableRotationLock( const b3RecArgs_MotionLockJointEnableRotationLock* a,
+static void b3RecDispatch_MotionLockJointEnableAngularLock( const b3RecArgs_MotionLockJointEnableAngularLock* a,
 															   b3RecReader* rdr )
 {
 	b3MotionLockJoint_EnableAngularLock( b3RecMakeJointId( rdr, a->joint ), a->flag );

@@ -73,7 +73,9 @@ float b3RevoluteJoint_GetUpperLimit( b3JointId jointId )
 
 void b3RevoluteJoint_SetLimits( b3JointId jointId, float lowerLimitRadians, float upperLimitRadians )
 {
-	B3_ASSERT( b3IsValidFloat( lowerLimitRadians ) && b3IsValidFloat( upperLimitRadians ) );
+	B3_CHECK_INPUT( b3IsValidFloat( lowerLimitRadians ) );
+	B3_CHECK_INPUT( b3IsValidFloat( upperLimitRadians ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, RevoluteJointSetLimits, jointId, lowerLimitRadians, upperLimitRadians );
 
@@ -126,7 +128,8 @@ bool b3RevoluteJoint_IsSpringEnabled( b3JointId jointId )
 
 void b3RevoluteJoint_SetTargetAngle( b3JointId jointId, float targetRadians )
 {
-	B3_ASSERT( b3IsValidFloat( targetRadians ) && -B3_PI <= targetRadians && targetRadians <= B3_PI );
+	B3_CHECK_INPUT( b3IsValidFloat( targetRadians ) && -B3_PI <= targetRadians && targetRadians <= B3_PI );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, RevoluteJointSetTargetAngle, jointId, targetRadians );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
@@ -141,7 +144,8 @@ float b3RevoluteJoint_GetTargetAngle( b3JointId jointId )
 
 void b3RevoluteJoint_SetSpringHertz( b3JointId jointId, float hertz )
 {
-	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, RevoluteJointSetSpringHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
@@ -156,7 +160,8 @@ float b3RevoluteJoint_GetSpringHertz( b3JointId jointId )
 
 void b3RevoluteJoint_SetSpringDampingRatio( b3JointId jointId, float dampingRatio )
 {
-	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, RevoluteJointSetSpringDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
@@ -189,7 +194,8 @@ bool b3RevoluteJoint_IsMotorEnabled( b3JointId jointId )
 
 void b3RevoluteJoint_SetMotorSpeed( b3JointId jointId, float motorSpeed )
 {
-	B3_ASSERT( b3IsValidFloat( motorSpeed ) );
+	B3_CHECK_INPUT( b3IsValidFloat( motorSpeed ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, RevoluteJointSetMotorSpeed, jointId, motorSpeed );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
@@ -204,7 +210,8 @@ float b3RevoluteJoint_GetMotorSpeed( b3JointId jointId )
 
 void b3RevoluteJoint_SetMaxMotorTorque( b3JointId jointId, float maxForce )
 {
-	B3_ASSERT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, RevoluteJointSetMaxMotorTorque, jointId, maxForce );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
@@ -232,29 +239,14 @@ b3Vec3 b3GetRevoluteJointForce( b3World* world, b3JointSim* base )
 
 b3Vec3 b3GetRevoluteJointTorque( b3World* world, b3JointSim* base )
 {
-	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
 	b3RevoluteJoint* joint = &base->revoluteJoint;
-	b3Vec3 axis = b3RotateVector( base->localFrameA.q, b3Vec3_axisZ );
-	axis = b3RotateVector( transformA.q, axis );
-
-	b3Quat relQ = b3InvMulQuat( joint->frameA.q, joint->frameB.q );
-
-	// These are needed for warm starting
-	joint->perpAxisX = b3MulSV( 0.5f, b3RotateVector( joint->frameA.q, b3Add( b3MulSV( relQ.s, b3Vec3_axisX ),
-																			  b3Cross( relQ.v, b3Vec3_axisX ) ) ) );
-	joint->perpAxisY = b3MulSV( 0.5f, b3RotateVector( joint->frameA.q, b3Add( b3MulSV( relQ.s, b3Vec3_axisY ),
-																			  b3Cross( relQ.v, b3Vec3_axisY ) ) ) );
 
 	float axialImpulse = joint->springImpulse + joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse;
 	b3Vec3 angularImpulse =
 		b3Add( b3MulSV( joint->perpImpulse.x, joint->perpAxisX ), b3MulSV( joint->perpImpulse.y, joint->perpAxisY ) );
 	angularImpulse = b3MulAdd( angularImpulse, axialImpulse, joint->rotationAxisZ );
 
-	// todo add pivot torque
-	b3Vec3 impulse = b3MulAdd(
-		angularImpulse, joint->springImpulse + joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse, axis );
-	b3Vec3 torque = b3MulSV( world->inv_h, impulse );
-	return torque;
+	return b3MulSV( world->inv_h, angularImpulse );
 }
 
 void b3PrepareRevoluteJoint( b3JointSim* base, b3StepContext* context )
@@ -323,6 +315,14 @@ void b3PrepareRevoluteJoint( b3JointSim* base, b3StepContext* context )
 	if ( context->enableWarmStarting == false )
 	{
 		joint->linearImpulse = b3Vec3_zero;
+		joint->perpImpulse = (b3Vec2){ 0.0f, 0.0f };
+		joint->motorImpulse = 0.0f;
+		joint->springImpulse = 0.0f;
+		joint->lowerImpulse = 0.0f;
+		joint->upperImpulse = 0.0f;
+	}
+	else if ( base->fixedRotation )
+	{
 		joint->perpImpulse = (b3Vec2){ 0.0f, 0.0f };
 		joint->motorImpulse = 0.0f;
 		joint->springImpulse = 0.0f;

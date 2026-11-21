@@ -39,7 +39,8 @@ float b3SphericalJoint_GetConeLimit( b3JointId jointId )
 
 void b3SphericalJoint_SetConeLimit( b3JointId jointId, float angleRadians )
 {
-	B3_ASSERT( b3IsValidFloat( angleRadians ) && 0 <= angleRadians && angleRadians <= 0.5f * B3_PI );
+	B3_CHECK_INPUT( b3IsValidFloat( angleRadians ) && 0 <= angleRadians && angleRadians <= 0.5f * B3_PI );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, SphericalJointSetConeLimit, jointId, angleRadians );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
@@ -100,7 +101,9 @@ float b3SphericalJoint_GetUpperTwistLimit( b3JointId jointId )
 
 void b3SphericalJoint_SetTwistLimits( b3JointId jointId, float lowerLimitRadians, float upperLimitRadians )
 {
-	B3_ASSERT( b3IsValidFloat( lowerLimitRadians ) && b3IsValidFloat( upperLimitRadians ) );
+	B3_CHECK_INPUT( b3IsValidFloat( lowerLimitRadians ) );
+	B3_CHECK_INPUT( b3IsValidFloat( upperLimitRadians ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, SphericalJointSetTwistLimits, jointId, lowerLimitRadians, upperLimitRadians );
 
@@ -153,7 +156,8 @@ bool b3SphericalJoint_IsSpringEnabled( b3JointId jointId )
 
 void b3SphericalJoint_SetTargetRotation( b3JointId jointId, b3Quat targetRotation )
 {
-	B3_ASSERT( b3IsValidQuat( targetRotation ) );
+	B3_CHECK_INPUT( b3IsValidQuat( targetRotation ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, SphericalJointSetTargetRotation, jointId, targetRotation );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
@@ -168,7 +172,8 @@ b3Quat b3SphericalJoint_GetTargetRotation( b3JointId jointId )
 
 void b3SphericalJoint_SetSpringHertz( b3JointId jointId, float hertz )
 {
-	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, SphericalJointSetSpringHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
@@ -183,7 +188,8 @@ float b3SphericalJoint_GetSpringHertz( b3JointId jointId )
 
 void b3SphericalJoint_SetSpringDampingRatio( b3JointId jointId, float dampingRatio )
 {
-	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, SphericalJointSetSpringDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
@@ -216,7 +222,8 @@ bool b3SphericalJoint_IsMotorEnabled( b3JointId jointId )
 
 void b3SphericalJoint_SetMotorVelocity( b3JointId jointId, b3Vec3 motorVelocity )
 {
-	B3_ASSERT( b3IsValidVec3( motorVelocity ) );
+	B3_CHECK_INPUT( b3IsValidVec3( motorVelocity ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, SphericalJointSetMotorVelocity, jointId, motorVelocity );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
@@ -231,7 +238,8 @@ b3Vec3 b3SphericalJoint_GetMotorVelocity( b3JointId jointId )
 
 void b3SphericalJoint_SetMaxMotorTorque( b3JointId jointId, float maxForce )
 {
-	B3_ASSERT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, SphericalJointSetMaxMotorTorque, jointId, maxForce );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
@@ -259,22 +267,11 @@ b3Vec3 b3GetSphericalJointForce( b3World* world, b3JointSim* base )
 
 b3Vec3 b3GetSphericalJointTorque( b3World* world, b3JointSim* base )
 {
-	b3WorldTransform xfA = b3GetBodyTransform( world, base->bodyIdA );
-	b3WorldTransform xfB = b3GetBodyTransform( world, base->bodyIdB );
-	b3Quat qA = b3MulQuat( xfA.q, base->localFrameA.q );
-	b3Quat qB = b3MulQuat( xfB.q, base->localFrameB.q );
-
-	// Cone axis is the z-axis of body A.
-	b3Vec3 coneAxis = b3RotateVector( qA, b3Vec3_axisZ );
-	b3Vec3 twistAxis = b3RotateVector( qB, b3Vec3_axisZ );
-	b3Vec3 swingAxis = b3Normalize( b3Cross( coneAxis, twistAxis ) );
-
 	b3SphericalJoint* joint = &base->sphericalJoint;
 	b3Vec3 impulse = b3Add( joint->springImpulse, joint->motorImpulse );
-	impulse = b3MulAdd( impulse, joint->lowerTwistImpulse - joint->upperTwistImpulse, twistAxis );
-	impulse = b3MulAdd( impulse, joint->swingImpulse, swingAxis );
-	b3Vec3 torque = b3MulSV( world->inv_h, impulse );
-	return torque;
+	impulse = b3MulSub( impulse, joint->swingImpulse, joint->swingAxis );
+	impulse = b3MulAdd( impulse, joint->lowerTwistImpulse - joint->upperTwistImpulse, joint->twistJacobian );
+	return b3MulSV( world->inv_h, impulse );
 }
 
 // Point-to-point constraint
@@ -373,6 +370,14 @@ void b3PrepareSphericalJoint( b3JointSim* base, b3StepContext* context )
 	if ( context->enableWarmStarting == false )
 	{
 		joint->linearImpulse = b3Vec3_zero;
+		joint->motorImpulse = b3Vec3_zero;
+		joint->springImpulse = b3Vec3_zero;
+		joint->swingImpulse = 0.0f;
+		joint->lowerTwistImpulse = 0.0f;
+		joint->upperTwistImpulse = 0.0f;
+	}
+	else if ( base->fixedRotation )
+	{
 		joint->motorImpulse = b3Vec3_zero;
 		joint->springImpulse = b3Vec3_zero;
 		joint->swingImpulse = 0.0f;

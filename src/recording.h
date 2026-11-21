@@ -47,7 +47,7 @@ typedef struct b3World b3World;
 #define B3_REC_MAGIC 0x43523342u
 
 // Major recording version is bumped when writers change.
-// Major version 6 widened the body def with the safety factor.
+// Major version 7 for the motion lock change.
 #define B3_REC_VERSION_MAJOR 7
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.

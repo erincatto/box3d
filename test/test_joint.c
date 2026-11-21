@@ -974,6 +974,145 @@ static int TestWheelJoint( void )
 	return FinishJoint( jointId, f.worldId );
 }
 
+static void SetHeldFrames( b3JointDef* base, b3BodyId groundId, b3BodyId bodyId, b3Vec3 origin, b3Vec3 anchor, b3Quat q )
+{
+	base->bodyIdA = groundId;
+	base->bodyIdB = bodyId;
+	base->localFrameA = (b3Transform){ b3Add( origin, anchor ), q };
+	base->localFrameB = (b3Transform){ anchor, q };
+}
+
+// A box held still under gravity by one joint. The force at the anchor carries the weight and the
+// torque cancels the moment of that force about the center of mass.
+static int CheckHeldWeight( b3JointType type, float anchorOffset )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = (b3Vec3){ 0.0f, -10.0f, 0.0f };
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef groundDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+
+	b3Vec3 origin = { 0.0f, 4.0f, 0.0f };
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ origin.x, origin.y, origin.z };
+	bodyDef.enableSleep = false;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.25f, 1.0f );
+	b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+	// Yaw keeps the frame x and z axes level, so neither a slider nor a free spin axis takes gravity
+	b3Quat q = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 0.5f );
+	b3Vec3 anchor = b3RotateVector( q, (b3Vec3){ 0.0f, 0.0f, anchorOffset } );
+
+	b3JointId jointId = b3_nullJointId;
+	switch ( type )
+	{
+		case b3_motionLockJoint:
+		{
+			b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			def.lockLinearX = true;
+			def.lockLinearY = true;
+			def.lockLinearZ = true;
+			def.lockAngularXY = true;
+			jointId = b3CreateMotionLockJoint( worldId, &def );
+		}
+		break;
+
+		case b3_prismaticJoint:
+		{
+			b3PrismaticJointDef def = b3DefaultPrismaticJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreatePrismaticJoint( worldId, &def );
+		}
+		break;
+
+		case b3_revoluteJoint:
+		{
+			b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreateRevoluteJoint( worldId, &def );
+		}
+		break;
+
+		case b3_sphericalJoint:
+		{
+			b3SphericalJointDef def = b3DefaultSphericalJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreateSphericalJoint( worldId, &def );
+		}
+		break;
+
+		case b3_weldJoint:
+		{
+			b3WeldJointDef def = b3DefaultWeldJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreateWeldJoint( worldId, &def );
+		}
+		break;
+
+		case b3_wheelJoint:
+		{
+			b3WheelJointDef def = b3DefaultWheelJointDef();
+			SetHeldFrames( &def.base, groundId, bodyId, origin, anchor, q );
+			jointId = b3CreateWheelJoint( worldId, &def );
+		}
+		break;
+
+		default:
+			ENSURE( false );
+	}
+
+	for ( int i = 0; i < 120; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	float weight = 10.0f * b3Body_GetMass( bodyId );
+	b3Vec3 expectedForce = { 0.0f, weight, 0.0f };
+	b3Vec3 expectedTorque = b3Neg( b3Cross( anchor, expectedForce ) );
+
+	b3Vec3 force = b3Joint_GetConstraintForce( jointId );
+	b3Vec3 torque = b3Joint_GetConstraintTorque( jointId );
+	ENSURE_SMALL( b3Length( b3Sub( force, expectedForce ) ), 0.02f * weight );
+	ENSURE_SMALL( b3Length( b3Sub( torque, expectedTorque ) ), 0.02f * weight );
+
+	// A body that cannot rotate needs no angular impulse, so none may linger for warm starting
+	b3Body_SetFixedRotation( bodyId, true );
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	force = b3Joint_GetConstraintForce( jointId );
+	torque = b3Joint_GetConstraintTorque( jointId );
+	ENSURE_SMALL( b3Length( b3Sub( force, expectedForce ) ), 0.02f * weight );
+	ENSURE( b3Length( torque ) == 0.0f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+static int TestConstraintForceAndTorque( void )
+{
+	b3JointType offsetTypes[] = {
+		b3_motionLockJoint, b3_prismaticJoint, b3_revoluteJoint, b3_weldJoint, b3_wheelJoint,
+	};
+
+	for ( int i = 0; i < (int)( sizeof( offsetTypes ) / sizeof( offsetTypes[0] ) ); ++i )
+	{
+		if ( CheckHeldWeight( offsetTypes[i], 0.0f ) != 0 || CheckHeldWeight( offsetTypes[i], 0.5f ) != 0 )
+		{
+			printf( "joint type %d\n", (int)offsetTypes[i] );
+			return 1;
+		}
+	}
+
+	// A ball joint cannot hold a moment, so its anchor sits at the center of mass
+	return CheckHeldWeight( b3_sphericalJoint, 0.0f );
+}
+
 // Issue #117: a joint created with collideConnected false must clear contacts
 // that already exist between the two bodies.
 static int TestCreateJointClearsContacts( void )
@@ -1098,6 +1237,7 @@ int JointTest( void )
 	RUN_SUBTEST( TestSphericalJoint );
 	RUN_SUBTEST( TestWeldJoint );
 	RUN_SUBTEST( TestWheelJoint );
+	RUN_SUBTEST( TestConstraintForceAndTorque );
 	RUN_SUBTEST( TestCreateJointClearsContacts );
 	RUN_SUBTEST( TestNonDynamicJointDisable );
 

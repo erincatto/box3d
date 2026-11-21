@@ -14,7 +14,7 @@
 
 void b3MotionLockJoint_EnableLinearLock( b3JointId jointId, int axis, bool flag )
 {
-	B3_ASSERT( 0 <= axis && axis < 3 );
+	B3_CHECK_INPUT( 0 <= axis && axis < 3 );
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotionLockJointEnableLinearLock, jointId, axis, flag );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_motionLockJoint );
@@ -28,7 +28,7 @@ void b3MotionLockJoint_EnableLinearLock( b3JointId jointId, int axis, bool flag 
 
 bool b3MotionLockJoint_IsLinearLockEnabled( b3JointId jointId, int axis )
 {
-	B3_ASSERT( 0 <= axis && axis < 3 );
+	B3_CHECK_INPUT_RETURN( 0 <= axis && axis < 3, false );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_motionLockJoint );
 	return base->motionLockJoint.lockLinear[axis];
 }
@@ -36,7 +36,7 @@ bool b3MotionLockJoint_IsLinearLockEnabled( b3JointId jointId, int axis )
 void b3MotionLockJoint_EnableAngularLock( b3JointId jointId, bool flag )
 {
 	b3World* world = b3GetWorld( jointId.world0 );
-	B3_REC( world, MotionLockJointEnableRotationLock, jointId, flag );
+	B3_REC( world, MotionLockJointEnableAngularLock, jointId, flag );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_motionLockJoint );
 	b3MotionLockJoint* joint = &base->motionLockJoint;
 	if ( flag != joint->lockRotationXY )
@@ -141,6 +141,10 @@ void b3PrepareMotionLockJoint( b3JointSim* base, b3StepContext* context )
 	if ( context->enableWarmStarting == false )
 	{
 		joint->linearImpulse = b3Vec3_zero;
+		joint->angularImpulse = (b3Vec2){ 0.0f, 0.0f };
+	}
+	else if ( base->fixedRotation )
+	{
 		joint->angularImpulse = (b3Vec2){ 0.0f, 0.0f };
 	}
 }

@@ -372,7 +372,8 @@ typedef struct b3BodyDef
 	/// Use this to store application specific body data.
 	void* userData;
 
-	// todo comment
+	/// Fully lock the rotation of this body by setting the inverse inertia tensor to zero. This also
+	/// keeps the angular velocity at zero.
 	bool fixedRotation;
 
 	/// Set this flag to false if this body should never fall asleep.

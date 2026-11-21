@@ -15,6 +15,8 @@
 
 void b3MotorJoint_SetLinearVelocity( b3JointId jointId, b3Vec3 velocity )
 {
+	B3_CHECK_INPUT( b3IsValidVec3( velocity ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetLinearVelocity, jointId, velocity );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -29,6 +31,8 @@ b3Vec3 b3MotorJoint_GetLinearVelocity( b3JointId jointId )
 
 void b3MotorJoint_SetAngularVelocity( b3JointId jointId, b3Vec3 velocity )
 {
+	B3_CHECK_INPUT( b3IsValidVec3( velocity ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetAngularVelocity, jointId, velocity );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -43,6 +47,8 @@ b3Vec3 b3MotorJoint_GetAngularVelocity( b3JointId jointId )
 
 void b3MotorJoint_SetMaxVelocityTorque( b3JointId jointId, float maxTorque )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( maxTorque ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetMaxVelocityTorque, jointId, maxTorque );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -57,6 +63,8 @@ float b3MotorJoint_GetMaxVelocityTorque( b3JointId jointId )
 
 void b3MotorJoint_SetMaxVelocityForce( b3JointId jointId, float maxForce )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( maxForce ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetMaxVelocityForce, jointId, maxForce );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -71,6 +79,8 @@ float b3MotorJoint_GetMaxVelocityForce( b3JointId jointId )
 
 void b3MotorJoint_SetLinearHertz( b3JointId jointId, float hertz )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( hertz ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetLinearHertz, jointId, hertz );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -85,6 +95,8 @@ float b3MotorJoint_GetLinearHertz( b3JointId jointId )
 
 void b3MotorJoint_SetLinearDampingRatio( b3JointId jointId, float damping )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( damping ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetLinearDampingRatio, jointId, damping );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -99,6 +111,8 @@ float b3MotorJoint_GetLinearDampingRatio( b3JointId jointId )
 
 void b3MotorJoint_SetAngularHertz( b3JointId jointId, float hertz )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( hertz ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetAngularHertz, jointId, hertz );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -113,6 +127,8 @@ float b3MotorJoint_GetAngularHertz( b3JointId jointId )
 
 void b3MotorJoint_SetAngularDampingRatio( b3JointId jointId, float damping )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( damping ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetAngularDampingRatio, jointId, damping );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -127,6 +143,8 @@ float b3MotorJoint_GetAngularDampingRatio( b3JointId jointId )
 
 void b3MotorJoint_SetMaxSpringForce( b3JointId jointId, float maxForce )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( maxForce ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetMaxSpringForce, jointId, maxForce );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -141,6 +159,8 @@ float b3MotorJoint_GetMaxSpringForce( b3JointId jointId )
 
 void b3MotorJoint_SetMaxSpringTorque( b3JointId jointId, float maxTorque )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( maxTorque ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotorJointSetMaxSpringTorque, jointId, maxTorque );
 	b3JointSim* joint = b3GetJointSimCheckType( jointId, b3_motorJoint );
@@ -233,6 +253,11 @@ void b3PrepareMotorJoint( b3JointSim* base, b3StepContext* context )
 		joint->linearVelocityImpulse = b3Vec3_zero;
 		joint->angularVelocityImpulse = b3Vec3_zero;
 		joint->linearSpringImpulse = b3Vec3_zero;
+		joint->angularSpringImpulse = b3Vec3_zero;
+	}
+	else if ( base->fixedRotation )
+	{
+		joint->angularVelocityImpulse = b3Vec3_zero;
 		joint->angularSpringImpulse = b3Vec3_zero;
 	}
 }

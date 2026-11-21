@@ -766,10 +766,10 @@ B3_API void b3Body_Disable( b3BodyId bodyId );
 /// Enable a body by adding it to the simulation. This is expensive.
 B3_API void b3Body_Enable( b3BodyId bodyId );
 
-// todo comment
+/// Fix the rotation of this body. Sets the angular velocity to zero.
 B3_API void b3Body_SetFixedRotation( b3BodyId bodyId, bool flag );
 
-// todo comment
+/// Does this body have fixed rotation?
 B3_API bool b3Body_IsFixedRotation( b3BodyId bodyId );
 
 /// Set this body to be a bullet. A bullet does continuous collision detection

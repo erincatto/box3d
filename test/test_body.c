@@ -350,6 +350,55 @@ static int SetMassDataFixedRotation( void )
 	return 0;
 }
 
+// Zero inverse inertia only stops impulses from changing the spin, so every path that writes angular
+// velocity directly has to drop it or the body spins forever.
+static int FixedRotationRejectsSpin( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeCubeHull( 0.5f );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.fixedRotation = true;
+	bodyDef.angularVelocity = (b3Vec3){ 0.0f, 5.0f, 0.0f };
+	b3BodyId dynamicId = b3CreateBody( worldId, &bodyDef );
+	b3CreateHullShape( dynamicId, &shapeDef, &box.base );
+
+	ENSURE( b3Length( b3Body_GetAngularVelocity( dynamicId ) ) == 0.0f );
+
+	bodyDef.type = b3_kinematicBody;
+	bodyDef.angularVelocity = b3Vec3_zero;
+	bodyDef.position = (b3Pos){ 4.0f, 0.0f, 0.0f };
+	b3BodyId kinematicId = b3CreateBody( worldId, &bodyDef );
+	b3CreateHullShape( kinematicId, &shapeDef, &box.base );
+
+	b3WorldTransform target = {
+		.p = { 4.0f, 1.0f, 0.0f },
+		.q = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 1.0f ),
+	};
+	b3Body_SetTargetTransform( kinematicId, target, 1.0f / 60.0f, true );
+	ENSURE( b3Length( b3Body_GetAngularVelocity( kinematicId ) ) == 0.0f );
+	ENSURE( b3Length( b3Body_GetLinearVelocity( kinematicId ) ) > 0.0f );
+
+	b3Body_SetType( kinematicId, b3_dynamicBody );
+	ENSURE( b3Length( b3Body_GetAngularVelocity( kinematicId ) ) == 0.0f );
+
+	for ( int i = 0; i < 10; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	ENSURE( b3Length( b3Body_GetRotation( dynamicId ).v ) == 0.0f );
+	ENSURE( b3Length( b3Body_GetRotation( kinematicId ).v ) == 0.0f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 // Zero mass and a zero tensor have zero determinant, so the inverses must collapse to zero rather than
 // divide by it.
 static int SetMassDataZeroMass( void )
@@ -678,6 +727,7 @@ int BodyTest( void )
 	RUN_SUBTEST( SetMassDataRoundTrip );
 	RUN_SUBTEST( SetMassDataWorldInertiaRotated );
 	RUN_SUBTEST( SetMassDataFixedRotation );
+	RUN_SUBTEST( FixedRotationRejectsSpin );
 	RUN_SUBTEST( SetMassDataZeroMass );
 	RUN_SUBTEST( SetMassDataConsistentVelocity );
 	RUN_SUBTEST( ShapeExtents );
