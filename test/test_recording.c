@@ -1361,7 +1361,7 @@ static int AllOps( void )
 	b3Shape_SetMeshMaterial( meshShapeId, surfMat, 0 );
 
 	// Body mutators: SetTransform, SetLinearVelocity/AngularVelocity (Vec3), SetName,
-	// damping, gravity scale, sleep threshold, SetAwake, EnableSleep, SetBullet, SetMotionLocks,
+	// damping, gravity scale, sleep threshold, SetAwake, EnableSleep, SetBullet, SetFixedRotation,
 	// SetMassData, ApplyMassFromShapes, SetType, SetTargetTransform, Disable/Enable,
 	// EnableContactRecycling, EnableHitEvents, all force/impulse/torque variants
 	b3Body_SetTransform( bodyId, (b3Pos){ 1.0f, 6.0f, 0.0f }, b3Quat_identity );
@@ -1376,7 +1376,7 @@ static int AllOps( void )
 	b3Body_SetBullet( bodyId, true );
 	b3Body_EnableContactRecycling( bodyId, false );
 	b3Body_EnableHitEvents( bodyId, true );
-	b3Body_SetMotionLocks( bodyId, (b3MotionLocks){ false, false, false, false, false, true } );
+	b3Body_SetFixedRotation( bodyId, true );
 	b3MassData massData;
 	massData.mass = 2.0f;
 	massData.center = (b3Vec3){ 0.0f, 0.0f, 0.0f };
@@ -1608,8 +1608,7 @@ static int AllOps( void )
 	b3BodyDef moverBodyDef = b3DefaultBodyDef();
 	moverBodyDef.type = b3_dynamicBody;
 	moverBodyDef.position = (b3Pos){ -20.0f, 3.0f, 0.0f };
-	moverBodyDef.motionLocks =
-		(b3MotionLocks){ .angularX = true, .angularY = true, .angularZ = true };
+	moverBodyDef.fixedRotation = true;
 	b3BodyId moverBodyId = b3CreateBody( worldId, &moverBodyDef );
 	b3ShapeDef moverShapeDef = b3DefaultShapeDef();
 	moverShapeDef.density = 1.0f;

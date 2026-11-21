@@ -146,7 +146,7 @@ enum MotionRotation
 	e_fixedRotation,
 };
 
-// Stand in for body motion locks, all in world axes
+// Locks in world axes, built from a motion lock joint and body fixed rotation
 struct MotionLockFlags
 {
 	bool linearX;

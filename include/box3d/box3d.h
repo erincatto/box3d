@@ -766,11 +766,11 @@ B3_API void b3Body_Disable( b3BodyId bodyId );
 /// Enable a body by adding it to the simulation. This is expensive.
 B3_API void b3Body_Enable( b3BodyId bodyId );
 
-/// Set the motion locks on this body.
-B3_API void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks );
+// todo comment
+B3_API void b3Body_SetFixedRotation( b3BodyId bodyId, bool flag );
 
-/// Get the motion locks for this body.
-B3_API b3MotionLocks b3Body_GetMotionLocks( b3BodyId bodyId );
+// todo comment
+B3_API bool b3Body_IsFixedRotation( b3BodyId bodyId );
 
 /// Set this body to be a bullet. A bullet does continuous collision detection
 /// against dynamic bodies (but not other bullets).

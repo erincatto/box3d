@@ -293,9 +293,7 @@ static int SetMassDataFixedRotation( void )
 
 	b3BodyDef bodyDef = b3DefaultBodyDef();
 	bodyDef.type = b3_dynamicBody;
-	bodyDef.motionLocks.angularX = true;
-	bodyDef.motionLocks.angularY = true;
-	bodyDef.motionLocks.angularZ = true;
+	bodyDef.fixedRotation = true;
 	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
 
 	b3MassData massData = { 5.0f, { 0.0f, 0.0f, 0.0f }, kDiagInertia };
@@ -322,7 +320,8 @@ static int SetMassDataFixedRotation( void )
 	// The tensor is anisotropic but the body cannot rotate
 	ENSURE( HasGyroscopicTorque( bodyId ) == false );
 
-	b3Body_SetMotionLocks( bodyId, (b3MotionLocks){ 0 } );
+	b3Body_SetFixedRotation( bodyId, false );
+	ENSURE( b3Body_IsFixedRotation( bodyId ) == false );
 
 	ENSURE_SMALL( b3Body_GetMass( bodyId ) - 5.0f, 1e-6f );
 
@@ -338,7 +337,8 @@ static int SetMassDataFixedRotation( void )
 
 	ENSURE( HasGyroscopicTorque( bodyId ) );
 
-	b3Body_SetMotionLocks( bodyId, bodyDef.motionLocks );
+	b3Body_SetFixedRotation( bodyId, true );
+	ENSURE( b3Body_IsFixedRotation( bodyId ) );
 
 	invWorld = b3Body_GetWorldInverseRotationalInertia( bodyId );
 	ENSURE_SMALL( invWorld.cx.x, 1e-6f );
@@ -618,7 +618,7 @@ static int IsotropicInertiaTolerance( void )
 		w = b3Body_GetAngularVelocity( plankId );
 		ENSURE( b3Length( b3Sub( w, w0 ) ) > 0.01f );
 
-		b3Body_SetMotionLocks( plankId, (b3MotionLocks){ .angularX = true, .angularY = true, .angularZ = true } );
+		b3Body_SetFixedRotation( plankId, true );
 		ENSURE( HasGyroscopicTorque( plankId ) == false );
 
 		// Gyroscopic torque stays off until a mass update proves the body anisotropic

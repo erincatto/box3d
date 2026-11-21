@@ -363,18 +363,6 @@ b3MassData b3RecR_MASSDATA( b3RecReader* rdr )
 	return md;
 }
 
-b3MotionLocks b3RecR_LOCKS( b3RecReader* rdr )
-{
-	b3MotionLocks locks;
-	locks.linearX = b3RecR_BOOL( rdr );
-	locks.linearY = b3RecR_BOOL( rdr );
-	locks.linearZ = b3RecR_BOOL( rdr );
-	locks.angularX = b3RecR_BOOL( rdr );
-	locks.angularY = b3RecR_BOOL( rdr );
-	locks.angularZ = b3RecR_BOOL( rdr );
-	return locks;
-}
-
 // Rotating set of static string buffers, valid until the next 4 STR reads.
 const char* b3RecR_STR( b3RecReader* rdr )
 {
@@ -431,7 +419,7 @@ b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr )
 	def.safetyFactor = b3RecR_F32( rdr );
 	def.name = b3RecR_STR( rdr );
 	(void)b3RecR_U64( rdr ); // userData placeholder
-	def.motionLocks = b3RecR_LOCKS( rdr );
+	def.fixedRotation = b3RecR_BOOL( rdr );
 	def.enableSleep = b3RecR_BOOL( rdr );
 	def.isAwake = b3RecR_BOOL( rdr );
 	def.isBullet = b3RecR_BOOL( rdr );
@@ -983,9 +971,9 @@ static void b3RecDispatch_BodyEnable( const b3RecArgs_BodyEnable* a, b3RecReader
 	b3Body_Enable( b3RecMakeBodyId( rdr, a->body ) );
 }
 
-static void b3RecDispatch_BodySetMotionLocks( const b3RecArgs_BodySetMotionLocks* a, b3RecReader* rdr )
+static void b3RecDispatch_BodySetFixedRotation( const b3RecArgs_BodySetFixedRotation* a, b3RecReader* rdr )
 {
-	b3Body_SetMotionLocks( b3RecMakeBodyId( rdr, a->body ), a->locks );
+	b3Body_SetFixedRotation( b3RecMakeBodyId( rdr, a->body ), a->flag );
 }
 
 static void b3RecDispatch_BodySetBullet( const b3RecArgs_BodySetBullet* a, b3RecReader* rdr )

@@ -48,7 +48,7 @@ typedef struct b3World b3World;
 
 // Major recording version is bumped when writers change.
 // Major version 6 widened the body def with the safety factor.
-#define B3_REC_VERSION_MAJOR 6
+#define B3_REC_VERSION_MAJOR 7
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.
 // Minor version 7 made the contact body sim locators persistent
@@ -178,7 +178,6 @@ typedef uint32_t b3RecCType_GEOMID;
 typedef b3Filter b3RecCType_FILTER;
 typedef b3SurfaceMaterial b3RecCType_MATERIAL;
 typedef b3MassData b3RecCType_MASSDATA;
-typedef b3MotionLocks b3RecCType_LOCKS;
 typedef const char* b3RecCType_STR;
 typedef b3WorldId b3RecCType_WORLDID;
 typedef b3BodyId b3RecCType_BODYID;
@@ -256,7 +255,6 @@ void b3RecW_GEOMID( b3RecBuffer* buf, uint32_t v );
 void b3RecW_FILTER( b3RecBuffer* buf, b3Filter v );
 void b3RecW_MATERIAL( b3RecBuffer* buf, b3SurfaceMaterial v );
 void b3RecW_MASSDATA( b3RecBuffer* buf, b3MassData v );
-void b3RecW_LOCKS( b3RecBuffer* buf, b3MotionLocks v );
 void b3RecW_EXPLOSIONDEF( b3RecBuffer* buf, b3ExplosionDef v );
 void b3RecW_BODYDEF( b3RecBuffer* buf, b3BodyDef v );
 void b3RecW_SHAPEDEF( b3RecBuffer* buf, b3ShapeDef v );

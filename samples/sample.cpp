@@ -638,17 +638,7 @@ b3BodyId Sample::AddGroundBox( float extent )
 b3JointId CreateMotionLock( b3BodyId groundId, b3BodyId bodyId, MotionLockFlags flags )
 {
 	// Fixed rotation is a zero inverse inertia on the body, not a constraint
-	bool fixedRotation = flags.rotation == e_fixedRotation;
-	b3MotionLocks bodyLocks = b3Body_GetMotionLocks( bodyId );
-	if ( bodyLocks.angularX != fixedRotation || bodyLocks.angularY != fixedRotation ||
-		 bodyLocks.angularZ != fixedRotation )
-	{
-		b3MotionLocks rotationLocks = {};
-		rotationLocks.angularX = fixedRotation;
-		rotationLocks.angularY = fixedRotation;
-		rotationLocks.angularZ = fixedRotation;
-		b3Body_SetMotionLocks( bodyId, rotationLocks );
-	}
+	b3Body_SetFixedRotation( bodyId, flags.rotation == e_fixedRotation );
 
 	b3MotionLockJointDef jointDef = b3DefaultMotionLockJointDef();
 	jointDef.lockLinearX = flags.linearX;

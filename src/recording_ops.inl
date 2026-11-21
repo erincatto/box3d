@@ -68,7 +68,7 @@ B3_REC_OP( 0x32, BodyEnableSleep, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag 
 B3_REC_OP( 0x33, BodySetSleepThreshold, RET_NONE, ARG( BODYID, body ) ARG( F32, threshold ) )
 B3_REC_OP( 0x34, BodyDisable, RET_NONE, ARG( BODYID, body ) )
 B3_REC_OP( 0x35, BodyEnable, RET_NONE, ARG( BODYID, body ) )
-B3_REC_OP( 0x36, BodySetMotionLocks, RET_NONE, ARG( BODYID, body ) ARG( LOCKS, locks ) )
+B3_REC_OP( 0x36, BodySetFixedRotation, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag ) )
 B3_REC_OP( 0x37, BodySetBullet, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag ) )
 B3_REC_OP( 0x38, BodyEnableContactRecycling, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag ) )
 B3_REC_OP( 0x39, BodyEnableHitEvents, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag ) )

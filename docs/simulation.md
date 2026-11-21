@@ -327,27 +327,20 @@ bodyDef.isAwake = true;
 
 The `isAwake` flag is ignored if `enableSleep` is false.
 
-### Motion Locks
-In 3D you sometimes want to restrict a body to a subset of its six degrees of freedom.
-For example, you might want a door hinge that only rotates about the Y axis, or a
-platform that only translates along X. Box3D provides `b3MotionLocks` for this:
+### Fixed Rotation
+You may want a body that translates but never rotates, such as a character capsule.
+Set `fixedRotation` on the body definition:
 
 ```c
-b3MotionLocks locks = {0};
-locks.linearY  = true;   // prevent translation along Y
-locks.angularX = true;   // prevent rotation about X
-locks.angularZ = true;   // prevent rotation about Z
-bodyDef.motionLocks = locks;
+bodyDef.fixedRotation = true;
 ```
 
-You can also update locks after creation:
+Fixed rotation gives the body zero inverse rotational inertia, so contacts and joints
+cannot spin it. The body still has its full mass and rotational inertia, so turning
+fixed rotation off later restores the original behavior.
 
-```c
-b3Body_SetMotionLocks(myBodyId, locks);
-b3MotionLocks current = b3Body_GetMotionLocks(myBodyId);
-```
-
-Locking all three angular axes is equivalent to fixing the rotation entirely.
+To restrict a body to a point, line, or plane, or to keep it spinning about a single
+axis, use a [motion lock joint](#motion-lock-joint).
 
 ### Bullets {#bullets}
 Game simulation usually generates a sequence of transforms that are played
@@ -462,8 +455,8 @@ velocity, applying forces, and transforming points and vectors.
 ### Mass Data
 A body has mass (scalar), center of mass (`b3Vec3`), and a rotational
 inertia tensor (`b3Matrix3`). For static bodies, the mass and rotational inertia are
-set to zero. When all angular motion locks are active, the rotational inertia is
-effectively zero.
+set to zero. A body with fixed rotation keeps its rotational inertia but has zero
+inverse rotational inertia.
 
 Normally the mass properties of a body are established automatically
 when shapes are added to the body. You can also adjust the mass of a
@@ -511,8 +504,8 @@ bool isAwake = b3Body_IsAwake(myBodyId);
 b3Body_Disable(myBodyId);
 b3Body_Enable(myBodyId);
 bool isEnabled = b3Body_IsEnabled(myBodyId);
-b3Body_SetMotionLocks(myBodyId, locks);
-b3MotionLocks locks = b3Body_GetMotionLocks(myBodyId);
+b3Body_SetFixedRotation(myBodyId, true);
+bool isFixedRotation = b3Body_IsFixedRotation(myBodyId);
 ```
 
 Please see the comments on these functions for more details.

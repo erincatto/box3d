@@ -232,7 +232,6 @@ uint32_t b3RecR_GEOMID( b3RecReader* rdr );
 b3Filter b3RecR_FILTER( b3RecReader* rdr );
 b3SurfaceMaterial b3RecR_MATERIAL( b3RecReader* rdr );
 b3MassData b3RecR_MASSDATA( b3RecReader* rdr );
-b3MotionLocks b3RecR_LOCKS( b3RecReader* rdr );
 const char* b3RecR_STR( b3RecReader* rdr );
 b3ExplosionDef b3RecR_EXPLOSIONDEF( b3RecReader* rdr );
 b3BodyDef b3RecR_BODYDEF( b3RecReader* rdr );

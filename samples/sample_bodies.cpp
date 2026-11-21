@@ -1261,9 +1261,7 @@ public:
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.gravityScale = 0.0f;
 			bodyDef.enableSleep = false;
-			bodyDef.motionLocks.angularX = true;
-			bodyDef.motionLocks.angularY = true;
-			bodyDef.motionLocks.angularZ = true;
+			bodyDef.fixedRotation = true;
 
 			capsule.radius = 0.2f;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );

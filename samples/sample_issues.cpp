@@ -576,9 +576,7 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.position = { 0.0f, 3.5f, 0.0f };
-			bodyDef.motionLocks.angularX = true;
-			bodyDef.motionLocks.angularY = true;
-			bodyDef.motionLocks.angularZ = true;
+			bodyDef.fixedRotation = true;
 			bodyDef.enableContactRecycling = false;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
@@ -652,9 +650,7 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.position = { 0.0f, 4.0f, 10.0f };
-			bodyDef.motionLocks.angularX = true;
-			bodyDef.motionLocks.angularY = true;
-			bodyDef.motionLocks.angularZ = true;
+			bodyDef.fixedRotation = true;
 			bodyDef.enableSleep = false;
 			bodyDef.enableContactRecycling = false;
 			b3BodyId body = b3CreateBody( m_worldId, &bodyDef );
@@ -747,9 +743,7 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_dynamicBody;
 			bodyDef.position = { -m_walkRangeX, m_bodyHalfHeight + 0.1f, 0.0f };
-			bodyDef.motionLocks.angularX = true;
-			bodyDef.motionLocks.angularY = true;
-			bodyDef.motionLocks.angularZ = true;
+			bodyDef.fixedRotation = true;
 			bodyDef.enableSleep = false;
 
 			// With current ghost mitigation this seems unnecessary

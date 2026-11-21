@@ -315,31 +315,6 @@ typedef enum b3BodyType
 	b3_bodyTypeCount,
 } b3BodyType;
 
-/// Motion locks to restrict the body movement. Motion locks are a hack and will likely be removed. The only robust
-/// lock is fully locked rotation. You will see softened contacts and other artifacts with this sytem. Other physics
-/// engines have the same problem and some have stability problems due to this approach.
-/// @ingroup body
-typedef struct b3MotionLocks
-{
-	/// Prevent translation along the x-axis
-	bool linearX;
-
-	/// Prevent translation along the y-axis
-	bool linearY;
-
-	/// Prevent translation along the z-axis
-	bool linearZ;
-
-	/// Prevent rotation around the x-axis
-	bool angularX;
-
-	/// Prevent rotation around the y-axis
-	bool angularY;
-
-	/// Prevent rotation around the z-axis
-	bool angularZ;
-} b3MotionLocks;
-
 /// A body definition holds all the data needed to construct a rigid body.
 /// You can safely re-use body definitions. Shapes are added to a body after construction.
 /// Body definitions are temporary objects used to bundle creation parameters.
@@ -397,8 +372,8 @@ typedef struct b3BodyDef
 	/// Use this to store application specific body data.
 	void* userData;
 
-	/// Motions locks to restrict linear and angular movement
-	b3MotionLocks motionLocks;
+	// todo comment
+	bool fixedRotation;
 
 	/// Set this flag to false if this body should never fall asleep.
 	bool enableSleep;

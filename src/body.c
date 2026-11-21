@@ -234,14 +234,6 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 
 	int bodyId = b3AllocId( &world->bodyIdPool );
 
-	uint32_t lockFlags = 0;
-	lockFlags |= def->motionLocks.linearX ? b3_lockLinearX : 0;
-	lockFlags |= def->motionLocks.linearY ? b3_lockLinearY : 0;
-	lockFlags |= def->motionLocks.linearZ ? b3_lockLinearZ : 0;
-	lockFlags |= def->motionLocks.angularX ? b3_lockAngularX : 0;
-	lockFlags |= def->motionLocks.angularY ? b3_lockAngularY : 0;
-	lockFlags |= def->motionLocks.angularZ ? b3_lockAngularZ : 0;
-
 	b3SolverSet* set = b3GetSolverSet( world, setId );
 	b3BodySim* bodySim = b3Array_Emplace( set->bodySims );
 	*bodySim = (b3BodySim){ 0 };
@@ -262,7 +254,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	bodySim->angularDamping = def->angularDamping;
 	bodySim->gravityScale = def->gravityScale;
 	bodySim->bodyId = bodyId;
-	bodySim->flags = lockFlags;
+	bodySim->flags = def->fixedRotation ? b3_fixedRotation : 0;
 	bodySim->flags |= def->isBullet ? b3_isBullet : 0;
 	bodySim->flags |= def->allowFastRotation ? b3_allowFastRotation : 0;
 	bodySim->flags |= def->type == b3_dynamicBody ? b3_dynamicFlag : 0;
@@ -914,7 +906,7 @@ static void b3UpdateIsotropicInertia( b3World* world, b3Body* body, b3BodySim* b
 
 	float tolerance = world->isotropicInertiaTolerance;
 
-	bool fixedRotation = ( body->flags & b3_fixedRotation ) == b3_fixedRotation;
+	bool fixedRotation = ( body->flags & b3_fixedRotation ) != 0;
 	if ( fixedRotation == false && 2.0f * deviation > 3.0f * tolerance * tolerance * mean * mean )
 	{
 		body->flags |= b3_enableGyroscopicTorque;
@@ -932,7 +924,7 @@ static void b3UpdateInverseInertia( b3BodySim* bodySim )
 	float det = b3Det( bodySim->inertia );
 	B3_ASSERT( det >= 0.0f );
 
-	if ( det > 0.0f && ( bodySim->flags & b3_fixedRotation ) != b3_fixedRotation )
+	if ( det > 0.0f && ( bodySim->flags & b3_fixedRotation ) == 0 )
 	{
 		// This call is faster than b3Invert
 		bodySim->invInertiaLocal = b3InvertT( bodySim->inertia );
@@ -1270,11 +1262,7 @@ void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 		return;
 	}
 
-	// Apply locks to avoid waking
-	b3Vec3 w;
-	w.x = ( body->flags & b3_lockAngularX ) ? 0.0f : angularVelocity.x;
-	w.y = ( body->flags & b3_lockAngularY ) ? 0.0f : angularVelocity.y;
-	w.z = ( body->flags & b3_lockAngularZ ) ? 0.0f : angularVelocity.z;
+	b3Vec3 w = ( body->flags & b3_fixedRotation ) ? b3Vec3_zero : angularVelocity;
 
 	if ( b3LengthSquared( w ) != 0.0f )
 	{
@@ -2361,7 +2349,7 @@ void b3Body_Enable( b3BodyId bodyId )
 	b3ValidateSolverSets( world );
 }
 
-void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks )
+void b3Body_SetFixedRotation( b3BodyId bodyId, bool flag )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2369,86 +2357,42 @@ void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks )
 		return;
 	}
 
-	B3_REC( world, BodySetMotionLocks, bodyId, locks );
-
-	uint32_t newLocks = 0;
-	newLocks |= locks.linearX ? b3_lockLinearX : 0;
-	newLocks |= locks.linearY ? b3_lockLinearY : 0;
-	newLocks |= locks.linearZ ? b3_lockLinearZ : 0;
-	newLocks |= locks.angularX ? b3_lockAngularX : 0;
-	newLocks |= locks.angularY ? b3_lockAngularY : 0;
-	newLocks |= locks.angularZ ? b3_lockAngularZ : 0;
+	B3_REC( world, BodySetFixedRotation, bodyId, flag );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	if ( ( body->flags & b3_allLocks ) == newLocks )
+	bool fixedRotation = ( body->flags & b3_fixedRotation ) != 0;
+	if ( fixedRotation == flag )
 	{
 		return;
 	}
 
-	bool fixedRotation1 = ( body->flags & b3_fixedRotation ) == b3_fixedRotation;
-	bool fixedRotation2 = ( newLocks & b3_fixedRotation ) == b3_fixedRotation;
-
-	body->flags &= ~b3_allLocks;
-	body->flags |= newLocks;
+	if ( flag )
+	{
+		body->flags |= b3_fixedRotation;
+	}
+	else
+	{
+		body->flags &= ~b3_fixedRotation;
+	}
 
 	b3SyncBodyFlags( world, body );
 
 	b3BodyState* state = b3GetBodyState( world, body );
-
-	if ( state != NULL )
+	if ( state != NULL && flag )
 	{
-		if ( locks.linearX )
-		{
-			state->linearVelocity.x = 0.0f;
-		}
-
-		if ( locks.linearY )
-		{
-			state->linearVelocity.y = 0.0f;
-		}
-
-		if ( locks.linearZ )
-		{
-			state->linearVelocity.z = 0.0f;
-		}
-
-		if ( locks.angularX )
-		{
-			state->angularVelocity.x = 0.0f;
-		}
-
-		if ( locks.angularY )
-		{
-			state->angularVelocity.y = 0.0f;
-		}
-
-		if ( locks.angularZ )
-		{
-			state->angularVelocity.z = 0.0f;
-		}
+		state->angularVelocity = b3Vec3_zero;
 	}
 
-	if ( fixedRotation1 != fixedRotation2 )
-	{
-		b3BodySim* bodySim = b3GetBodySim( world, body );
-		b3UpdateInverseInertia( bodySim );
-		b3UpdateIsotropicInertia( world, body, bodySim );
-	}
+	b3BodySim* bodySim = b3GetBodySim( world, body );
+	b3UpdateInverseInertia( bodySim );
+	b3UpdateIsotropicInertia( world, body, bodySim );
 }
 
-b3MotionLocks b3Body_GetMotionLocks( b3BodyId bodyId )
+bool b3Body_IsFixedRotation( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-
-	b3MotionLocks locks;
-	locks.linearX = ( body->flags & b3_lockLinearX );
-	locks.linearY = ( body->flags & b3_lockLinearY );
-	locks.linearZ = ( body->flags & b3_lockLinearZ );
-	locks.angularX = ( body->flags & b3_lockAngularX );
-	locks.angularY = ( body->flags & b3_lockAngularY );
-	locks.angularZ = ( body->flags & b3_lockAngularZ );
-	return locks;
+	return ( body->flags & b3_fixedRotation ) != 0;
 }
 
 void b3Body_SetBullet( b3BodyId bodyId, bool flag )

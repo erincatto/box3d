@@ -282,16 +282,6 @@ void b3RecW_MASSDATA( b3RecBuffer* buf, b3MassData v )
 	b3RecW_MATRIX3( buf, v.inertia );
 }
 
-void b3RecW_LOCKS( b3RecBuffer* buf, b3MotionLocks v )
-{
-	b3RecW_BOOL( buf, v.linearX );
-	b3RecW_BOOL( buf, v.linearY );
-	b3RecW_BOOL( buf, v.linearZ );
-	b3RecW_BOOL( buf, v.angularX );
-	b3RecW_BOOL( buf, v.angularY );
-	b3RecW_BOOL( buf, v.angularZ );
-}
-
 static void b3RecW_STR( b3RecBuffer* buf, const char* s )
 {
 	if ( s == NULL )
@@ -373,7 +363,7 @@ void b3RecW_BODYDEF( b3RecBuffer* buf, b3BodyDef v )
 	b3RecW_STR( buf, v.name );
 	// userData: not preserved
 	b3RecW_U64( buf, 0u );
-	b3RecW_LOCKS( buf, v.motionLocks );
+	b3RecW_BOOL( buf, v.fixedRotation );
 	b3RecW_BOOL( buf, v.enableSleep );
 	b3RecW_BOOL( buf, v.isAwake );
 	b3RecW_BOOL( buf, v.isBullet );
