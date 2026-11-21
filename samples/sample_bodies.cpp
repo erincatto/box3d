@@ -1190,7 +1190,7 @@ public:
 			bodyDef.position = { 2.0f, 2.0f, 0.0f };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
-			LockMotion( bodyId, { .angularX = true, .angularZ = true } );
+			LockMotion( bodyId, { .rotation = e_spinY } );
 		}
 
 		{
@@ -1210,7 +1210,7 @@ public:
 			bodyDef.position = { 0.0f, 1.0f, 3.0f };
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( bodyId, &shapeDef, &cube.base );
-			LockMotion( bodyId, { true, true, true, true, true, true } );
+			LockMotion( bodyId, { true, true, true, e_fixedRotation } );
 		}
 
 		{

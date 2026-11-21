@@ -525,7 +525,7 @@ b3MotionLockJointDef b3RecR_MOTIONLOCKJOINTDEF( b3RecReader* rdr )
 	def.lockLinearX = b3RecR_BOOL( rdr );
 	def.lockLinearY = b3RecR_BOOL( rdr );
 	def.lockLinearZ = b3RecR_BOOL( rdr );
-	def.lockRotation = b3RecR_BOOL( rdr );
+	def.lockAngularXY = b3RecR_BOOL( rdr );
 	return def;
 }
 
@@ -1243,7 +1243,7 @@ static void b3RecDispatch_MotionLockJointEnableLinearLock( const b3RecArgs_Motio
 static void b3RecDispatch_MotionLockJointEnableRotationLock( const b3RecArgs_MotionLockJointEnableRotationLock* a,
 															   b3RecReader* rdr )
 {
-	b3MotionLockJoint_EnableRotationLock( b3RecMakeJointId( rdr, a->joint ), a->flag );
+	b3MotionLockJoint_EnableAngularLock( b3RecMakeJointId( rdr, a->joint ), a->flag );
 }
 
 static void b3RecDispatch_CreateDistanceJoint( const b3RecArgs_CreateDistanceJoint* a, b3RecReader* rdr )

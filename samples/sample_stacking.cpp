@@ -174,7 +174,7 @@ public:
 			bodyDef.position.y = y;
 			b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateCapsuleShape( bodyId, &shapeDef, &capsule );
-			LockMotion( bodyId, { .linearZ = true, .angularX = true, .angularY = true, .angularZ = true } );
+			LockMotion( bodyId, { .linearZ = true, .rotation = e_fixedRotation } );
 
 			y += 2.0f * r;
 		}
@@ -828,7 +828,7 @@ public:
 				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
 
 				b3CreateHullShape( bodyId, &shapeDef, &box.base );
-				LockMotion( bodyId, { .linearZ = true, .angularX = true, .angularY = true } );
+				LockMotion( bodyId, { .linearZ = true, .rotation = e_spinZ } );
 			}
 		}
 	}

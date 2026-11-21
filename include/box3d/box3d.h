@@ -1248,20 +1248,29 @@ B3_API float b3ParallelJoint_GetMaxTorque( b3JointId jointId );
 
 /** @} */ // parallel_joint
 
-// todo comment
+/**
+ * @defgroup motion_lock_joint Motion Lock Joint
+ * @brief Functions for the motion lock joint.
+ * @{
+ */
+
+/// Create a motion lock joint.
+/// @see b3MotionLockJointDef for details
 B3_API b3JointId b3CreateMotionLockJoint( b3WorldId worldId, const b3MotionLockJointDef* def );
 
-// todo comment
+/// Enable/disable a linear lock.
 B3_API void b3MotionLockJoint_EnableLinearLock( b3JointId jointId, int axis, bool flag );
 
-// todo comment
+/// Is a linear lock enabled?
 B3_API bool b3MotionLockJoint_IsLinearLockEnabled( b3JointId jointId, int axis );
 
-// todo comment
-B3_API void b3MotionLockJoint_EnableRotationLock( b3JointId jointId, bool flag );
+/// Enable/disable the angular lock.
+B3_API void b3MotionLockJoint_EnableAngularLock( b3JointId jointId, bool flag );
 
-// todo comment
-B3_API bool b3MotionLockJoint_IsRotationLockEnabled( b3JointId jointId );
+/// Is the angular lock enabled?
+B3_API bool b3MotionLockJoint_IsAngularLockEnabled( b3JointId jointId );
+
+/** @} */ // motion_lock_joint
 
 /**
  * @defgroup distance_joint Distance Joint

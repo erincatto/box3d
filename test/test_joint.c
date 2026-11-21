@@ -151,7 +151,7 @@ static int TestMotionLockJoint( void )
 	b3MotionLockJointDef def = b3DefaultMotionLockJointDef();
 	SetCommonFrames( &def.base, &f );
 	def.lockLinearY = true;
-	def.lockRotation = true;
+	def.lockAngularXY = true;
 	b3JointId jointId = b3CreateMotionLockJoint( f.worldId, &def );
 
 	if ( ExerciseJointBase( jointId, f.worldId, f.groundId, f.bodyId, b3_motionLockJoint ) != 0 )
@@ -162,15 +162,15 @@ static int TestMotionLockJoint( void )
 	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 0 ) == false );
 	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 1 ) );
 	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 2 ) == false );
-	ENSURE( b3MotionLockJoint_IsRotationLockEnabled( jointId ) );
+	ENSURE( b3MotionLockJoint_IsAngularLockEnabled( jointId ) );
 
 	b3MotionLockJoint_EnableLinearLock( jointId, 0, true );
 	b3MotionLockJoint_EnableLinearLock( jointId, 2, true );
 	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 0 ) );
 	ENSURE( b3MotionLockJoint_IsLinearLockEnabled( jointId, 2 ) );
 
-	b3MotionLockJoint_EnableRotationLock( jointId, false );
-	ENSURE( b3MotionLockJoint_IsRotationLockEnabled( jointId ) == false );
+	b3MotionLockJoint_EnableAngularLock( jointId, false );
+	ENSURE( b3MotionLockJoint_IsAngularLockEnabled( jointId ) == false );
 
 	return FinishJoint( jointId, f.worldId );
 }
@@ -282,7 +282,7 @@ static int TestMotionLockJointRotation( void )
 	def.lockLinearX = true;
 	def.lockLinearY = true;
 	def.lockLinearZ = true;
-	def.lockRotation = true;
+	def.lockAngularXY = true;
 
 	MotionLockScene s = CreateMotionLockScene( def, b3Vec3_zero );
 	b3Body_SetAngularVelocity( s.bodyId, (b3Vec3){ 3.0f, -2.0f, 4.0f } );
@@ -332,7 +332,7 @@ static int TestMotionLockJointPlatform( void )
 	lockDef.lockLinearX = true;
 	lockDef.lockLinearY = true;
 	lockDef.lockLinearZ = true;
-	lockDef.lockRotation = true;
+	lockDef.lockAngularXY = true;
 	b3CreateMotionLockJoint( worldId, &lockDef );
 
 	b3BodyDef sphereDef = b3DefaultBodyDef();

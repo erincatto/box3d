@@ -1598,11 +1598,11 @@ static int AllOps( void )
 	motionLockDef.base.bodyIdA = groundId;
 	motionLockDef.base.bodyIdB = jb[0];
 	motionLockDef.lockLinearZ = true;
-	motionLockDef.lockRotation = true;
+	motionLockDef.lockAngularXY = true;
 	b3JointId motionLockId = b3CreateMotionLockJoint( worldId, &motionLockDef );
 	b3MotionLockJoint_EnableLinearLock( motionLockId, 0, true );
-	b3MotionLockJoint_EnableRotationLock( motionLockId, false );
-	b3MotionLockJoint_EnableRotationLock( motionLockId, true );
+	b3MotionLockJoint_EnableAngularLock( motionLockId, false );
+	b3MotionLockJoint_EnableAngularLock( motionLockId, true );
 
 	// Dynamic mover: a rotation locked capsule driven by a mover joint and held up by a pogo joint
 	b3BodyDef moverBodyDef = b3DefaultBodyDef();

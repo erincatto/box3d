@@ -192,7 +192,7 @@ public:
 			jointDef.lockLinearX = presets[i].x;
 			jointDef.lockLinearY = presets[i].y;
 			jointDef.lockLinearZ = presets[i].z;
-			jointDef.lockRotation = presets[i].rotation;
+			jointDef.lockAngularXY = presets[i].rotation;
 			m_jointIds[i] = b3CreateMotionLockJoint( m_worldId, &jointDef );
 
 			m_maxSeparation[i] = 0.0f;

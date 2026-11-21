@@ -637,11 +637,8 @@ b3BodyId Sample::AddGroundBox( float extent )
 
 b3JointId CreateMotionLock( b3BodyId groundId, b3BodyId bodyId, MotionLockFlags flags )
 {
-	int angularCount = int( flags.angularX ) + int( flags.angularY ) + int( flags.angularZ );
-	assert( angularCount != 1 );
-
 	// Fixed rotation is a zero inverse inertia on the body, not a constraint
-	bool fixedRotation = angularCount == 3;
+	bool fixedRotation = flags.rotation == e_fixedRotation;
 	b3MotionLocks bodyLocks = b3Body_GetMotionLocks( bodyId );
 	if ( bodyLocks.angularX != fixedRotation || bodyLocks.angularY != fixedRotation ||
 		 bodyLocks.angularZ != fixedRotation )
@@ -661,17 +658,17 @@ b3JointId CreateMotionLock( b3BodyId groundId, b3BodyId bodyId, MotionLockFlags 
 	// The joint locks rotation to the z axis of its frame, so aim that axis along the free world axis and
 	// carry the linear locks along to the frame axes that land on each world axis.
 	b3Quat frameQ = b3Quat_identity;
-	if ( angularCount == 2 )
+	if ( flags.rotation == e_spinX || flags.rotation == e_spinY || flags.rotation == e_spinZ )
 	{
-		jointDef.lockRotation = true;
+		jointDef.lockAngularXY = true;
 
-		if ( flags.angularX == false )
+		if ( flags.rotation == e_spinX )
 		{
 			frameQ = b3MakeQuatFromAxisAngle( b3Vec3_axisY, 0.5f * B3_PI );
 			jointDef.lockLinearX = flags.linearZ;
 			jointDef.lockLinearZ = flags.linearX;
 		}
-		else if ( flags.angularY == false )
+		else if ( flags.rotation == e_spinY )
 		{
 			frameQ = b3MakeQuatFromAxisAngle( b3Vec3_axisX, -0.5f * B3_PI );
 			jointDef.lockLinearY = flags.linearZ;
@@ -680,7 +677,7 @@ b3JointId CreateMotionLock( b3BodyId groundId, b3BodyId bodyId, MotionLockFlags 
 	}
 
 	if ( jointDef.lockLinearX == false && jointDef.lockLinearY == false && jointDef.lockLinearZ == false &&
-		 jointDef.lockRotation == false )
+		 jointDef.lockAngularXY == false )
 	{
 		return b3_nullJointId;
 	}

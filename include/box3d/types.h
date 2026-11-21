@@ -944,18 +944,30 @@ typedef struct b3ParallelJointDef
 /// @ingroup parallel_joint
 B3_API b3ParallelJointDef b3DefaultParallelJointDef( void );
 
-// todo comment
+/// A motion lock joint is designed to restriction motion to a point, line, plane. It
+/// can also be used to simulate 2D planar motion. All restrictions are relative to the joint
+/// frame in body A.
+/// @ingroup motion_lock_joint
 typedef struct b3MotionLockJointDef
 {
+	/// Base joint definition
 	b3JointDef base;
 
+	/// Lock movement along the x axis.
 	bool lockLinearX;
+
+	/// Lock movement along the y axis.
 	bool lockLinearY;
+
+	/// Lock movement along the z axis.
 	bool lockLinearZ;
-	bool lockRotation;
+
+	/// Only allow rotation about the frame A z-axis.
+	bool lockAngularXY;
 } b3MotionLockJointDef;
 
-// todo comment
+/// Use this to initialize your joint definition.
+/// @ingroup motion_lock_joint
 B3_API b3MotionLockJointDef b3DefaultMotionLockJointDef( void );
 
 /// Prismatic joint definition. Body B may slide along the x-axis in local frame A.

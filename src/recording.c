@@ -445,7 +445,7 @@ void b3RecW_MOTIONLOCKJOINTDEF( b3RecBuffer* buf, b3MotionLockJointDef v )
 	b3RecW_BOOL( buf, v.lockLinearX );
 	b3RecW_BOOL( buf, v.lockLinearY );
 	b3RecW_BOOL( buf, v.lockLinearZ );
-	b3RecW_BOOL( buf, v.lockRotation );
+	b3RecW_BOOL( buf, v.lockAngularXY );
 }
 
 void b3RecW_DISTANCEJOINTDEF( b3RecBuffer* buf, b3DistanceJointDef v )

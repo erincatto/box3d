@@ -629,7 +629,7 @@ b3JointId b3CreateMotionLockJoint( b3WorldId worldId, const b3MotionLockJointDef
 	joint->motionLockJoint.lockLinear[0] = def->lockLinearX;
 	joint->motionLockJoint.lockLinear[1] = def->lockLinearY;
 	joint->motionLockJoint.lockLinear[2] = def->lockLinearZ;
-	joint->motionLockJoint.lockRotation = def->lockRotation;
+	joint->motionLockJoint.lockRotationXY = def->lockAngularXY;
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
 	B3_REC_CREATE( world, CreateMotionLockJoint, jointId, worldId, *def );
@@ -1554,7 +1554,7 @@ float b3Joint_GetAngularSeparation( b3JointId jointId )
 
 		case b3_motionLockJoint:
 		{
-			if ( base->motionLockJoint.lockRotation == false )
+			if ( base->motionLockJoint.lockRotationXY == false )
 			{
 				return 0.0f;
 			}

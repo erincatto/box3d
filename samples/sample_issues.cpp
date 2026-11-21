@@ -1893,7 +1893,7 @@ public:
 		b3CreateHullShape( m_moverId, &shapeDef, &mover.base );
 
 		// A room planner slides items on the floor plane and yaws them to face a wall
-		LockMotion( m_moverId, { .linearY = true, .angularX = true, .angularZ = true } );
+		LockMotion( m_moverId, { .linearY = true, .rotation = e_spinY } );
 	}
 
 	void PlaceMover()
@@ -3096,8 +3096,7 @@ public:
 											.linearX = true,
 											.linearY = true,
 											.linearZ = true,
-											.angularX = true,
-											.angularY = true,
+											.rotation = e_spinZ,
 										} );
 			}
 

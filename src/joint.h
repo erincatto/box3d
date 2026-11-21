@@ -169,7 +169,7 @@ typedef struct b3MotionLockJoint
 	int indexB;
 
 	bool lockLinear[3];
-	bool lockRotation;
+	bool lockRotationXY;
 	bool decoupled;
 } b3MotionLockJoint;
 

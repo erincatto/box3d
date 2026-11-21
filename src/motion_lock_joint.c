@@ -33,23 +33,23 @@ bool b3MotionLockJoint_IsLinearLockEnabled( b3JointId jointId, int axis )
 	return base->motionLockJoint.lockLinear[axis];
 }
 
-void b3MotionLockJoint_EnableRotationLock( b3JointId jointId, bool flag )
+void b3MotionLockJoint_EnableAngularLock( b3JointId jointId, bool flag )
 {
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, MotionLockJointEnableRotationLock, jointId, flag );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_motionLockJoint );
 	b3MotionLockJoint* joint = &base->motionLockJoint;
-	if ( flag != joint->lockRotation )
+	if ( flag != joint->lockRotationXY )
 	{
-		joint->lockRotation = flag;
+		joint->lockRotationXY = flag;
 		joint->angularImpulse = (b3Vec2){ 0.0f, 0.0f };
 	}
 }
 
-bool b3MotionLockJoint_IsRotationLockEnabled( b3JointId jointId )
+bool b3MotionLockJoint_IsAngularLockEnabled( b3JointId jointId )
 {
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_motionLockJoint );
-	return base->motionLockJoint.lockRotation;
+	return base->motionLockJoint.lockRotationXY;
 }
 
 b3Vec3 b3GetMotionLockJointForce( b3World* world, b3JointSim* base )
@@ -74,14 +74,14 @@ static bool b3IsZeroInverseInertia( b3Matrix3 m )
 
 static void b3ComputePerpAxes( b3Quat quatA, b3Quat relQ, b3Vec3* perpAxisX, b3Vec3* perpAxisY )
 {
-	*perpAxisX =
-		b3MulSV( 0.5f, b3RotateVector( quatA, b3Add( b3MulSV( relQ.s, b3Vec3_axisX ), b3Cross( relQ.v, b3Vec3_axisX ) ) ) );
-	*perpAxisY =
-		b3MulSV( 0.5f, b3RotateVector( quatA, b3Add( b3MulSV( relQ.s, b3Vec3_axisY ), b3Cross( relQ.v, b3Vec3_axisY ) ) ) );
+	*perpAxisX = b3MulSV(
+		0.5f, b3RotateVector( quatA, b3Add( b3MulSV( relQ.s, b3Vec3_axisX ), b3Cross( relQ.v, b3Vec3_axisX ) ) ) );
+	*perpAxisY = b3MulSV(
+		0.5f, b3RotateVector( quatA, b3Add( b3MulSV( relQ.s, b3Vec3_axisY ), b3Cross( relQ.v, b3Vec3_axisY ) ) ) );
 }
 
 static b3Vec3 b3GetMotionLockSeparation( const b3MotionLockJoint* joint, const b3BodyState* stateA,
-										  const b3BodyState* stateB, b3Vec3 rA, b3Vec3 rB )
+										 const b3BodyState* stateB, b3Vec3 rA, b3Vec3 rB )
 {
 	b3Vec3 dpA = b3Add( stateA->deltaPosition, b3Sub( rA, joint->frameA.p ) );
 	b3Vec3 dpB = b3Add( stateB->deltaPosition, b3Sub( rB, joint->frameB.p ) );
@@ -124,9 +124,11 @@ void b3PrepareMotionLockJoint( b3JointSim* base, b3StepContext* context )
 	joint->frameB.q = b3MulQuat( bodySimB->transform.q, base->localFrameB.q );
 	joint->frameB.p = b3RotateVector( bodySimB->transform.q, b3Sub( base->localFrameB.p, bodySimB->localCenter ) );
 
-	// todo comment
-	joint->separation =
-		b3SubPos( b3OffsetPos( bodySimB->center, joint->frameB.p ), b3OffsetPos( bodySimA->center, joint->frameA.p ) );
+	// In double precision the frameA position can be very large when body A is at the origin. This helps mitigate it.
+	// But it is probably better to use a motion lock body that is closer.
+	b3Pos posA = b3OffsetPos( bodySimA->center, joint->frameA.p );
+	b3Pos posB = b3OffsetPos( bodySimB->center, joint->frameB.p );
+	joint->separation = b3SubPos( posB, posA );
 
 	bool zeroIA = b3IsZeroInverseInertia( base->invIA );
 	bool zeroIB = b3IsZeroInverseInertia( base->invIB );
@@ -166,7 +168,8 @@ void b3WarmStartMotionLockJoint( b3JointSim* base, b3StepContext* context )
 	b3Vec3 lambda = joint->linearImpulse;
 	b3Vec3 P = b3Blend3( lambda.x, axes.cx, lambda.y, axes.cy, lambda.z, axes.cz );
 
-	b3Vec3 angularImpulse = b3Blend2( joint->angularImpulse.x, joint->perpAxisX, joint->angularImpulse.y, joint->perpAxisY );
+	b3Vec3 angularImpulse =
+		b3Blend2( joint->angularImpulse.x, joint->perpAxisX, joint->angularImpulse.y, joint->perpAxisY );
 	b3Vec3 LA = b3Add( b3Cross( b3Add( rA, d ), P ), angularImpulse );
 	b3Vec3 LB = b3Add( b3Cross( rB, P ), angularImpulse );
 
@@ -213,7 +216,7 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 		impulseScale = base->constraintSoftness.impulseScale;
 	}
 
-	if ( joint->lockRotation && base->fixedRotation == false )
+	if ( joint->lockRotationXY && base->fixedRotation == false )
 	{
 		b3Quat quatB = b3MulQuat( stateB->deltaRotation, joint->frameB.q );
 		if ( b3DotQuat( quatA, quatB ) < 0.0f )
@@ -231,7 +234,8 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 		b3Vec2 bias = { 0.0f, 0.0f };
 		if ( useBias )
 		{
-			bias = (b3Vec2){ base->constraintSoftness.biasRate * relQ.v.x, base->constraintSoftness.biasRate * relQ.v.y };
+			bias =
+				(b3Vec2){ base->constraintSoftness.biasRate * relQ.v.x, base->constraintSoftness.biasRate * relQ.v.y };
 		}
 
 		b3Matrix3 invInertiaSum = b3AddMM( iA, iB );
@@ -416,7 +420,7 @@ void b3DrawMotionLockJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransfor
 							  draw->context );
 	}
 
-	if ( joint->lockRotation )
+	if ( joint->lockRotationXY )
 	{
 		b3Vec3 axisB = b3RotateVector( frameB.q, b3Vec3_axisZ );
 		draw->DrawSegmentFcn( frameA.p, b3OffsetPos( frameA.p, b3MulSV( 2.0f * length, axes[2] ) ), b3_colorYellow,

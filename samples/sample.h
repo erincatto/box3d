@@ -136,16 +136,23 @@ struct SampleContext
 	bool newUser = true;
 };
 
-// Stand in for body motion locks, all in world axes. Locking two angular axes keeps spin about the third and
-// locking all three fixes the rotation. A single angular lock is not supported.
+// Spin is about a world axis
+enum MotionRotation
+{
+	e_freeRotation,
+	e_spinX,
+	e_spinY,
+	e_spinZ,
+	e_fixedRotation,
+};
+
+// Stand in for body motion locks, all in world axes
 struct MotionLockFlags
 {
 	bool linearX;
 	bool linearY;
 	bool linearZ;
-	bool angularX;
-	bool angularY;
-	bool angularZ;
+	MotionRotation rotation;
 };
 
 // Holds the body to a static body with a motion lock joint anchored at its center of mass, so call it after

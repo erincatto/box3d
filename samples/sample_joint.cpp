@@ -2015,10 +2015,10 @@ public:
 static int sampleFoldOut = RegisterSample( "Joints", "Fold Out", FoldOut::Create );
 
 // This test ensures joints work correctly with bodies that have motion locks
-class MotionLocks : public Sample
+class LockedJoints : public Sample
 {
 public:
-	explicit MotionLocks( SampleContext* context )
+	explicit LockedJoints( SampleContext* context )
 		: Sample( context )
 	{
 		if ( m_context->restart == false )
@@ -2234,9 +2234,7 @@ public:
 	void ApplyLocks()
 	{
 		MotionLockFlags flags = m_flags;
-		flags.angularX = m_rotation == e_spinY || m_rotation == e_spinZ || m_rotation == e_fixedRotation;
-		flags.angularY = m_rotation == e_spinX || m_rotation == e_spinZ || m_rotation == e_fixedRotation;
-		flags.angularZ = m_rotation == e_spinX || m_rotation == e_spinY || m_rotation == e_fixedRotation;
+		flags.rotation = MotionRotation( m_rotation );
 
 		for ( int i = 0; i < m_count; ++i )
 		{
@@ -2257,7 +2255,7 @@ public:
 		changed = ImGui::Checkbox( "Lock Linear Y", &m_flags.linearY ) || changed;
 		changed = ImGui::Checkbox( "Lock Linear Z", &m_flags.linearZ ) || changed;
 
-		const char* rotations[] = { "free", "spin about x", "spin about y", "spin about z", "fixed" };
+		const char* rotations[] = { "free", "spin x", "spin y", "spin z", "fixed" };
 		changed = ImGui::Combo( "Rotation", &m_rotation, rotations, IM_ARRAYSIZE( rotations ) ) || changed;
 
 		if ( changed )
@@ -2275,17 +2273,8 @@ public:
 
 	static Sample* Create( SampleContext* context )
 	{
-		return new MotionLocks( context );
+		return new LockedJoints( context );
 	}
-
-	enum Rotation
-	{
-		e_freeRotation,
-		e_spinX,
-		e_spinY,
-		e_spinZ,
-		e_fixedRotation,
-	};
 
 	static constexpr int m_capacity = 7;
 	b3BodyId m_bodyIds[m_capacity];
@@ -2295,7 +2284,7 @@ public:
 	int m_rotation;
 };
 
-static int sampleMotionLocks = RegisterSample( "Joints", "Motion Locks", MotionLocks::Create );
+static int sampleMotionLocks = RegisterSample( "Joints", "Locked Joints", LockedJoints::Create );
 
 class MotionLockJoint : public Sample
 {
@@ -2319,19 +2308,21 @@ public:
 
 		struct Preset
 		{
+			const char* name;
 			bool x, y, z, rotation;
 		};
 
 		Preset presets[e_count] = {
-			{ false, true, true, false },
-			{ false, true, false, false },
-			{ true, true, true, false },
-			{ false, false, true, true },
+			{ "point-point", true, true, true, false },
+			{ "point-line x", false, true, true, false },
+			{ "point-plane xz", false, true, false, false },
+			{ "planar xy",  false, false, true, true },
 		};
 
 		for ( int i = 0; i < e_count; ++i )
 		{
 			b3Pos position = { -9.0f + 6.0f * i, 4.0f, 0.0f };
+			bodyDef.name = presets[i].name;
 			bodyDef.position = position;
 			m_bodyIds[i] = b3CreateBody( m_worldId, &bodyDef );
 			b3CreateHullShape( m_bodyIds[i], &shapeDef, &box.base );
@@ -2344,7 +2335,7 @@ public:
 			jointDef.lockLinearX = presets[i].x;
 			jointDef.lockLinearY = presets[i].y;
 			jointDef.lockLinearZ = presets[i].z;
-			jointDef.lockRotation = presets[i].rotation;
+			jointDef.lockAngularXY = presets[i].rotation;
 			m_jointIds[i] = b3CreateMotionLockJoint( m_worldId, &jointDef );
 		}
 
@@ -2367,7 +2358,7 @@ public:
 			jointDef.lockLinearX = true;
 			jointDef.lockLinearY = true;
 			jointDef.lockLinearZ = true;
-			jointDef.lockRotation = true;
+			jointDef.lockAngularXY = true;
 			b3CreateMotionLockJoint( m_worldId, &jointDef );
 
 			bodyDef.position = { 0.0f, 9.0f, 6.0f };
