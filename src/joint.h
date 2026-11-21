@@ -170,7 +170,9 @@ typedef struct b3MotionLockJoint
 
 	bool lockLinear[3];
 	bool lockRotationXY;
-	bool decoupled;
+
+	// This indicates the linear block solve would have no off-diagonal elements.
+	bool diagonal;
 } b3MotionLockJoint;
 
 typedef struct b3ParallelJoint

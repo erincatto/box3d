@@ -2341,6 +2341,7 @@ public:
 
 		{
 			b3Pos position = { 0.0f, 8.0f, 6.0f };
+			bodyDef.name = "spin z";
 			bodyDef.position = position;
 			b3BodyId platformId = b3CreateBody( m_worldId, &bodyDef );
 			b3BoxHull platform = b3MakeBoxHull( 2.0f, 0.05f, 0.5f );
@@ -2361,6 +2362,7 @@ public:
 			jointDef.lockAngularXY = true;
 			b3CreateMotionLockJoint( m_worldId, &jointDef );
 
+			bodyDef.name = nullptr;
 			bodyDef.position = { 0.0f, 9.0f, 6.0f };
 			m_sphereId = b3CreateBody( m_worldId, &bodyDef );
 			b3Sphere sphere = { b3Vec3_zero, 0.5f };

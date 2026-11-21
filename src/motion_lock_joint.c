@@ -67,20 +67,20 @@ b3Vec3 b3GetMotionLockJointTorque( b3World* world, b3JointSim* base )
 	return b3MulSV( world->inv_h, impulse );
 }
 
-static bool b3IsZeroInverseInertia( b3Matrix3 m )
+static inline bool b3IsZeroInverseInertia( b3Matrix3 m )
 {
 	return m.cx.x == 0.0f && m.cy.y == 0.0f && m.cz.z == 0.0f;
 }
 
-static void b3ComputePerpAxes( b3Quat quatA, b3Quat relQ, b3Vec3* perpAxisX, b3Vec3* perpAxisY )
+static inline void b3ComputePerpAxes( b3Quat quatA, b3Quat relQ, b3Vec3* perpAxisX, b3Vec3* perpAxisY )
 {
-	*perpAxisX = b3MulSV(
-		0.5f, b3RotateVector( quatA, b3Add( b3MulSV( relQ.s, b3Vec3_axisX ), b3Cross( relQ.v, b3Vec3_axisX ) ) ) );
-	*perpAxisY = b3MulSV(
-		0.5f, b3RotateVector( quatA, b3Add( b3MulSV( relQ.s, b3Vec3_axisY ), b3Cross( relQ.v, b3Vec3_axisY ) ) ) );
+	b3Vec3 rX = b3Add( b3MulSV( relQ.s, b3Vec3_axisX ), b3Cross( relQ.v, b3Vec3_axisX ) );
+	b3Vec3 rY = b3Add( b3MulSV( relQ.s, b3Vec3_axisY ), b3Cross( relQ.v, b3Vec3_axisY ) );
+	*perpAxisX = b3MulSV( 0.5f, b3RotateVector( quatA, rX ) );
+	*perpAxisY = b3MulSV( 0.5f, b3RotateVector( quatA, rY ) );
 }
 
-static b3Vec3 b3GetMotionLockSeparation( const b3MotionLockJoint* joint, const b3BodyState* stateA,
+static inline b3Vec3 b3GetMotionLockSeparation( const b3MotionLockJoint* joint, const b3BodyState* stateA,
 										 const b3BodyState* stateB, b3Vec3 rA, b3Vec3 rB )
 {
 	b3Vec3 dpA = b3Add( stateA->deltaPosition, b3Sub( rA, joint->frameA.p ) );
@@ -133,7 +133,7 @@ void b3PrepareMotionLockJoint( b3JointSim* base, b3StepContext* context )
 	bool zeroIA = b3IsZeroInverseInertia( base->invIA );
 	bool zeroIB = b3IsZeroInverseInertia( base->invIB );
 	bool anchorAtCenterB = joint->frameB.p.x == 0.0f && joint->frameB.p.y == 0.0f && joint->frameB.p.z == 0.0f;
-	joint->decoupled = zeroIA && ( zeroIB || anchorAtCenterB );
+	joint->diagonal = zeroIA && ( zeroIB || anchorAtCenterB );
 
 	b3Quat relQ = b3InvMulQuat( joint->frameA.q, joint->frameB.q );
 	b3ComputePerpAxes( joint->frameA.q, relQ, &joint->perpAxisX, &joint->perpAxisY );
@@ -234,25 +234,27 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 		b3Vec2 bias = { 0.0f, 0.0f };
 		if ( useBias )
 		{
-			bias =
-				(b3Vec2){ base->constraintSoftness.biasRate * relQ.v.x, base->constraintSoftness.biasRate * relQ.v.y };
+			float rate = base->constraintSoftness.biasRate;
+			bias = (b3Vec2){ .x = rate * relQ.v.x, .y = rate * relQ.v.y };
 		}
 
+		// Block solver to constrain rotation.
 		b3Matrix3 invInertiaSum = b3AddMM( iA, iB );
 		b3Vec3 kx = b3MulMV( invInertiaSum, perpAxisX );
+		b3Vec3 ky = b3MulMV( invInertiaSum, perpAxisY );
 		float kxx = b3Dot( perpAxisX, kx );
 		float kxy = b3Dot( perpAxisY, kx );
-		float kyy = b3Dot( perpAxisY, b3MulMV( invInertiaSum, perpAxisY ) );
+		float kyy = b3Dot( perpAxisY, ky );
 		b3Matrix2 k = { { kxx, kxy }, { kxy, kyy } };
 
 		b3Vec3 wRel = b3Sub( wB, wA );
 		b3Vec2 cdot = { b3Dot( wRel, perpAxisX ) + bias.x, b3Dot( wRel, perpAxisY ) + bias.y };
-		b3Vec2 sol = b3Solve2( k, cdot );
+		b3Vec2 solution = b3Solve2( k, cdot );
 
 		b3Vec2 oldImpulse = joint->angularImpulse;
 		b3Vec2 impulse = {
-			-massScale * sol.x - impulseScale * oldImpulse.x,
-			-massScale * sol.y - impulseScale * oldImpulse.y,
+			-massScale * solution.x - impulseScale * oldImpulse.x,
+			-massScale * solution.y - impulseScale * oldImpulse.y,
 		};
 		joint->angularImpulse = b3Add2( oldImpulse, impulse );
 
@@ -303,8 +305,9 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 
 		float m = mA + mB;
 
-		if ( joint->decoupled )
+		if ( joint->diagonal )
 		{
+			// The block matrix is diagonal. No need to do a matrix inverse.
 			float invM = m > 0.0f ? 1.0f / m : 0.0f;
 			for ( int i = 0; i < count; ++i )
 			{
@@ -330,17 +333,17 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 				}
 			}
 
-			float sol[3] = { 0.0f, 0.0f, 0.0f };
+			float solution[3] = { 0.0f, 0.0f, 0.0f };
 			if ( count == 1 )
 			{
-				sol[0] = kd[0][0] > 0.0f ? rhs[0] / kd[0][0] : 0.0f;
+				solution[0] = kd[0][0] > 0.0f ? rhs[0] / kd[0][0] : 0.0f;
 			}
 			else if ( count == 2 )
 			{
 				b3Matrix2 k = { { kd[0][0], kd[1][0] }, { kd[0][1], kd[1][1] } };
 				b3Vec2 s = b3Solve2( k, (b3Vec2){ rhs[0], rhs[1] } );
-				sol[0] = s.x;
-				sol[1] = s.y;
+				solution[0] = s.x;
+				solution[1] = s.y;
 			}
 			else
 			{
@@ -350,14 +353,14 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 					{ kd[0][2], kd[1][2], kd[2][2] },
 				};
 				b3Vec3 s = b3Solve3( k, (b3Vec3){ rhs[0], rhs[1], rhs[2] } );
-				sol[0] = s.x;
-				sol[1] = s.y;
-				sol[2] = s.z;
+				solution[0] = s.x;
+				solution[1] = s.y;
+				solution[2] = s.z;
 			}
 
 			for ( int i = 0; i < count; ++i )
 			{
-				impulses[i] = -massScale * sol[i] - impulseScale * oldImpulses[axisIndices[i]];
+				impulses[i] = -massScale * solution[i] - impulseScale * oldImpulses[axisIndices[i]];
 			}
 		}
 
@@ -375,7 +378,7 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 		vA = b3MulSub( vA, mA, P );
 		vB = b3MulAdd( vB, mB, P );
 
-		if ( joint->decoupled == false )
+		if ( joint->diagonal == false )
 		{
 			wA = b3Sub( wA, b3MulMV( iA, LA ) );
 			wB = b3Add( wB, b3MulMV( iB, LB ) );

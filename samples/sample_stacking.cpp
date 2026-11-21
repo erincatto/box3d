@@ -811,7 +811,7 @@ public:
 			m_camera->SetView( 40.0f, 15.0f, 14.0f, { 0.0f, 2.0f, 0.0f } );
 		}
 
-		AddGroundBox( 40.0f );
+		AddGroundBox( 1000.0f );
 
 		float a = 0.25f;
 		b3BoxHull box = b3MakeBoxHull( a, a, a );
