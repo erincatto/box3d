@@ -122,7 +122,7 @@ b3Scheduler* b3CreateScheduler( int workerCount )
 		scheduler->workerContexts[i].scheduler = scheduler;
 		scheduler->workerContexts[i].threadIndex = i + 1;
 
-		char name[16];
+		char name[32];
 		snprintf( name, sizeof( name ), "box3d_worker_%02d", i + 1 );
 		scheduler->threads[i] = b3CreateThread( b3SchedulerWorkerMain, scheduler->workerContexts + i, name );
 	}

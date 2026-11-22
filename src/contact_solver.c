@@ -788,7 +788,6 @@ void b3StoreImpulses_Overflow( b3StepContext* context )
 
 	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
 	b3ContactConstraint* base = overflow->contactConstraints;
-	b3ContactSpec* specs = overflow->contacts.data;
 	int contactCount = overflow->contacts.count;
 
 	b3TaskContext* taskContext = world->taskContexts.data;
@@ -804,8 +803,7 @@ void b3StoreImpulses_Overflow( b3StepContext* context )
 		b3Contact* contact = contactConstraint->contact;
 		B3_ASSERT( contact != NULL );
 
-		// todo comment
-		B3_VALIDATE( contact->contactId == specs[index].contactId );
+		B3_VALIDATE( contact->contactId == overflow->contacts.data[index].contactId );
 
 		int manifoldCount = contactConstraint->manifoldCount;
 		B3_ASSERT( manifoldCount == contact->manifoldCount );
