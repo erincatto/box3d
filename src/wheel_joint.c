@@ -171,6 +171,9 @@ void b3WheelJoint_EnableSteering( b3JointId jointId, bool flag )
 	if ( joint->wheelJoint.enableSteering != flag )
 	{
 		joint->wheelJoint.angularImpulse = (b3Vec2){ 0.0f, 0.0f };
+		joint->wheelJoint.steeringSpringImpulse = 0.0f;
+		joint->wheelJoint.lowerSteeringImpulse = 0.0f;
+		joint->wheelJoint.upperSteeringImpulse = 0.0f;
 		joint->wheelJoint.enableSteering = flag;
 	}
 }

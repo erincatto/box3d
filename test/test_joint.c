@@ -1275,6 +1275,178 @@ static int TestNonDynamicJointDisable( void )
 	return 0;
 }
 
+enum ReleaseCase
+{
+	e_motorSpringForce,
+	e_motorLinearHertz,
+	e_motorVelocityForce,
+	e_motorSpringTorque,
+	e_motorAngularHertz,
+	e_motorVelocityTorque,
+	e_distanceHertz,
+	e_distanceLimit,
+	e_parallelTorque,
+	e_releaseCaseCount,
+};
+
+static b3JointId CreateReleaseJoint( JointFixture* f, int releaseCase )
+{
+	switch ( releaseCase )
+	{
+		case e_motorSpringForce:
+		case e_motorLinearHertz:
+		{
+			b3MotorJointDef def = b3DefaultMotorJointDef();
+			SetCommonFrames( &def.base, f );
+			def.linearHertz = 5.0f;
+			def.linearDampingRatio = 1.0f;
+			def.maxSpringForce = 1000.0f;
+			return b3CreateMotorJoint( f->worldId, &def );
+		}
+
+		case e_motorVelocityForce:
+		{
+			b3MotorJointDef def = b3DefaultMotorJointDef();
+			SetCommonFrames( &def.base, f );
+			def.maxVelocityForce = 1000.0f;
+			return b3CreateMotorJoint( f->worldId, &def );
+		}
+
+		case e_motorSpringTorque:
+		case e_motorAngularHertz:
+		{
+			b3MotorJointDef def = b3DefaultMotorJointDef();
+			SetCommonFrames( &def.base, f );
+			def.angularHertz = 5.0f;
+			def.angularDampingRatio = 1.0f;
+			def.maxSpringTorque = 1000.0f;
+			return b3CreateMotorJoint( f->worldId, &def );
+		}
+
+		case e_motorVelocityTorque:
+		{
+			b3MotorJointDef def = b3DefaultMotorJointDef();
+			SetCommonFrames( &def.base, f );
+			def.maxVelocityTorque = 1000.0f;
+			return b3CreateMotorJoint( f->worldId, &def );
+		}
+
+		case e_distanceHertz:
+		case e_distanceLimit:
+		{
+			b3DistanceJointDef def = b3DefaultDistanceJointDef();
+			def.base.bodyIdA = f->groundId;
+			def.base.bodyIdB = f->bodyId;
+			def.base.localFrameA.p = (b3Vec3){ 0.0f, 6.0f, 0.0f };
+			def.length = 2.0f;
+			def.enableSpring = true;
+			if ( releaseCase == e_distanceHertz )
+			{
+				def.hertz = 5.0f;
+				def.dampingRatio = 1.0f;
+			}
+			else
+			{
+				def.enableLimit = true;
+				def.maxLength = 2.0f;
+			}
+			return b3CreateDistanceJoint( f->worldId, &def );
+		}
+
+		default:
+		{
+			b3ParallelJointDef def = b3DefaultParallelJointDef();
+			SetCommonFrames( &def.base, f );
+			def.hertz = 5.0f;
+			def.dampingRatio = 1.0f;
+			def.maxTorque = 1000.0f;
+			return b3CreateParallelJoint( f->worldId, &def );
+		}
+	}
+}
+
+static void ReleaseJoint( b3JointId jointId, int releaseCase )
+{
+	switch ( releaseCase )
+	{
+		case e_motorSpringForce:
+			b3MotorJoint_SetMaxSpringForce( jointId, 0.0f );
+			break;
+		case e_motorLinearHertz:
+			b3MotorJoint_SetLinearHertz( jointId, 0.0f );
+			break;
+		case e_motorVelocityForce:
+			b3MotorJoint_SetMaxVelocityForce( jointId, 0.0f );
+			break;
+		case e_motorSpringTorque:
+			b3MotorJoint_SetMaxSpringTorque( jointId, 0.0f );
+			break;
+		case e_motorAngularHertz:
+			b3MotorJoint_SetAngularHertz( jointId, 0.0f );
+			break;
+		case e_motorVelocityTorque:
+			b3MotorJoint_SetMaxVelocityTorque( jointId, 0.0f );
+			break;
+		case e_distanceHertz:
+			b3DistanceJoint_SetSpringHertz( jointId, 0.0f );
+			break;
+		case e_distanceLimit:
+			b3DistanceJoint_EnableLimit( jointId, false );
+			break;
+		default:
+			b3ParallelJoint_SetMaxTorque( jointId, 0.0f );
+			break;
+	}
+}
+
+// A joint term that is switched off must let go of a loaded body, not keep warm starting the impulse that held it
+static int TestJointReleasesLoad( void )
+{
+	for ( int releaseCase = 0; releaseCase < e_releaseCaseCount; ++releaseCase )
+	{
+		JointFixture f = CreateJointFixture();
+		b3JointId jointId = CreateReleaseJoint( &f, releaseCase );
+
+		bool angular = releaseCase == e_motorSpringTorque || releaseCase == e_motorAngularHertz ||
+					   releaseCase == e_motorVelocityTorque || releaseCase == e_parallelTorque;
+
+		// Unit cube, so 1 kg and 1/6 kg m^2
+		b3Vec3 force = angular ? b3Vec3_zero : (b3Vec3){ 0.0f, -10.0f, 0.0f };
+		b3Vec3 torque = angular ? (b3Vec3){ 1.0f, 0.0f, 0.0f } : b3Vec3_zero;
+
+		for ( int i = 0; i < 120; ++i )
+		{
+			if ( i == 60 )
+			{
+				b3Vec3 v = b3Body_GetLinearVelocity( f.bodyId );
+				b3Vec3 w = b3Body_GetAngularVelocity( f.bodyId );
+				ENSURE( b3Length( v ) < 0.1f && b3Length( w ) < 0.1f );
+				ReleaseJoint( jointId, releaseCase );
+			}
+
+			b3Body_ApplyForceToCenter( f.bodyId, force, true );
+			b3Body_ApplyTorque( f.bodyId, torque, true );
+			b3World_Step( f.worldId, 1.0f / 60.0f, 4 );
+		}
+
+		// Free motion after one second is 10 m/s and 6 rad/s
+		if ( angular )
+		{
+			b3Vec3 w = b3Body_GetAngularVelocity( f.bodyId );
+			ENSURE( w.x > 5.0f );
+		}
+		else
+		{
+			b3Vec3 v = b3Body_GetLinearVelocity( f.bodyId );
+			ENSURE( v.y < -9.0f );
+		}
+
+		b3DestroyWorld( f.worldId );
+	}
+
+	return 0;
+}
+
 int JointTest( void )
 {
 	RUN_SUBTEST( TestMotionLockJoint );
@@ -1301,6 +1473,7 @@ int JointTest( void )
 	RUN_SUBTEST( TestConstraintForceAndTorque );
 	RUN_SUBTEST( TestCreateJointClearsContacts );
 	RUN_SUBTEST( TestNonDynamicJointDisable );
+	RUN_SUBTEST( TestJointReleasesLoad );
 
 	return 0;
 }

@@ -255,10 +255,28 @@ void b3PrepareMotorJoint( b3JointSim* base, b3StepContext* context )
 		joint->linearSpringImpulse = b3Vec3_zero;
 		joint->angularSpringImpulse = b3Vec3_zero;
 	}
-	else if ( base->fixedRotation )
+	else
 	{
-		joint->angularVelocityImpulse = b3Vec3_zero;
-		joint->angularSpringImpulse = b3Vec3_zero;
+		// Clear impulses when features are disabled.
+		if ( ( joint->maxSpringForce > 0.0f && joint->linearHertz > 0.0f ) == false )
+		{
+			joint->linearSpringImpulse = b3Vec3_zero;
+		}
+
+		if ( ( joint->maxVelocityForce > 0.0f ) == false )
+		{
+			joint->linearVelocityImpulse = b3Vec3_zero;
+		}
+
+		if ( base->fixedRotation || ( joint->maxSpringTorque > 0.0f && joint->angularHertz > 0.0f ) == false )
+		{
+			joint->angularSpringImpulse = b3Vec3_zero;
+		}
+
+		if ( base->fixedRotation || ( joint->maxVelocityTorque > 0.0f ) == false )
+		{
+			joint->angularVelocityImpulse = b3Vec3_zero;
+		}
 	}
 }
 
