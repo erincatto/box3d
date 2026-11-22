@@ -23,6 +23,7 @@ jobs:
         include:
           - name: ubuntu-gcc
             os: ubuntu-latest
+            args: -DBOX3D_SANITIZE=ON
             test: ./bin/test
           # Clang jobs pin the image because each Ubuntu image ships a different set of clang versions
           - name: ubuntu-clang
