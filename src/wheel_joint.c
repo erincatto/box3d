@@ -753,7 +753,7 @@ void b3SolveWheelJoint( b3JointSim* base, b3StepContext* context, bool useBias )
 
 		{
 			// This is a real spring and should be applied even during relax
-			float c = steeringAngle - joint->targetSteeringAngle;
+			float c = b3UnwindAngle( steeringAngle - joint->targetSteeringAngle );
 			float bias = joint->steeringSoftness.biasRate * c;
 			float massScale = joint->steeringSoftness.massScale;
 			float impulseScale = joint->steeringSoftness.impulseScale;

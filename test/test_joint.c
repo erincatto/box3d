@@ -1018,6 +1018,81 @@ static int TestWheelJoint( void )
 	return FinishJoint( jointId, f.worldId );
 }
 
+// The body starts at -3 radians with a spring target of +3. The short way crosses pi and never
+// comes near zero. The long way sweeps through zero.
+static int CheckSpringShortWay( b3JointType type )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+
+	b3Vec3 axis = type == b3_revoluteJoint ? b3Vec3_axisZ : b3Vec3_axisX;
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.rotation = b3MakeQuatFromAxisAngle( axis, -3.0f );
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.1f, 0.1f );
+	b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+	b3JointId jointId;
+	if ( type == b3_revoluteJoint )
+	{
+		b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
+		def.base.bodyIdA = groundId;
+		def.base.bodyIdB = bodyId;
+		def.enableSpring = true;
+		def.hertz = 2.0f;
+		def.dampingRatio = 1.0f;
+		def.targetAngle = 3.0f;
+		jointId = b3CreateRevoluteJoint( worldId, &def );
+	}
+	else
+	{
+		b3WheelJointDef def = b3DefaultWheelJointDef();
+		def.base.bodyIdA = groundId;
+		def.base.bodyIdB = bodyId;
+		def.enableSteering = true;
+		def.steeringHertz = 2.0f;
+		def.steeringDampingRatio = 1.0f;
+		def.maxSteeringTorque = 1000.0f;
+		def.targetSteeringAngle = 3.0f;
+		jointId = b3CreateWheelJoint( worldId, &def );
+	}
+
+	float startAngle =
+		type == b3_revoluteJoint ? b3RevoluteJoint_GetAngle( jointId ) : b3WheelJoint_GetSteeringAngle( jointId );
+	ENSURE_SMALL( startAngle + 3.0f, 0.01f );
+
+	float closestToZero = B3_PI;
+	float angle = startAngle;
+	for ( int i = 0; i < 180; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		angle = type == b3_revoluteJoint ? b3RevoluteJoint_GetAngle( jointId ) : b3WheelJoint_GetSteeringAngle( jointId );
+		closestToZero = b3MinFloat( closestToZero, fabsf( angle ) );
+	}
+
+	ENSURE( closestToZero > 2.5f );
+	ENSURE_SMALL( angle - 3.0f, 0.05f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+static int TestRevoluteSpringShortWay( void )
+{
+	return CheckSpringShortWay( b3_revoluteJoint );
+}
+
+static int TestWheelSteeringShortWay( void )
+{
+	return CheckSpringShortWay( b3_wheelJoint );
+}
+
 static void SetHeldFrames( b3JointDef* base, b3BodyId groundId, b3BodyId bodyId, b3Vec3 origin, b3Vec3 anchor, b3Quat q )
 {
 	base->bodyIdA = groundId;
@@ -1470,6 +1545,8 @@ int JointTest( void )
 	RUN_SUBTEST( TestSphericalMotorFrame );
 	RUN_SUBTEST( TestWeldJoint );
 	RUN_SUBTEST( TestWheelJoint );
+	RUN_SUBTEST( TestRevoluteSpringShortWay );
+	RUN_SUBTEST( TestWheelSteeringShortWay );
 	RUN_SUBTEST( TestConstraintForceAndTorque );
 	RUN_SUBTEST( TestCreateJointClearsContacts );
 	RUN_SUBTEST( TestNonDynamicJointDisable );
