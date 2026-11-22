@@ -300,7 +300,13 @@ void b3PrepareRevoluteJoint( b3JointSim* base, b3StepContext* context )
 		joint->rotationAxisZ = rotationAxisZ;
 	}
 
-	b3Quat relQ = b3InvMulQuat( joint->frameA.q, joint->frameB.q );
+	b3Quat quatB = joint->frameB.q;
+	if ( b3DotQuat( joint->frameA.q, quatB ) < 0.0f )
+	{
+		quatB = b3NegateQuat( quatB );
+	}
+
+	b3Quat relQ = b3InvMulQuat( joint->frameA.q, quatB );
 
 	{
 		// These are needed for warm starting

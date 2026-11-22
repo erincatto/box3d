@@ -214,8 +214,9 @@ static void b3DestroyContactsBetweenBodies( b3World* world, b3Body* bodyA, b3Bod
 static bool b3IsValidJointDef( const b3JointDef* def )
 {
 	return b3IsValidTransform( def->localFrameA ) && b3IsValidTransform( def->localFrameB ) &&
-		   b3IsValidFloat( def->forceThreshold ) && def->forceThreshold >= 0.0f && b3IsValidFloat( def->torqueThreshold ) &&
-		   def->torqueThreshold >= 0.0f && b3IsValidFloat( def->constraintHertz ) && def->constraintHertz >= 0.0f &&
+		   b3IsValidFloat( def->forceThreshold ) && def->forceThreshold >= 0.0f &&
+		   b3IsValidFloat( def->torqueThreshold ) && def->torqueThreshold >= 0.0f &&
+		   b3IsValidFloat( def->constraintHertz ) && def->constraintHertz >= 0.0f &&
 		   b3IsValidFloat( def->constraintDampingRatio ) && def->constraintDampingRatio >= 0.0f &&
 		   b3IsValidFloat( def->drawScale );
 }
@@ -346,8 +347,7 @@ static b3JointPair b3CreateJoint( b3World* world, const b3JointDef* def, b3Joint
 	else
 	{
 		// joint connected between sleeping and/or static bodies
-		B3_ASSERT( bodyA->setIndex >= b3_firstSleepingSet ||
-				   bodyB->setIndex >= b3_firstSleepingSet );
+		B3_ASSERT( bodyA->setIndex >= b3_firstSleepingSet || bodyB->setIndex >= b3_firstSleepingSet );
 		B3_ASSERT( bodyA->setIndex != b3_staticSet || bodyB->setIndex != b3_staticSet );
 
 		// joint should go into the sleeping set (not static set)
@@ -791,7 +791,8 @@ b3JointId b3CreateSphericalJoint( b3WorldId worldId, const b3SphericalJointDef* 
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->hertz ), (b3JointId){ 0 } );
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->dampingRatio ), (b3JointId){ 0 } );
 	B3_CHECK_INPUT_RETURN( b3IsValidQuat( def->targetRotation ), (b3JointId){ 0 } );
-	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->coneAngle ) && 0.0f <= def->coneAngle && def->coneAngle <= 0.99f * B3_PI,
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->coneAngle ) && 0.0f <= def->coneAngle &&
+							   def->coneAngle <= 0.99f * B3_PI,
 						   (b3JointId){ 0 } );
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->lowerTwistAngle ), (b3JointId){ 0 } );
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->upperTwistAngle ), (b3JointId){ 0 } );
@@ -816,10 +817,8 @@ b3JointId b3CreateSphericalJoint( b3WorldId worldId, const b3SphericalJointDef* 
 
 	float lowerAngle = b3MinFloat( def->lowerTwistAngle, def->upperTwistAngle );
 	float upperAngle = b3MaxFloat( def->lowerTwistAngle, def->upperTwistAngle );
-	joint->sphericalJoint.lowerTwistAngle =
-		b3ClampFloat( lowerAngle, -0.99f * B3_PI, 0.99f * B3_PI );
-	joint->sphericalJoint.upperTwistAngle =
-		b3ClampFloat( upperAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+	joint->sphericalJoint.lowerTwistAngle = b3ClampFloat( lowerAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+	joint->sphericalJoint.upperTwistAngle = b3ClampFloat( upperAngle, -0.99f * B3_PI, 0.99f * B3_PI );
 
 	joint->sphericalJoint.maxMotorTorque = def->maxMotorTorque;
 	joint->sphericalJoint.motorVelocity = def->motorVelocity;
@@ -992,8 +991,7 @@ void b3DestroyJointInternal( b3World* world, b3Joint* joint, bool wakeBodies )
 
 	if ( setIndex == b3_awakeSet )
 	{
-		b3RemoveJointFromGraph( world, joint->edges[0].bodyId, joint->edges[1].bodyId,
-								joint->colorIndex, localIndex );
+		b3RemoveJointFromGraph( world, joint->edges[0].bodyId, joint->edges[1].bodyId, joint->colorIndex, localIndex );
 	}
 	else
 	{
@@ -1205,41 +1203,68 @@ bool b3Joint_IsAwake( b3JointId jointId )
 	return joint->setIndex == b3_awakeSet;
 }
 
-void b3GetJointReaction( b3World* world, b3JointSim* sim, float invTimeStep, float* force,
-						 float* torque )
+static b3Vec3 b3GetJointSimTorque( b3World* world, b3JointSim* base )
+{
+	switch ( base->type )
+	{
+		case b3_parallelJoint:
+			return b3GetParallelJointTorque( world, base );
+
+		case b3_distanceJoint:
+			return b3Vec3_zero;
+
+		case b3_filterJoint:
+			return b3Vec3_zero;
+
+		case b3_motorJoint:
+			return b3GetMotorJointTorque( world, base );
+
+		case b3_prismaticJoint:
+			return b3GetPrismaticJointTorque( world, base );
+
+		case b3_revoluteJoint:
+			return b3GetRevoluteJointTorque( world, base );
+
+		case b3_sphericalJoint:
+			return b3GetSphericalJointTorque( world, base );
+
+		case b3_weldJoint:
+			return b3GetWeldJointTorque( world, base );
+
+		case b3_wheelJoint:
+			return b3GetWheelJointTorque( world, base );
+
+		case b3_moverJoint:
+		case b3_pogoJoint:
+			return b3Vec3_zero;
+
+		case b3_motionLockJoint:
+			return b3GetMotionLockJointTorque( world, base );
+
+		default:
+			B3_ASSERT( false );
+			return b3Vec3_zero;
+	}
+}
+
+void b3GetJointReaction( b3World* world, b3JointSim* sim, float invTimeStep, float* force, float* torque )
 {
 	float linearImpulse = 0.0f;
-	float angularImpulse = 0.0f;
 
 	switch ( sim->type )
 	{
-		case b3_parallelJoint:
-		{
-			b3ParallelJoint* joint = &sim->parallelJoint;
-			b3Vec3 impulse = {
-				.x = joint->perpImpulse.x,
-				.y = joint->perpImpulse.y,
-				.z = 0.0f,
-			};
-			angularImpulse = b3Length( impulse );
-		}
-		break;
-
 		case b3_distanceJoint:
 		{
 			b3DistanceJoint* joint = &sim->distanceJoint;
-			linearImpulse = b3AbsFloat( joint->impulse + joint->lowerImpulse - joint->upperImpulse +
-										joint->motorImpulse );
+			linearImpulse =
+				b3AbsFloat( joint->impulse + joint->lowerImpulse - joint->upperImpulse + joint->motorImpulse );
 		}
 		break;
 
 		case b3_motorJoint:
 		{
 			b3MotorJoint* joint = &sim->motorJoint;
-			linearImpulse =
-				b3Length( b3Add( joint->linearVelocityImpulse, joint->linearSpringImpulse ) );
-			angularImpulse =
-				b3Length( b3Add( joint->angularVelocityImpulse, joint->angularSpringImpulse ) );
+			linearImpulse = b3Length( b3Add( joint->linearVelocityImpulse, joint->linearSpringImpulse ) );
 		}
 		break;
 
@@ -1252,97 +1277,52 @@ void b3GetJointReaction( b3World* world, b3JointSim* sim, float invTimeStep, flo
 				.z = joint->perpImpulse.y,
 			};
 			linearImpulse = b3Length( impulse );
-			angularImpulse = b3Length( joint->angularImpulse );
 		}
 		break;
 
 		case b3_revoluteJoint:
-		{
-			b3RevoluteJoint* joint = &sim->revoluteJoint;
-			linearImpulse = b3Length( joint->linearImpulse );
-			b3Vec3 impulse = {
-				.x = joint->perpImpulse.x,
-				.y = joint->perpImpulse.y,
-				.z = joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse,
-			};
-			angularImpulse = b3Length( impulse );
-		}
-		break;
+			linearImpulse = b3Length( sim->revoluteJoint.linearImpulse );
+			break;
 
 		case b3_sphericalJoint:
-		{
-			// todo improve performance
-			b3SphericalJoint* joint = &sim->sphericalJoint;
-			linearImpulse = b3Length( joint->linearImpulse );
-
-			b3WorldTransform xfA = b3GetBodyTransform( world, sim->bodyIdA );
-			b3WorldTransform xfB = b3GetBodyTransform( world, sim->bodyIdB );
-			b3Quat qA = b3MulQuat( xfA.q, sim->localFrameA.q );
-			b3Quat qB = b3MulQuat( xfB.q, sim->localFrameB.q );
-
-			// Cone axis is the z-axis of body A.
-			b3Vec3 coneAxis = b3RotateVector( qA, b3Vec3_axisZ );
-			b3Vec3 twistAxis = b3RotateVector( qB, b3Vec3_axisZ );
-			b3Vec3 swingAxis = b3Normalize( b3Cross( coneAxis, twistAxis ) );
-
-			b3Vec3 impulse = b3Add( joint->springImpulse, joint->motorImpulse );
-			impulse =
-				b3MulAdd( impulse, joint->lowerTwistImpulse - joint->upperTwistImpulse, twistAxis );
-			impulse = b3MulAdd( impulse, joint->swingImpulse, swingAxis );
-
-			angularImpulse = b3Length( impulse );
-		}
-		break;
+			linearImpulse = b3Length( sim->sphericalJoint.linearImpulse );
+			break;
 
 		case b3_weldJoint:
-		{
-			b3WeldJoint* joint = &sim->weldJoint;
-			linearImpulse = b3Length( joint->linearImpulse );
-			angularImpulse = b3Length( joint->angularImpulse );
-		}
-		break;
+			linearImpulse = b3Length( sim->weldJoint.linearImpulse );
+			break;
 
 		case b3_wheelJoint:
 		{
-			// todo probably wrong
 			b3WheelJoint* joint = &sim->wheelJoint;
 			b3Vec2 perpImpulse = joint->linearImpulse;
-			float axialImpulse = joint->suspensionSpringImpulse + joint->lowerSuspensionImpulse -
-								 joint->upperSuspensionImpulse;
-			linearImpulse = sqrtf( perpImpulse.x * perpImpulse.x + perpImpulse.y * perpImpulse.y +
-								   axialImpulse * axialImpulse );
-			angularImpulse = b3AbsFloat( joint->spinImpulse );
+			float axialImpulse =
+				joint->suspensionSpringImpulse + joint->lowerSuspensionImpulse - joint->upperSuspensionImpulse;
+			linearImpulse =
+				sqrtf( perpImpulse.x * perpImpulse.x + perpImpulse.y * perpImpulse.y + axialImpulse * axialImpulse );
 		}
 		break;
 
 		case b3_moverJoint:
-		{
-			b3MoverJoint* joint = &sim->moverJoint;
-			linearImpulse = b3Length2( joint->impulse );
-		}
-		break;
+			linearImpulse = b3Length2( sim->moverJoint.impulse );
+			break;
 
 		case b3_pogoJoint:
-		{
-			b3PogoJoint* joint = &sim->pogoJoint;
-			linearImpulse = b3AbsFloat( joint->impulse );
-		}
-		break;
+			linearImpulse = b3AbsFloat( sim->pogoJoint.impulse );
+			break;
 
 		case b3_motionLockJoint:
-		{
-			b3MotionLockJoint* joint = &sim->motionLockJoint;
-			linearImpulse = b3Length( joint->linearImpulse );
-			angularImpulse = b3Length2( joint->angularImpulse );
-		}
-		break;
+			linearImpulse = b3Length( sim->motionLockJoint.linearImpulse );
+			break;
 
 		default:
 			break;
 	}
 
 	*force = linearImpulse * invTimeStep;
-	*torque = angularImpulse * invTimeStep;
+
+	b3Vec3 torqueVector = b3GetJointSimTorque( world, sim );
+	*torque = b3Length( torqueVector );
 }
 
 static b3Vec3 b3GetJointConstraintForce( b3World* world, b3Joint* joint )
@@ -1395,48 +1375,7 @@ static b3Vec3 b3GetJointConstraintForce( b3World* world, b3Joint* joint )
 
 static b3Vec3 b3GetJointConstraintTorque( b3World* world, b3Joint* joint )
 {
-	b3JointSim* base = b3GetJointSim( world, joint );
-
-	switch ( joint->type )
-	{
-		case b3_parallelJoint:
-			return b3GetParallelJointTorque( world, base );
-
-		case b3_distanceJoint:
-			return b3Vec3_zero;
-
-		case b3_filterJoint:
-			return b3Vec3_zero;
-
-		case b3_motorJoint:
-			return b3GetMotorJointTorque( world, base );
-
-		case b3_prismaticJoint:
-			return b3GetPrismaticJointTorque( world, base );
-
-		case b3_revoluteJoint:
-			return b3GetRevoluteJointTorque( world, base );
-
-		case b3_sphericalJoint:
-			return b3GetSphericalJointTorque( world, base );
-
-		case b3_weldJoint:
-			return b3GetWeldJointTorque( world, base );
-
-		case b3_wheelJoint:
-			return b3GetWheelJointTorque( world, base );
-
-		case b3_moverJoint:
-		case b3_pogoJoint:
-			return b3Vec3_zero;
-
-		case b3_motionLockJoint:
-			return b3GetMotionLockJointTorque( world, base );
-
-		default:
-			B3_ASSERT( false );
-			return b3Vec3_zero;
-	}
+	return b3GetJointSimTorque( world, b3GetJointSim( world, joint ) );
 }
 
 b3Vec3 b3Joint_GetConstraintForce( b3JointId jointId )
@@ -1542,8 +1481,7 @@ float b3Joint_GetLinearSeparation( b3JointId jointId )
 				}
 			}
 
-			return sqrtf( perpendicularSeparation * perpendicularSeparation +
-						  limitSeparation * limitSeparation );
+			return sqrtf( perpendicularSeparation * perpendicularSeparation + limitSeparation * limitSeparation );
 		}
 
 		case b3_revoluteJoint:
@@ -1585,8 +1523,7 @@ float b3Joint_GetLinearSeparation( b3JointId jointId )
 				}
 			}
 
-			return sqrtf( perpendicularSeparation * perpendicularSeparation +
-						  limitSeparation * limitSeparation );
+			return sqrtf( perpendicularSeparation * perpendicularSeparation + limitSeparation * limitSeparation );
 		}
 
 		default:
@@ -2055,12 +1992,10 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 	if ( draw->drawGraphColors )
 	{
 		b3HexColor graphColors[B3_GRAPH_COLOR_COUNT] = {
-			b3_colorRed,	   b3_colorOrange,	  b3_colorYellow,	b3_colorGreen,
-			b3_colorCyan,	   b3_colorBlue,	  b3_colorViolet,	b3_colorPink,
-			b3_colorChocolate, b3_colorGoldenRod, b3_colorCoral,	b3_colorRosyBrown,
-			b3_colorAqua,	   b3_colorPeru,	  b3_colorLime,		b3_colorGold,
-			b3_colorPlum,	   b3_colorSnow,	  b3_colorTeal,		b3_colorKhaki,
-			b3_colorSalmon,	   b3_colorPeachPuff, b3_colorHoneyDew, b3_colorBlack,
+			b3_colorRed,	b3_colorOrange, b3_colorYellow,	   b3_colorGreen,	  b3_colorCyan,		b3_colorBlue,
+			b3_colorViolet, b3_colorPink,	b3_colorChocolate, b3_colorGoldenRod, b3_colorCoral,	b3_colorRosyBrown,
+			b3_colorAqua,	b3_colorPeru,	b3_colorLime,	   b3_colorGold,	  b3_colorPlum,		b3_colorSnow,
+			b3_colorTeal,	b3_colorKhaki,	b3_colorSalmon,	   b3_colorPeachPuff, b3_colorHoneyDew, b3_colorBlack,
 		};
 
 		int colorIndex = joint->colorIndex;
@@ -2077,8 +2012,7 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 		b3Vec3 torque = b3GetJointConstraintTorque( world, joint );
 		b3Pos p = b3LerpPosition( pA, pB, 0.5f );
 
-		draw->DrawSegmentFcn( p, b3OffsetPos( p, b3MulSV( draw->forceScale, force ) ),
-							  b3_colorAzure, draw->context );
+		draw->DrawSegmentFcn( p, b3OffsetPos( p, b3MulSV( draw->forceScale, force ) ), b3_colorAzure, draw->context );
 
 		char buffer[64];
 		snprintf( buffer, 64, "f = %g, t = %g", b3Length( force ), b3Length( torque ) );

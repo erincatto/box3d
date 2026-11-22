@@ -1081,6 +1081,22 @@ static int CheckHeldWeight( b3JointType type, float anchorOffset )
 	ENSURE_SMALL( b3Length( b3Sub( force, expectedForce ) ), 0.02f * weight );
 	ENSURE_SMALL( b3Length( b3Sub( torque, expectedTorque ) ), 0.02f * weight );
 
+	float torqueLength = b3Length( expectedTorque );
+	b3Joint_SetForceThreshold( jointId, FLT_MAX );
+	b3Joint_SetTorqueThreshold( jointId, 1.1f * torqueLength + 0.05f * weight );
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	ENSURE( b3World_GetJointEvents( worldId ).count == 0 );
+
+	if ( torqueLength > 0.1f * weight )
+	{
+		b3Joint_SetTorqueThreshold( jointId, 0.9f * torqueLength );
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		b3JointEvents events = b3World_GetJointEvents( worldId );
+		ENSURE( events.count == 1 && B3_ID_EQUALS( events.jointEvents[0].jointId, jointId ) );
+	}
+
+	b3Joint_SetTorqueThreshold( jointId, FLT_MAX );
+
 	// A body that cannot rotate needs no angular impulse, so none may linger for warm starting
 	b3Body_SetFixedRotation( bodyId, true );
 	b3World_Step( worldId, 1.0f / 60.0f, 4 );

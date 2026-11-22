@@ -135,7 +135,13 @@ void b3PrepareMotionLockJoint( b3JointSim* base, b3StepContext* context )
 	bool anchorAtCenterB = joint->frameB.p.x == 0.0f && joint->frameB.p.y == 0.0f && joint->frameB.p.z == 0.0f;
 	joint->diagonal = zeroIA && ( zeroIB || anchorAtCenterB );
 
-	b3Quat relQ = b3InvMulQuat( joint->frameA.q, joint->frameB.q );
+	b3Quat quatB = joint->frameB.q;
+	if ( b3DotQuat( joint->frameA.q, quatB ) < 0.0f )
+	{
+		quatB = b3NegateQuat( quatB );
+	}
+
+	b3Quat relQ = b3InvMulQuat( joint->frameA.q, quatB );
 	b3ComputePerpAxes( joint->frameA.q, relQ, &joint->perpAxisX, &joint->perpAxisY );
 
 	if ( context->enableWarmStarting == false )

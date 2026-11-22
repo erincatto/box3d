@@ -104,7 +104,13 @@ void b3PrepareParallelJoint( b3JointSim* base, b3StepContext* context )
 	joint->quatA = b3MulQuat( bodySimA->transform.q, base->localFrameA.q );
 	joint->quatB = b3MulQuat( bodySimB->transform.q, base->localFrameB.q );
 
-	b3Quat relQ = b3InvMulQuat( joint->quatA, joint->quatB );
+	b3Quat quatB = joint->quatB;
+	if ( b3DotQuat( joint->quatA, quatB ) < 0.0f )
+	{
+		quatB = b3NegateQuat( quatB );
+	}
+
+	b3Quat relQ = b3InvMulQuat( joint->quatA, quatB );
 
 	{
 		// These are needed for warm starting
