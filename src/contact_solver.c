@@ -906,131 +906,76 @@ void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int work
 	taskContext->hasHitEvents = hasHitEvents;
 }
 
-void b3PrepareContacts_Overflow( b3StepContext* context )
+static b3SolverBlock b3MakeOverflowBlock( int startIndex, int totalCount )
 {
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	B3_ASSERT( color->contacts.count <= UINT16_MAX );
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
-	{
-		return;
-	}
-
+	int count = b3MinInt( totalCount - startIndex, UINT16_MAX );
 	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
+		.startIndex = startIndex,
+		.count = (uint16_t)count,
 		.blockType = b3_overflowBlock,
 		.colorIndex = B3_OVERFLOW_INDEX,
 	};
+	return block;
+}
 
-	b3PrepareContacts_Mesh( block, context );
+void b3PrepareContacts_Overflow( b3StepContext* context )
+{
+	int count = context->graph->colors[B3_OVERFLOW_INDEX].contacts.count;
+	for ( int startIndex = 0; startIndex < count; startIndex += UINT16_MAX )
+	{
+		b3SolverBlock block = b3MakeOverflowBlock( startIndex, count );
+		b3PrepareContacts_Mesh( block, context );
+	}
 }
 
 void b3WarmStartContacts_Overflow( b3StepContext* context )
 {
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
+	int count = context->graph->colors[B3_OVERFLOW_INDEX].contacts.count;
+	for ( int startIndex = 0; startIndex < count; startIndex += UINT16_MAX )
 	{
-		return;
+		b3SolverBlock block = b3MakeOverflowBlock( startIndex, count );
+		b3WarmStartContacts_Mesh( block, context );
 	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3WarmStartContacts_Mesh( block, context );
 }
 
 void b3PushContacts_Overflow( b3StepContext* context )
 {
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
+	int count = context->graph->colors[B3_OVERFLOW_INDEX].contacts.count;
+	for ( int startIndex = 0; startIndex < count; startIndex += UINT16_MAX )
 	{
-		return;
+		b3SolverBlock block = b3MakeOverflowBlock( startIndex, count );
+		b3PushContacts_Mesh( block, context );
 	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3PushContacts_Mesh( block, context );
 }
 
 void b3SolveContacts_Overflow( b3StepContext* context )
 {
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
+	int count = context->graph->colors[B3_OVERFLOW_INDEX].contacts.count;
+	for ( int startIndex = 0; startIndex < count; startIndex += UINT16_MAX )
 	{
-		return;
+		b3SolverBlock block = b3MakeOverflowBlock( startIndex, count );
+		b3SolveContacts_Mesh( block, context );
 	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3SolveContacts_Mesh( block, context );
 }
 
 void b3ApplyRestitution_Overflow( b3StepContext* context )
 {
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
+	int count = context->graph->colors[B3_OVERFLOW_INDEX].contacts.count;
+	for ( int startIndex = 0; startIndex < count; startIndex += UINT16_MAX )
 	{
-		return;
+		b3SolverBlock block = b3MakeOverflowBlock( startIndex, count );
+		b3ApplyRestitution_Mesh( block, context );
 	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3ApplyRestitution_Mesh( block, context );
 }
 
 void b3StoreImpulses_Overflow( b3StepContext* context )
 {
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
+	int count = context->graph->colors[B3_OVERFLOW_INDEX].contacts.count;
+	for ( int startIndex = 0; startIndex < count; startIndex += UINT16_MAX )
 	{
-		return;
+		b3SolverBlock block = b3MakeOverflowBlock( startIndex, count );
+		b3StoreImpulses_Mesh( block, context, 0 );
 	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3StoreImpulses_Mesh( block, context, 0 );
 }
 
 void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
