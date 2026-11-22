@@ -2891,13 +2891,13 @@ typedef struct b3Manifold
 	/// The unit normal vector in world space, points from shape A to shape B
 	b3Vec3 normal;
 
-	/// Central friction angular impulse (applied about the normal)
+	/// Central friction angular impulse (applied about the normal). This is the result for the final internal sub-step.
 	float twistImpulse;
 
-	/// Central friction linear impulse
+	/// Central friction linear impulse. This is the result for the final internal sub-step.
 	b3Vec3 frictionImpulse;
 
-	/// Rolling resistance angular impulse
+	/// Rolling resistance angular impulse. This is the result for the final internal sub-step.
 	b3Vec3 rollingImpulse;
 
 	/// The number of contact points, will be 0 to 4
