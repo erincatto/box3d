@@ -1077,9 +1077,7 @@ typedef struct b3SphericalJointDef
 	/// The maximum motor torque, typically in newton-meters. Non-negative number.
 	float maxMotorTorque;
 
-	/// The desired motor angular velocity in radians per second. This is the relative angular
-	/// velocity between the two bodies in world space.
-	/// motorVelocity = angularVelocityB - angularVelocityA
+	/// The desired motor angular velocity in joint frame A in radians per second.
 	b3Vec3 motorVelocity;
 } b3SphericalJointDef;
 

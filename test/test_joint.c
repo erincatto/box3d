@@ -873,6 +873,50 @@ static int TestSphericalJoint( void )
 	return FinishJoint( jointId, f.worldId );
 }
 
+static int TestSphericalMotorFrame( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_kinematicBody;
+	bodyDef.angularVelocity = (b3Vec3){ 0.0f, 2.0f, 0.0f };
+	b3BodyId bodyIdA = b3CreateBody( worldId, &bodyDef );
+
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.angularVelocity = b3Vec3_zero;
+	b3BodyId bodyIdB = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeCubeHull( 0.5f );
+	b3CreateHullShape( bodyIdB, &shapeDef, &box.base );
+
+	b3Vec3 motorVelocity = { 1.0f, 0.0f, 0.0f };
+	b3SphericalJointDef jointDef = b3DefaultSphericalJointDef();
+	jointDef.base.bodyIdA = bodyIdA;
+	jointDef.base.bodyIdB = bodyIdB;
+	jointDef.enableMotor = true;
+	jointDef.maxMotorTorque = 1000.0f;
+	jointDef.motorVelocity = motorVelocity;
+	b3JointId jointId = b3CreateSphericalJoint( worldId, &jointDef );
+
+	for ( int i = 0; i < 120; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3Vec3 relativeVelocity = b3Sub( b3Body_GetAngularVelocity( bodyIdB ), b3Body_GetAngularVelocity( bodyIdA ) );
+	b3Vec3 localVelocity = b3InvRotateVector( b3Body_GetRotation( bodyIdA ), relativeVelocity );
+	ENSURE_SMALL( localVelocity.x - motorVelocity.x, 0.02f );
+	ENSURE_SMALL( localVelocity.y - motorVelocity.y, 0.02f );
+	ENSURE_SMALL( localVelocity.z - motorVelocity.z, 0.02f );
+
+	ENSURE( b3Joint_IsValid( jointId ) );
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 static int TestWeldJoint( void )
 {
 	JointFixture f = CreateJointFixture();
@@ -1251,6 +1295,7 @@ int JointTest( void )
 	RUN_SUBTEST( TestPrismaticJoint );
 	RUN_SUBTEST( TestRevoluteJoint );
 	RUN_SUBTEST( TestSphericalJoint );
+	RUN_SUBTEST( TestSphericalMotorFrame );
 	RUN_SUBTEST( TestWeldJoint );
 	RUN_SUBTEST( TestWheelJoint );
 	RUN_SUBTEST( TestConstraintForceAndTorque );

@@ -487,8 +487,9 @@ void b3SolveSphericalJoint( b3JointSim* base, b3StepContext* context, bool useBi
 
 		if ( joint->enableMotor )
 		{
-			// todo it might be more accurate to have the motor velocity in frameA due to sub-stepping.
-			b3Vec3 lambda = b3Neg( b3MulMV( joint->rotationMass, b3Sub( cdot, joint->motorVelocity ) ) );
+			// Motor velocity in joint frame A.
+			b3Vec3 motorVelocity = b3RotateVector( quatA, joint->motorVelocity );
+			b3Vec3 lambda = b3Neg( b3MulMV( joint->rotationMass, b3Sub( cdot, motorVelocity ) ) );
 			b3Vec3 newImpulse = b3Add( joint->motorImpulse, lambda );
 			float length = b3Length( newImpulse );
 			float maxImpulse = joint->maxMotorTorque * context->h;
