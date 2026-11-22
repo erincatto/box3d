@@ -714,7 +714,7 @@ public:
 			b3Body_TimeOfImpactMover( m_treeId, moverStart, &m_mover.m_capsule, moverTranslation,
 									  b3DefaultQueryFilter(), treeStart, treeEnd );
 
-		if ( toi.fraction > 0.0f )
+		if ( toi.fraction < 1.0f )
 		{
 			m_treeImpact = MakeImpact( m_treeId, &toi );
 		}
@@ -737,9 +737,7 @@ public:
 			b3Body_TimeOfImpactMover( m_fallingBoxId, moverStart, &m_mover.m_capsule,
 									  moverTranslation, b3DefaultQueryFilter(), boxStart, boxEnd );
 
-		// A zero fraction means the box was already resting against the mover, so keep the pose
-		// from the step that first reached it.
-		if ( toi.fraction > 0.0f )
+		if ( toi.fraction < 1.0f )
 		{
 			m_impactTransform.p = boxStart.p + toi.fraction * b3SubPos( boxEnd.p, boxStart.p );
 			m_impactTransform.q = b3NLerp( boxStart.q, boxEnd.q, toi.fraction );

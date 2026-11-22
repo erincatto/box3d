@@ -2054,7 +2054,7 @@ typedef struct b3BodyTOIResult
 	/// The hit normal. Points from the body to the mover.
 	b3Vec3 normal;
 
-	/// The sweep time of the collision.
+	/// The sweep time of the collision. Returns 1 for a miss.
 	float fraction;
 
 	/// The hit shape.
