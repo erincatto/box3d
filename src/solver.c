@@ -1734,15 +1734,6 @@ bool b3BeginSolve( b3World* world, b3StepContext* stepContext )
 			B3_ASSERT( jointBase == jointCount );
 		}
 
-		//// Special span for overflow to allow for function re-use
-		b3ContactPrepareSpan* overflowSpans = stepContext->overflowSpans;
-		overflowSpans[0].start = 0;
-		overflowSpans[0].count = overflow->contacts.count;
-		overflowSpans[0].contacts = overflow->contacts.data;
-		overflowSpans[1].start = overflow->contacts.count;
-		overflowSpans[1].count = 0;
-		overflowSpans[1].contacts = NULL;
-
 		int stageCount = 0;
 
 		// b3_stagePrepareJoints
