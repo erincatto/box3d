@@ -971,6 +971,39 @@ static int ShapeFlagsTest( void )
 	return 0;
 }
 
+// Issue 167
+static int ShapeApplyWindWakeTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.isAwake = false;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3BoxHull boxHull = b3MakeBoxHull( 0.25f, 0.25f, 0.25f );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3ShapeId shapeId = b3CreateHullShape( bodyId, &shapeDef, &boxHull.base );
+
+	ENSURE( b3Body_IsAwake( bodyId ) == false );
+
+	b3Shape_ApplyWind( shapeId, (b3Vec3){ 20.0f, 0.0f, 0.0f }, 1.0f, 0.0f, 100.0f, false );
+	ENSURE( b3Body_IsAwake( bodyId ) == false );
+
+	b3Shape_ApplyWind( shapeId, (b3Vec3){ 20.0f, 0.0f, 0.0f }, 1.0f, 0.0f, 100.0f, true );
+	ENSURE( b3Body_IsAwake( bodyId ) );
+
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	b3Vec3 v = b3Body_GetLinearVelocity( bodyId );
+	ENSURE( v.x > 0.0f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int ShapeTest( void )
 {
 	box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
@@ -979,6 +1012,7 @@ int ShapeTest( void )
 	RUN_SUBTEST( ShapeAABBTest );
 	RUN_SUBTEST( ShapeNameTest );
 	RUN_SUBTEST( ShapeFlagsTest );
+	RUN_SUBTEST( ShapeApplyWindWakeTest );
 	// RUN_SUBTEST( PointInShapeTest );
 	RUN_SUBTEST( RayCastShapeTest );
 
