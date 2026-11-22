@@ -84,7 +84,9 @@ float b3PrismaticJoint_GetUpperLimit( b3JointId jointId )
 
 void b3PrismaticJoint_SetLimits( b3JointId jointId, float lower, float upper )
 {
-	B3_ASSERT( b3IsValidFloat( lower ) && b3IsValidFloat( upper ) );
+	B3_CHECK_INPUT( b3IsValidFloat( lower ) );
+	B3_CHECK_INPUT( b3IsValidFloat( upper ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, PrismaticJointSetLimits, jointId, lower, upper );
 	float lowerAngle = b3MinFloat( lower, upper );
@@ -132,7 +134,8 @@ bool b3PrismaticJoint_IsSpringEnabled( b3JointId jointId )
 
 void b3PrismaticJoint_SetTargetTranslation( b3JointId jointId, float targetTranslation )
 {
-	B3_ASSERT( b3IsValidFloat( targetTranslation ) );
+	B3_CHECK_INPUT( b3IsValidFloat( targetTranslation ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, PrismaticJointSetTargetTranslation, jointId, targetTranslation );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
@@ -147,7 +150,8 @@ float b3PrismaticJoint_GetTargetTranslation( b3JointId jointId )
 
 void b3PrismaticJoint_SetSpringHertz( b3JointId jointId, float hertz )
 {
-	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, PrismaticJointSetSpringHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
@@ -162,7 +166,8 @@ float b3PrismaticJoint_GetSpringHertz( b3JointId jointId )
 
 void b3PrismaticJoint_SetSpringDampingRatio( b3JointId jointId, float dampingRatio )
 {
-	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, PrismaticJointSetSpringDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
@@ -195,7 +200,8 @@ bool b3PrismaticJoint_IsMotorEnabled( b3JointId jointId )
 
 void b3PrismaticJoint_SetMotorSpeed( b3JointId jointId, float motorSpeed )
 {
-	B3_ASSERT( b3IsValidFloat( motorSpeed ) );
+	B3_CHECK_INPUT( b3IsValidFloat( motorSpeed ) );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, PrismaticJointSetMotorSpeed, jointId, motorSpeed );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
@@ -210,7 +216,8 @@ float b3PrismaticJoint_GetMotorSpeed( b3JointId jointId )
 
 void b3PrismaticJoint_SetMaxMotorForce( b3JointId jointId, float maxForce )
 {
-	B3_ASSERT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, PrismaticJointSetMaxMotorForce, jointId, maxForce );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_prismaticJoint );
@@ -271,9 +278,9 @@ b3Vec3 b3GetPrismaticJointForce( b3World* world, b3JointSim* base )
 
 	// impulse in joint space
 	b3Vec3 impulse = {
+		joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse + joint->springImpulse,
 		joint->perpImpulse.x,
 		joint->perpImpulse.y,
-		joint->motorImpulse + joint->lowerImpulse + joint->upperImpulse + joint->springImpulse,
 	};
 
 	// convert impulse to force
@@ -289,13 +296,7 @@ b3Vec3 b3GetPrismaticJointForce( b3World* world, b3JointSim* base )
 
 b3Vec3 b3GetPrismaticJointTorque( b3World* world, b3JointSim* base )
 {
-	b3WorldTransform transformA = b3GetBodyTransform( world, base->bodyIdA );
-	b3PrismaticJoint* joint = &base->prismaticJoint;
-
-	b3Vec3 torque = b3MulSV( world->inv_h, joint->angularImpulse );
-	torque = b3RotateVector( base->localFrameA.q, torque );
-	torque = b3RotateVector( transformA.q, torque );
-	return torque;
+	return b3MulSV( world->inv_h, base->prismaticJoint.angularImpulse );
 }
 
 void b3PreparePrismaticJoint( b3JointSim* base, b3StepContext* context )
@@ -354,6 +355,10 @@ void b3PreparePrismaticJoint( b3JointSim* base, b3StepContext* context )
 		joint->springImpulse = 0.0f;
 		joint->lowerImpulse = 0.0f;
 		joint->upperImpulse = 0.0f;
+	}
+	else if ( base->fixedRotation )
+	{
+		joint->angularImpulse = b3Vec3_zero;
 	}
 }
 
@@ -457,7 +462,7 @@ void b3SolvePrismaticJoint( b3JointSim* base, b3StepContext* context, bool useBi
 	float axialMass = ka > 0.0f ? 1.0f / ka : 0.0f;
 
 	// Solve spring
-	if ( joint->enableSpring && fixedRotation == false )
+	if ( joint->enableSpring )
 	{
 		// Get the substep relative rotation
 		float c = jointTranslation - targetTranslation;
@@ -481,7 +486,7 @@ void b3SolvePrismaticJoint( b3JointSim* base, b3StepContext* context, bool useBi
 		wB = b3Add( wB, b3MulMV( iB, LB ) );
 	}
 
-	if ( joint->enableMotor && fixedRotation == false )
+	if ( joint->enableMotor )
 	{
 		b3Vec3 vRel = b3Sub( b3Sub( b3Add( vB, b3Cross( wB, rB ) ), vA ), b3Cross( wA, b3Add( rA, d ) ) );
 		float cdot = b3Dot( vRel, jointAxis ) - joint->motorSpeed;
@@ -503,7 +508,7 @@ void b3SolvePrismaticJoint( b3JointSim* base, b3StepContext* context, bool useBi
 		wB = b3Add( wB, b3MulMV( iB, LB ) );
 	}
 
-	if ( joint->enableLimit && fixedRotation == false )
+	if ( joint->enableLimit )
 	{
 		float speculativeDistance = 0.25f * ( joint->upperTranslation - joint->lowerTranslation );
 

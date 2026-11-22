@@ -652,9 +652,7 @@ void LaunchGhostBody( b3WorldId worldId, GhostCollisionsData* data )
 		bodyDef.linearVelocity = (b3Vec3){ settings->speed * d.x, settings->speed * d.y, 0.0f };
 	}
 
-	bodyDef.motionLocks.angularX = settings->fixedRotation;
-	bodyDef.motionLocks.angularY = settings->fixedRotation;
-	bodyDef.motionLocks.angularZ = settings->fixedRotation;
+	bodyDef.fixedRotation = settings->fixedRotation;
 	bodyDef.enableSleep = false;
 	bodyDef.name = "slider";
 	data->bodyId = b3CreateBody( worldId, &bodyDef );

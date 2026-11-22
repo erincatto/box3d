@@ -68,7 +68,7 @@ B3_REC_OP( 0x32, BodyEnableSleep, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag 
 B3_REC_OP( 0x33, BodySetSleepThreshold, RET_NONE, ARG( BODYID, body ) ARG( F32, threshold ) )
 B3_REC_OP( 0x34, BodyDisable, RET_NONE, ARG( BODYID, body ) )
 B3_REC_OP( 0x35, BodyEnable, RET_NONE, ARG( BODYID, body ) )
-B3_REC_OP( 0x36, BodySetMotionLocks, RET_NONE, ARG( BODYID, body ) ARG( LOCKS, locks ) )
+B3_REC_OP( 0x36, BodySetFixedRotation, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag ) )
 B3_REC_OP( 0x37, BodySetBullet, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag ) )
 B3_REC_OP( 0x38, BodyEnableContactRecycling, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag ) )
 B3_REC_OP( 0x39, BodyEnableHitEvents, RET_NONE, ARG( BODYID, body ) ARG( BOOL, flag ) )
@@ -225,6 +225,10 @@ B3_REC_OP( 0x87, PogoJointSetSpringDampingRatio, RET_NONE, ARG( JOINTID, joint )
 B3_REC_OP( 0x88, PogoJointSetMaxTensionForce, RET_NONE, ARG( JOINTID, joint ) ARG( F32, force ) )
 B3_REC_OP( 0x89, PogoJointSetMaxCompressionForce, RET_NONE, ARG( JOINTID, joint ) ARG( F32, force ) )
 B3_REC_OP( 0x8A, PogoJointSetNormal, RET_NONE, ARG( JOINTID, joint ) ARG( VEC3, normal ) )
+
+B3_REC_OP( 0x8B, CreateMotionLockJoint, RET_JOINTID, ARG( WORLDID, world ) ARG( MOTIONLOCKJOINTDEF, def ) )
+B3_REC_OP( 0x8C, MotionLockJointEnableLinearLock, RET_NONE, ARG( JOINTID, joint ) ARG( I32, axis ) ARG( BOOL, flag ) )
+B3_REC_OP( 0x8D, MotionLockJointEnableAngularLock, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, flag ) )
 
 // Spatial queries. Inputs flow through the manifest (reader side). The hit tail and result are
 // hand-written in recording.c / recording_replay.c since they are variable length.

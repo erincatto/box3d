@@ -13,7 +13,8 @@
 
 void b3WeldJoint_SetLinearHertz( b3JointId jointId, float hertz )
 {
-	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, WeldJointSetLinearHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_weldJoint );
@@ -28,7 +29,8 @@ float b3WeldJoint_GetLinearHertz( b3JointId jointId )
 
 void b3WeldJoint_SetLinearDampingRatio( b3JointId jointId, float dampingRatio )
 {
-	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, WeldJointSetLinearDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_weldJoint );
@@ -43,7 +45,8 @@ float b3WeldJoint_GetLinearDampingRatio( b3JointId jointId )
 
 void b3WeldJoint_SetAngularHertz( b3JointId jointId, float hertz )
 {
-	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, WeldJointSetAngularHertz, jointId, hertz );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_weldJoint );
@@ -58,7 +61,8 @@ float b3WeldJoint_GetAngularHertz( b3JointId jointId )
 
 void b3WeldJoint_SetAngularDampingRatio( b3JointId jointId, float dampingRatio )
 {
-	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+
 	b3World* world = b3GetWorld( jointId.world0 );
 	B3_REC( world, WeldJointSetAngularDampingRatio, jointId, dampingRatio );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_weldJoint );
@@ -143,6 +147,10 @@ void b3PrepareWeldJoint( b3JointSim* base, b3StepContext* context )
 	if ( context->enableWarmStarting == false )
 	{
 		joint->linearImpulse = b3Vec3_zero;
+		joint->angularImpulse = b3Vec3_zero;
+	}
+	else if ( base->fixedRotation )
+	{
 		joint->angularImpulse = b3Vec3_zero;
 	}
 }

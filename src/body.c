@@ -177,15 +177,15 @@ static void b3DestroyBodyContacts( b3World* world, b3Body* body, bool wakeBodies
 b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 {
 	B3_CHECK_DEF( def );
-	B3_ASSERT( b3IsValidPosition( def->position ) );
-	B3_ASSERT( b3IsValidQuat( def->rotation ) );
-	B3_ASSERT( b3IsValidVec3( def->linearVelocity ) );
-	B3_ASSERT( b3IsValidVec3( def->angularVelocity ) );
-	B3_ASSERT( b3IsValidFloat( def->linearDamping ) && def->linearDamping >= 0.0f );
-	B3_ASSERT( b3IsValidFloat( def->angularDamping ) && def->angularDamping >= 0.0f );
-	B3_ASSERT( b3IsValidFloat( def->sleepThreshold ) && def->sleepThreshold >= 0.0f );
-	B3_ASSERT( b3IsValidFloat( def->safetyFactor ) && def->safetyFactor >= 0.0f );
-	B3_ASSERT( b3IsValidFloat( def->gravityScale ) );
+	B3_CHECK_INPUT_RETURN( b3IsValidPosition( def->position ), b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidQuat( def->rotation ), b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidVec3( def->linearVelocity ), b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidVec3( def->angularVelocity ), b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->linearDamping ) && def->linearDamping >= 0.0f, b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->angularDamping ) && def->angularDamping >= 0.0f, b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->sleepThreshold ) && def->sleepThreshold >= 0.0f, b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->safetyFactor ) && def->safetyFactor >= 0.0f, b3_nullBodyId );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->gravityScale ), b3_nullBodyId );
 
 	b3World* world = b3GetUnlockedWorldFromId( worldId );
 
@@ -234,14 +234,6 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 
 	int bodyId = b3AllocId( &world->bodyIdPool );
 
-	uint32_t lockFlags = 0;
-	lockFlags |= def->motionLocks.linearX ? b3_lockLinearX : 0;
-	lockFlags |= def->motionLocks.linearY ? b3_lockLinearY : 0;
-	lockFlags |= def->motionLocks.linearZ ? b3_lockLinearZ : 0;
-	lockFlags |= def->motionLocks.angularX ? b3_lockAngularX : 0;
-	lockFlags |= def->motionLocks.angularY ? b3_lockAngularY : 0;
-	lockFlags |= def->motionLocks.angularZ ? b3_lockAngularZ : 0;
-
 	b3SolverSet* set = b3GetSolverSet( world, setId );
 	b3BodySim* bodySim = b3Array_Emplace( set->bodySims );
 	*bodySim = (b3BodySim){ 0 };
@@ -262,7 +254,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 	bodySim->angularDamping = def->angularDamping;
 	bodySim->gravityScale = def->gravityScale;
 	bodySim->bodyId = bodyId;
-	bodySim->flags = lockFlags;
+	bodySim->flags = def->fixedRotation ? b3_fixedRotation : 0;
 	bodySim->flags |= def->isBullet ? b3_isBullet : 0;
 	bodySim->flags |= def->allowFastRotation ? b3_allowFastRotation : 0;
 	bodySim->flags |= def->type == b3_dynamicBody ? b3_dynamicFlag : 0;
@@ -275,7 +267,7 @@ b3BodyId b3CreateBody( b3WorldId worldId, const b3BodyDef* def )
 
 		*bodyState = (b3BodyState){ 0 };
 		bodyState->linearVelocity = def->linearVelocity;
-		bodyState->angularVelocity = def->angularVelocity;
+		bodyState->angularVelocity = def->fixedRotation ? b3Vec3_zero : def->angularVelocity;
 		bodyState->deltaRotation = b3Quat_identity;
 		bodyState->flags = bodySim->flags;
 	}
@@ -500,7 +492,8 @@ int b3Body_GetContactData( b3BodyId bodyId, b3ContactData* contactData, int capa
 			b3Shape* shapeA = b3Array_Get( world->shapes, contact->shapeIdA );
 			b3Shape* shapeB = b3Array_Get( world->shapes, contact->shapeIdB );
 
-			contactData[index].contactId = (b3ContactId){ contact->contactId + 1, bodyId.world0, 0, contact->generation };
+			contactData[index].contactId =
+				(b3ContactId){ contact->contactId + 1, bodyId.world0, 0, contact->generation };
 			contactData[index].shapeIdA = (b3ShapeId){ shapeA->id + 1, bodyId.world0, shapeA->generation };
 			contactData[index].shapeIdB = (b3ShapeId){ shapeB->id + 1, bodyId.world0, shapeB->generation };
 			contactData[index].manifolds = contact->manifolds;
@@ -593,8 +586,8 @@ float b3Body_GetClosestPoint( b3BodyId bodyId, b3Vec3* result, b3Vec3 target )
 	return closestDistance;
 }
 
-b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter, float maxFraction,
-								 b3WorldTransform bodyTransform )
+b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translation, b3QueryFilter filter,
+								 float maxFraction, b3WorldTransform bodyTransform )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -660,7 +653,8 @@ b3BodyCastResult b3Body_CastRay( b3BodyId bodyId, b3Pos origin, b3Vec3 translati
 }
 
 b3BodyCastResult b3Body_CastShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* proxy, b3Vec3 translation,
-								   b3QueryFilter filter, float maxFraction, bool canEncroach, b3WorldTransform bodyTransform )
+								   b3QueryFilter filter, float maxFraction, bool canEncroach,
+								   b3WorldTransform bodyTransform )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -757,8 +751,8 @@ bool b3Body_OverlapShape( b3BodyId bodyId, b3Pos origin, const b3ShapeProxy* pro
 	return false;
 }
 
-int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin, const b3Capsule* mover,
-						 b3QueryFilter filter, b3WorldTransform bodyTransform )
+int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int planeCapacity, b3Pos origin,
+						 const b3Capsule* mover, b3QueryFilter filter, b3WorldTransform bodyTransform )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -811,8 +805,9 @@ int b3Body_CollideMover( b3BodyId bodyId, b3BodyPlaneResult* bodyPlanes, int pla
 	return resultCount;
 }
 
-b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover, b3Vec3 moverTranslation,
-										  b3QueryFilter filter, b3WorldTransform bodyTransform1, b3WorldTransform bodyTransform2 )
+b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b3Capsule* mover,
+										  b3Vec3 moverTranslation, b3QueryFilter filter,
+										  b3WorldTransform bodyTransform1, b3WorldTransform bodyTransform2 )
 {
 	b3BodyTOIResult result = { 0 };
 	result.fraction = 1.0f;
@@ -874,7 +869,7 @@ b3BodyTOIResult b3Body_TimeOfImpactMover( b3BodyId bodyId, b3Pos origin, const b
 		B3_VALIDATE( output.state != b3_toiStateUnknown );
 
 		// Mimic behavior in b3ContinuousQueryCallback. Ignore shapes that initially overlap.
-		if (0.0f < output.fraction && output.fraction < result.fraction)
+		if ( 0.0f < output.fraction && output.fraction < result.fraction )
 		{
 			input.maxFraction = output.fraction;
 
@@ -911,7 +906,8 @@ static void b3UpdateIsotropicInertia( b3World* world, b3Body* body, b3BodySim* b
 
 	float tolerance = world->isotropicInertiaTolerance;
 
-	if ( 2.0f * deviation > 3.0f * tolerance * tolerance * mean * mean )
+	bool fixedRotation = ( body->flags & b3_fixedRotation ) != 0;
+	if ( fixedRotation == false && 2.0f * deviation > 3.0f * tolerance * tolerance * mean * mean )
 	{
 		body->flags |= b3_enableGyroscopicTorque;
 	}
@@ -921,6 +917,27 @@ static void b3UpdateIsotropicInertia( b3World* world, b3Body* body, b3BodySim* b
 	}
 
 	b3SyncBodyFlags( world, body );
+}
+
+static void b3UpdateInverseInertia( b3BodySim* bodySim )
+{
+	float det = b3Det( bodySim->inertia );
+	B3_ASSERT( det >= 0.0f );
+
+	if ( det > 0.0f && ( bodySim->flags & b3_fixedRotation ) == 0 )
+	{
+		// This call is faster than b3Invert
+		bodySim->invInertiaLocal = b3InvertT( bodySim->inertia );
+
+		b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
+		bodySim->invInertiaWorld =
+			b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
+	}
+	else
+	{
+		bodySim->invInertiaLocal = b3Mat3_zero;
+		bodySim->invInertiaWorld = b3Mat3_zero;
+	}
 }
 
 void b3UpdateBodyMassData( b3World* world, b3Body* body )
@@ -1024,17 +1041,7 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 	b3StackFree( &world->stack, masses );
 	masses = NULL;
 
-	float det = b3Det( bodySim->inertia );
-	B3_ASSERT( det >= 0.0f );
-
-	if ( det > 0.0f )
-	{
-		// This call is faster than b3Invert
-		bodySim->invInertiaLocal = b3InvertT( bodySim->inertia );
-
-		b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
-		bodySim->invInertiaWorld = b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
-	}
+	b3UpdateInverseInertia( bodySim );
 
 	// Move center of mass.
 	b3Pos oldCenter = bodySim->center;
@@ -1074,14 +1081,6 @@ void b3UpdateBodyMassData( b3World* world, b3Body* body )
 		contact->flags &= ~b3_relativeTransformValid;
 
 		edgeKey = contact->edges[edgeIndex].nextKey;
-	}
-
-	// Apply fixed rotation
-	if ( ( bodySim->flags & b3_fixedRotation ) == b3_fixedRotation )
-	{
-		bodySim->inertia = b3Mat3_zero;
-		bodySim->invInertiaLocal = b3Mat3_zero;
-		bodySim->invInertiaWorld = b3Mat3_zero;
 	}
 
 	b3UpdateIsotropicInertia( world, body, bodySim );
@@ -1144,8 +1143,8 @@ b3Vec3 b3Body_GetWorldVector( b3BodyId bodyId, b3Vec3 localVector )
 
 void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation )
 {
-	B3_ASSERT( b3IsValidPosition( position ) );
-	B3_ASSERT( b3IsValidQuat( rotation ) );
+	B3_CHECK_INPUT( b3IsValidPosition( position ) );
+	B3_CHECK_INPUT( b3IsValidQuat( rotation ) );
 	B3_ASSERT( b3Body_IsValid( bodyId ) );
 	b3World* world = b3GetWorld( bodyId.world0 );
 	B3_ASSERT( world->locked == false );
@@ -1160,7 +1159,8 @@ void b3Body_SetTransform( b3BodyId bodyId, b3Pos position, b3Quat rotation )
 	bodySim->center = b3TransformWorldPoint( bodySim->transform, bodySim->localCenter );
 
 	b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
-	bodySim->invInertiaWorld = b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
+	bodySim->invInertiaWorld =
+		b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
 
 	bodySim->rotation0 = bodySim->transform.q;
 	bodySim->center0 = bodySim->center;
@@ -1220,7 +1220,7 @@ b3Vec3 b3Body_GetAngularVelocity( b3BodyId bodyId )
 
 void b3Body_SetLinearVelocity( b3BodyId bodyId, b3Vec3 linearVelocity )
 {
-	B3_ASSERT( b3IsValidVec3( linearVelocity ) );
+	B3_CHECK_INPUT( b3IsValidVec3( linearVelocity ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1249,7 +1249,7 @@ void b3Body_SetLinearVelocity( b3BodyId bodyId, b3Vec3 linearVelocity )
 
 void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 {
-	B3_ASSERT( b3IsValidVec3( angularVelocity ) );
+	B3_CHECK_INPUT( b3IsValidVec3( angularVelocity ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1262,11 +1262,7 @@ void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 		return;
 	}
 
-	// Apply locks to avoid waking
-	b3Vec3 w;
-	w.x = ( body->flags & b3_lockAngularX ) ? 0.0f : angularVelocity.x;
-	w.y = ( body->flags & b3_lockAngularY ) ? 0.0f : angularVelocity.y;
-	w.z = ( body->flags & b3_lockAngularZ ) ? 0.0f : angularVelocity.z;
+	b3Vec3 w = ( body->flags & b3_fixedRotation ) ? b3Vec3_zero : angularVelocity;
 
 	if ( b3LengthSquared( w ) != 0.0f )
 	{
@@ -1284,7 +1280,8 @@ void b3Body_SetAngularVelocity( b3BodyId bodyId, b3Vec3 angularVelocity )
 
 void b3Body_SetTargetTransform( b3BodyId bodyId, b3WorldTransform target, float timeStep, bool wake )
 {
-	B3_ASSERT( b3IsValidWorldTransform( target ) );
+	B3_CHECK_INPUT( b3IsValidWorldTransform( target ) );
+	B3_CHECK_INPUT( b3IsValidFloat( timeStep ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1331,6 +1328,11 @@ void b3Body_SetTargetTransform( b3BodyId bodyId, b3WorldTransform target, float 
 	b3Quat dq = { b3Sub( q2.v, q1.v ), q2.s - q1.s };
 	b3Quat omega = b3MulQuat( dq, b3Conjugate( q1 ) );
 	b3Vec3 angularVelocity = b3MulSV( 2.0f * invTimeStep, omega.v );
+
+	if ( body->flags & b3_fixedRotation )
+	{
+		angularVelocity = b3Vec3_zero;
+	}
 
 	// Early out if the body is asleep already and the desired movement is small
 	if ( body->setIndex != b3_awakeSet )
@@ -1392,11 +1394,12 @@ b3Vec3 b3Body_GetWorldPointVelocity( b3BodyId bodyId, b3Pos worldPoint )
 
 void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Pos point, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( force ) );
+	B3_CHECK_INPUT( b3IsValidVec3( force ) );
+	B3_CHECK_INPUT( b3IsValidPosition( point ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
-	B3_REC( world, BodyApplyForce, bodyId, force, point, wake );
+	B3_REC( world, BodyApplyForce,bodyId, force, point, wake );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
 
@@ -1415,7 +1418,7 @@ void b3Body_ApplyForce( b3BodyId bodyId, b3Vec3 force, b3Pos point, bool wake )
 
 void b3Body_ApplyForceToCenter( b3BodyId bodyId, b3Vec3 force, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( force ) );
+	B3_CHECK_INPUT( b3IsValidVec3( force ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1437,7 +1440,7 @@ void b3Body_ApplyForceToCenter( b3BodyId bodyId, b3Vec3 force, bool wake )
 
 void b3Body_ApplyTorque( b3BodyId bodyId, b3Vec3 torque, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( torque ) );
+	B3_CHECK_INPUT( b3IsValidVec3( torque ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1459,8 +1462,8 @@ void b3Body_ApplyTorque( b3BodyId bodyId, b3Vec3 torque, bool wake )
 
 void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Pos point, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( impulse ) );
-	B3_ASSERT( b3IsValidPosition( point ) );
+	B3_CHECK_INPUT( b3IsValidVec3( impulse ) );
+	B3_CHECK_INPUT( b3IsValidPosition( point ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1495,7 +1498,7 @@ void b3Body_ApplyLinearImpulse( b3BodyId bodyId, b3Vec3 impulse, b3Pos point, bo
 
 void b3Body_ApplyLinearImpulseToCenter( b3BodyId bodyId, b3Vec3 impulse, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( impulse ) );
+	B3_CHECK_INPUT( b3IsValidVec3( impulse ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
 
@@ -1526,7 +1529,7 @@ void b3Body_ApplyLinearImpulseToCenter( b3BodyId bodyId, b3Vec3 impulse, bool wa
 
 void b3Body_ApplyAngularImpulse( b3BodyId bodyId, b3Vec3 impulse, bool wake )
 {
-	B3_ASSERT( b3IsValidVec3( impulse ) );
+	B3_CHECK_INPUT( b3IsValidVec3( impulse ) );
 	B3_ASSERT( b3Body_IsValid( bodyId ) );
 
 	b3World* world = b3GetWorld( bodyId.world0 );
@@ -1889,9 +1892,9 @@ b3Pos b3Body_GetWorldCenter( b3BodyId bodyId )
 
 void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 {
-	B3_ASSERT( b3IsValidFloat( massData.mass ) && massData.mass >= 0.0f );
-	B3_ASSERT( b3IsValidMatrix3( massData.inertia ) );
-	B3_ASSERT( b3IsValidVec3( massData.center ) );
+	B3_CHECK_INPUT( b3IsValidFloat( massData.mass ) && massData.mass >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidMatrix3( massData.inertia ) );
+	B3_CHECK_INPUT( b3IsValidVec3( massData.center ) );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -1926,31 +1929,7 @@ void b3Body_SetMassData( b3BodyId bodyId, b3MassData massData )
 		state->linearVelocity = b3Add( state->linearVelocity, deltaLinear );
 	}
 
-	float det = b3Det( bodySim->inertia );
-	B3_ASSERT( det >= 0.0f );
-
-	if ( det > 0.0f )
-	{
-		// This call is faster than b3Invert
-		bodySim->invInertiaLocal = b3InvertT( bodySim->inertia );
-
-		b3Matrix3 rotationMatrix = b3MakeMatrixFromQuat( bodySim->transform.q );
-		bodySim->invInertiaWorld = b3MulMM( b3MulMM( rotationMatrix, bodySim->invInertiaLocal ), b3Transpose( rotationMatrix ) );
-	}
-	else
-	{
-		bodySim->invInertiaLocal = b3Mat3_zero;
-		bodySim->invInertiaWorld = b3Mat3_zero;
-	}
-
-	// Apply fixed rotation
-	if ( ( bodySim->flags & b3_fixedRotation ) == b3_fixedRotation )
-	{
-		bodySim->inertia = b3Mat3_zero;
-		bodySim->invInertiaLocal = b3Mat3_zero;
-		bodySim->invInertiaWorld = b3Mat3_zero;
-	}
-
+	b3UpdateInverseInertia( bodySim );
 	b3UpdateIsotropicInertia( world, body, bodySim );
 
 	// Update extents using supplied mass center.
@@ -2005,7 +1984,7 @@ void b3Body_ApplyMassFromShapes( b3BodyId bodyId )
 
 void b3Body_SetLinearDamping( b3BodyId bodyId, float linearDamping )
 {
-	B3_ASSERT( b3IsValidFloat( linearDamping ) && linearDamping >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( linearDamping ) && linearDamping >= 0.0f );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2030,7 +2009,7 @@ float b3Body_GetLinearDamping( b3BodyId bodyId )
 
 void b3Body_SetAngularDamping( b3BodyId bodyId, float angularDamping )
 {
-	B3_ASSERT( b3IsValidFloat( angularDamping ) && angularDamping >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( angularDamping ) && angularDamping >= 0.0f );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2056,7 +2035,7 @@ float b3Body_GetAngularDamping( b3BodyId bodyId )
 void b3Body_SetGravityScale( b3BodyId bodyId, float gravityScale )
 {
 	B3_ASSERT( b3Body_IsValid( bodyId ) );
-	B3_ASSERT( b3IsValidFloat( gravityScale ) );
+	B3_CHECK_INPUT( b3IsValidFloat( gravityScale ) );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2136,6 +2115,8 @@ bool b3Body_IsSleepEnabled( b3BodyId bodyId )
 
 void b3Body_SetSleepThreshold( b3BodyId bodyId, float sleepThreshold )
 {
+	B3_CHECK_INPUT( b3IsValidFloat( sleepThreshold ) && sleepThreshold >= 0.0f );
+
 	b3World* world = b3GetWorld( bodyId.world0 );
 
 	B3_REC( world, BodySetSleepThreshold, bodyId, sleepThreshold );
@@ -2153,7 +2134,7 @@ float b3Body_GetSleepThreshold( b3BodyId bodyId )
 
 void b3Body_SetSafetyFactor( b3BodyId bodyId, float safetyFactor )
 {
-	B3_ASSERT( b3IsValidFloat( safetyFactor ) && safetyFactor >= 0.0f );
+	B3_CHECK_INPUT( b3IsValidFloat( safetyFactor ) && safetyFactor >= 0.0f );
 
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2253,7 +2234,8 @@ void b3Body_Disable( b3BodyId bodyId )
 			continue;
 		}
 
-		B3_ASSERT( joint->setIndex == set->setIndex || set->setIndex == b3_staticSet || joint->setIndex == b3_staticSet );
+		B3_ASSERT( joint->setIndex == set->setIndex || set->setIndex == b3_staticSet ||
+				   joint->setIndex == b3_staticSet );
 
 		// Remove joint from island
 		b3UnlinkJoint( world, joint );
@@ -2376,7 +2358,7 @@ void b3Body_Enable( b3BodyId bodyId )
 	b3ValidateSolverSets( world );
 }
 
-void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks )
+void b3Body_SetFixedRotation( b3BodyId bodyId, bool flag )
 {
 	b3World* world = b3GetUnlockedWorld( bodyId.world0 );
 	if ( world == NULL )
@@ -2384,84 +2366,42 @@ void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks )
 		return;
 	}
 
-	B3_REC( world, BodySetMotionLocks, bodyId, locks );
-
-	uint32_t newLocks = 0;
-	newLocks |= locks.linearX ? b3_lockLinearX : 0;
-	newLocks |= locks.linearY ? b3_lockLinearY : 0;
-	newLocks |= locks.linearZ ? b3_lockLinearZ : 0;
-	newLocks |= locks.angularX ? b3_lockAngularX : 0;
-	newLocks |= locks.angularY ? b3_lockAngularY : 0;
-	newLocks |= locks.angularZ ? b3_lockAngularZ : 0;
+	B3_REC( world, BodySetFixedRotation, bodyId, flag );
 
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-	if ( ( body->flags & b3_allLocks ) == newLocks )
+	bool fixedRotation = ( body->flags & b3_fixedRotation ) != 0;
+	if ( fixedRotation == flag )
 	{
 		return;
 	}
 
-	bool fixedRotation1 = ( body->flags & b3_fixedRotation ) == b3_fixedRotation;
-	bool fixedRotation2 = ( newLocks & b3_fixedRotation ) == b3_fixedRotation;
-
-	body->flags &= ~b3_allLocks;
-	body->flags |= newLocks;
+	if ( flag )
+	{
+		body->flags |= b3_fixedRotation;
+	}
+	else
+	{
+		body->flags &= ~b3_fixedRotation;
+	}
 
 	b3SyncBodyFlags( world, body );
 
 	b3BodyState* state = b3GetBodyState( world, body );
-
-	if ( state != NULL )
+	if ( state != NULL && flag )
 	{
-		if ( locks.linearX )
-		{
-			state->linearVelocity.x = 0.0f;
-		}
-
-		if ( locks.linearY )
-		{
-			state->linearVelocity.y = 0.0f;
-		}
-
-		if ( locks.linearZ )
-		{
-			state->linearVelocity.z = 0.0f;
-		}
-
-		if ( locks.angularX )
-		{
-			state->angularVelocity.x = 0.0f;
-		}
-
-		if ( locks.angularY )
-		{
-			state->angularVelocity.y = 0.0f;
-		}
-
-		if ( locks.angularZ )
-		{
-			state->angularVelocity.z = 0.0f;
-		}
+		state->angularVelocity = b3Vec3_zero;
 	}
 
-	if ( fixedRotation1 != fixedRotation2 )
-	{
-		b3UpdateBodyMassData( world, body );
-	}
+	b3BodySim* bodySim = b3GetBodySim( world, body );
+	b3UpdateInverseInertia( bodySim );
+	b3UpdateIsotropicInertia( world, body, bodySim );
 }
 
-b3MotionLocks b3Body_GetMotionLocks( b3BodyId bodyId )
+bool b3Body_IsFixedRotation( b3BodyId bodyId )
 {
 	b3World* world = b3GetWorld( bodyId.world0 );
 	b3Body* body = b3GetBodyFullId( world, bodyId );
-
-	b3MotionLocks locks;
-	locks.linearX = ( body->flags & b3_lockLinearX );
-	locks.linearY = ( body->flags & b3_lockLinearY );
-	locks.linearZ = ( body->flags & b3_lockLinearZ );
-	locks.angularX = ( body->flags & b3_lockAngularX );
-	locks.angularY = ( body->flags & b3_lockAngularY );
-	locks.angularZ = ( body->flags & b3_lockAngularZ );
-	return locks;
+	return ( body->flags & b3_fixedRotation ) != 0;
 }
 
 void b3Body_SetBullet( b3BodyId bodyId, bool flag )

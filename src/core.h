@@ -150,6 +150,31 @@ typedef struct b3AtomicI64
 #define B3_CHECK_DEF( DEF ) B3_ASSERT( DEF->internalValue == B3_SECRET_COOKIE )
 #define B3_CHECK_JOINT_DEF( DEF ) B3_ASSERT( DEF->base.internalValue == B3_SECRET_COOKIE )
 
+// Skip bad input even in release builds.
+#define B3_CHECK_INPUT( CONDITION )                                                                                              \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		if ( ( CONDITION ) == false )                                                                                            \
+		{                                                                                                                        \
+			b3Log( "invalid input: %s in %s\n", #CONDITION, __func__ );                                                          \
+			B3_ASSERT( CONDITION );                                                                                              \
+			return;                                                                                                              \
+		}                                                                                                                        \
+	}                                                                                                                            \
+	while ( 0 )
+
+#define B3_CHECK_INPUT_RETURN( CONDITION, RESULT )                                                                               \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		if ( ( CONDITION ) == false )                                                                                            \
+		{                                                                                                                        \
+			b3Log( "invalid input: %s in %s\n", #CONDITION, __func__ );                                                          \
+			B3_ASSERT( CONDITION );                                                                                              \
+			return RESULT;                                                                                                       \
+		}                                                                                                                        \
+	}                                                                                                                            \
+	while ( 0 )
+
 // These macros help avoid sizeof bugs
 #define B3_ALLOC( T, N ) (T*)b3Alloc( N * sizeof( T ) );
 #define B3_FREE( M, T, N ) b3Free( M, N * sizeof( T ) );

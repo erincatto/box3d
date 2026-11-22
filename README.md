@@ -143,6 +143,8 @@ See [`docs/hello.md`](docs/hello.md) for a minimal first program.
 
 The Box3D library and samples build and run on Windows, Linux, and Mac.
 
+Box3D only supports 64-bit desktop platforms. 32-bit builds, such as Win32, are not supported.
+
 You will need a compiler that supports C17 to build the Box3D library.
 
 You will need a compiler that supports C++20 to build the samples.

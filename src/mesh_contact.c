@@ -1830,10 +1830,10 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 
 	// Make a temporary copy of previous manifolds
 	int oldManifoldCount = contact->manifoldCount;
-	b3Manifold* oldManifolds = NULL;
+	B3_ASSERT( oldManifoldCount <= B3_MAX_MANIFOLDS );
+	b3Manifold oldManifolds[B3_MAX_MANIFOLDS];
 	if ( oldManifoldCount > 0 )
 	{
-		oldManifolds = b3Bump( &arena, oldManifoldCount * sizeof( b3Manifold ) );
 		memcpy( oldManifolds, contact->manifolds, oldManifoldCount * sizeof( b3Manifold ) );
 	}
 
@@ -1850,12 +1850,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 		memset( contact->manifolds, 0, contact->manifoldCount * sizeof( b3Manifold ) );
 	}
 
-	bool* consumed = NULL;
-	if ( oldManifoldCount > 0 )
-	{
-		consumed = b3Bump( &arena, oldManifoldCount * sizeof( bool ) );
-		memset( consumed, 0, oldManifoldCount * sizeof( bool ) );
-	}
+	bool consumed[B3_MAX_MANIFOLDS] = { 0 };
 
 	b3Matrix3 matrixB = b3MakeMatrixFromQuat( xfB.q );
 	b3Vec3 offsetA = b3SubPos( xfB.p, xfA.p );

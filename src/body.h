@@ -13,64 +13,42 @@ typedef struct b3World b3World;
 
 enum b3BodyFlags
 {
-	// This body has fixed translation along the x-axis
-	b3_lockLinearX = 0x00000001,
-
-	// This body has fixed translation along the y-axis
-	b3_lockLinearY = 0x00000002,
-
-	// This body has fixed translation along the z-axis
-	b3_lockLinearZ = 0x00000004,
-
-	// This body has fixed rotation around the x-axis
-	b3_lockAngularX = 0x00000008,
-
-	// This body has fixed rotation around the y-axis
-	b3_lockAngularY = 0x00000010,
-
-	// This body has fixed rotation around the z-axis
-	b3_lockAngularZ = 0x00000020,
+	b3_fixedRotation = 0x00000001,
 
 	// This flag is used for debug draw and contact recycling. Only lives on b3BodySim.
-	b3_isFast = 0x00000040,
+	b3_isFast = 0x00000002,
 
 	// This dynamic body does a final CCD pass against all body types, but not other bullets
-	b3_isBullet = 0x00000080,
+	b3_isBullet = 0x00000004,
 
 	// This body was speed capped in the current time step
-	b3_isSpeedCapped = 0x00000100,
+	b3_isSpeedCapped = 0x00000008,
 
 	// This body had a time of impact event in the current time step (body sim only)
-	b3_hadTimeOfImpact = 0x00000200,
+	b3_hadTimeOfImpact = 0x00000010,
 
 	// This body has no limit on angular velocity
-	b3_allowFastRotation = 0x00000400,
+	b3_allowFastRotation = 0x00000020,
 
 	// This bullet body needs to have its AABB increased. Needed because bullets don't follow
 	// the standard broad-phase update.
-	b3_enlargeBulletBounds = 0x00000800,
+	b3_enlargeBulletBounds = 0x00000040,
 
 	// This body is dynamic so the solver should write to it.
 	// This prevents writing to kinematic bodies that causes a multithreaded sharing
 	// cache coherence problem even when the values are not changing.
 	// Used for b3BodyState flags.
-	b3_dynamicFlag = 0x00001000,
+	b3_dynamicFlag = 0x00000080,
 
-	b3_enableSleep = 0x00002000,
+	b3_enableSleep = 0x00000100,
 
-	b3_enableContactRecycling = 0x00004000,
+	b3_enableContactRecycling = 0x00000200,
 
 	// The user deferred mass computation via the updateBodyMass shape option and mass
 	// data still hasn't been set.
-	b3_dirtyMass = 0x00008000,
+	b3_dirtyMass = 0x00000400,
 
-	b3_enableGyroscopicTorque = 0x00010000,
-
-	// All lock flags
-	b3_allLocks = b3_lockLinearX | b3_lockLinearY | b3_lockLinearZ | b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
-
-	// If all these flags are set then the body has fixed rotation
-	b3_fixedRotation = b3_lockAngularX | b3_lockAngularY | b3_lockAngularZ,
+	b3_enableGyroscopicTorque = 0x00000800,
 
 	// These flags are transient per time step. These may be different across b3Body, b3BodySim, and b3BodyState.
 	b3_bodyTransientFlags = b3_isSpeedCapped | b3_hadTimeOfImpact,

@@ -327,27 +327,20 @@ bodyDef.isAwake = true;
 
 The `isAwake` flag is ignored if `enableSleep` is false.
 
-### Motion Locks
-In 3D you sometimes want to restrict a body to a subset of its six degrees of freedom.
-For example, you might want a door hinge that only rotates about the Y axis, or a
-platform that only translates along X. Box3D provides `b3MotionLocks` for this:
+### Fixed Rotation
+You may want a body that translates but never rotates, such as a character capsule.
+Set `fixedRotation` on the body definition:
 
 ```c
-b3MotionLocks locks = {0};
-locks.linearY  = true;   // prevent translation along Y
-locks.angularX = true;   // prevent rotation about X
-locks.angularZ = true;   // prevent rotation about Z
-bodyDef.motionLocks = locks;
+bodyDef.fixedRotation = true;
 ```
 
-You can also update locks after creation:
+Fixed rotation gives the body zero inverse rotational inertia, so contacts and joints
+cannot spin it. The body still has its full mass and rotational inertia, so turning
+fixed rotation off later restores the original behavior.
 
-```c
-b3Body_SetMotionLocks(myBodyId, locks);
-b3MotionLocks current = b3Body_GetMotionLocks(myBodyId);
-```
-
-Locking all three angular axes is equivalent to fixing the rotation entirely.
+To restrict a body to a point, line, or plane, or to keep it spinning about a single
+axis, use a [motion lock joint](#motion-lock-joint).
 
 ### Bullets {#bullets}
 Game simulation usually generates a sequence of transforms that are played
@@ -462,8 +455,8 @@ velocity, applying forces, and transforming points and vectors.
 ### Mass Data
 A body has mass (scalar), center of mass (`b3Vec3`), and a rotational
 inertia tensor (`b3Matrix3`). For static bodies, the mass and rotational inertia are
-set to zero. When all angular motion locks are active, the rotational inertia is
-effectively zero.
+set to zero. A body with fixed rotation keeps its rotational inertia but has zero
+inverse rotational inertia.
 
 Normally the mass properties of a body are established automatically
 when shapes are added to the body. You can also adjust the mass of a
@@ -511,8 +504,8 @@ bool isAwake = b3Body_IsAwake(myBodyId);
 b3Body_Disable(myBodyId);
 b3Body_Enable(myBodyId);
 bool isEnabled = b3Body_IsEnabled(myBodyId);
-b3Body_SetMotionLocks(myBodyId, locks);
-b3MotionLocks locks = b3Body_GetMotionLocks(myBodyId);
+b3Body_SetFixedRotation(myBodyId, true);
+bool isFixedRotation = b3Body_IsFixedRotation(myBodyId);
 ```
 
 Please see the comments on these functions for more details.
@@ -986,7 +979,8 @@ for (int i = 0; i < sensorEvents.endCount; ++i)
 ```
 
 Sensor events should be processed after the world step and before other game logic. This should
-help you avoid processing stale data.
+help you avoid processing stale data. The event arrays are reset by every `b3World_Step`, so if you
+step more than once per frame, read the events after each step.
 
 Sensor events are only enabled for shapes if `b3ShapeDef::enableSensorEvents` is set to true.
 
@@ -1146,6 +1140,23 @@ Similar to `b3SensorEndTouchEvent`, `b3ContactEndTouchEvent` may be generated du
 such as destroying a body or shape. These events are included with simulation events after the next `b3World_Step`.
 
 Shapes only generate begin and end touch events if `b3ShapeDef::enableContactEvents` is true.
+
+Begin and end touch events are always paired. An end touch event is only generated for a contact
+that previously generated a begin touch event. Both events carry the same `contactId`, so you can use
+it to match them up.
+
+The event arrays are reset at the start of every `b3World_Step`. If you step the world more than once
+per frame, such as in a fixed time step loop, read the events after every step. Otherwise events from the
+earlier steps are lost and you may see an end touch event without the matching begin touch event.
+
+```c
+while (accumulator >= timeStep)
+{
+    b3World_Step(myWorldId, timeStep, subStepCount);
+    ProcessContactEvents(b3World_GetContactEvents(myWorldId));
+    accumulator -= timeStep;
+}
+```
 
 #### Hit Events
 Typically in games you are mainly concerned about getting contact events for when
@@ -1338,7 +1349,7 @@ b3Vec3 force  = b3Joint_GetConstraintForce(myJointId);
 b3Vec3 torque = b3Joint_GetConstraintTorque(myJointId);
 ```
 
-### Distance Joint
+### Distance Joint {#distance-joint}
 One of the simplest joints is a distance joint which says that the
 distance between two anchor points on two bodies must be constant. When you
 specify a distance joint the two bodies should already be in place. Then
@@ -1389,7 +1400,7 @@ It is also possible to define a minimum and maximum length for the distance join
 You can even motorize the distance joint to adjust its length dynamically.
 See `b3DistanceJointDef` and the `DistanceJoint` sample for details.
 
-### Revolute Joint
+### Revolute Joint {#revolute-joint}
 A revolute joint (also called a *hinge* or *pin* joint) forces two bodies to share a
 common anchor point and allows relative rotation about a single axis — the z-axis of the
 local frame. It has one rotational degree of freedom.
@@ -1472,7 +1483,7 @@ b3RevoluteJoint_SetMotorSpeed(myJointId, cosf(0.5f * time));
 // ... Game Loop End ...
 ```
 
-### Prismatic Joint
+### Prismatic Joint {#prismatic-joint}
 A prismatic joint (also called a *slider* joint) allows for relative translation of two bodies
 along the x-axis of local frame A. A prismatic joint prevents relative rotation.
 Therefore, a prismatic joint has a single degree of freedom.
@@ -1515,7 +1526,7 @@ b3PrismaticJoint_SetMotorSpeed(myJointId, speed);
 b3PrismaticJoint_SetMaxMotorForce(myJointId, force);
 ```
 
-### Weld Joint
+### Weld Joint {#weld-joint}
 The weld joint attempts to constrain all relative motion between two
 bodies. Both translation and rotation can have spring-damper softness.
 See `b3WeldJointDef` and the `Cantilever` sample for details.
@@ -1537,7 +1548,8 @@ jointDef.angularDampingRatio = 1.0f;
 b3JointId myJointId = b3CreateWeldJoint(myWorldId, &jointDef);
 ```
 
-### Motor Joint
+### Motor Joint {#motor-joint}
+
 A motor joint lets you control the motion of a body by specifying target
 linear and angular velocities. You can set the maximum motor force and
 torque that will be applied. If the body is blocked, it will stop and the
@@ -1559,9 +1571,11 @@ jointDef.maxVelocityTorque = 500.0f;
 b3JointId myJointId = b3CreateMotorJoint(myWorldId, &jointDef);
 ```
 
-### Wheel Joint
+### Wheel Joint {#wheel-joint}
+
 The wheel joint is designed specifically for vehicles. Body A is the chassis and
 body B is the wheel. The wheel:
+
 - translates along the x-axis of frame A (suspension direction),
 - spins about the z-axis of frame B,
 - optionally steers about the suspension axis.
@@ -1590,7 +1604,7 @@ jointDef.steeringDampingRatio   = 0.7f;
 b3JointId myJointId = b3CreateWheelJoint(myWorldId, &jointDef);
 ```
 
-### Spherical Joint
+### Spherical Joint {#spherical-joint}
 A spherical joint (also called a *ball-in-socket* or *point-to-point* joint) fixes a point on
 body B to a point on body A and allows free rotation about all three axes. This gives 3
 rotational degrees of freedom with no translation.
@@ -1647,7 +1661,8 @@ jointDef.motorVelocity    = (b3Vec3){0.0f, 1.0f, 0.0f};
 jointDef.maxMotorTorque   = 100.0f;
 ```
 
-### Parallel Joint
+### Parallel Joint {#parallel-joint}
+
 The parallel joint constrains the z-axis of body B to remain parallel to the z-axis of
 body A, using a spring-damper. This is useful for keeping a body upright without fully
 fixing its translation or other rotation axes.
@@ -1673,7 +1688,86 @@ b3ParallelJoint_SetSpringDampingRatio(myJointId, 0.5f);
 b3ParallelJoint_SetMaxTorque(myJointId, 500.0f);
 ```
 
-### Filter Joint
+### Motion Lock Joint {#motion-lock-joint}
+
+The motion lock joint restricts the motion of body B relative to frame A. Each linear lock
+keeps the origin of frame B from moving along that axis of frame A, so locking two axes
+gives a point on a line, one axis gives a point on a plane, and all three give a point to
+point lock. The angular lock keeps the z-axis of frame B parallel to the z-axis of frame A
+and leaves spin about that axis free. A linear lock along z plus the angular lock gives
+planar 2D motion.
+
+```c
+b3MotionLockJointDef jointDef = b3DefaultMotionLockJointDef();
+jointDef.base.bodyIdA = myGroundId;
+jointDef.base.bodyIdB = myBodyId;
+jointDef.base.localFrameA.p = b3Body_GetLocalPoint(myGroundId, b3Body_GetWorldCenter(myBodyId));
+jointDef.base.localFrameB.p = b3Body_GetLocalCenter(myBodyId);
+jointDef.lockLinearZ = true;
+jointDef.lockAngularXY = true;
+
+b3JointId myJointId = b3CreateMotionLockJoint(myWorldId, &jointDef);
+```
+
+Locks can be toggled at runtime. Toggling a lock clears its accumulated impulse.
+
+```c
+b3MotionLockJoint_EnableLinearLock(myJointId, 0, true);
+b3MotionLockJoint_EnableAngularLock(myJointId, false);
+```
+
+Anchor frame B at the center of mass when you can. Against a static body this lets the
+solver handle each locked axis independently with no rotational coupling.
+
+#### Zero Inverse Mass Instability
+
+Fixed rotation is implemented by giving a body zero inverse rotational inertia. This works well and
+has no drawbacks. It is tempting to lock translation the same way, by giving the body zero inverse
+mass. Unfortunately, this can destabilize joints attached to the body.
+
+![Zero Inverse Mass](images/zero_inverse_mass.svg)
+
+Consider a body with zero inverse mass. Setting the inverse mass to zero pins the center of mass
+while letting the body rotate freely. Attaching a revolute joint to the body adds a second pin.
+These two pins can fight each other with infinite force. Understanding this requires diving into the
+constraint math.
+
+The joint pivot \f$\mathbf{p}_B\f$ sits on the body at an offset \f$\mathbf{r}\f$ from the center of
+mass and the target pivot \f$\mathbf{p}_A\f$ sits on the ground at a distance \f$w\f$ from the
+center of mass. Rotation moves \f$\mathbf{p}_B\f$ along a circle of radius
+\f$r = \|\mathbf{r}\|\f$, so if \f$w \neq r\f$ no rotation can bring the pivots together. This is a
+door slightly too narrow for its frame.
+
+The joint solver builds an effective mass matrix \f$K\f$ for the pivot. With zero inverse mass
+only the angular part remains. The separation \f$\mathbf{d}\f$ points from \f$\mathbf{p}_B\f$ to
+\f$\mathbf{p}_A\f$. Its length is the position error \f$C\f$ and its direction is \f$\mathbf{n}\f$.
+
+\f[
+\mathbf{d} = \mathbf{p}_A - \mathbf{p}_B, \qquad C = \|\mathbf{d}\|, \qquad \mathbf{n} = \frac{\mathbf{d}}{\|\mathbf{d}\|}
+\f]
+
+The stiffness along \f$\mathbf{n}\f$ is
+
+\f[
+k = \mathbf{n}^T K \mathbf{n} = (\mathbf{r} \times \mathbf{n})^T I^{-1} (\mathbf{r} \times \mathbf{n})
+\f]
+
+![Stiffness and Impulse](images/zero_inverse_stiffness.svg)
+
+The impulse that removes the position error is \f$|\lambda| = C / k\f$. As the body
+swings, \f$\mathbf{p}_B\f$ and \f$\mathbf{p}_A\f$ come into radial alignment with the center of
+mass and \f$\mathbf{n}\f$ turns parallel to \f$\mathbf{r}\f$. Rotation loses influence on the error,
+\f$k \to 0\f$, and \f$|\lambda| \to \infty\f$ while \f$C\f$ stays finite. The solver applies
+enormous impulses and the body jitters or explodes. Any joint that reaches the body through an
+offset suffers the same failure, including the prismatic and distance joints.
+
+The motion lock joint avoids this problem by not setting the inverse mass to zero. The lock is a
+separate constraint, so the center of mass can translate slightly as the solver seeks to balance all
+the constraints. The pivot can then move along \f$\mathbf{r}\f$, \f$k \geq m^{-1}\f$, and the
+conflict settles as a small error instead of exploding.
+
+### Filter Joint {#filter-joint}
+
 The filter (or null) joint is used to disable collision between two specific bodies.
 As a side effect of being a joint, it also keeps the two bodies in the same simulation
 island, which can be useful for performance.
@@ -1687,6 +1781,7 @@ b3JointId myJointId = b3CreateFilterJoint(myWorldId, &jointDef);
 ```
 
 ## Spatial Queries {#spatial}
+
 Spatial queries allow you to inspect the world geometrically. There are overlap queries,
 ray-casts, and shape-casts. These allow you to do things like:
 - find a treasure chest near the player

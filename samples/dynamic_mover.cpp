@@ -137,9 +137,7 @@ void DynamicMover::Create( b3WorldId worldId, const DynamicMoverDef* def )
 	bodyDef.type = b3_dynamicBody;
 	bodyDef.position = def->position;
 	bodyDef.gravityScale = m_gravityScale;
-	bodyDef.motionLocks.angularX = true;
-	bodyDef.motionLocks.angularY = true;
-	bodyDef.motionLocks.angularZ = true;
+	bodyDef.fixedRotation = true;
 	bodyDef.enableSleep = false;
 	bodyDef.name = "mover";
 

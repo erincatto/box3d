@@ -766,11 +766,11 @@ B3_API void b3Body_Disable( b3BodyId bodyId );
 /// Enable a body by adding it to the simulation. This is expensive.
 B3_API void b3Body_Enable( b3BodyId bodyId );
 
-/// Set the motion locks on this body.
-B3_API void b3Body_SetMotionLocks( b3BodyId bodyId, b3MotionLocks locks );
+/// Fix the rotation of this body. Sets the angular velocity to zero.
+B3_API void b3Body_SetFixedRotation( b3BodyId bodyId, bool flag );
 
-/// Get the motion locks for this body.
-B3_API b3MotionLocks b3Body_GetMotionLocks( b3BodyId bodyId );
+/// Does this body have fixed rotation?
+B3_API bool b3Body_IsFixedRotation( b3BodyId bodyId );
 
 /// Set this body to be a bullet. A bullet does continuous collision detection
 /// against dynamic bodies (but not other bullets).
@@ -1247,6 +1247,30 @@ B3_API void b3ParallelJoint_SetMaxTorque( b3JointId jointId, float force );
 B3_API float b3ParallelJoint_GetMaxTorque( b3JointId jointId );
 
 /** @} */ // parallel_joint
+
+/**
+ * @defgroup motion_lock_joint Motion Lock Joint
+ * @brief Functions for the motion lock joint.
+ * @{
+ */
+
+/// Create a motion lock joint.
+/// @see b3MotionLockJointDef for details
+B3_API b3JointId b3CreateMotionLockJoint( b3WorldId worldId, const b3MotionLockJointDef* def );
+
+/// Enable/disable a linear lock.
+B3_API void b3MotionLockJoint_EnableLinearLock( b3JointId jointId, int axis, bool flag );
+
+/// Is a linear lock enabled?
+B3_API bool b3MotionLockJoint_IsLinearLockEnabled( b3JointId jointId, int axis );
+
+/// Enable/disable the angular lock.
+B3_API void b3MotionLockJoint_EnableAngularLock( b3JointId jointId, bool flag );
+
+/// Is the angular lock enabled?
+B3_API bool b3MotionLockJoint_IsAngularLockEnabled( b3JointId jointId );
+
+/** @} */ // motion_lock_joint
 
 /**
  * @defgroup distance_joint Distance Joint

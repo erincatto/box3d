@@ -875,15 +875,15 @@ static int EnableSleepFlagSyncTest( void )
 
 // Exposes that b3Body_SetBullet writes only bodySim->flags without
 // touching body->flags, while b3SyncBodyFlags overwrites bodySim from
-// body->flags. Any subsequent b3Body_SetMotionLocks or b3Body_SetType
+// body->flags. Any subsequent b3Body_SetFixedRotation or b3Body_SetType
 // silently wipes (or re-asserts) the bullet bit.
 //
 // Reproducer A: create with isBullet=false, SetBullet(true), then
-// SetMotionLocks. b3Body_IsBullet returns false today (wiped); should be
+// SetFixedRotation. b3Body_IsBullet returns false today (wiped); should be
 // true after fix.
 //
 // Reproducer B: create with isBullet=true, SetBullet(false), then
-// SetMotionLocks. b3Body_IsBullet returns true today (re-asserted); should
+// SetFixedRotation. b3Body_IsBullet returns true today (re-asserted); should
 // be false after fix.
 static int SetBulletDriftTest( void )
 {
@@ -901,9 +901,7 @@ static int SetBulletDriftTest( void )
 		b3Body_SetBullet( bodyId, true );
 		ENSURE( b3Body_IsBullet( bodyId ) == true );
 
-		b3MotionLocks locks = { 0 };
-		locks.linearX = true;
-		b3Body_SetMotionLocks( bodyId, locks );
+		b3Body_SetFixedRotation( bodyId, true );
 
 		ENSURE( b3Body_IsBullet( bodyId ) == true );
 	}
@@ -919,9 +917,7 @@ static int SetBulletDriftTest( void )
 		b3Body_SetBullet( bodyId, false );
 		ENSURE( b3Body_IsBullet( bodyId ) == false );
 
-		b3MotionLocks locks = { 0 };
-		locks.linearX = true;
-		b3Body_SetMotionLocks( bodyId, locks );
+		b3Body_SetFixedRotation( bodyId, true );
 
 		ENSURE( b3Body_IsBullet( bodyId ) == false );
 	}
@@ -1760,11 +1756,9 @@ static int LocatorFastFlagTest( void )
 	b3BodySim* sim = b3GetBodySim( world, body );
 	ENSURE( ( sim->flags & b3_isFast ) != 0 );
 
-	// Any public setter that syncs flags. The locks have to actually change or the setter
+	// Any public setter that syncs flags. The flag has to actually change or the setter
 	// returns early and never syncs.
-	b3MotionLocks locks = { 0 };
-	locks.angularX = true;
-	b3Body_SetMotionLocks( bulletId, locks );
+	b3Body_SetFixedRotation( bulletId, true );
 
 	sim = b3GetBodySim( world, b3GetBodyFullId( world, bulletId ) );
 	ENSURE( ( sim->flags & b3_isFast ) != 0 );
