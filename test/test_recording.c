@@ -2489,8 +2489,44 @@ static int GeometryMutatorReplay( void )
 	return 0;
 }
 
+// The snapshot restores into a fresh world with no move events, so a body put to sleep before the
+// first replayed step must not use the move index it had when recording started. Issue #197.
+static int SleepAfterRestore( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+	b3BodyId bodyIds[16];
+	for ( int i = 0; i < 16; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ 2.0f * i, 10.0f, 0.0f };
+		bodyIds[i] = b3CreateBody( worldId, &bodyDef );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		b3CreateSphereShape( bodyIds[i], &shapeDef, &sphere );
+	}
+
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+	b3World_StartRecording( worldId, rec );
+	b3Body_SetAwake( bodyIds[15], false );
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	b3World_StopRecording( worldId );
+	b3DestroyWorld( worldId );
+
+	ENSURE( b3ValidateReplay( b3Recording_GetData( rec ), b3Recording_GetSize( rec ), 1 ) );
+
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
+	RUN_SUBTEST( SleepAfterRestore );
 	RUN_SUBTEST( GeometryHashCollision );
 	RUN_SUBTEST( ShapeNameReplay );
 	RUN_SUBTEST( SphereRoundTrip );

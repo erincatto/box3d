@@ -1253,7 +1253,9 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 			{
 				b3SnapR_Bytes( r, world->bodies.data + i, sizeof( b3Body ) );
 				world->bodies.data[i].userData = NULL;
+				world->bodies.data[i].bodyMoveIndex = B3_NULL_INDEX;
 			}
+			b3Array_Clear( world->bodyMoveEvents );
 		}
 	}
 
