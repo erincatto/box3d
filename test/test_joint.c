@@ -1522,6 +1522,106 @@ static int TestJointReleasesLoad( void )
 	return 0;
 }
 
+// Issue #208. Joints to one kinematic body share graph colors, so a multithreaded warm start or solve must never
+// store to the kinematic body. Only ThreadSanitizer sees the race itself; this checks the kinematic body is untouched.
+static int TestKinematicJointFan( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.workerCount = 8;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3Vec3 anchorVelocity = { 1.0f, 0.0f, 0.0f };
+	b3BodyDef anchorDef = b3DefaultBodyDef();
+	anchorDef.type = b3_kinematicBody;
+	anchorDef.linearVelocity = anchorVelocity;
+	b3BodyId anchorId = b3CreateBody( worldId, &anchorDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3Sphere sphere = { .center = { 0.0f, 0.0f, 0.0f }, .radius = 0.25f };
+
+	enum
+	{
+		e_jointTypeCount = 4,
+		e_bodyCount = 128,
+	};
+
+	for ( int i = 0; i < e_bodyCount; ++i )
+	{
+		// Spaced so the spheres never touch, only joints
+		b3Vec3 p = { (float)( i % 16 ), 2.0f + (float)( i / 16 ), 0.0f };
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ p.x, p.y, p.z };
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+		b3CreateSphereShape( bodyId, &shapeDef, &sphere );
+
+		switch ( i % e_jointTypeCount )
+		{
+			case 0:
+			{
+				b3MotorJointDef def = b3DefaultMotorJointDef();
+				def.base.bodyIdA = anchorId;
+				def.base.bodyIdB = bodyId;
+				def.base.localFrameA.p = p;
+				def.linearHertz = 4.0f;
+				def.linearDampingRatio = 0.7f;
+				def.maxSpringForce = 1000.0f;
+				def.maxVelocityForce = 100.0f;
+				b3CreateMotorJoint( worldId, &def );
+			}
+			break;
+
+			case 1:
+			{
+				b3SphericalJointDef def = b3DefaultSphericalJointDef();
+				def.base.bodyIdA = anchorId;
+				def.base.bodyIdB = bodyId;
+				def.base.localFrameA.p = p;
+				b3CreateSphericalJoint( worldId, &def );
+			}
+			break;
+
+			case 2:
+			{
+				b3WeldJointDef def = b3DefaultWeldJointDef();
+				def.base.bodyIdA = anchorId;
+				def.base.bodyIdB = bodyId;
+				def.base.localFrameA.p = p;
+				b3CreateWeldJoint( worldId, &def );
+			}
+			break;
+
+			default:
+			{
+				b3DistanceJointDef def = b3DefaultDistanceJointDef();
+				def.base.bodyIdA = anchorId;
+				def.base.bodyIdB = bodyId;
+				def.base.localFrameA.p = p;
+				def.length = 0.5f;
+				def.enableSpring = true;
+				def.hertz = 2.0f;
+				def.dampingRatio = 0.5f;
+				b3CreateDistanceJoint( worldId, &def );
+			}
+			break;
+		}
+	}
+
+	for ( int i = 0; i < 20; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3Vec3 v = b3Body_GetLinearVelocity( anchorId );
+	b3Vec3 w = b3Body_GetAngularVelocity( anchorId );
+	ENSURE( v.x == anchorVelocity.x && v.y == anchorVelocity.y && v.z == anchorVelocity.z );
+	ENSURE( w.x == 0.0f && w.y == 0.0f && w.z == 0.0f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int JointTest( void )
 {
 	RUN_SUBTEST( TestMotionLockJoint );
@@ -1551,6 +1651,7 @@ int JointTest( void )
 	RUN_SUBTEST( TestCreateJointClearsContacts );
 	RUN_SUBTEST( TestNonDynamicJointDisable );
 	RUN_SUBTEST( TestJointReleasesLoad );
+	RUN_SUBTEST( TestKinematicJointFan );
 
 	return 0;
 }

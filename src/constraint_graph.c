@@ -15,10 +15,10 @@
 // High-Performance Physical Simulations on Next-Generation Architecture with Many Cores
 // http://web.eecs.umich.edu/~msmelyan/papers/physsim_onmanycore_itj.pdf
 
-// Kinematic bodies have to be treated like dynamic bodies in graph coloring. Unlike static bodies, we cannot use a dummy solver
-// body for kinematic bodies. We cannot access a kinematic body from multiple threads efficiently because the SIMD solver body
-// scatter would write to the same kinematic body from multiple threads. Even if these writes don't modify the body, they will
-// cause horrible cache stalls. To make this feasible I would need a way to block these writes.
+// Kinematic bodies are colored like static bodies, so many constraints on one kinematic body can share a color and
+// run on different threads. Unlike static bodies they have a body state because constraints need their velocity.
+// This is only safe because every solver store, scalar or SIMD scatter, is skipped for bodies without the dynamic flag.
+// A store to a kinematic body would be a data race and cause cache stalls, even though it writes back the same value.
 
 // This is used for debugging by making all constraints be assigned to overflow.
 #define B3_FORCE_OVERFLOW 0
