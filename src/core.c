@@ -231,7 +231,10 @@ int64_t b3GetByteCount( void )
 void* b3AllocZero( size_t size )
 {
 	void* mem = b3Alloc( size );
-	memset( mem, 0, size );
+	if ( mem != NULL )
+	{
+		memset( mem, 0, size );
+	}
 	return mem;
 }
 

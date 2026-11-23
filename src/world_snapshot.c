@@ -125,7 +125,7 @@ static void b3SnapRCheck( b3SnapReader* r, int need )
 static void b3SnapR_Bytes( b3SnapReader* r, void* dst, int n )
 {
 	b3SnapRCheck( r, n );
-	if ( !r->ok )
+	if ( !r->ok || n == 0 )
 	{
 		return;
 	}

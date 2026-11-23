@@ -6,13 +6,12 @@
 #include "body.h"
 #include "contact.h"
 #include "ctz.h"
+#include "parallel_for.h"
 #include "physics_world.h"
+#include "qsort.h"
 #include "shape.h"
 
 #include "box3d/collision.h"
-
-// for qsort
-#include "parallel_for.h"
 
 #include <stdlib.h>
 
@@ -164,19 +163,6 @@ static bool b3SensorQueryCallback( int proxyId, uint64_t userData, void* context
 	return true;
 }
 
-static int b3CompareVisitors( const void* a, const void* b )
-{
-	const b3Visitor* sa = (const b3Visitor*)a;
-	const b3Visitor* sb = (const b3Visitor*)b;
-
-	if ( sa->shapeId < sb->shapeId )
-	{
-		return -1;
-	}
-
-	return 1;
-}
-
 static void b3SensorTask( int startIndex, int endIndex, int workerIndex, void* context )
 {
 	b3TracyCZoneNC( sensor_task, "Overlap", b3_colorBrown, true );
@@ -230,12 +216,31 @@ static void b3SensorTask( int startIndex, int endIndex, int workerIndex, void* c
 		b3AABB queryBounds = sensorShape->aabb;
 
 		// Query all trees
-		b3DynamicTree_Query( trees + 0, queryBounds, sensorShape->filter.maskBits, false, b3SensorQueryCallback, &queryContext );
-		b3DynamicTree_Query( trees + 1, queryBounds, sensorShape->filter.maskBits, false, b3SensorQueryCallback, &queryContext );
-		b3DynamicTree_Query( trees + 2, queryBounds, sensorShape->filter.maskBits, false, b3SensorQueryCallback, &queryContext );
+		b3DynamicTree_Query( trees + 0, queryBounds, sensorShape->filter.maskBits, false, b3SensorQueryCallback,
+							 &queryContext );
+		b3DynamicTree_Query( trees + 1, queryBounds, sensorShape->filter.maskBits, false, b3SensorQueryCallback,
+							 &queryContext );
+		b3DynamicTree_Query( trees + 2, queryBounds, sensorShape->filter.maskBits, false, b3SensorQueryCallback,
+							 &queryContext );
 
 		// Sort the overlaps to enable finding begin and end events.
-		qsort( sensor->overlaps2.data, sensor->overlaps2.count, sizeof( b3Visitor ), b3CompareVisitors );
+		{
+			b3Visitor* visitors = sensor->overlaps2.data;
+#define LESS( i, j ) ( visitors[(int)( i )].shapeId < visitors[(int)( j )].shapeId )
+#define SWAP( i, j )                                                                                                   \
+	do                                                                                                                 \
+	{                                                                                                                  \
+		b3Visitor tmp_ = visitors[(int)( i )];                                                                         \
+		visitors[(int)( i )] = visitors[(int)( j )];                                                                   \
+		visitors[(int)( j )] = tmp_;                                                                                   \
+	}                                                                                                                  \
+	while ( 0 )
+
+			QSORT( sensor->overlaps2.count, LESS, SWAP );
+
+#undef LESS
+#undef SWAP
+		}
 
 		// Remove duplicates from overlaps2 (sorted). Duplicates are possible due to the hit events appended earlier.
 		int uniqueCount = 0;
