@@ -2021,6 +2021,10 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_kinematicBody;
+
+			// >>>>>>>>>>>>>>>>>>>>> THIS IS THE FIX <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+			bodyDef.enableContactRecycling = false;
+			
 			m_deckId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3BoxHull box = b3MakeBoxHull( m_deckHalfLength, m_deckHalfThickness, m_deckHalfWidth );
@@ -2283,6 +2287,10 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_kinematicBody;
 			bodyDef.angularVelocity = omega;
+
+			// >>>>>>>>>>>>>>>>>>>>> THIS IS THE FIX <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+			bodyDef.enableContactRecycling = false;
+
 			m_platformId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3BoxHull box = b3MakeBoxHull( m_platformHalfLength, m_platformHalfThickness, m_platformHalfWidth );
