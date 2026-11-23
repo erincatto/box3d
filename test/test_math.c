@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "math_internal.h"
+#include "simd.h"
 #include "utils.h"
 #include "test_macros.h"
 
@@ -336,6 +337,19 @@ int MathTest( void )
 		ENSURE( rel.p.x == 1.0f && rel.p.y == 0.0f && rel.p.z == 0.0f );
 	}
 #endif
+
+	{
+		// A float pointer only promises 4 byte alignment, so the load must not assume 8. Issue #203.
+		_Alignas( 16 ) float buffer[8] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f };
+		for ( int offset = 0; offset < 4; ++offset )
+		{
+			const float* src = buffer + offset;
+			b3V32 v = b3LoadV( src );
+			ENSURE( b3GetXV( v ) == src[0] );
+			ENSURE( b3GetYV( v ) == src[1] );
+			ENSURE( b3GetZV( v ) == src[2] );
+		}
+	}
 
 	return 0;
 }
