@@ -1049,6 +1049,49 @@ static int ShapeSetGeometryCentroidTest( void )
 	return 0;
 }
 
+// Issue 209
+static int ShapeMaterialRecycleTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+	b3BoxHull groundHull = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3ShapeId groundShapeId = b3CreateHullShape( groundId, &shapeDef, &groundHull.base );
+
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ 0.0f, 1.0f, 0.0f };
+	bodyDef.enableSleep = false;
+	b3BodyId crateId = b3CreateBody( worldId, &bodyDef );
+	b3BoxHull crateHull = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3CreateHullShape( crateId, &shapeDef, &crateHull.base );
+
+	float timeStep = 1.0f / 60.0f;
+	for ( int i = 0; i < 60; ++i )
+	{
+		b3World_Step( worldId, timeStep, 4 );
+	}
+
+	ENSURE( b3World_GetCounters( worldId ).recycledContactCount > 0 );
+
+	b3SurfaceMaterial material = b3Shape_GetSurfaceMaterial( groundShapeId );
+	material.tangentVelocity = (b3Vec3){ 1.0f, 0.0f, 0.0f };
+	b3Shape_SetSurfaceMaterial( groundShapeId, material );
+
+	for ( int i = 0; i < 60; ++i )
+	{
+		b3World_Step( worldId, timeStep, 4 );
+	}
+
+	b3Vec3 v = b3Body_GetLinearVelocity( crateId );
+	ENSURE( v.x > 0.9f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int ShapeTest( void )
 {
 	box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
@@ -1059,6 +1102,7 @@ int ShapeTest( void )
 	RUN_SUBTEST( ShapeFlagsTest );
 	RUN_SUBTEST( ShapeApplyWindWakeTest );
 	RUN_SUBTEST( ShapeSetGeometryCentroidTest );
+	RUN_SUBTEST( ShapeMaterialRecycleTest );
 	// RUN_SUBTEST( PointInShapeTest );
 	RUN_SUBTEST( RayCastShapeTest );
 

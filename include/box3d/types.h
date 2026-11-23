@@ -180,7 +180,8 @@ typedef bool b3OverlapResultFcn( b3ShapeId shapeId, void* context );
 typedef float b3CastResultFcn( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
 							   int triangleIndex, int childIndex, void* context );
 
-/// Optional world capacities that can be use to avoid run-time allocations
+/// Optional world capacities that can be use to avoid run-time allocations. The biggest benefit of these it to avoid
+/// the associated memory copy costs for large worlds.
 /// @ingroup world
 typedef struct b3Capacity
 {
