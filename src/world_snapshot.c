@@ -672,7 +672,10 @@ static void b3DesShapes( b3SnapReader* r, b3World* world, b3RecReader* rdr )
 	}
 
 	b3Array_Resize( world->shapes, count );
-	memset( world->shapes.data, 0, (size_t)count * sizeof( b3Shape ) );
+	if ( count > 0 )
+	{
+		memset( world->shapes.data, 0, (size_t)count * sizeof( b3Shape ) );
+	}
 
 	for ( int i = 0; i < count && r->ok; ++i )
 	{
@@ -900,7 +903,10 @@ static void b3DesContacts( b3SnapReader* r, b3World* world )
 	}
 
 	b3Array_Resize( world->contacts, count );
-	memset( world->contacts.data, 0, (size_t)count * sizeof( b3Contact ) );
+	if ( count > 0 )
+	{
+		memset( world->contacts.data, 0, (size_t)count * sizeof( b3Contact ) );
+	}
 
 	for ( int i = 0; i < count && r->ok; ++i )
 	{
@@ -1318,7 +1324,10 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 		if ( r->ok )
 		{
 			b3Array_Resize( world->sensors, sensorCount );
-			memset( world->sensors.data, 0, (size_t)sensorCount * sizeof( b3Sensor ) );
+			if ( sensorCount > 0 )
+			{
+				memset( world->sensors.data, 0, (size_t)sensorCount * sizeof( b3Sensor ) );
+			}
 		}
 
 		for ( int i = 0; i < sensorCount && r->ok; ++i )
@@ -1347,7 +1356,10 @@ bool b3DeserializeIntoShell( const uint8_t* data, int size, b3World* world, b3Re
 		if ( r->ok )
 		{
 			b3Array_Resize( world->islands, islandCount );
-			memset( world->islands.data, 0, (size_t)islandCount * sizeof( b3Island ) );
+			if ( islandCount > 0 )
+			{
+				memset( world->islands.data, 0, (size_t)islandCount * sizeof( b3Island ) );
+			}
 		}
 
 		for ( int i = 0; i < islandCount && r->ok; ++i )
