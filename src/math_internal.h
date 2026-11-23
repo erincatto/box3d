@@ -42,7 +42,7 @@ typedef struct b3ShapeExtent
 	b3Vec3 maxExtent;
 } b3ShapeExtent;
 
-b3TrianglePoint b3ClosestPointOnTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, b3Vec3 q );
+b3TrianglePoint b3ClosestPointOnTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, b3Vec3 p );
 
 float b3IntersectSegmentTriangle( b3Vec3 p, b3Vec3 q, b3Vec3 a, b3Vec3 b, b3Vec3 c );
 float b3IntersectSegmentSphere( b3Vec3 p, b3Vec3 q, b3Vec3 c, float r );
