@@ -321,6 +321,27 @@ void b3PrepareDistanceJoint( b3JointSim* base, b3StepContext* context )
 		joint->upperImpulse = 0.0f;
 		joint->motorImpulse = 0.0f;
 	}
+	else
+	{
+		// Clear impulses when features are disabled.
+		bool soft = joint->enableSpring && ( joint->minLength < joint->maxLength || joint->enableLimit == false );
+
+		if ( soft && ( joint->hertz > 0.0f ) == false )
+		{
+			joint->impulse = 0.0f;
+		}
+
+		if ( soft == false || joint->enableLimit == false )
+		{
+			joint->lowerImpulse = 0.0f;
+			joint->upperImpulse = 0.0f;
+		}
+
+		if ( soft == false || joint->enableMotor == false )
+		{
+			joint->motorImpulse = 0.0f;
+		}
+	}
 }
 
 void b3WarmStartDistanceJoint( b3JointSim* base, b3StepContext* context )

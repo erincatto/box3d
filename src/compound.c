@@ -584,8 +584,11 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 		hullInstances[i].hullOffset = sharedHulls[sharedIndex].hullOffset;
 	}
 
-	b3HullInstance* destinationHullInstances = (b3HullInstance*)( (intptr_t)compound + hullArrayOffset );
-	memcpy( destinationHullInstances, hullInstances, hullCount * sizeof( b3HullInstance ) );
+	if ( hullCount > 0 )
+	{
+		b3HullInstance* destinationHullInstances = (b3HullInstance*)( (intptr_t)compound + hullArrayOffset );
+		memcpy( destinationHullInstances, hullInstances, hullCount * sizeof( b3HullInstance ) );
+	}
 
 	for ( int i = 0; i < sharedHullCount; ++i )
 	{
@@ -608,8 +611,11 @@ b3CompoundData* b3CreateCompound( const b3CompoundDef* def )
 		meshInstances[i].materialOffset = (uint32_t)meshMaterialMapOffset + materialStart * (uint32_t)sizeof( uint16_t );
 	}
 
-	b3MeshInstance* destinationMeshInstances = (b3MeshInstance*)( (intptr_t)compound + meshArrayOffset );
-	memcpy( destinationMeshInstances, meshInstances, meshCount * sizeof( b3MeshInstance ) );
+	if ( meshCount > 0 )
+	{
+		b3MeshInstance* destinationMeshInstances = (b3MeshInstance*)( (intptr_t)compound + meshArrayOffset );
+		memcpy( destinationMeshInstances, meshInstances, meshCount * sizeof( b3MeshInstance ) );
+	}
 
 	if ( meshMaterialTotal > 0 )
 	{

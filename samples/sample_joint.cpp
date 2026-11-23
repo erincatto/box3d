@@ -896,6 +896,112 @@ public:
 
 static int sampleSphericalJoint = RegisterSample( "Joints", "Spherical", SphericalJoint::Create );
 
+// The spherical motor velocity is relative to body A's joint frame. A kinematic base spins and the head
+// motor should track the target velocity in the base's frame, not in world space.
+class SphericalMotorFrame : public Sample
+{
+public:
+	explicit SphericalMotorFrame( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 45.0f, 25.0f, 12.0f, { 0.0f, 3.0f, 0.0f } );
+		}
+
+		AddGroundBox( 20.0f );
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_kinematicBody;
+			bodyDef.rotation = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3Vec3_axisX );
+			bodyDef.position = { 0.0f, 2.0f, 0.0f };
+			bodyDef.angularVelocity = { 0.0f, m_baseSpeed, 0.0f };
+			m_baseId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3BoxHull neck = b3MakeBoxHull( 1.4f, 0.3f, 0.3f );
+			b3CreateHullShape( m_baseId, &shapeDef, &neck.base );
+		}
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { 0.0f, 4.0f, 0.0f };
+			bodyDef.rotation = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3Vec3_axisX );
+			bodyDef.gravityScale = 0.0f;
+			m_headId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3BoxHull head = b3MakeCubeHull( 0.5f );
+			b3CreateHullShape( m_headId, &shapeDef, &head.base );
+
+			b3BoxHull nose = b3MakeOffsetBoxHull( 0.1f, 0.1f, 0.25f, { 0.0f, 0.0f, 0.75f } );
+			b3CreateHullShape( m_headId, &shapeDef, &nose.base );
+		}
+
+		b3SphericalJointDef jointDef = b3DefaultSphericalJointDef();
+		jointDef.base.bodyIdA = m_baseId;
+		jointDef.base.bodyIdB = m_headId;
+		jointDef.base.drawScale = 1.5f;
+		jointDef.base.localFrameA.p = { -2.0f, 0.0f, 0.0f };
+		jointDef.enableMotor = true;
+		jointDef.maxMotorTorque = m_motorTorque;
+		jointDef.motorVelocity = m_motorVelocity;
+		m_jointId = b3CreateSphericalJoint( m_worldId, &jointDef );
+	}
+
+	bool DrawControls() override
+	{
+		if ( ImGui::SliderFloat( "Base Speed", &m_baseSpeed, -5.0f, 5.0f, "%.1f" ) )
+		{
+			b3Body_SetAngularVelocity( m_baseId, { 0.0f, m_baseSpeed, 0.0f } );
+		}
+
+		if ( ImGui::SliderFloat( "Max Torque", &m_motorTorque, 0.0f, 1000.0f, "%.0f" ) )
+		{
+			b3SphericalJoint_SetMaxMotorTorque( m_jointId, m_motorTorque );
+			b3Joint_WakeBodies( m_jointId );
+		}
+
+		bool changed = ImGui::SliderFloat( "Velocity X", &m_motorVelocity.x, -5.0f, 5.0f, "%.1f" );
+		changed |= ImGui::SliderFloat( "Velocity Y", &m_motorVelocity.y, -5.0f, 5.0f, "%.1f" );
+		changed |= ImGui::SliderFloat( "Velocity Z", &m_motorVelocity.z, -5.0f, 5.0f, "%.1f" );
+		if ( changed )
+		{
+			b3SphericalJoint_SetMotorVelocity( m_jointId, m_motorVelocity );
+			b3Joint_WakeBodies( m_jointId );
+		}
+
+		return true;
+	}
+
+	void Render() override
+	{
+		Sample::Render();
+
+		b3Vec3 relativeVelocity = b3Sub( b3Body_GetAngularVelocity( m_headId ), b3Body_GetAngularVelocity( m_baseId ) );
+		b3Vec3 localVelocity = b3InvRotateVector( b3Body_GetRotation( m_baseId ), relativeVelocity );
+		DrawTextLine( "target = (%.2f, %.2f, %.2f)", m_motorVelocity.x, m_motorVelocity.y, m_motorVelocity.z );
+		DrawTextLine( "relative in base frame = (%.2f, %.2f, %.2f)", localVelocity.x, localVelocity.y,
+					  localVelocity.z );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new SphericalMotorFrame( context );
+	}
+
+	b3BodyId m_baseId;
+	b3BodyId m_headId;
+	b3JointId m_jointId;
+	b3Vec3 m_motorVelocity = { 0.0f, 0.0f, 1.0f };
+	float m_baseSpeed = 0.0f;
+	float m_motorTorque = 1000.0f;
+};
+
+static int sampleSphericalMotorFrame = RegisterSample( "Joints", "Spherical Motor Frame", SphericalMotorFrame::Create );
+
 class ParallelJoint : public Sample
 {
 public:
@@ -1721,7 +1827,8 @@ public:
 		{
 			PickRay pickRay = m_camera->BuildPickRay( p.x, p.y );
 
-			b3RayResult result = b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
+			b3RayResult result =
+				b3World_CastRayClosest( m_worldId, pickRay.origin, pickRay.translation, b3DefaultQueryFilter() );
 
 			if ( result.hit )
 			{
@@ -2316,7 +2423,7 @@ public:
 			{ "point-point", true, true, true, false },
 			{ "point-line x", false, true, true, false },
 			{ "point-plane xz", false, true, false, false },
-			{ "planar xy",  false, false, true, true },
+			{ "planar xy", false, false, true, true },
 		};
 
 		for ( int i = 0; i < e_count; ++i )
@@ -2906,8 +3013,10 @@ public:
 
 		// Gear cores shared by both shafts: a disk at each depth with an axle bridging
 		// them, all cylinders along z so the gears spin about z.
-		b3HullData* diskNear = MakeZCylinder( m_gearRadius, -m_gearZ - m_gearHalfDepth, -m_gearZ + m_gearHalfDepth, m_gearSides );
-		b3HullData* diskFar = MakeZCylinder( m_gearRadius, m_gearZ - m_gearHalfDepth, m_gearZ + m_gearHalfDepth, m_gearSides );
+		b3HullData* diskNear =
+			MakeZCylinder( m_gearRadius, -m_gearZ - m_gearHalfDepth, -m_gearZ + m_gearHalfDepth, m_gearSides );
+		b3HullData* diskFar =
+			MakeZCylinder( m_gearRadius, m_gearZ - m_gearHalfDepth, m_gearZ + m_gearHalfDepth, m_gearSides );
 		b3HullData* axle = MakeZCylinder( m_axleRadius, -m_gearZ, m_gearZ, m_axleSides );
 
 		m_motorTorque = 30000.0f;
@@ -2954,8 +3063,10 @@ public:
 		}
 
 		// One chain hangs from the follower rim at each depth and both lift the gate.
-		b3Pos linkAttach = { gearPosition2.x + m_gearRadius + 2.0f * m_toothHalfWidth + m_toothRadius, gearPosition2.y, 0.0f };
-		b3Pos doorPosition = { linkAttach.x, linkAttach.y - ( 2.0f * m_linkCount * m_linkHalfLength + m_doorHalfHeight ), 0.0f };
+		b3Pos linkAttach = { gearPosition2.x + m_gearRadius + 2.0f * m_toothHalfWidth + m_toothRadius, gearPosition2.y,
+							 0.0f };
+		b3Pos doorPosition = { linkAttach.x,
+							   linkAttach.y - ( 2.0f * m_linkCount * m_linkHalfLength + m_doorHalfHeight ), 0.0f };
 
 		b3BodyId nearLink = CreateChain( followerId, { linkAttach.x, linkAttach.y, -m_gearZ } );
 		b3BodyId farLink = CreateChain( followerId, { linkAttach.x, linkAttach.y, m_gearZ } );
@@ -2977,13 +3088,14 @@ public:
 		// b2Chain loop. The solid is inside the loop, so the windings face outward
 		// to put the collision normals on the open basin side where the debris sits.
 		static const b3Vec2 points[32] = {
-			{ -11.3000f, -0.2167f }, { 9.3375f, -0.2167f },	 { 9.3375f, 7.1917f },	{ 8.8083f, 7.1917f },  { 8.8083f, 0.3125f },
-			{ 0.3417f, 0.3125f },	 { 0.3417f, 0.8417f },	 { -0.1875f, 0.8417f }, { -0.1875f, 1.3708f }, { -0.7167f, 1.3708f },
-			{ -0.7167f, 1.9000f },	 { -1.2458f, 1.9000f },	 { -1.2458f, 2.4292f }, { -1.7750f, 2.4292f }, { -1.7750f, 2.9583f },
-			{ -2.3042f, 2.9583f },	 { -2.3042f, 3.4875f },	 { -2.8333f, 3.4875f }, { -2.8333f, 4.0167f }, { -3.3625f, 4.0167f },
-			{ -3.3625f, 4.5458f },	 { -3.8917f, 4.5458f },	 { -3.8917f, 5.0750f }, { -4.4208f, 5.0750f }, { -4.4208f, 5.6042f },
-			{ -4.9500f, 5.6042f },	 { -4.9500f, 6.1333f },	 { -5.4792f, 6.1333f }, { -5.4792f, 6.6625f }, { -6.0083f, 6.6625f },
-			{ -6.0083f, 7.1917f },	 { -11.3000f, 7.1917f },
+			{ -11.3000f, -0.2167f }, { 9.3375f, -0.2167f }, { 9.3375f, 7.1917f },  { 8.8083f, 7.1917f },
+			{ 8.8083f, 0.3125f },	 { 0.3417f, 0.3125f },	{ 0.3417f, 0.8417f },  { -0.1875f, 0.8417f },
+			{ -0.1875f, 1.3708f },	 { -0.7167f, 1.3708f }, { -0.7167f, 1.9000f }, { -1.2458f, 1.9000f },
+			{ -1.2458f, 2.4292f },	 { -1.7750f, 2.4292f }, { -1.7750f, 2.9583f }, { -2.3042f, 2.9583f },
+			{ -2.3042f, 3.4875f },	 { -2.8333f, 3.4875f }, { -2.8333f, 4.0167f }, { -3.3625f, 4.0167f },
+			{ -3.3625f, 4.5458f },	 { -3.8917f, 4.5458f }, { -3.8917f, 5.0750f }, { -4.4208f, 5.0750f },
+			{ -4.4208f, 5.6042f },	 { -4.9500f, 5.6042f }, { -4.9500f, 6.1333f }, { -5.4792f, 6.1333f },
+			{ -5.4792f, 6.6625f },	 { -6.0083f, 6.6625f }, { -6.0083f, 7.1917f }, { -11.3000f, 7.1917f },
 		};
 
 		float zMin = -2.0f; // four meters across z
@@ -3065,16 +3177,17 @@ public:
 
 		float wallHalfThick = 0.05f;
 		b3Vec3 wallCenter = { 0.5f * ( lower.x + upper.x ), 0.5f * ( lower.y + upper.y ), -zMax - wallHalfThick };
-		b3BoxHull wall =
-			b3MakeOffsetBoxHull( 0.5f * ( upper.x - lower.x ), 0.5f * ( upper.y - lower.y ), wallHalfThick, wallCenter );
+		b3BoxHull wall = b3MakeOffsetBoxHull( 0.5f * ( upper.x - lower.x ), 0.5f * ( upper.y - lower.y ), wallHalfThick,
+											  wallCenter );
 		b3CreateHullShape( groundId, &shapeDef, &wall.base );
 	}
 
 	// Push one cap triangle, flipping the winding so its z-normal has the wanted sign.
-	void PushCap( std::vector<int>& indices, const b3Vec2* poly, int r0, int r1, int r2, int vOffset, bool wantPositiveZ )
+	void PushCap( std::vector<int>& indices, const b3Vec2* poly, int r0, int r1, int r2, int vOffset,
+				  bool wantPositiveZ )
 	{
-		float cross =
-			( poly[r1].x - poly[r0].x ) * ( poly[r2].y - poly[r0].y ) - ( poly[r1].y - poly[r0].y ) * ( poly[r2].x - poly[r0].x );
+		float cross = ( poly[r1].x - poly[r0].x ) * ( poly[r2].y - poly[r0].y ) -
+					  ( poly[r1].y - poly[r0].y ) * ( poly[r2].x - poly[r0].x );
 		bool positive = cross > 0.0f;
 
 		int v0 = 2 * r0 + vOffset;
@@ -3112,7 +3225,8 @@ public:
 
 	// One gear shaft: a disk and tooth ring at each depth joined by an axle, all on
 	// one rigid body so the two depth gears share an angle and read as a clean gear.
-	b3BodyId BuildGearBody( b3Pos position, float toothCenterRadius, b3HullData* diskNear, b3HullData* diskFar, b3HullData* axle )
+	b3BodyId BuildGearBody( b3Pos position, float toothCenterRadius, b3HullData* diskNear, b3HullData* diskFar,
+							b3HullData* axle )
 	{
 		b3BodyDef bodyDef = b3DefaultBodyDef();
 		bodyDef.type = b3_dynamicBody;

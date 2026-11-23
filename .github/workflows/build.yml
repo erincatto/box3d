@@ -22,13 +22,15 @@ jobs:
       matrix:
         include:
           - name: ubuntu-gcc
-            os: ubuntu-latest
+            os: ubuntu-24.04
+            args: -DBOX3D_SANITIZE=ON
             test: ./bin/test
           # Clang jobs pin the image because each Ubuntu image ships a different set of clang versions
           - name: ubuntu-clang
             os: ubuntu-26.04
+            timeout: 20
             args: '-DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_C_COMPILER=clang-20 -DCMAKE_C_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"'
-            test: ./bin/test
+            test: stdbuf -oL ./bin/test
           # Runner speed varies about 3x by region and MSan at -O0 can exceed the timeout on the slow ones.
           # -O1 is the level MSan recommends and Debug keeps asserts. Line buffering shows per test timing.
           - name: ubuntu-clang-msan

@@ -255,10 +255,28 @@ void b3PrepareMotorJoint( b3JointSim* base, b3StepContext* context )
 		joint->linearSpringImpulse = b3Vec3_zero;
 		joint->angularSpringImpulse = b3Vec3_zero;
 	}
-	else if ( base->fixedRotation )
+	else
 	{
-		joint->angularVelocityImpulse = b3Vec3_zero;
-		joint->angularSpringImpulse = b3Vec3_zero;
+		// Clear impulses when features are disabled.
+		if ( ( joint->maxSpringForce > 0.0f && joint->linearHertz > 0.0f ) == false )
+		{
+			joint->linearSpringImpulse = b3Vec3_zero;
+		}
+
+		if ( ( joint->maxVelocityForce > 0.0f ) == false )
+		{
+			joint->linearVelocityImpulse = b3Vec3_zero;
+		}
+
+		if ( base->fixedRotation || ( joint->maxSpringTorque > 0.0f && joint->angularHertz > 0.0f ) == false )
+		{
+			joint->angularSpringImpulse = b3Vec3_zero;
+		}
+
+		if ( base->fixedRotation || ( joint->maxVelocityTorque > 0.0f ) == false )
+		{
+			joint->angularVelocityImpulse = b3Vec3_zero;
+		}
 	}
 }
 
@@ -285,10 +303,19 @@ void b3WarmStartMotorJoint( b3JointSim* base, b3StepContext* context )
 	b3Vec3 linearImpulse = b3Add( joint->linearVelocityImpulse, joint->linearSpringImpulse );
 	b3Vec3 angularImpulse = b3Add( joint->angularVelocityImpulse, joint->angularSpringImpulse );
 
-	stateA->linearVelocity = b3MulSub( stateA->linearVelocity, mA, linearImpulse );
-	stateA->angularVelocity = b3Sub( stateA->angularVelocity, b3MulMV( iA, b3Add( b3Cross( rA, linearImpulse ), angularImpulse ) ) );
-	stateB->linearVelocity = b3MulAdd( stateB->linearVelocity, mB, linearImpulse );
-	stateB->angularVelocity = b3Add( stateB->angularVelocity, b3MulMV( iB, b3Add( b3Cross( rB, linearImpulse ), angularImpulse ) ) );
+	if ( stateA->flags & b3_dynamicFlag )
+	{
+		stateA->linearVelocity = b3MulSub( stateA->linearVelocity, mA, linearImpulse );
+		stateA->angularVelocity =
+			b3Sub( stateA->angularVelocity, b3MulMV( iA, b3Add( b3Cross( rA, linearImpulse ), angularImpulse ) ) );
+	}
+
+	if ( stateB->flags & b3_dynamicFlag )
+	{
+		stateB->linearVelocity = b3MulAdd( stateB->linearVelocity, mB, linearImpulse );
+		stateB->angularVelocity =
+			b3Add( stateB->angularVelocity, b3MulMV( iB, b3Add( b3Cross( rB, linearImpulse ), angularImpulse ) ) );
+	}
 }
 
 void b3SolveMotorJoint( b3JointSim* base, b3StepContext* context )

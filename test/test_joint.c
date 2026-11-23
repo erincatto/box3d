@@ -873,6 +873,50 @@ static int TestSphericalJoint( void )
 	return FinishJoint( jointId, f.worldId );
 }
 
+static int TestSphericalMotorFrame( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_kinematicBody;
+	bodyDef.angularVelocity = (b3Vec3){ 0.0f, 2.0f, 0.0f };
+	b3BodyId bodyIdA = b3CreateBody( worldId, &bodyDef );
+
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.angularVelocity = b3Vec3_zero;
+	b3BodyId bodyIdB = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeCubeHull( 0.5f );
+	b3CreateHullShape( bodyIdB, &shapeDef, &box.base );
+
+	b3Vec3 motorVelocity = { 1.0f, 0.0f, 0.0f };
+	b3SphericalJointDef jointDef = b3DefaultSphericalJointDef();
+	jointDef.base.bodyIdA = bodyIdA;
+	jointDef.base.bodyIdB = bodyIdB;
+	jointDef.enableMotor = true;
+	jointDef.maxMotorTorque = 1000.0f;
+	jointDef.motorVelocity = motorVelocity;
+	b3JointId jointId = b3CreateSphericalJoint( worldId, &jointDef );
+
+	for ( int i = 0; i < 120; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3Vec3 relativeVelocity = b3Sub( b3Body_GetAngularVelocity( bodyIdB ), b3Body_GetAngularVelocity( bodyIdA ) );
+	b3Vec3 localVelocity = b3InvRotateVector( b3Body_GetRotation( bodyIdA ), relativeVelocity );
+	ENSURE_SMALL( localVelocity.x - motorVelocity.x, 0.02f );
+	ENSURE_SMALL( localVelocity.y - motorVelocity.y, 0.02f );
+	ENSURE_SMALL( localVelocity.z - motorVelocity.z, 0.02f );
+
+	ENSURE( b3Joint_IsValid( jointId ) );
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 static int TestWeldJoint( void )
 {
 	JointFixture f = CreateJointFixture();
@@ -972,6 +1016,81 @@ static int TestWheelJoint( void )
 	MAYBE_UNUSED( steeringTorque );
 
 	return FinishJoint( jointId, f.worldId );
+}
+
+// The body starts at -3 radians with a spring target of +3. The short way crosses pi and never
+// comes near zero. The long way sweeps through zero.
+static int CheckSpringShortWay( b3JointType type )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+
+	b3Vec3 axis = type == b3_revoluteJoint ? b3Vec3_axisZ : b3Vec3_axisX;
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.rotation = b3MakeQuatFromAxisAngle( axis, -3.0f );
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeBoxHull( 0.5f, 0.1f, 0.1f );
+	b3CreateHullShape( bodyId, &shapeDef, &box.base );
+
+	b3JointId jointId;
+	if ( type == b3_revoluteJoint )
+	{
+		b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
+		def.base.bodyIdA = groundId;
+		def.base.bodyIdB = bodyId;
+		def.enableSpring = true;
+		def.hertz = 2.0f;
+		def.dampingRatio = 1.0f;
+		def.targetAngle = 3.0f;
+		jointId = b3CreateRevoluteJoint( worldId, &def );
+	}
+	else
+	{
+		b3WheelJointDef def = b3DefaultWheelJointDef();
+		def.base.bodyIdA = groundId;
+		def.base.bodyIdB = bodyId;
+		def.enableSteering = true;
+		def.steeringHertz = 2.0f;
+		def.steeringDampingRatio = 1.0f;
+		def.maxSteeringTorque = 1000.0f;
+		def.targetSteeringAngle = 3.0f;
+		jointId = b3CreateWheelJoint( worldId, &def );
+	}
+
+	float startAngle =
+		type == b3_revoluteJoint ? b3RevoluteJoint_GetAngle( jointId ) : b3WheelJoint_GetSteeringAngle( jointId );
+	ENSURE_SMALL( startAngle + 3.0f, 0.01f );
+
+	float closestToZero = B3_PI;
+	float angle = startAngle;
+	for ( int i = 0; i < 180; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+		angle = type == b3_revoluteJoint ? b3RevoluteJoint_GetAngle( jointId ) : b3WheelJoint_GetSteeringAngle( jointId );
+		closestToZero = b3MinFloat( closestToZero, fabsf( angle ) );
+	}
+
+	ENSURE( closestToZero > 2.5f );
+	ENSURE_SMALL( angle - 3.0f, 0.05f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+static int TestRevoluteSpringShortWay( void )
+{
+	return CheckSpringShortWay( b3_revoluteJoint );
+}
+
+static int TestWheelSteeringShortWay( void )
+{
+	return CheckSpringShortWay( b3_wheelJoint );
 }
 
 static void SetHeldFrames( b3JointDef* base, b3BodyId groundId, b3BodyId bodyId, b3Vec3 origin, b3Vec3 anchor, b3Quat q )
@@ -1231,6 +1350,278 @@ static int TestNonDynamicJointDisable( void )
 	return 0;
 }
 
+enum ReleaseCase
+{
+	e_motorSpringForce,
+	e_motorLinearHertz,
+	e_motorVelocityForce,
+	e_motorSpringTorque,
+	e_motorAngularHertz,
+	e_motorVelocityTorque,
+	e_distanceHertz,
+	e_distanceLimit,
+	e_parallelTorque,
+	e_releaseCaseCount,
+};
+
+static b3JointId CreateReleaseJoint( JointFixture* f, int releaseCase )
+{
+	switch ( releaseCase )
+	{
+		case e_motorSpringForce:
+		case e_motorLinearHertz:
+		{
+			b3MotorJointDef def = b3DefaultMotorJointDef();
+			SetCommonFrames( &def.base, f );
+			def.linearHertz = 5.0f;
+			def.linearDampingRatio = 1.0f;
+			def.maxSpringForce = 1000.0f;
+			return b3CreateMotorJoint( f->worldId, &def );
+		}
+
+		case e_motorVelocityForce:
+		{
+			b3MotorJointDef def = b3DefaultMotorJointDef();
+			SetCommonFrames( &def.base, f );
+			def.maxVelocityForce = 1000.0f;
+			return b3CreateMotorJoint( f->worldId, &def );
+		}
+
+		case e_motorSpringTorque:
+		case e_motorAngularHertz:
+		{
+			b3MotorJointDef def = b3DefaultMotorJointDef();
+			SetCommonFrames( &def.base, f );
+			def.angularHertz = 5.0f;
+			def.angularDampingRatio = 1.0f;
+			def.maxSpringTorque = 1000.0f;
+			return b3CreateMotorJoint( f->worldId, &def );
+		}
+
+		case e_motorVelocityTorque:
+		{
+			b3MotorJointDef def = b3DefaultMotorJointDef();
+			SetCommonFrames( &def.base, f );
+			def.maxVelocityTorque = 1000.0f;
+			return b3CreateMotorJoint( f->worldId, &def );
+		}
+
+		case e_distanceHertz:
+		case e_distanceLimit:
+		{
+			b3DistanceJointDef def = b3DefaultDistanceJointDef();
+			def.base.bodyIdA = f->groundId;
+			def.base.bodyIdB = f->bodyId;
+			def.base.localFrameA.p = (b3Vec3){ 0.0f, 6.0f, 0.0f };
+			def.length = 2.0f;
+			def.enableSpring = true;
+			if ( releaseCase == e_distanceHertz )
+			{
+				def.hertz = 5.0f;
+				def.dampingRatio = 1.0f;
+			}
+			else
+			{
+				def.enableLimit = true;
+				def.maxLength = 2.0f;
+			}
+			return b3CreateDistanceJoint( f->worldId, &def );
+		}
+
+		default:
+		{
+			b3ParallelJointDef def = b3DefaultParallelJointDef();
+			SetCommonFrames( &def.base, f );
+			def.hertz = 5.0f;
+			def.dampingRatio = 1.0f;
+			def.maxTorque = 1000.0f;
+			return b3CreateParallelJoint( f->worldId, &def );
+		}
+	}
+}
+
+static void ReleaseJoint( b3JointId jointId, int releaseCase )
+{
+	switch ( releaseCase )
+	{
+		case e_motorSpringForce:
+			b3MotorJoint_SetMaxSpringForce( jointId, 0.0f );
+			break;
+		case e_motorLinearHertz:
+			b3MotorJoint_SetLinearHertz( jointId, 0.0f );
+			break;
+		case e_motorVelocityForce:
+			b3MotorJoint_SetMaxVelocityForce( jointId, 0.0f );
+			break;
+		case e_motorSpringTorque:
+			b3MotorJoint_SetMaxSpringTorque( jointId, 0.0f );
+			break;
+		case e_motorAngularHertz:
+			b3MotorJoint_SetAngularHertz( jointId, 0.0f );
+			break;
+		case e_motorVelocityTorque:
+			b3MotorJoint_SetMaxVelocityTorque( jointId, 0.0f );
+			break;
+		case e_distanceHertz:
+			b3DistanceJoint_SetSpringHertz( jointId, 0.0f );
+			break;
+		case e_distanceLimit:
+			b3DistanceJoint_EnableLimit( jointId, false );
+			break;
+		default:
+			b3ParallelJoint_SetMaxTorque( jointId, 0.0f );
+			break;
+	}
+}
+
+// A joint term that is switched off must let go of a loaded body, not keep warm starting the impulse that held it
+static int TestJointReleasesLoad( void )
+{
+	for ( int releaseCase = 0; releaseCase < e_releaseCaseCount; ++releaseCase )
+	{
+		JointFixture f = CreateJointFixture();
+		b3JointId jointId = CreateReleaseJoint( &f, releaseCase );
+
+		bool angular = releaseCase == e_motorSpringTorque || releaseCase == e_motorAngularHertz ||
+					   releaseCase == e_motorVelocityTorque || releaseCase == e_parallelTorque;
+
+		// Unit cube, so 1 kg and 1/6 kg m^2
+		b3Vec3 force = angular ? b3Vec3_zero : (b3Vec3){ 0.0f, -10.0f, 0.0f };
+		b3Vec3 torque = angular ? (b3Vec3){ 1.0f, 0.0f, 0.0f } : b3Vec3_zero;
+
+		for ( int i = 0; i < 120; ++i )
+		{
+			if ( i == 60 )
+			{
+				b3Vec3 v = b3Body_GetLinearVelocity( f.bodyId );
+				b3Vec3 w = b3Body_GetAngularVelocity( f.bodyId );
+				ENSURE( b3Length( v ) < 0.1f && b3Length( w ) < 0.1f );
+				ReleaseJoint( jointId, releaseCase );
+			}
+
+			b3Body_ApplyForceToCenter( f.bodyId, force, true );
+			b3Body_ApplyTorque( f.bodyId, torque, true );
+			b3World_Step( f.worldId, 1.0f / 60.0f, 4 );
+		}
+
+		// Free motion after one second is 10 m/s and 6 rad/s
+		if ( angular )
+		{
+			b3Vec3 w = b3Body_GetAngularVelocity( f.bodyId );
+			ENSURE( w.x > 5.0f );
+		}
+		else
+		{
+			b3Vec3 v = b3Body_GetLinearVelocity( f.bodyId );
+			ENSURE( v.y < -9.0f );
+		}
+
+		b3DestroyWorld( f.worldId );
+	}
+
+	return 0;
+}
+
+// Issue #208. Joints to one kinematic body share graph colors, so a multithreaded warm start or solve must never
+// store to the kinematic body. Only ThreadSanitizer sees the race itself; this checks the kinematic body is untouched.
+static int TestKinematicJointFan( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.workerCount = 8;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3Vec3 anchorVelocity = { 1.0f, 0.0f, 0.0f };
+	b3BodyDef anchorDef = b3DefaultBodyDef();
+	anchorDef.type = b3_kinematicBody;
+	anchorDef.linearVelocity = anchorVelocity;
+	b3BodyId anchorId = b3CreateBody( worldId, &anchorDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3Sphere sphere = { .center = { 0.0f, 0.0f, 0.0f }, .radius = 0.25f };
+
+	enum
+	{
+		e_jointTypeCount = 4,
+		e_bodyCount = 128,
+	};
+
+	for ( int i = 0; i < e_bodyCount; ++i )
+	{
+		// Spaced so the spheres never touch, only joints
+		b3Vec3 p = { (float)( i % 16 ), 2.0f + (float)( i / 16 ), 0.0f };
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ p.x, p.y, p.z };
+		b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+		b3CreateSphereShape( bodyId, &shapeDef, &sphere );
+
+		switch ( i % e_jointTypeCount )
+		{
+			case 0:
+			{
+				b3MotorJointDef def = b3DefaultMotorJointDef();
+				def.base.bodyIdA = anchorId;
+				def.base.bodyIdB = bodyId;
+				def.base.localFrameA.p = p;
+				def.linearHertz = 4.0f;
+				def.linearDampingRatio = 0.7f;
+				def.maxSpringForce = 1000.0f;
+				def.maxVelocityForce = 100.0f;
+				b3CreateMotorJoint( worldId, &def );
+			}
+			break;
+
+			case 1:
+			{
+				b3SphericalJointDef def = b3DefaultSphericalJointDef();
+				def.base.bodyIdA = anchorId;
+				def.base.bodyIdB = bodyId;
+				def.base.localFrameA.p = p;
+				b3CreateSphericalJoint( worldId, &def );
+			}
+			break;
+
+			case 2:
+			{
+				b3WeldJointDef def = b3DefaultWeldJointDef();
+				def.base.bodyIdA = anchorId;
+				def.base.bodyIdB = bodyId;
+				def.base.localFrameA.p = p;
+				b3CreateWeldJoint( worldId, &def );
+			}
+			break;
+
+			default:
+			{
+				b3DistanceJointDef def = b3DefaultDistanceJointDef();
+				def.base.bodyIdA = anchorId;
+				def.base.bodyIdB = bodyId;
+				def.base.localFrameA.p = p;
+				def.length = 0.5f;
+				def.enableSpring = true;
+				def.hertz = 2.0f;
+				def.dampingRatio = 0.5f;
+				b3CreateDistanceJoint( worldId, &def );
+			}
+			break;
+		}
+	}
+
+	for ( int i = 0; i < 20; ++i )
+	{
+		b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	}
+
+	b3Vec3 v = b3Body_GetLinearVelocity( anchorId );
+	b3Vec3 w = b3Body_GetAngularVelocity( anchorId );
+	ENSURE( v.x == anchorVelocity.x && v.y == anchorVelocity.y && v.z == anchorVelocity.z );
+	ENSURE( w.x == 0.0f && w.y == 0.0f && w.z == 0.0f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int JointTest( void )
 {
 	RUN_SUBTEST( TestMotionLockJoint );
@@ -1251,11 +1642,16 @@ int JointTest( void )
 	RUN_SUBTEST( TestPrismaticJoint );
 	RUN_SUBTEST( TestRevoluteJoint );
 	RUN_SUBTEST( TestSphericalJoint );
+	RUN_SUBTEST( TestSphericalMotorFrame );
 	RUN_SUBTEST( TestWeldJoint );
 	RUN_SUBTEST( TestWheelJoint );
+	RUN_SUBTEST( TestRevoluteSpringShortWay );
+	RUN_SUBTEST( TestWheelSteeringShortWay );
 	RUN_SUBTEST( TestConstraintForceAndTorque );
 	RUN_SUBTEST( TestCreateJointClearsContacts );
 	RUN_SUBTEST( TestNonDynamicJointDisable );
+	RUN_SUBTEST( TestJointReleasesLoad );
+	RUN_SUBTEST( TestKinematicJointFan );
 
 	return 0;
 }

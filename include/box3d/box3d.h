@@ -1776,9 +1776,7 @@ B3_API void b3SphericalJoint_EnableMotor( b3JointId jointId, bool enableMotor );
 /// Is the spherical joint motor enabled?
 B3_API bool b3SphericalJoint_IsMotorEnabled( b3JointId jointId );
 
-/// Set the spherical joint motor velocity in radians per second. This is the relative angular
-/// velocity between the two bodies in world space.
-/// motorVelocity = angularVelocityB - angularVelocityA
+/// Set the spherical joint motor velocity in radians per second.
 B3_API void b3SphericalJoint_SetMotorVelocity( b3JointId jointId, b3Vec3 motorVelocity );
 
 /// Get the spherical joint motor velocity in radians per second

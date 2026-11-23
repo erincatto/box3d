@@ -248,9 +248,9 @@ static inline b3V32 b3NegV( b3V32 a )
 
 static inline b3V32 b3LoadV( const float* src )
 {
-	// Loads exactly 12 bytes: 8 via movsd, 4 via movss.
-	// Result lane 3 is implicitly zero from the partial loads.
-	__m128 xy = _mm_castpd_ps( _mm_load_sd( (const double*)( src ) ) );
+	// xy = {src[0], src[1], 0.0f, 0.0f}
+	__m128 xy = _mm_castsi128_ps( _mm_loadl_epi64( (const __m128i*)src ) );
+	// z = {src[2], src[2], src[2], src[2]}
 	__m128 z = _mm_load_ss( src + 2 );
 	return _mm_movelh_ps( xy, z ); // { src[0], src[1], src[2], 0.0f }
 }

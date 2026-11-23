@@ -245,12 +245,26 @@ void b3JoinThread( b3Thread* t )
 #include <sched.h>
 #include <time.h>
 
+#if defined( __EMSCRIPTEN__ )
+
+#include <emscripten/emscripten.h>
+
+// clock_gettime doesn't work well in emscripten (issue 165).
+uint64_t b3GetTicks( void )
+{
+	return (uint64_t)( emscripten_get_now() * 1000000.0 );
+}
+
+#else
+
 uint64_t b3GetTicks( void )
 {
 	struct timespec ts;
 	clock_gettime( CLOCK_MONOTONIC, &ts );
 	return ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
+
+#endif
 
 float b3GetMilliseconds( uint64_t ticks )
 {

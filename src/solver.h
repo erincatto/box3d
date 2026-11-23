@@ -134,9 +134,6 @@ typedef enum b3SolverBlockType
 
 	// Block for iterating across contacts of a single graph color.
 	b3_graphContactBlock,
-
-	// Block for processing overflow constraints
-	b3_overflowBlock,
 } b3SolverBlockType;
 
 // Solver block describes a multithreaded unit of work.
@@ -187,13 +184,6 @@ typedef struct b3WidePrepareSpan
 	int count;
 	int* contacts;
 } b3WidePrepareSpan;
-
-typedef struct b3ContactPrepareSpan
-{
-	int start;
-	int count;
-	b3ContactSpec* contacts;
-} b3ContactPrepareSpan;
 
 typedef struct b3MeshPrepareSpan
 {
@@ -303,8 +293,6 @@ typedef struct b3StepContext
 	b3WidePrepareSpan widePrepareSpans[B3_GRAPH_COLOR_COUNT + 1];
 	int wideContactCount;
 
-	// Similar for overflow contact constraints.
-	b3ContactPrepareSpan overflowSpans[2];
 	void* wideMeshConstraints;
 	int* wideMeshManifoldStarts;
 	b3MeshPrepareSpan meshPrepareSpans[B3_GRAPH_COLOR_COUNT + 1];

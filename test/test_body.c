@@ -719,8 +719,67 @@ static int IsotropicInertiaTolerance( void )
 	return 0;
 }
 
+// A body move index is only valid until the next step clears the move events. A body that leaves
+// the awake set keeps its index, so putting it to sleep later must not touch another body's event.
+static int StaleMoveIndexSleep( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	enum
+	{
+		e_count = 16
+	};
+
+	b3Sphere sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+	b3BodyId bodyIds[e_count];
+	for ( int i = 0; i < e_count; ++i )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.position = (b3Pos){ 2.0f * i, 10.0f, 0.0f };
+		bodyIds[i] = b3CreateBody( worldId, &bodyDef );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		b3CreateSphereShape( bodyIds[i], &shapeDef, &sphere );
+	}
+
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	// Disable/enable leaves an index that now belongs to another body
+	b3Body_Disable( bodyIds[0] );
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	b3Body_Enable( bodyIds[0] );
+	b3Body_SetAwake( bodyIds[0], false );
+	ENSURE( b3Body_IsAwake( bodyIds[0] ) == false );
+
+	b3BodyEvents events = b3World_GetBodyEvents( worldId );
+	ENSURE( events.moveCount == e_count - 1 );
+	for ( int i = 0; i < events.moveCount; ++i )
+	{
+		ENSURE( events.moveEvents[i].fellAsleep == false );
+	}
+
+	// Disable/enable leaves an index past the end of the events
+	b3Body_Disable( bodyIds[15] );
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	b3Body_Enable( bodyIds[15] );
+	b3Body_SetAwake( bodyIds[15], false );
+	ENSURE( b3Body_IsAwake( bodyIds[15] ) == false );
+
+	// A zero time step clears the events without assigning new indices
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+	b3World_Step( worldId, 0.0f, 4 );
+	b3Body_SetAwake( bodyIds[1], false );
+	ENSURE( b3Body_IsAwake( bodyIds[1] ) == false );
+	ENSURE( b3World_GetBodyEvents( worldId ).moveCount == 0 );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int BodyTest( void )
 {
+	RUN_SUBTEST( StaleMoveIndexSleep );
 	RUN_SUBTEST( FarSingleSphereMass );
 	RUN_SUBTEST( FarCubeSphereMass );
 	RUN_SUBTEST( DeferredMassExtents );

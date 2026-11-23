@@ -180,7 +180,8 @@ typedef bool b3OverlapResultFcn( b3ShapeId shapeId, void* context );
 typedef float b3CastResultFcn( b3ShapeId shapeId, b3Pos point, b3Vec3 normal, float fraction, uint64_t userMaterialId,
 							   int triangleIndex, int childIndex, void* context );
 
-/// Optional world capacities that can be use to avoid run-time allocations
+/// Optional world capacities that can be use to avoid run-time allocations. The biggest benefit of these it to avoid
+/// the associated memory copy costs for large worlds.
 /// @ingroup world
 typedef struct b3Capacity
 {
@@ -1077,9 +1078,7 @@ typedef struct b3SphericalJointDef
 	/// The maximum motor torque, typically in newton-meters. Non-negative number.
 	float maxMotorTorque;
 
-	/// The desired motor angular velocity in radians per second. This is the relative angular
-	/// velocity between the two bodies in world space.
-	/// motorVelocity = angularVelocityB - angularVelocityA
+	/// The desired motor angular velocity in joint frame A in radians per second.
 	b3Vec3 motorVelocity;
 } b3SphericalJointDef;
 
@@ -2056,7 +2055,7 @@ typedef struct b3BodyTOIResult
 	/// The hit normal. Points from the body to the mover.
 	b3Vec3 normal;
 
-	/// The sweep time of the collision.
+	/// The sweep time of the collision. Returns 1 for a miss.
 	float fraction;
 
 	/// The hit shape.
@@ -2891,13 +2890,13 @@ typedef struct b3Manifold
 	/// The unit normal vector in world space, points from shape A to shape B
 	b3Vec3 normal;
 
-	/// Central friction angular impulse (applied about the normal)
+	/// Central friction angular impulse (applied about the normal). This is the result for the final internal sub-step.
 	float twistImpulse;
 
-	/// Central friction linear impulse
+	/// Central friction linear impulse. This is the result for the final internal sub-step.
 	b3Vec3 frictionImpulse;
 
-	/// Rolling resistance angular impulse
+	/// Rolling resistance angular impulse. This is the result for the final internal sub-step.
 	b3Vec3 rollingImpulse;
 
 	/// The number of contact points, will be 0 to 4

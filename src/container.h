@@ -124,8 +124,11 @@
 			( a ).data = b3GrowAlloc( ( a ).data, oldSize, newSize );                                  \
 			( a ).capacity = newCapacity;                                                                                        \
 		}                                                                                                                        \
-		memcpy( ( a ).data + ( a ).count, ( src ), _n * sizeof( *( a ).data ) );                                                 \
-		( a ).count += _n;                                                                                                       \
+		if ( _n > 0 )                                                                                                            \
+		{                                                                                                                        \
+			memcpy( ( a ).data + ( a ).count, ( src ), _n * sizeof( *( a ).data ) );                                             \
+			( a ).count += _n;                                                                                                   \
+		}                                                                                                                        \
 	}                                                                                                                            \
 	while ( 0 )
 

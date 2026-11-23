@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2023 Erin Catto
 // SPDX-License-Identifier: MIT
 
+#include "physics_world.h"
+#include "shape.h"
 #include "test_macros.h"
 
 #include "box3d/box3d.h"
@@ -971,6 +973,125 @@ static int ShapeFlagsTest( void )
 	return 0;
 }
 
+// Issue 167
+static int ShapeApplyWindWakeTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.gravity = b3Vec3_zero;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.isAwake = false;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3BoxHull boxHull = b3MakeBoxHull( 0.25f, 0.25f, 0.25f );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3ShapeId shapeId = b3CreateHullShape( bodyId, &shapeDef, &boxHull.base );
+
+	ENSURE( b3Body_IsAwake( bodyId ) == false );
+
+	b3Shape_ApplyWind( shapeId, (b3Vec3){ 20.0f, 0.0f, 0.0f }, 1.0f, 0.0f, 100.0f, false );
+	ENSURE( b3Body_IsAwake( bodyId ) == false );
+
+	b3Shape_ApplyWind( shapeId, (b3Vec3){ 20.0f, 0.0f, 0.0f }, 1.0f, 0.0f, 100.0f, true );
+	ENSURE( b3Body_IsAwake( bodyId ) );
+
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	b3Vec3 v = b3Body_GetLinearVelocity( bodyId );
+	ENSURE( v.x > 0.0f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+static int CheckShapeCentroid( b3ShapeId shapeId, b3Vec3 expected )
+{
+	b3World* world = b3GetWorld( shapeId.world0 );
+	b3Shape* shape = b3Array_Get( world->shapes, shapeId.index1 - 1 );
+	ENSURE( b3Distance( shape->localCentroid, b3GetShapeCentroid( shape ) ) < FLT_EPSILON );
+	ENSURE( b3Distance( shape->localCentroid, expected ) < 1.0e-5f );
+	return 0;
+}
+
+// Issue 206
+static int ShapeSetGeometryCentroidTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.type = b3_dynamicBody;
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3BoxHull boxHull = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3ShapeId shapeId = b3CreateHullShape( bodyId, &shapeDef, &boxHull.base );
+	ENSURE( CheckShapeCentroid( shapeId, b3Vec3_zero ) == 0 );
+
+	b3Vec3 offset = { 2.0f, -1.0f, 3.0f };
+	b3BoxHull offsetHull = b3MakeOffsetBoxHull( 0.5f, 0.5f, 0.5f, offset );
+	b3Shape_SetHull( shapeId, &offsetHull.base );
+	ENSURE( CheckShapeCentroid( shapeId, offset ) == 0 );
+
+	b3Sphere movedSphere = { { -3.0f, 1.0f, 0.5f }, 0.5f };
+	b3Shape_SetSphere( shapeId, &movedSphere );
+	ENSURE( CheckShapeCentroid( shapeId, movedSphere.center ) == 0 );
+
+	b3Capsule movedCapsule = { { 1.0f, 2.0f, 0.0f }, { 3.0f, 2.0f, 0.0f }, 0.25f };
+	b3Shape_SetCapsule( shapeId, &movedCapsule );
+	ENSURE( CheckShapeCentroid( shapeId, (b3Vec3){ 2.0f, 2.0f, 0.0f } ) == 0 );
+
+	b3World_Step( worldId, 1.0f / 60.0f, 4 );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+// Issue 209
+static int ShapeMaterialRecycleTest( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	b3BodyId groundId = b3CreateBody( worldId, &bodyDef );
+	b3BoxHull groundHull = b3MakeBoxHull( 10.0f, 0.5f, 10.0f );
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3ShapeId groundShapeId = b3CreateHullShape( groundId, &shapeDef, &groundHull.base );
+
+	bodyDef.type = b3_dynamicBody;
+	bodyDef.position = (b3Pos){ 0.0f, 1.0f, 0.0f };
+	bodyDef.enableSleep = false;
+	b3BodyId crateId = b3CreateBody( worldId, &bodyDef );
+	b3BoxHull crateHull = b3MakeBoxHull( 0.5f, 0.5f, 0.5f );
+	b3CreateHullShape( crateId, &shapeDef, &crateHull.base );
+
+	float timeStep = 1.0f / 60.0f;
+	for ( int i = 0; i < 60; ++i )
+	{
+		b3World_Step( worldId, timeStep, 4 );
+	}
+
+	ENSURE( b3World_GetCounters( worldId ).recycledContactCount > 0 );
+
+	b3SurfaceMaterial material = b3Shape_GetSurfaceMaterial( groundShapeId );
+	material.tangentVelocity = (b3Vec3){ 1.0f, 0.0f, 0.0f };
+	b3Shape_SetSurfaceMaterial( groundShapeId, material );
+
+	for ( int i = 0; i < 60; ++i )
+	{
+		b3World_Step( worldId, timeStep, 4 );
+	}
+
+	b3Vec3 v = b3Body_GetLinearVelocity( crateId );
+	ENSURE( v.x > 0.9f );
+
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 int ShapeTest( void )
 {
 	box = b3MakeBoxHull( 1.0f, 1.0f, 1.0f );
@@ -979,6 +1100,9 @@ int ShapeTest( void )
 	RUN_SUBTEST( ShapeAABBTest );
 	RUN_SUBTEST( ShapeNameTest );
 	RUN_SUBTEST( ShapeFlagsTest );
+	RUN_SUBTEST( ShapeApplyWindWakeTest );
+	RUN_SUBTEST( ShapeSetGeometryCentroidTest );
+	RUN_SUBTEST( ShapeMaterialRecycleTest );
 	// RUN_SUBTEST( PointInShapeTest );
 	RUN_SUBTEST( RayCastShapeTest );
 

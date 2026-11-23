@@ -1259,6 +1259,25 @@ float b3Shape_GetDensity( b3ShapeId shapeId )
 	return shape->density;
 }
 
+static void b3InvalidateContactRecycling( b3World* world, b3Shape* shape )
+{
+	b3Body* body = b3Array_Get( world->bodies, shape->bodyId );
+	int edgeKey = body->headContactKey;
+	while ( edgeKey != B3_NULL_INDEX )
+	{
+		int contactId = edgeKey >> 1;
+		int edgeIndex = edgeKey & 1;
+
+		b3Contact* contact = b3Array_Get( world->contacts, contactId );
+		if ( contact->shapeIdA == shape->id || contact->shapeIdB == shape->id )
+		{
+			contact->flags &= ~b3_relativeTransformValid;
+		}
+
+		edgeKey = contact->edges[edgeIndex].nextKey;
+	}
+}
+
 void b3Shape_SetFriction( b3ShapeId shapeId, float friction )
 {
 	B3_CHECK_INPUT( b3IsValidFloat( friction ) && friction >= 0.0f );
@@ -1267,6 +1286,7 @@ void b3Shape_SetFriction( b3ShapeId shapeId, float friction )
 	b3Shape* shape = b3GetShape( world, shapeId );
 	B3_ASSERT( shape->type != b3_compoundShape );
 	b3GetShapeMaterials( shape )[0].friction = friction;
+	b3InvalidateContactRecycling( world, shape );
 }
 
 float b3Shape_GetFriction( b3ShapeId shapeId )
@@ -1284,6 +1304,7 @@ void b3Shape_SetRestitution( b3ShapeId shapeId, float restitution )
 	b3Shape* shape = b3GetShape( world, shapeId );
 	B3_ASSERT( shape->type != b3_compoundShape );
 	b3GetShapeMaterials( shape )[0].restitution = restitution;
+	b3InvalidateContactRecycling( world, shape );
 }
 
 float b3Shape_GetRestitution( b3ShapeId shapeId )
@@ -1302,6 +1323,7 @@ void b3Shape_SetSurfaceMaterial( b3ShapeId shapeId, b3SurfaceMaterial surfaceMat
 	b3Shape* shape = b3GetShape( world, shapeId );
 	B3_ASSERT( shape->type != b3_compoundShape );
 	b3GetShapeMaterials( shape )[0] = surfaceMaterial;
+	b3InvalidateContactRecycling( world, shape );
 }
 
 b3SurfaceMaterial b3Shape_GetSurfaceMaterial( b3ShapeId shapeId )
@@ -1330,6 +1352,7 @@ void b3Shape_SetMeshMaterial( b3ShapeId shapeId, b3SurfaceMaterial surfaceMateri
 
 	B3_REC( world, ShapeSetMeshMaterial, shapeId, surfaceMaterial, index );
 	b3GetShapeMaterials( shape )[index] = surfaceMaterial;
+	b3InvalidateContactRecycling( world, shape );
 }
 
 b3SurfaceMaterial b3Shape_GetMeshSurfaceMaterial( b3ShapeId shapeId, int index )
@@ -1509,6 +1532,7 @@ void b3Shape_EnableHitEvents( b3ShapeId shapeId, bool flag )
 
 	b3Shape* shape = b3GetShape( world, shapeId );
 	shape->flags = flag ? shape->flags | b3_enableHitEvents : shape->flags & ~b3_enableHitEvents;
+	b3InvalidateContactRecycling( world, shape );
 }
 
 bool b3Shape_AreHitEventsEnabled( b3ShapeId shapeId )
@@ -1593,6 +1617,7 @@ void b3Shape_SetSphere( b3ShapeId shapeId, const b3Sphere* sphere )
 
 	shape->sphere = *sphere;
 	shape->type = b3_sphereShape;
+	shape->localCentroid = b3GetShapeCentroid( shape );
 	shape->aabbMargin = b3ComputeShapeMargin( shape );
 
 	// need to wake bodies so they can react to the shape change
@@ -1623,6 +1648,7 @@ void b3Shape_SetCapsule( b3ShapeId shapeId, const b3Capsule* capsule )
 
 	shape->capsule = *capsule;
 	shape->type = b3_capsuleShape;
+	shape->localCentroid = b3GetShapeCentroid( shape );
 	shape->aabbMargin = b3ComputeShapeMargin( shape );
 
 	// need to wake bodies so they can react to the shape change
@@ -1673,6 +1699,7 @@ void b3Shape_SetHull( b3ShapeId shapeId, const b3HullData* hull )
 
 	shape->hull = data;
 	shape->type = b3_hullShape;
+	shape->localCentroid = b3GetShapeCentroid( shape );
 	shape->aabbMargin = b3ComputeShapeMargin( shape );
 
 	// need to wake bodies so they can react to the shape change
@@ -1710,6 +1737,7 @@ void b3Shape_SetMesh( b3ShapeId shapeId, const b3MeshData* meshData, b3Vec3 scal
 	shape->mesh.data = meshData;
 	shape->mesh.scale = b3SafeScale( scale );
 	shape->type = b3_meshShape;
+	shape->localCentroid = b3GetShapeCentroid( shape );
 	shape->aabbMargin = b3ComputeShapeMargin( shape );
 
 	// need to wake bodies so they can react to the shape change
@@ -1933,8 +1961,6 @@ void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift, 
 		return;
 	}
 
-	b3BodySim* sim = b3GetBodySim( world, body );
-
 	if ( body->setIndex != b3_awakeSet )
 	{
 		// Must wake for state to exist
@@ -1943,6 +1969,7 @@ void b3Shape_ApplyWind( b3ShapeId shapeId, b3Vec3 wind, float drag, float lift, 
 
 	B3_ASSERT( body->setIndex == b3_awakeSet );
 
+	b3BodySim* sim = b3GetBodySim( world, body );
 	b3BodyState* state = b3GetBodyState( world, body );
 	// Only the rotation is used below, so the demoted world transform is exact
 	b3Transform transform = b3ToRelativeTransform( sim->transform, b3Pos_zero );

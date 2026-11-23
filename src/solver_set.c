@@ -227,10 +227,15 @@ void b3TrySleepIsland( b3World* world, int islandId )
 			// It could happen the body is forced asleep before it ever moves.
 			if ( body->bodyMoveIndex != B3_NULL_INDEX )
 			{
-				b3BodyMoveEvent* moveEvent = b3Array_Get( world->bodyMoveEvents, body->bodyMoveIndex );
-				B3_ASSERT( moveEvent->bodyId.index1 - 1 == bodyId );
-				B3_ASSERT( moveEvent->bodyId.generation == body->generation );
-				moveEvent->fellAsleep = true;
+				// The move index can be stale on a snapshot restore.
+				if ( body->bodyMoveIndex < world->bodyMoveEvents.count )
+				{
+					b3BodyMoveEvent* moveEvent = world->bodyMoveEvents.data + body->bodyMoveIndex;
+					if ( moveEvent->bodyId.index1 - 1 == bodyId && moveEvent->bodyId.generation == body->generation )
+					{
+						moveEvent->fellAsleep = true;
+					}
+				}
 				body->bodyMoveIndex = B3_NULL_INDEX;
 			}
 

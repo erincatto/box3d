@@ -124,7 +124,7 @@ void b3PrepareParallelJoint( b3JointSim* base, b3StepContext* context )
 	{
 		joint->perpImpulse = (b3Vec2){ 0.0f, 0.0f };
 	}
-	else if ( base->fixedRotation )
+	else if ( base->fixedRotation || ( joint->maxTorque > 0.0f ) == false )
 	{
 		joint->perpImpulse = (b3Vec2){ 0.0f, 0.0f };
 	}

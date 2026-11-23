@@ -17,8 +17,6 @@
 #include "shape.h"
 #endif
 
-// todo clean this file up because it is only used for overflow now
-
 // contact separation for sub-stepping
 // s = s0 + dot(cB + rB - cA - rA, normal)
 // normal is held constant
@@ -29,7 +27,7 @@
 // s_base = s0 + dot(cB0 - cA0, normal)
 
 // Prepare overflow constraints
-void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
+void b3PrepareContacts_Overflow( b3StepContext* context )
 {
 	b3TracyCZoneNC( prepare_contact, "Prepare Contact", b3_colorYellow, true );
 
@@ -43,247 +41,223 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	// Used for friction center weighting.
 	float invTau = 1.0f / B3_SPECULATIVE_DISTANCE;
 
-	B3_ASSERT( block.blockType == b3_overflowBlock );
 	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
-	b3ContactPrepareSpan* spans = context->overflowSpans;
 	b3ManifoldConstraint* manifoldBase = overflow->manifoldConstraints;
 	b3ContactConstraint* base = overflow->contactConstraints;
+	b3ContactSpec* specs = overflow->contacts.data;
+	int contactCount = overflow->contacts.count;
 
-	int index = block.startIndex;
-	int endIndex = block.startIndex + block.count;
-
-	// Find color for start index. Linear search but fast.
-	int colorIndex = 0;
-	while ( spans[colorIndex + 1].start <= index )
+	for ( int index = 0; index < contactCount; ++index )
 	{
-		colorIndex += 1;
-	}
+		b3ContactConstraint* contactConstraint = base + index;
 
-	// Loop over block
-	while ( index < endIndex )
-	{
-		int colorStart = spans[colorIndex].start;
-		int colorEndIndex = b3MinInt( spans[colorIndex + 1].start, endIndex );
-		b3ContactSpec* specs = spans[colorIndex].contacts;
+		int contactId = specs[index].contactId;
+		b3Contact* contact = b3Array_Get( world->contacts, contactId );
+		B3_ASSERT( contact->contactId == contactId );
 
-		// Loop over color
-		for ( ; index < colorEndIndex; ++index )
-		{
-			b3ContactConstraint* contactConstraint = base + index;
-
-			int localIndex = index - colorStart;
-			B3_ASSERT( 0 <= localIndex && localIndex < spans[colorIndex].count );
-			int contactId = specs[localIndex].contactId;
-			b3Contact* contact = b3Array_Get( world->contacts, contactId );
-			B3_ASSERT( contact->contactId == contactId );
-
-			int indexA = b3DecodeAwakeIndex( contact->encodedBodySimA );
-			int indexB = b3DecodeAwakeIndex( contact->encodedBodySimB );
+		int indexA = b3DecodeAwakeIndex( contact->encodedBodySimA );
+		int indexB = b3DecodeAwakeIndex( contact->encodedBodySimB );
 
 #if B3_ENABLE_VALIDATION
-			{
-				b3Body* bodyA = b3Array_Get( world->bodies, contact->edges[0].bodyId );
-				b3Body* bodyB = b3Array_Get( world->bodies, contact->edges[1].bodyId );
-				B3_ASSERT( contact->encodedBodySimA == b3EncodeBodySimIndex( bodyA ) );
-				B3_ASSERT( contact->encodedBodySimB == b3EncodeBodySimIndex( bodyB ) );
-			}
+		{
+			b3Body* bodyA = b3Array_Get( world->bodies, contact->edges[0].bodyId );
+			b3Body* bodyB = b3Array_Get( world->bodies, contact->edges[1].bodyId );
+			B3_ASSERT( contact->encodedBodySimA == b3EncodeBodySimIndex( bodyA ) );
+			B3_ASSERT( contact->encodedBodySimB == b3EncodeBodySimIndex( bodyB ) );
+		}
 #endif
 
-			// Body A data
-			float mA;
-			b3Matrix3 iA;
+		// Body A data
+		float mA;
+		b3Matrix3 iA;
 
-			if ( indexA == B3_NULL_INDEX )
+		if ( indexA == B3_NULL_INDEX )
+		{
+			mA = 0.0f;
+			iA = b3Mat3_zero;
+		}
+		else
+		{
+			b3BodySim* simA = bodySims + indexA;
+			mA = simA->invMass;
+			iA = simA->invInertiaWorld;
+		}
+
+		// Body B data
+		float mB;
+		b3Matrix3 iB;
+
+		if ( indexB == B3_NULL_INDEX )
+		{
+			mB = 0.0f;
+			iB = b3Mat3_zero;
+		}
+		else
+		{
+			b3BodySim* simB = bodySims + indexB;
+			mB = simB->invMass;
+			iB = simB->invInertiaWorld;
+		}
+
+		int manifoldCount = contact->manifoldCount;
+		contactConstraint->contact = contact;
+		contactConstraint->manifoldCount = manifoldCount;
+		contactConstraint->indexA = indexA;
+		contactConstraint->indexB = indexB;
+		contactConstraint->invIA = iA;
+		contactConstraint->invMassA = mA;
+		contactConstraint->invIB = iB;
+		contactConstraint->invMassB = mB;
+		contactConstraint->rollingMass = b3InvertMatrix( b3AddMM( iA, iB ) );
+		contactConstraint->softness =
+			( contact->flags & b3_contactStaticFlag ) != 0 ? context->staticSoftness : context->contactSoftness;
+		contactConstraint->friction = contact->friction;
+		contactConstraint->restitution = contact->restitution;
+		contactConstraint->rollingResistance = contact->rollingResistance;
+
+		// Only sample contact point normal velocity if needed.
+		bool haveRestitution = contact->restitution > 0.0f;
+		bool hitEvents = ( contact->flags & b3_simEnableHitEvent ) != 0;
+		bool sampleVelocity = haveRestitution || hitEvents;
+		anyRestitution = anyRestitution || haveRestitution;
+
+		b3Vec3 vA = b3Vec3_zero;
+		b3Vec3 wA = b3Vec3_zero;
+		b3Vec3 vB = b3Vec3_zero;
+		b3Vec3 wB = b3Vec3_zero;
+
+		if ( sampleVelocity )
+		{
+			if ( indexA != B3_NULL_INDEX )
 			{
-				mA = 0.0f;
-				iA = b3Mat3_zero;
-			}
-			else
-			{
-				b3BodySim* simA = bodySims + indexA;
-				mA = simA->invMass;
-				iA = simA->invInertiaWorld;
-			}
-
-			// Body B data
-			float mB;
-			b3Matrix3 iB;
-
-			if ( indexB == B3_NULL_INDEX )
-			{
-				mB = 0.0f;
-				iB = b3Mat3_zero;
-			}
-			else
-			{
-				b3BodySim* simB = bodySims + indexB;
-				mB = simB->invMass;
-				iB = simB->invInertiaWorld;
-			}
-
-			int manifoldCount = contact->manifoldCount;
-			contactConstraint->contact = contact;
-			contactConstraint->manifoldCount = manifoldCount;
-			contactConstraint->indexA = indexA;
-			contactConstraint->indexB = indexB;
-			contactConstraint->invIA = iA;
-			contactConstraint->invMassA = mA;
-			contactConstraint->invIB = iB;
-			contactConstraint->invMassB = mB;
-			contactConstraint->rollingMass = b3InvertMatrix( b3AddMM( iA, iB ) );
-			contactConstraint->softness =
-				( contact->flags & b3_contactStaticFlag ) != 0 ? context->staticSoftness : context->contactSoftness;
-			contactConstraint->friction = contact->friction;
-			contactConstraint->restitution = contact->restitution;
-			contactConstraint->rollingResistance = contact->rollingResistance;
-
-			// Only sample contact point normal velocity if needed.
-			bool haveRestitution = contact->restitution > 0.0f;
-			bool hitEvents = ( contact->flags & b3_simEnableHitEvent ) != 0;
-			bool sampleVelocity = haveRestitution || hitEvents;
-			anyRestitution = anyRestitution || haveRestitution;
-
-			b3Vec3 vA = b3Vec3_zero;
-			b3Vec3 wA = b3Vec3_zero;
-			b3Vec3 vB = b3Vec3_zero;
-			b3Vec3 wB = b3Vec3_zero;
-
-			if ( sampleVelocity )
-			{
-				if ( indexA != B3_NULL_INDEX )
-				{
-					vA = states[indexA].linearVelocity;
-					wA = states[indexA].angularVelocity;
-				}
-
-				if ( indexB != B3_NULL_INDEX )
-				{
-					vB = states[indexB].linearVelocity;
-					wB = states[indexB].angularVelocity;
-				}
+				vA = states[indexA].linearVelocity;
+				wA = states[indexA].angularVelocity;
 			}
 
-			b3ManifoldConstraint* manifoldConstraints = manifoldBase + specs[localIndex].manifoldStart;
-			contactConstraint->constraints = manifoldConstraints;
-
-			for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
+			if ( indexB != B3_NULL_INDEX )
 			{
-				b3Manifold* manifold = contact->manifolds + manifoldIndex;
-				b3ManifoldConstraint* constraint = manifoldConstraints + manifoldIndex;
-				int pointCount = manifold->pointCount;
-				b3Vec3 normal = manifold->normal;
-				b3Vec3 tangent1 = b3Perp( normal );
-				b3Vec3 tangent2 = b3Cross( tangent1, normal );
-
-				constraint->pointCount = pointCount;
-				constraint->normal = normal;
-				constraint->tangent1 = tangent1;
-				constraint->tangent2 = tangent2;
-
-				// Stiffer for static contacts to avoid bodies getting pushed through the ground
-				constraint->tangentVelocity1 = b3Dot( contact->tangentVelocity, constraint->tangent1 );
-				constraint->tangentVelocity2 = b3Dot( contact->tangentVelocity, constraint->tangent2 );
-
-				b3Vec3 centerA = b3Vec3_zero;
-				b3Vec3 centerB = b3Vec3_zero;
-				float totalFrictionWeight = 0.0f;
-
-				for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
-				{
-					b3ManifoldConstraintPoint* cp = constraint->points + pointIndex;
-
-					// Copy data from manifold point
-					b3ManifoldPoint* mp = manifold->points + pointIndex;
-					cp->rA = mp->anchorA;
-					cp->rB = mp->anchorB;
-
-					float s = mp->separation;
-					cp->baseSeparation = s - b3Dot( b3Sub( cp->rB, cp->rA ), normal );
-					cp->normalImpulse = warmStartScale * mp->normalImpulse;
-					cp->totalNormalImpulse = 0.0f;
-					cp->restitutionImpulse = 0.0f;
-
-					b3Vec3 rA = cp->rA;
-					b3Vec3 rB = cp->rB;
-
-					b3Vec3 rnA = b3Cross( rA, normal );
-					b3Vec3 rnB = b3Cross( rB, normal );
-					float kNormal = mA + mB + b3Dot( rnA, b3MulMV( iA, rnA ) ) + b3Dot( rnB, b3MulMV( iB, rnB ) );
-					cp->normalMass = kNormal > 0.0f ? 1.0f / kNormal : 0.0f;
-
-					// Only compute the normal velocity terms if needed.
-					if ( sampleVelocity )
-					{
-						b3Vec3 vrA = b3Add( vA, b3Cross( wA, rA ) );
-						b3Vec3 vrB = b3Add( vB, b3Cross( wB, rB ) );
-						float vn = b3Dot( normal, b3Sub( vrB, vrA ) );
-
-						cp->relativeVelocity = vn;
-						mp->normalVelocity = hitEvents ? vn : 0.0f;
-					}
-					else
-					{
-						cp->relativeVelocity = 0.0f;
-						mp->normalVelocity = 0.0f;
-					}
-
-					// C0 friction center decay. Needed to prevent spinning top drift (GyroscopicPrecession sample).
-					// Contacts with separation greater than twice the speculative distance only matter for CCD and
-					// should not contribute to the friction center. They are not important for jitter reduction. Closer
-					// points may begin to touch on and off, so the friction center needs to move smoothly.
-					// Epsilon to avoid a branch below (or divide by zero). Small enough to get washed out normally.
-					// 
-					// Dirk suggested to weight the points by their normal impulse. This would use the total impulse from
-					// the previous time step. I suspect this could jump around if the active point set jitters, leading
-					// to a limit cycle.
-					float weight = b3ClampFloat( 2.0f - s * invTau, B3_MIN_FRICTION_WEIGHT, 1.0f );
-					centerA = b3MulAdd( centerA, weight, rA );
-					centerB = b3MulAdd( centerB, weight, rB );
-					totalFrictionWeight += weight;
-				}
-
-				float invWeight = 1.0f / totalFrictionWeight;
-				centerA = b3MulSV( invWeight, centerA );
-				centerB = b3MulSV( invWeight, centerB );
-				constraint->centerA = centerA;
-				constraint->centerB = centerB;
-
-				for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
-				{
-					b3ManifoldConstraintPoint* cp = constraint->points + pointIndex;
-					cp->leverArm = b3Distance( cp->rA, centerA );
-				}
-
-				b3Vec3 rtA1 = b3Cross( centerA, tangent1 );
-				b3Vec3 rtA2 = b3Cross( centerA, tangent2 );
-				b3Vec3 rtB1 = b3Cross( centerB, tangent1 );
-				b3Vec3 rtB2 = b3Cross( centerB, tangent2 );
-
-				{
-					b3Matrix2 k;
-					k.cx.x = mA + mB + b3Dot( rtA1, b3MulMV( iA, rtA1 ) ) + b3Dot( rtB1, b3MulMV( iB, rtB1 ) );
-					k.cy.y = mA + mB + b3Dot( rtA2, b3MulMV( iA, rtA2 ) ) + b3Dot( rtB2, b3MulMV( iB, rtB2 ) );
-					k.cx.y = k.cy.x = b3Dot( rtA1, b3MulMV( iA, rtA2 ) ) + b3Dot( rtB1, b3MulMV( iB, rtB2 ) );
-
-					constraint->tangentMass = b3Invert2( k );
-					constraint->frictionImpulse.x = warmStartScale * b3Dot( manifold->frictionImpulse, tangent1 );
-					constraint->frictionImpulse.y = warmStartScale * b3Dot( manifold->frictionImpulse, tangent2 );
-				}
-
-				{
-					float k = b3Dot( normal, b3MulMV( b3AddMM( iA, iB ), normal ) );
-					constraint->twistMass = k > 0.0f ? 1.0f / k : 0.0f;
-					constraint->twistImpulse = warmStartScale * manifold->twistImpulse;
-				}
-
-				{
-					constraint->rollingImpulse = b3MulSV( warmStartScale, manifold->rollingImpulse );
-				}
+				vB = states[indexB].linearVelocity;
+				wB = states[indexB].angularVelocity;
 			}
 		}
 
-		// Advance to next color
-		colorIndex += 1;
+		b3ManifoldConstraint* manifoldConstraints = manifoldBase + specs[index].manifoldStart;
+		contactConstraint->constraints = manifoldConstraints;
+
+		for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
+		{
+			b3Manifold* manifold = contact->manifolds + manifoldIndex;
+			b3ManifoldConstraint* constraint = manifoldConstraints + manifoldIndex;
+			int pointCount = manifold->pointCount;
+			b3Vec3 normal = manifold->normal;
+			b3Vec3 tangent1 = b3Perp( normal );
+			b3Vec3 tangent2 = b3Cross( tangent1, normal );
+
+			constraint->pointCount = pointCount;
+			constraint->normal = normal;
+			constraint->tangent1 = tangent1;
+			constraint->tangent2 = tangent2;
+
+			// Stiffer for static contacts to avoid bodies getting pushed through the ground
+			constraint->tangentVelocity1 = b3Dot( contact->tangentVelocity, constraint->tangent1 );
+			constraint->tangentVelocity2 = b3Dot( contact->tangentVelocity, constraint->tangent2 );
+
+			b3Vec3 centerA = b3Vec3_zero;
+			b3Vec3 centerB = b3Vec3_zero;
+			float totalFrictionWeight = 0.0f;
+
+			for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
+			{
+				b3ManifoldConstraintPoint* cp = constraint->points + pointIndex;
+
+				// Copy data from manifold point
+				b3ManifoldPoint* mp = manifold->points + pointIndex;
+				cp->rA = mp->anchorA;
+				cp->rB = mp->anchorB;
+
+				float s = mp->separation;
+				cp->baseSeparation = s - b3Dot( b3Sub( cp->rB, cp->rA ), normal );
+				cp->normalImpulse = warmStartScale * mp->normalImpulse;
+				cp->totalNormalImpulse = 0.0f;
+				cp->restitutionImpulse = 0.0f;
+
+				b3Vec3 rA = cp->rA;
+				b3Vec3 rB = cp->rB;
+
+				b3Vec3 rnA = b3Cross( rA, normal );
+				b3Vec3 rnB = b3Cross( rB, normal );
+				float kNormal = mA + mB + b3Dot( rnA, b3MulMV( iA, rnA ) ) + b3Dot( rnB, b3MulMV( iB, rnB ) );
+				cp->normalMass = kNormal > 0.0f ? 1.0f / kNormal : 0.0f;
+
+				// Only compute the normal velocity terms if needed.
+				if ( sampleVelocity )
+				{
+					b3Vec3 vrA = b3Add( vA, b3Cross( wA, rA ) );
+					b3Vec3 vrB = b3Add( vB, b3Cross( wB, rB ) );
+					float vn = b3Dot( normal, b3Sub( vrB, vrA ) );
+
+					cp->relativeVelocity = vn;
+					mp->normalVelocity = hitEvents ? vn : 0.0f;
+				}
+				else
+				{
+					cp->relativeVelocity = 0.0f;
+					mp->normalVelocity = 0.0f;
+				}
+
+				// C0 friction center decay. Needed to prevent spinning top drift (GyroscopicPrecession sample).
+				// Contacts with separation greater than twice the speculative distance only matter for CCD and
+				// should not contribute to the friction center. They are not important for jitter reduction. Closer
+				// points may begin to touch on and off, so the friction center needs to move smoothly.
+				// Epsilon to avoid a branch below (or divide by zero). Small enough to get washed out normally.
+				// 
+				// Dirk suggested to weight the points by their normal impulse. This would use the total impulse from
+				// the previous time step. I suspect this could jump around if the active point set jitters, leading
+				// to a limit cycle.
+				float weight = b3ClampFloat( 2.0f - s * invTau, B3_MIN_FRICTION_WEIGHT, 1.0f );
+				centerA = b3MulAdd( centerA, weight, rA );
+				centerB = b3MulAdd( centerB, weight, rB );
+				totalFrictionWeight += weight;
+			}
+
+			float invWeight = 1.0f / totalFrictionWeight;
+			centerA = b3MulSV( invWeight, centerA );
+			centerB = b3MulSV( invWeight, centerB );
+			constraint->centerA = centerA;
+			constraint->centerB = centerB;
+
+			for ( int pointIndex = 0; pointIndex < pointCount; ++pointIndex )
+			{
+				b3ManifoldConstraintPoint* cp = constraint->points + pointIndex;
+				cp->leverArm = b3Distance( cp->rA, centerA );
+			}
+
+			b3Vec3 rtA1 = b3Cross( centerA, tangent1 );
+			b3Vec3 rtA2 = b3Cross( centerA, tangent2 );
+			b3Vec3 rtB1 = b3Cross( centerB, tangent1 );
+			b3Vec3 rtB2 = b3Cross( centerB, tangent2 );
+
+			{
+				b3Matrix2 k;
+				k.cx.x = mA + mB + b3Dot( rtA1, b3MulMV( iA, rtA1 ) ) + b3Dot( rtB1, b3MulMV( iB, rtB1 ) );
+				k.cy.y = mA + mB + b3Dot( rtA2, b3MulMV( iA, rtA2 ) ) + b3Dot( rtB2, b3MulMV( iB, rtB2 ) );
+				k.cx.y = k.cy.x = b3Dot( rtA1, b3MulMV( iA, rtA2 ) ) + b3Dot( rtB1, b3MulMV( iB, rtB2 ) );
+
+				constraint->tangentMass = b3Invert2( k );
+				constraint->frictionImpulse.x = warmStartScale * b3Dot( manifold->frictionImpulse, tangent1 );
+				constraint->frictionImpulse.y = warmStartScale * b3Dot( manifold->frictionImpulse, tangent2 );
+			}
+
+			{
+				float k = b3Dot( normal, b3MulMV( b3AddMM( iA, iB ), normal ) );
+				constraint->twistMass = k > 0.0f ? 1.0f / k : 0.0f;
+				constraint->twistImpulse = warmStartScale * manifold->twistImpulse;
+			}
+
+			{
+				constraint->rollingImpulse = b3MulSV( warmStartScale, manifold->rollingImpulse );
+			}
+		}
 	}
 
 	if ( anyRestitution )
@@ -294,10 +268,10 @@ void b3PrepareContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	b3TracyCZoneEnd( prepare_contact );
 }
 
-void b3WarmStartContacts_Mesh( b3SolverBlock block, b3StepContext* context )
+void b3WarmStartContacts_Overflow( b3StepContext* context )
 {
 	b3World* world = context->world;
-	b3GraphColor* color = world->constraintGraph.colors + block.colorIndex;
+	b3GraphColor* color = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
 	b3SolverSet* awakeSet = b3GetSolverSet( world, b3_awakeSet );
 	b3BodyState* states = awakeSet->bodyStates.data;
 	b3ContactConstraint* constraints = color->contactConstraints;
@@ -305,10 +279,9 @@ void b3WarmStartContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	// This is a dummy state to represent a static body because static bodies don't have a solver body.
 	b3BodyState dummyState = b3_identityBodyState;
 
-	int startIndex = block.startIndex;
-	int endIndex = startIndex + block.count;
+	int contactCount = color->contacts.count;
 
-	for ( int constraintIndex = startIndex; constraintIndex < endIndex; ++constraintIndex )
+	for ( int constraintIndex = 0; constraintIndex < contactCount; ++constraintIndex )
 	{
 		const b3ContactConstraint* contactConstraint = constraints + constraintIndex;
 
@@ -379,24 +352,22 @@ void b3WarmStartContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 
 // Merged normal and friction loops. This is much more stable for the Jenga stack.
 // Solve the non-penetration constraints with the soft bias. No friction and no restitution.
-void b3PushContacts_Mesh( b3SolverBlock block, b3StepContext* context )
+void b3PushContacts_Overflow( b3StepContext* context )
 {
 	b3World* world = context->world;
-	b3GraphColor* color = world->constraintGraph.colors + block.colorIndex;
+	b3GraphColor* color = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
 	b3ContactConstraint* contactConstraints = color->contactConstraints;
 	b3BodyState* states = context->states;
 
 	// This is a dummy state to represent a static body because static bodies have no solver body.
 	b3BodyState dummyState = b3_identityBodyState;
 
-	// The last block might not be full
-	int startIndex = block.startIndex;
-	int endIndex = startIndex + block.count;
+	int contactCount = color->contacts.count;
 
 	float inv_h = context->inv_h;
 	const float contactSpeed = context->world->contactSpeed;
 
-	for ( int i = startIndex; i < endIndex; ++i )
+	for ( int i = 0; i < contactCount; ++i )
 	{
 		b3ContactConstraint* contactConstraint = contactConstraints + i;
 		int manifoldCount = contactConstraint->manifoldCount;
@@ -498,23 +469,21 @@ void b3PushContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 }
 
 // Solve contacts: normal, friction and rolling resistance.
-void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context )
+void b3SolveContacts_Overflow( b3StepContext* context )
 {
 	b3World* world = context->world;
-	b3GraphColor* color = world->constraintGraph.colors + block.colorIndex;
+	b3GraphColor* color = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
 	b3ContactConstraint* contactConstraints = color->contactConstraints;
 	b3BodyState* states = context->states;
 
 	// This is a dummy state to represent a static body because static bodies have no solver body.
 	b3BodyState dummyState = b3_identityBodyState;
 
-	// The last block might not be full
-	int startIndex = block.startIndex;
-	int endIndex = startIndex + block.count;
+	int contactCount = color->contacts.count;
 
 	float inv_h = context->inv_h;
 
-	for ( int i = startIndex; i < endIndex; ++i )
+	for ( int i = 0; i < contactCount; ++i )
 	{
 		b3ContactConstraint* contactConstraint = contactConstraints + i;
 		int manifoldCount = contactConstraint->manifoldCount;
@@ -687,12 +656,12 @@ void b3SolveContacts_Mesh( b3SolverBlock block, b3StepContext* context )
 	}
 }
 
-void b3ApplyRestitution_Mesh( b3SolverBlock block, b3StepContext* context )
+void b3ApplyRestitution_Overflow( b3StepContext* context )
 {
-	b3TracyCZoneNC( restitution_mesh, "Restitution Mesh", b3_colorViolet, true );
+	b3TracyCZoneNC( restitution_overflow, "Restitution Overflow", b3_colorViolet, true );
 
 	b3World* world = context->world;
-	b3GraphColor* color = world->constraintGraph.colors + block.colorIndex;
+	b3GraphColor* color = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
 	b3ContactConstraint* contactConstraints = color->contactConstraints;
 	b3BodyState* states = context->states;
 
@@ -702,10 +671,9 @@ void b3ApplyRestitution_Mesh( b3SolverBlock block, b3StepContext* context )
 
 	b3BodyState dummyState = b3_identityBodyState;
 
-	int startIndex = block.startIndex;
-	int endIndex = startIndex + block.count;
+	int contactCount = color->contacts.count;
 
-	for ( int i = startIndex; i < endIndex; ++i )
+	for ( int i = 0; i < contactCount; ++i )
 	{
 		b3ContactConstraint* contactConstraint = contactConstraints + i;
 		float restitution = contactConstraint->restitution;
@@ -811,226 +779,68 @@ void b3ApplyRestitution_Mesh( b3SolverBlock block, b3StepContext* context )
 		}
 	}
 
-	b3TracyCZoneEnd( restitution_mesh );
-}
-
-// Don't need to use spans for colors for this because the constraint to contact association
-// is already linked by pointer.
-void b3StoreImpulses_Mesh( b3SolverBlock block, b3StepContext* context, int workerIndex )
-{
-	b3World* world = context->world;
-
-	B3_ASSERT( block.blockType == b3_overflowBlock );
-	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
-	b3ContactPrepareSpan* spans = context->overflowSpans;
-	b3ContactConstraint* base = overflow->contactConstraints;
-
-	b3TaskContext* taskContext = world->taskContexts.data + workerIndex;
-	b3BitSet* hitEventBitSet = &taskContext->hitEventBitSet;
-	bool hasHitEvents = taskContext->hasHitEvents;
-	float negHitThreshold = -world->hitEventThreshold;
-
-	int index = block.startIndex;
-	int endIndex = block.startIndex + block.count;
-
-	// Find color for start index. Linear search but fast.
-	int colorIndex = 0;
-	while ( spans[colorIndex + 1].start <= index )
-	{
-		colorIndex += 1;
-	}
-
-	// Loop over block
-	while ( index < endIndex )
-	{
-		int colorStart = spans[colorIndex].start;
-		int colorEndIndex = b3MinInt( spans[colorIndex + 1].start, endIndex );
-
-		// Loop over color
-		for ( ; index < colorEndIndex; ++index )
-		{
-			b3ContactConstraint* contactConstraint = base + index;
-
-			int localIndex = index - colorStart;
-			B3_UNUSED( localIndex );
-			B3_ASSERT( 0 <= localIndex && localIndex < spans[colorIndex].count );
-
-			// Having this contact pointer simplifies impulse storage
-			b3Contact* contact = contactConstraint->contact;
-			B3_ASSERT( contact != NULL );
-
-			// Catches the wrong-(base, spans) pairing: the contact pointer stashed by
-			// b3PrepareContacts_Mesh at this flat slot must reference the same contact
-			// the span at this slot describes.
-			B3_VALIDATE( contact->contactId == spans[colorIndex].contacts[localIndex].contactId );
-
-			int manifoldCount = contactConstraint->manifoldCount;
-			B3_ASSERT( manifoldCount == contact->manifoldCount );
-
-			bool checkHitEvents = ( contact->flags & b3_simEnableHitEvent ) != 0;
-			bool flagged = false;
-
-			for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
-			{
-				b3Manifold* manifold = contact->manifolds + manifoldIndex;
-				b3ManifoldConstraint* constraint = contactConstraint->constraints + manifoldIndex;
-				manifold->twistImpulse = constraint->twistImpulse;
-				manifold->frictionImpulse = b3Blend2( constraint->frictionImpulse.x, constraint->tangent1,
-													  constraint->frictionImpulse.y, constraint->tangent2 );
-				manifold->rollingImpulse = constraint->rollingImpulse;
-
-				int count = constraint->pointCount;
-				B3_ASSERT( count == manifold->pointCount );
-				for ( int pointIndex = 0; pointIndex < count; ++pointIndex )
-				{
-					b3ManifoldConstraintPoint* cp = constraint->points + pointIndex;
-					b3ManifoldPoint* mp = manifold->points + pointIndex;
-					mp->normalImpulse = cp->normalImpulse;
-					mp->totalNormalImpulse = cp->totalNormalImpulse;
-
-					if ( checkHitEvents && flagged == false && mp->normalVelocity < negHitThreshold &&
-						 mp->totalNormalImpulse > 0.0f )
-					{
-						b3SetBit( hitEventBitSet, contact->contactId );
-						hasHitEvents = true;
-						flagged = true;
-					}
-				}
-			}
-		}
-
-		// Advance to next color
-		colorIndex += 1;
-	}
-
-	taskContext->hasHitEvents = hasHitEvents;
-}
-
-void b3PrepareContacts_Overflow( b3StepContext* context )
-{
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	B3_ASSERT( color->contacts.count <= UINT16_MAX );
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
-	{
-		return;
-	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3PrepareContacts_Mesh( block, context );
-}
-
-void b3WarmStartContacts_Overflow( b3StepContext* context )
-{
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
-	{
-		return;
-	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3WarmStartContacts_Mesh( block, context );
-}
-
-void b3PushContacts_Overflow( b3StepContext* context )
-{
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
-	{
-		return;
-	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3PushContacts_Mesh( block, context );
-}
-
-void b3SolveContacts_Overflow( b3StepContext* context )
-{
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
-	{
-		return;
-	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3SolveContacts_Mesh( block, context );
-}
-
-void b3ApplyRestitution_Overflow( b3StepContext* context )
-{
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
-
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
-	{
-		return;
-	}
-
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3ApplyRestitution_Mesh( block, context );
+	b3TracyCZoneEnd( restitution_overflow );
 }
 
 void b3StoreImpulses_Overflow( b3StepContext* context )
 {
-	b3ConstraintGraph* graph = context->graph;
-	b3GraphColor* color = graph->colors + B3_OVERFLOW_INDEX;
+	b3World* world = context->world;
 
-	uint16_t count = (uint16_t)color->contacts.count;
-	if ( count == 0 )
+	b3GraphColor* overflow = world->constraintGraph.colors + B3_OVERFLOW_INDEX;
+	b3ContactConstraint* base = overflow->contactConstraints;
+	int contactCount = overflow->contacts.count;
+
+	b3TaskContext* taskContext = world->taskContexts.data;
+	b3BitSet* hitEventBitSet = &taskContext->hitEventBitSet;
+	bool hasHitEvents = taskContext->hasHitEvents;
+	float negHitThreshold = -world->hitEventThreshold;
+
+	for ( int index = 0; index < contactCount; ++index )
 	{
-		return;
+		b3ContactConstraint* contactConstraint = base + index;
+
+		// Having this contact pointer simplifies impulse storage
+		b3Contact* contact = contactConstraint->contact;
+		B3_ASSERT( contact != NULL );
+
+		B3_VALIDATE( contact->contactId == overflow->contacts.data[index].contactId );
+
+		int manifoldCount = contactConstraint->manifoldCount;
+		B3_ASSERT( manifoldCount == contact->manifoldCount );
+
+		bool checkHitEvents = ( contact->flags & b3_simEnableHitEvent ) != 0;
+		bool flagged = false;
+
+		for ( int manifoldIndex = 0; manifoldIndex < manifoldCount; ++manifoldIndex )
+		{
+			b3Manifold* manifold = contact->manifolds + manifoldIndex;
+			b3ManifoldConstraint* constraint = contactConstraint->constraints + manifoldIndex;
+			manifold->twistImpulse = constraint->twistImpulse;
+			manifold->frictionImpulse = b3Blend2( constraint->frictionImpulse.x, constraint->tangent1,
+												  constraint->frictionImpulse.y, constraint->tangent2 );
+			manifold->rollingImpulse = constraint->rollingImpulse;
+
+			int count = constraint->pointCount;
+			B3_ASSERT( count == manifold->pointCount );
+			for ( int pointIndex = 0; pointIndex < count; ++pointIndex )
+			{
+				b3ManifoldConstraintPoint* cp = constraint->points + pointIndex;
+				b3ManifoldPoint* mp = manifold->points + pointIndex;
+				mp->normalImpulse = cp->normalImpulse;
+				mp->totalNormalImpulse = cp->totalNormalImpulse;
+
+				if ( checkHitEvents && flagged == false && mp->normalVelocity < negHitThreshold &&
+					 mp->totalNormalImpulse > 0.0f )
+				{
+					b3SetBit( hitEventBitSet, contact->contactId );
+					hasHitEvents = true;
+					flagged = true;
+				}
+			}
+		}
 	}
 
-	b3SolverBlock block = {
-		.startIndex = 0,
-		.count = count,
-		.blockType = b3_overflowBlock,
-		.colorIndex = B3_OVERFLOW_INDEX,
-	};
-
-	b3StoreImpulses_Mesh( block, context, 0 );
+	taskContext->hasHitEvents = hasHitEvents;
 }
 
 void b3PrepareContacts_Convex( b3SolverBlock block, b3StepContext* context )
