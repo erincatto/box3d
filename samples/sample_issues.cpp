@@ -3346,3 +3346,192 @@ public:
 
 static int sampleTranslationLockedPlatform =
 	RegisterSample( "Issues", "Translation Locked Platform", TranslationLockedPlatform::Create );
+
+// Issue #219: a small bullet sphere fired into a thin static plate at high speed must stay on the
+// approach side. A soft contact only removes about 95 percent of the approach speed in the first
+// substep, enough to carry a 1 cm sphere through a 2.5 cm plate. So time of impact stops rounded
+// shapes touching, and on the next step shallow overlap on the impacting body reads as a tiny
+// positive separation, which the solver handles as a rigid speculative contact. The near plate is a
+// hull, the far plate a mesh. A sphere marked red has crossed its plate.
+class BulletThinPlate : public Sample
+{
+public:
+	static constexpr float m_plateY = 1.0f;
+	static constexpr float m_plateHalfThickness = 0.0125f;
+	static constexpr float m_plateHalfLength = 5.0f;
+	static constexpr float m_plateHalfWidth = 0.5f;
+	static constexpr float m_dropHeight = 2.0f;
+	static constexpr int m_fireInterval = 60;
+
+	explicit BulletThinPlate( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 30.0f, 20.0f, 6.0f, { 0.0f, m_plateY, 0.0f } );
+		}
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.0f;
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.name = "hull plate";
+		bodyDef.position = { 0.0f, m_plateY, -1.0f };
+		b3BodyId hullPlateId = b3CreateBody( m_worldId, &bodyDef );
+
+		// Top face at the body origin
+		b3Transform offset = b3Transform_identity;
+		offset.p.y = -m_plateHalfThickness;
+		b3BoxHull hull = b3MakeTransformedBoxHull( m_plateHalfLength, m_plateHalfThickness, m_plateHalfWidth, offset );
+		b3CreateHullShape( hullPlateId, &shapeDef, &hull.base );
+
+		bodyDef.name = "mesh plate";
+		bodyDef.position = { 0.0f, m_plateY, 1.0f };
+		b3BodyId meshPlateId = b3CreateBody( m_worldId, &bodyDef );
+
+		m_mesh = b3CreateBoxMesh( { 0.0f, -m_plateHalfThickness, 0.0f },
+								  { m_plateHalfLength, m_plateHalfThickness, m_plateHalfWidth }, true );
+		b3CreateMeshShape( meshPlateId, &shapeDef, m_mesh, b3Vec3_one );
+
+		for ( int i = 0; i < 2; ++i )
+		{
+			m_bulletIds[i] = b3_nullBodyId;
+			m_shotCount[i] = 0;
+			m_crossCount[i] = 0;
+			m_crossed[i] = false;
+		}
+
+		Fire();
+	}
+
+	~BulletThinPlate() override
+	{
+		b3DestroyMesh( m_mesh );
+	}
+
+	void Fire()
+	{
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.0f;
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.isBullet = true;
+		bodyDef.enableSleep = false;
+		bodyDef.linearVelocity = { m_lateralSpeed, -m_speed, 0.0f };
+
+		b3Sphere sphere = { b3Vec3_zero, m_radius };
+
+		for ( int i = 0; i < 2; ++i )
+		{
+			if ( B3_IS_NON_NULL( m_bulletIds[i] ) )
+			{
+				b3DestroyBody( m_bulletIds[i] );
+			}
+
+			bodyDef.position = { -m_plateHalfLength + 1.0f, m_plateY + m_dropHeight, i == 0 ? -1.0f : 1.0f };
+			m_bulletIds[i] = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateSphereShape( m_bulletIds[i], &shapeDef, &sphere );
+
+			m_shotCount[i] += 1;
+			m_crossed[i] = false;
+		}
+
+		m_firedRadius = m_radius;
+		m_stepsSinceFire = 0;
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
+
+		ImGui::SliderFloat( "Radius", &m_radius, 0.005f, 0.1f, "%.3f m" );
+		ImGui::SliderFloat( "Speed", &m_speed, 10.0f, 1000.0f, "%.0f m/s" );
+		ImGui::SliderFloat( "Lateral", &m_lateralSpeed, 0.0f, 100.0f, "%.0f m/s" );
+		ImGui::Checkbox( "Auto Fire", &m_autoFire );
+
+		if ( ImGui::Button( "Fire" ) )
+		{
+			Fire();
+		}
+
+		ImGui::SameLine();
+		if ( ImGui::Button( "Clear Counts" ) )
+		{
+			for ( int i = 0; i < 2; ++i )
+			{
+				m_shotCount[i] = 0;
+				m_crossCount[i] = 0;
+			}
+		}
+
+		ImGui::PopItemWidth();
+		return true;
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		if ( m_didStep == false )
+		{
+			return;
+		}
+
+		float plateBottom = m_plateY - 2.0f * m_plateHalfThickness;
+		for ( int i = 0; i < 2; ++i )
+		{
+			float y = (float)b3Body_GetPosition( m_bulletIds[i] ).y;
+
+			// A sphere that slid off the far end falls past the plate legitimately
+			float x = (float)b3Body_GetPosition( m_bulletIds[i] ).x;
+			if ( m_crossed[i] == false && x < m_plateHalfLength && y + m_firedRadius < plateBottom )
+			{
+				m_crossed[i] = true;
+				m_crossCount[i] += 1;
+			}
+		}
+
+		m_stepsSinceFire += 1;
+		if ( m_autoFire && m_stepsSinceFire >= m_fireInterval )
+		{
+			Fire();
+		}
+	}
+
+	void Render() override
+	{
+		const char* names[2] = { "hull", "mesh" };
+		for ( int i = 0; i < 2; ++i )
+		{
+			b3Pos p = b3Body_GetPosition( m_bulletIds[i] );
+			DrawPoint( p, 10.0f, MakeColor( m_crossed[i] ? b3_colorRed : b3_colorLime ) );
+
+			DrawTextLine( "%s plate: %s, crossed %d of %d shots", names[i], m_crossed[i] ? "CROSSED" : "ok", m_crossCount[i],
+						  m_shotCount[i] );
+		}
+
+		float substepTime = 1.0f / ( m_context->hertz * m_context->subStepCount );
+		DrawTextLine( "plate thickness %.3f m, travel per substep %.3f m", 2.0f * m_plateHalfThickness,
+					  m_speed * substepTime );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new BulletThinPlate( context );
+	}
+
+	b3MeshData* m_mesh;
+	b3BodyId m_bulletIds[2];
+	int m_shotCount[2];
+	int m_crossCount[2];
+	bool m_crossed[2];
+	int m_stepsSinceFire = 0;
+	float m_firedRadius = 0.01f;
+	float m_radius = 0.01f;
+	float m_speed = 300.0f;
+	float m_lateralSpeed = 30.0f;
+	bool m_autoFire = true;
+};
+
+static int sampleBulletThinPlate = RegisterSample( "Issues", "Bullet Thin Plate", BulletThinPlate::Create );

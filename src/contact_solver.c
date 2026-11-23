@@ -67,6 +67,8 @@ void b3PrepareContacts_Overflow( b3StepContext* context )
 		}
 #endif
 
+		uint32_t simFlags = 0;
+
 		// Body A data
 		float mA;
 		b3Matrix3 iA;
@@ -81,6 +83,7 @@ void b3PrepareContacts_Overflow( b3StepContext* context )
 			b3BodySim* simA = bodySims + indexA;
 			mA = simA->invMass;
 			iA = simA->invInertiaWorld;
+			simFlags |= simA->flags;
 		}
 
 		// Body B data
@@ -97,7 +100,11 @@ void b3PrepareContacts_Overflow( b3StepContext* context )
 			b3BodySim* simB = bodySims + indexB;
 			mB = simB->invMass;
 			iB = simB->invInertiaWorld;
+			simFlags |= simB->flags;
 		}
+
+		// todo comment
+		float separationFloor = ( simFlags & b3_hadTimeOfImpact ) != 0 ? B3_TOI_SEPARATION_FLOOR : -FLT_MAX;
 
 		int manifoldCount = contact->manifoldCount;
 		contactConstraint->contact = contact;
@@ -176,6 +183,11 @@ void b3PrepareContacts_Overflow( b3StepContext* context )
 				cp->rB = mp->anchorB;
 
 				float s = mp->separation;
+				if ( s > B3_TOI_SEPARATION_LIMIT )
+				{
+					s = b3MaxFloat( s, separationFloor );
+				}
+
 				cp->baseSeparation = s - b3Dot( b3Sub( cp->rB, cp->rA ), normal );
 				cp->normalImpulse = warmStartScale * mp->normalImpulse;
 				cp->totalNormalImpulse = 0.0f;

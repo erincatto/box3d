@@ -6,6 +6,14 @@
 #include "math_internal.h"
 #include "solver.h"
 
+// This is used to make a contact point fully rigid with no push out for a time of impact.
+// It behaves like a speculative contact point that is slightly offset.
+#define B3_TOI_SEPARATION_FLOOR ( 0.01f * B3_LINEAR_SLOP )
+
+// This is used in combination with < > to avoid making a deeper contact point rigid in a
+// secondary TOI (inner sphere fallback). These deeper contact points need the push out.
+#define B3_TOI_SEPARATION_LIMIT ( -B3_MESH_REST_OFFSET - B3_LINEAR_SLOP )
+
 typedef struct b3ManifoldConstraintPoint
 {
 	b3Vec3 rA, rB;
