@@ -1048,6 +1048,46 @@ contact right away if the shapes are not touching, or we can just wait
 until the AABBs stop overlapping. Box3D takes the latter approach
 because it lets the system cache information to improve performance.
 
+### Contact Recycling
+
+Performance is improved by recycling contact data across time steps. This is called _contact
+recycling_. It has a large impact on performance and also improves stacking stability.
+
+Contact recycling considers the relative movement between shapes and adjusts the contact point
+separation to account for the movement. If the relative movement is larger than the _contact
+recycling distance_, or either body has rotated more than about 10 degrees since the contact points
+were computed, then the contact points are computed from scratch.
+
+Sometimes stacks of objects can become too stable. You can adjust the recycling distance to tune
+stability:
+
+```c
+// Set the recycling distance to 1 centimeter.
+b3World_SetContactRecycleDistance(myWorldId, 0.01f);
+```
+
+The default is 5 centimeters. This value makes a good trade-off between performance and realistic
+simulation.
+
+You can completely disable contact recycling by setting it to zero. I don't recommend this.
+Performance and stability will drop significantly. A better option is to disable recycling on
+specific bodies as needed.
+
+```c
+// Disable contact recycling for a single body.
+bodyDef.enableContactRecycling = false;
+```
+
+A contact is only recycled when both bodies have recycling enabled, so disabling it on either body
+is enough.
+
+> [!note]
+> Recycled contacts skip friction and restitution updates. They also skip pre-solve
+> callbacks.
+
+Cargo resting on a rotating body can drift when its contact is recycled. See
+[Known Limitations](known_limitations.md).
+
 ### Contact Data
 As mentioned before, the contact is created and destroyed by
 Box3D automatically. Contact data is not created by the user. However, you are

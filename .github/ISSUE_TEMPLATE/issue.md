@@ -8,6 +8,7 @@ Make sure these boxes are checked before submitting your issue - thank you!
 - [ ] Ask for help on [discord](https://discord.gg/NKYgCBP)
 - [ ] Consider providing a recording.
 - [ ] Bug reports by LLMs are welcome.
+- [ ] Check the [known limitations](https://github.com/erincatto/box3d/blob/main/docs/known_limitations.md). These are intentional trade-offs, not bugs.
 - [ ] Feature requests and enhancements must come from humans.
 
 Use these to create a recording.

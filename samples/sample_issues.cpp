@@ -2231,6 +2231,207 @@ public:
 
 static int sampleRollingDeck = RegisterSample( "Issues", "Rolling Deck", RollingDeck::Create );
 
+// Issue #215: two 25 kg boxes resting on a kinematic platform spinning about the vertical axis at a
+// constant rate, one each side of the axis. The orange box recycles its contact with the platform
+// (the default), the blue box has recycling off for its body.
+//
+// The box keeps a constant pose relative to the platform, so its contact is recycled until either
+// body turns past B3_CONTACT_RECYCLE_ANGULAR_DISTANCE (10 degrees). The recycled anchors keep the
+// world orientation they were made with, so friction holds the box to the platform's velocity at a
+// point up to 10 degrees behind on the arc. The orange box spirals outward, about omega * r * sin(5 deg)
+// on average, and the slide grows with the spin rate and the radius. The blue box stays put. Same
+// mechanism as the Rolling Deck sample, about a vertical axis instead of a horizontal one.
+class TurningPlatform : public Sample
+{
+public:
+	static constexpr float m_platformHalfLength = 4.0f;
+	static constexpr float m_platformHalfThickness = 0.25f;
+	static constexpr float m_platformHalfWidth = 1.5f;
+	static constexpr float m_boxHalf = 0.25f;
+	static constexpr float m_boxMass = 25.0f;
+	static constexpr float m_settleTime = 1.0f;
+
+	explicit TurningPlatform( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 30.0f, 40.0f, 14.0f, { 0.0f, 0.0f, 0.0f } );
+		}
+
+		m_spinRate = 0.12f;
+		m_radius = 1.75f;
+		m_platformId = {};
+		m_boxIds[0] = {};
+		m_boxIds[1] = {};
+
+		CreateScene();
+	}
+
+	void CreateScene()
+	{
+		if ( B3_IS_NON_NULL( m_platformId ) )
+		{
+			b3DestroyBody( m_platformId );
+			b3DestroyBody( m_boxIds[0] );
+			b3DestroyBody( m_boxIds[1] );
+		}
+
+		b3Vec3 omega = { 0.0f, m_spinRate, 0.0f };
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_kinematicBody;
+			bodyDef.angularVelocity = omega;
+			m_platformId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3BoxHull box = b3MakeBoxHull( m_platformHalfLength, m_platformHalfThickness, m_platformHalfWidth );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.baseMaterial.customColor = b3_colorSlateGray;
+			b3CreateHullShape( m_platformId, &shapeDef, &box.base );
+		}
+
+		b3BoxHull box = b3MakeBoxHull( m_boxHalf, m_boxHalf, m_boxHalf );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.density = m_boxMass / ( 8.0f * m_boxHalf * m_boxHalf * m_boxHalf );
+
+		for ( int i = 0; i < 2; ++i )
+		{
+			// Start with the platform's surface velocity so there is no initial slip
+			b3Vec3 start = { i == 0 ? -m_radius : m_radius, m_platformHalfThickness + m_boxHalf, 0.0f };
+
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { start.x, start.y, start.z };
+			bodyDef.linearVelocity = b3Cross( omega, start );
+			bodyDef.angularVelocity = omega;
+			bodyDef.enableContactRecycling = i == 0;
+			bodyDef.enableSleep = false;
+			m_boxIds[i] = b3CreateBody( m_worldId, &bodyDef );
+
+			shapeDef.baseMaterial.customColor = i == 0 ? b3_colorOrange : b3_colorDodgerBlue;
+			b3CreateHullShape( m_boxIds[i], &shapeDef, &box.base );
+
+			m_start[i] = b3Vec3_zero;
+			m_slide[i] = 0.0f;
+		}
+
+		m_time = 0.0f;
+		m_started = false;
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::SliderFloat( "Spin (rad/s)", &m_spinRate, 0.0f, 0.5f, "%.2f" );
+		if ( ImGui::IsItemDeactivatedAfterEdit() )
+		{
+			CreateScene();
+		}
+
+		ImGui::SliderFloat( "Radius (m)", &m_radius, 0.0f, 3.5f, "%.2f" );
+		if ( ImGui::IsItemDeactivatedAfterEdit() )
+		{
+			CreateScene();
+		}
+
+		if ( ImGui::Button( "Reset" ) )
+		{
+			CreateScene();
+		}
+
+		return true;
+	}
+
+	void Step() override
+	{
+		float timeStep = m_context->hertz > 0.0f ? 1.0f / m_context->hertz : 0.0f;
+		if ( m_context->pause && m_context->singleStep == 0 )
+		{
+			timeStep = 0.0f;
+		}
+
+		Sample::Step();
+
+		m_time += timeStep;
+
+		if ( m_started == false && m_time >= m_settleTime )
+		{
+			for ( int i = 0; i < 2; ++i )
+			{
+				m_start[i] = b3Body_GetLocalPoint( m_platformId, b3Body_GetPosition( m_boxIds[i] ) );
+			}
+			m_started = true;
+		}
+
+		float radius[2];
+		for ( int i = 0; i < 2; ++i )
+		{
+			Vec4 color = i == 0 ? MakeColor( b3_colorOrange ) : MakeColor( b3_colorDodgerBlue );
+			b3Pos center = b3Body_GetPosition( m_boxIds[i] );
+			b3Vec3 local = b3Body_GetLocalPoint( m_platformId, center );
+			radius[i] = sqrtf( local.x * local.x + local.z * local.z );
+
+			DrawString3D( b3OffsetPos( center, { 0.0f, 0.75f, 0.0f } ), color, "%s",
+						  i == 0 ? "recycling on" : "recycling off" );
+
+			if ( m_started == false )
+			{
+				continue;
+			}
+
+			b3Vec3 offset = b3Sub( local, m_start[i] );
+			offset.y = 0.0f;
+			m_slide[i] = b3Length( offset );
+
+			// Where the box settled, outlined on the platform's top, and the path back to it
+			float top = m_platformHalfThickness + 0.01f;
+			b3Vec3 mark = { m_start[i].x, top, m_start[i].z };
+			b3Vec3 corners[4] = {
+				{ mark.x - m_boxHalf, top, mark.z - m_boxHalf },
+				{ mark.x + m_boxHalf, top, mark.z - m_boxHalf },
+				{ mark.x + m_boxHalf, top, mark.z + m_boxHalf },
+				{ mark.x - m_boxHalf, top, mark.z + m_boxHalf },
+			};
+			for ( int j = 0; j < 4; ++j )
+			{
+				DrawLine( b3Body_GetWorldPoint( m_platformId, corners[j] ),
+						  b3Body_GetWorldPoint( m_platformId, corners[( j + 1 ) % 4] ), color );
+			}
+
+			b3Vec3 tip = { local.x, top, local.z };
+			DrawArrow( b3Body_GetWorldPoint( m_platformId, mark ), b3Body_GetWorldPoint( m_platformId, tip ), color );
+		}
+
+		float elapsed = b3MaxFloat( m_time - m_settleTime, 0.0f );
+		float expected = m_spinRate * m_radius * sinf( 5.0f * B3_PI / 180.0f );
+
+		DrawTextLine( "platform spins %.2f rad/s, boxes %.2f m from the axis, %.0f s since settling", m_spinRate,
+					  m_radius, elapsed );
+		DrawTextLine( "contacts recycled this step: %d (only the orange box's can be)",
+					  b3World_GetCounters( m_worldId ).recycledContactCount );
+		DrawTextLine( "orange, recycling on : radius %.3f m, slid %6.1f cm", radius[0], 100.0f * m_slide[0] );
+		DrawTextLine( "blue,   recycling off: radius %.3f m, slid %6.1f cm", radius[1], 100.0f * m_slide[1] );
+		DrawTextLine( "predicted outward slip from a 5 deg mean anchor lag: omega * r * sin(5 deg) = %.1f mm/s",
+					  1000.0f * expected );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new TurningPlatform( context );
+	}
+
+	b3BodyId m_platformId;
+	b3BodyId m_boxIds[2];
+	b3Vec3 m_start[2];
+	float m_slide[2];
+	float m_spinRate;
+	float m_radius;
+	float m_time;
+	bool m_started;
+};
+
+static int sampleTurningPlatform = RegisterSample( "Issues", "Turning Platform", TurningPlatform::Create );
+
 // A car made of one dynamic box (the chassis) and four ray cast 'wheels'.
 // There are no wheel bodies and no joints.
 
