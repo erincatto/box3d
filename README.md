@@ -163,7 +163,7 @@ The user manual lives in [`docs/`](docs/) and is built with Doxygen. Enable the 
 
 ## Contributing
 
-Pull requests are currently disabled. Instead, please file an issue for bugs or feature requests. For support, please visit the Discord server.
+See the [contribution guidelines](https://github.com/erincatto/box3d/blob/main/CONTRIBUTING.md).
 
 ## Giving feedback
 

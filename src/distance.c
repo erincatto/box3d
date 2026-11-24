@@ -1706,7 +1706,9 @@ b3TOIOutput b3TimeOfImpact( const b3TOIInput* input )
 	// Setup target distance and tolerance
 	float linearSlop = B3_LINEAR_SLOP;
 	float totalRadius = proxyA.radius + proxyB.radius;
-	float target = b3MaxFloat( linearSlop, totalRadius - linearSlop );
+
+	// Bring it to just touch then the contact will be made rigid in the solver.
+	float target = b3MaxFloat( linearSlop, totalRadius );
 	float tolerance = 0.25f * linearSlop;
 	B3_ASSERT( target > tolerance );
 

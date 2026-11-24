@@ -574,12 +574,14 @@ B3_FORCE_INLINE bool b3PrepareConstraintW( b3ContactConstraintWide* c, b3Contact
 	b3FloatW invTau = b3SplatW( 1.0f / B3_SPECULATIVE_DISTANCE );
 	b3FloatW minFrictionWeight = b3SplatW( B3_MIN_FRICTION_WEIGHT );
 	b3FloatW minDet = b3SplatW( 1000.0f * FLT_MIN );
+	b3FloatW separationLimit = b3SplatW( B3_TOI_RIGID_SEPARATION_LIMIT );
 
 	const b3Contact* contactLanes[B3_SIMD_WIDTH];
 	const b3BodySim* simLanesA[B3_SIMD_WIDTH];
 	const b3BodySim* simLanesB[B3_SIMD_WIDTH];
 	int manifoldCounts[B3_SIMD_WIDTH];
 	int hitEventLanes = 0;
+	float separationFloors[B3_SIMD_WIDTH];
 	int maxManifoldCount = 0;
 
 	for ( int lane = 0; lane < B3_SIMD_WIDTH; ++lane )
@@ -607,6 +609,10 @@ B3_FORCE_INLINE bool b3PrepareConstraintW( b3ContactConstraintWide* c, b3Contact
 			simLanesA[lane] = indexA == B3_NULL_INDEX ? &b3_zeroBodySim : sims + indexA;
 			simLanesB[lane] = indexB == B3_NULL_INDEX ? &b3_zeroBodySim : sims + indexB;
 			hitEventLanes |= ( contact->flags & b3_simEnableHitEvent ) != 0 ? 1 << lane : 0;
+
+			// When a body has a TOI event, we make the contact rigid by putting it slightly into the speculative band.
+			uint32_t simFlags = simLanesA[lane]->flags | simLanesB[lane]->flags;
+			separationFloors[lane] = ( simFlags & b3_hadTimeOfImpact ) != 0 ? B3_TOI_RIGID_SEPARATION : -FLT_MAX;
 			maxManifoldCount = b3MaxInt( maxManifoldCount, contact->manifoldCount );
 		}
 		else
@@ -618,8 +624,16 @@ B3_FORCE_INLINE bool b3PrepareConstraintW( b3ContactConstraintWide* c, b3Contact
 			contactLanes[lane] = &b3_zeroContact;
 			simLanesA[lane] = &b3_zeroBodySim;
 			simLanesB[lane] = &b3_zeroBodySim;
+			separationFloors[lane] = -FLT_MAX;
 		}
 	}
+
+#if B3_SIMD_WIDTH == 8
+	b3FloatW separationFloor = b3SetW( separationFloors[0], separationFloors[1], separationFloors[2], separationFloors[3],
+									   separationFloors[4], separationFloors[5], separationFloors[6], separationFloors[7] );
+#else
+	b3FloatW separationFloor = b3SetW( separationFloors[0], separationFloors[1], separationFloors[2], separationFloors[3] );
+#endif
 
 	B3_VALIDATE( maxManifoldCount == manifoldCount );
 	B3_UNUSED( maxManifoldCount );
@@ -781,7 +795,9 @@ B3_FORCE_INLINE bool b3PrepareConstraintW( b3ContactConstraintWide* c, b3Contact
 
 			cp->anchorAs = rA;
 			cp->anchorBs = rB;
-			cp->baseSeparations = b3SubW( separation, b3DotW( b3SubVW( rB, rA ), normal ) );
+			b3FloatW liftMask = b3GreaterThanW( separation, separationLimit );
+			b3FloatW lifted = b3BlendW( separation, b3MaxW( separation, separationFloor ), liftMask );
+			cp->baseSeparations = b3SubW( lifted, b3DotW( b3SubVW( rB, rA ), normal ) );
 			cp->normalImpulses = b3MulW( warmStartScale, normalImpulse );
 			cp->totalNormalImpulses = zeroW;
 			cp->relativeVelocities = zeroW;

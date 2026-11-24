@@ -447,26 +447,27 @@ b3Vec3 b3PointToSegmentDistance( b3Vec3 a, b3Vec3 b, b3Vec3 q )
 	}
 }
 
-b3TrianglePoint b3ClosestPointOnTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, b3Vec3 q )
+// Real-Time Collision Detection p141.
+b3TrianglePoint b3ClosestPointOnTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, b3Vec3 p )
 {
 	// Check if P lies in vertex region of A
 	b3Vec3 ab = b3Sub( b, a );
 	b3Vec3 ac = b3Sub( c, a );
-	b3Vec3 aq = b3Sub( q, a );
+	b3Vec3 ap = b3Sub( p, a );
 
-	float d1 = b3Dot( ab, aq );
-	float d2 = b3Dot( ac, aq );
+	float d1 = b3Dot( ab, ap );
+	float d2 = b3Dot( ac, ap );
 	if ( d1 <= 0.0f && d2 <= 0.0f )
 	{
 		return (b3TrianglePoint){ a, b3_featureVertex1 };
 	}
 
 	// Check if P lies in vertex region of B
-	b3Vec3 bq = b3Sub( q, b );
+	b3Vec3 bp = b3Sub( p, b );
 
-	float d3 = b3Dot( ab, bq );
-	float d4 = b3Dot( ac, bq );
-	if ( d3 > 0.0f && d4 <= d3 )
+	float d3 = b3Dot( ab, bp );
+	float d4 = b3Dot( ac, bp );
+	if ( d3 >= 0.0f && d4 <= d3 )
 	{
 		return (b3TrianglePoint){ b, b3_featureVertex2 };
 	}
@@ -480,10 +481,10 @@ b3TrianglePoint b3ClosestPointOnTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, b3Vec3 q
 	}
 
 	// Check if P lies in vertex region of C
-	b3Vec3 cq = b3Sub( q, c );
+	b3Vec3 cp = b3Sub( p, c );
 
-	float d5 = b3Dot( ab, cq );
-	float d6 = b3Dot( ac, cq );
+	float d5 = b3Dot( ab, cp );
+	float d6 = b3Dot( ac, cp );
 	if ( d6 >= 0.0f && d5 <= d6 )
 	{
 		return (b3TrianglePoint){ c, b3_featureVertex3 };
@@ -511,9 +512,9 @@ b3TrianglePoint b3ClosestPointOnTriangle( b3Vec3 a, b3Vec3 b, b3Vec3 c, b3Vec3 q
 	float t1 = vb / ( va + vb + vc );
 	float t2 = vc / ( va + vb + vc );
 
-	b3Vec3 p = b3MulAdd( a, t1, ab );
-	p = b3MulAdd( p, t2, ac );
-	return (b3TrianglePoint){ p, b3_featureTriangleFace };
+	b3Vec3 q = b3MulAdd( a, t1, ab );
+	q = b3MulAdd( q, t2, ac );
+	return (b3TrianglePoint){ q, b3_featureTriangleFace };
 }
 
 b3Matrix3 b3SphereInertia( float mass, float radius )

@@ -238,8 +238,13 @@ B3_API b3HullData* b3CreateRock( float radius );
 /// Hull of 32 pseudo random points on a sphere. From the convex pile hull in PEEL.
 B3_API b3HullData* b3CreateComplexHull( float radius );
 
-/// Create a generic convex hull. This can fail if B3_MAX_HULL_VERTICES, B3_MAX_HULL_FACES,
-/// or B3_MAX_HULL_EDGES is exceeded.
+/// Create a generic convex hull from a point cloud. Fails on degenerate input such as fewer than four
+/// points, coplanar points, or a hull thinner than the larger of B3_LINEAR_SLOP and 0.1% of its largest
+/// extent. Also fails if B3_MAX_HULL_VERTICES, B3_MAX_HULL_FACES, or B3_MAX_HULL_EDGES is exceeded.
+/// @param points the point cloud
+/// @param pointCount the number of points
+/// @param maxVertexCount the vertex limit of the result, clamped to [4, B3_MAX_HULL_VERTICES]
+/// @return the hull or NULL on failure. Free it with b3DestroyHull.
 B3_API b3HullData* b3CreateHull( const b3Vec3* points, int pointCount, int maxVertexCount );
 
 /// Deep clone a hull.
@@ -248,7 +253,7 @@ B3_API b3HullData* b3CloneHull( const b3HullData* hull );
 /// Clone and transform a hull. Supports non-uniform and mirroring scale.
 B3_API b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform transform, b3Vec3 scale );
 
-/// Destroy a hull.
+/// Destroy a hull. NULL is ignored.
 B3_API void b3DestroyHull( b3HullData* hull );
 
 /// Make a cube as a hull. Do not call b3DestroyHull on this.

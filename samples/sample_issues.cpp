@@ -427,6 +427,128 @@ public:
 
 static int sampleHullCrash = RegisterSample( "Issues", "Hull Crash", HullCrash::Create );
 
+// Issue #225: hull of random points in a thin slab used to hang. Thin input may now fail and return null.
+class ThinSlabHull : public Sample
+{
+public:
+	explicit ThinSlabHull( SampleContext* context )
+		: Sample( context )
+	{
+		m_hull = nullptr;
+		m_pointSet = 0;
+		m_thickness = 0.05f;
+		m_maxVertexCount = 32;
+
+		CreateHull();
+
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 15.0f, 20.0f, b3Pos_zero );
+		}
+	}
+
+	~ThinSlabHull() override
+	{
+		if ( m_hull != nullptr )
+		{
+			b3DestroyHull( m_hull );
+		}
+	}
+
+	static float SlabRandom( uint32_t* state )
+	{
+		*state = *state * 1664525u + 1013904223u;
+		return (float)( *state >> 8 ) / 16777216.0f;
+	}
+
+	void CreateHull()
+	{
+		if ( m_hull != nullptr )
+		{
+			b3DestroyHull( m_hull );
+			m_hull = nullptr;
+		}
+
+		// Point set zero is the one from the issue
+		uint32_t state = 12345u + (uint32_t)m_pointSet;
+		for ( int i = 0; i < m_pointCount; ++i )
+		{
+			m_points[i].x = SlabRandom( &state ) * 10.0f - 5.0f;
+			m_points[i].y = ( SlabRandom( &state ) - 0.5f ) * m_thickness;
+			m_points[i].z = SlabRandom( &state ) * 10.0f - 5.0f;
+		}
+
+		m_hull = b3CreateHull( m_points, m_pointCount, m_maxVertexCount );
+	}
+
+	bool DrawControls() override
+	{
+		if ( m_hull != nullptr )
+		{
+			DrawTextLine( "hull: vertices = %d, edges = %d, faces = %d", m_hull->vertexCount, m_hull->edgeCount / 2,
+						  m_hull->faceCount );
+		}
+		else
+		{
+			DrawTextLine( "hull creation failed" );
+		}
+
+		if ( ImGui::SliderInt( "Point Set", &m_pointSet, 0, 99 ) )
+		{
+			CreateHull();
+		}
+
+		float thicknessCm = 100.0f * m_thickness;
+		if ( ImGui::SliderFloat( "Thickness", &thicknessCm, 0.01f, 100.0f, "%.2f cm",
+								 ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_AlwaysClamp ) )
+		{
+			m_thickness = 0.01f * thicknessCm;
+			CreateHull();
+		}
+
+		if ( ImGui::SliderInt( "Max Vertices", &m_maxVertexCount, 4, B3_MAX_HULL_VERTICES ) )
+		{
+			CreateHull();
+		}
+
+		return true;
+	}
+
+	void Render() override
+	{
+		DrawGroundGrid( 20 );
+
+		if ( m_hull != nullptr )
+		{
+			DrawHull( b3WorldTransform_identity, m_hull, MakeColor( b3_colorYellow ) );
+		}
+
+		b3HexColor pointColor = m_hull != nullptr ? b3_colorWhite : b3_colorRed;
+		for ( int i = 0; i < m_pointCount; ++i )
+		{
+			DrawPoint( b3ToPos( m_points[i] ), 5.0f, MakeColor( pointColor ) );
+		}
+
+		DrawAxes( b3WorldTransform_identity, 1.0f );
+
+		Sample::Render();
+	}
+
+	static Sample* Create( SampleContext* sampleContext )
+	{
+		return new ThinSlabHull( sampleContext );
+	}
+
+	static constexpr int m_pointCount = 400;
+	b3Vec3 m_points[m_pointCount];
+	b3HullData* m_hull;
+	int m_pointSet;
+	float m_thickness;
+	int m_maxVertexCount;
+};
+
+static int sampleThinSlabHull = RegisterSample( "Issues", "Thin Slab Hull", ThinSlabHull::Create );
+
 class ConvexJitter : public Sample
 {
 public:
@@ -1976,6 +2098,9 @@ static int sampleThinWallPushOut = RegisterSample( "Issues", "Thin Wall Push Out
 // across the deck roll by roll. The angular tolerance doesn't stop that: at 12 or 15 degrees the
 // contact is made again more often and the crate walks all the same. The blue crate rides with the
 // deck. The slide arrows on the deck are drawn ten times longer.
+//
+// The fix is to disable recycling on the deck, which stops both crates from recycling. The Deck
+// Recycling checkbox turns it back on to show the walk.
 class RollingDeck : public Sample
 {
 public:
@@ -1998,6 +2123,7 @@ public:
 
 		m_rollDegrees = 8.0f;
 		m_period = 6.0f;
+		m_deckRecycling = false;
 		m_deckId = {};
 		m_crateIds[0] = {};
 		m_crateIds[1] = {};
@@ -2021,6 +2147,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_kinematicBody;
+			bodyDef.enableContactRecycling = m_deckRecycling;
 			m_deckId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3BoxHull box = b3MakeBoxHull( m_deckHalfLength, m_deckHalfThickness, m_deckHalfWidth );
@@ -2086,6 +2213,11 @@ public:
 
 		ImGui::SliderFloat( "Period (s)", &m_period, 2.0f, 12.0f, "%.1f" );
 		if ( ImGui::IsItemDeactivatedAfterEdit() )
+		{
+			CreateScene();
+		}
+
+		if ( ImGui::Checkbox( "Deck Recycling", &m_deckRecycling ) )
 		{
 			CreateScene();
 		}
@@ -2196,7 +2328,7 @@ public:
 					  m_rollDegrees, m_period, roll, m_crateOffset, m_friction );
 		DrawTextLine( "a contact is recycled while each body turns < 10 deg from where it was made "
 					  "(B3_CONTACT_RECYCLE_ANGULAR_DISTANCE)" );
-		DrawTextLine( "contacts recycled this step: %d (only the orange crate's can be)",
+		DrawTextLine( "deck recycling %s, contacts recycled this step: %d", m_deckRecycling ? "on" : "off",
 					  b3World_GetCounters( m_worldId ).recycledContactCount );
 		DrawTextLine( "orange, recycling on : normal %4.1f deg off the deck's up (most %4.1f), "
 					  "slid %5.1f mm (most %5.1f)",
@@ -2227,9 +2359,222 @@ public:
 	float m_period;
 	float m_time;
 	bool m_started;
+	bool m_deckRecycling;
 };
 
 static int sampleRollingDeck = RegisterSample( "Issues", "Rolling Deck", RollingDeck::Create );
+
+// Issue #215: two 25 kg boxes resting on a kinematic platform spinning about the vertical axis at a
+// constant rate, one each side of the axis. The orange box recycles its contact with the platform
+// (the default), the blue box has recycling off for its body.
+//
+// The box keeps a constant pose relative to the platform, so its contact is recycled until either
+// body turns past B3_CONTACT_RECYCLE_ANGULAR_DISTANCE (10 degrees). The recycled anchors keep the
+// world orientation they were made with, so friction holds the box to the platform's velocity at a
+// point up to 10 degrees behind on the arc. The orange box spirals outward, about omega * r * sin(5 deg)
+// on average, and the slide grows with the spin rate and the radius. The blue box stays put. Same
+// mechanism as the Rolling Deck sample, about a vertical axis instead of a horizontal one.
+//
+// The fix is to disable recycling on the platform, which stops both boxes from recycling. The
+// Platform Recycling checkbox turns it back on to show the drift.
+class TurningPlatform : public Sample
+{
+public:
+	static constexpr float m_platformHalfLength = 4.0f;
+	static constexpr float m_platformHalfThickness = 0.25f;
+	static constexpr float m_platformHalfWidth = 1.5f;
+	static constexpr float m_boxHalf = 0.25f;
+	static constexpr float m_boxMass = 25.0f;
+	static constexpr float m_settleTime = 1.0f;
+
+	explicit TurningPlatform( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 30.0f, 40.0f, 14.0f, { 0.0f, 0.0f, 0.0f } );
+		}
+
+		m_spinRate = 0.12f;
+		m_radius = 1.75f;
+		m_platformRecycling = false;
+		m_platformId = {};
+		m_boxIds[0] = {};
+		m_boxIds[1] = {};
+
+		CreateScene();
+	}
+
+	void CreateScene()
+	{
+		if ( B3_IS_NON_NULL( m_platformId ) )
+		{
+			b3DestroyBody( m_platformId );
+			b3DestroyBody( m_boxIds[0] );
+			b3DestroyBody( m_boxIds[1] );
+		}
+
+		b3Vec3 omega = { 0.0f, m_spinRate, 0.0f };
+
+		{
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_kinematicBody;
+			bodyDef.angularVelocity = omega;
+			bodyDef.enableContactRecycling = m_platformRecycling;
+			m_platformId = b3CreateBody( m_worldId, &bodyDef );
+
+			b3BoxHull box = b3MakeBoxHull( m_platformHalfLength, m_platformHalfThickness, m_platformHalfWidth );
+			b3ShapeDef shapeDef = b3DefaultShapeDef();
+			shapeDef.baseMaterial.customColor = b3_colorSlateGray;
+			b3CreateHullShape( m_platformId, &shapeDef, &box.base );
+		}
+
+		b3BoxHull box = b3MakeBoxHull( m_boxHalf, m_boxHalf, m_boxHalf );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.density = m_boxMass / ( 8.0f * m_boxHalf * m_boxHalf * m_boxHalf );
+
+		for ( int i = 0; i < 2; ++i )
+		{
+			// Start with the platform's surface velocity so there is no initial slip
+			b3Vec3 start = { i == 0 ? -m_radius : m_radius, m_platformHalfThickness + m_boxHalf, 0.0f };
+
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.position = { start.x, start.y, start.z };
+			bodyDef.linearVelocity = b3Cross( omega, start );
+			bodyDef.angularVelocity = omega;
+			bodyDef.enableContactRecycling = i == 0;
+			bodyDef.enableSleep = false;
+			m_boxIds[i] = b3CreateBody( m_worldId, &bodyDef );
+
+			shapeDef.baseMaterial.customColor = i == 0 ? b3_colorOrange : b3_colorDodgerBlue;
+			b3CreateHullShape( m_boxIds[i], &shapeDef, &box.base );
+
+			m_start[i] = b3Vec3_zero;
+			m_slide[i] = 0.0f;
+		}
+
+		m_time = 0.0f;
+		m_started = false;
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::SliderFloat( "Spin (rad/s)", &m_spinRate, 0.0f, 0.5f, "%.2f" );
+		if ( ImGui::IsItemDeactivatedAfterEdit() )
+		{
+			CreateScene();
+		}
+
+		ImGui::SliderFloat( "Radius (m)", &m_radius, 0.0f, 3.5f, "%.2f" );
+		if ( ImGui::IsItemDeactivatedAfterEdit() )
+		{
+			CreateScene();
+		}
+
+		if ( ImGui::Checkbox( "Platform Recycling", &m_platformRecycling ) )
+		{
+			CreateScene();
+		}
+
+		if ( ImGui::Button( "Reset" ) )
+		{
+			CreateScene();
+		}
+
+		return true;
+	}
+
+	void Step() override
+	{
+		float timeStep = m_context->hertz > 0.0f ? 1.0f / m_context->hertz : 0.0f;
+		if ( m_context->pause && m_context->singleStep == 0 )
+		{
+			timeStep = 0.0f;
+		}
+
+		Sample::Step();
+
+		m_time += timeStep;
+
+		if ( m_started == false && m_time >= m_settleTime )
+		{
+			for ( int i = 0; i < 2; ++i )
+			{
+				m_start[i] = b3Body_GetLocalPoint( m_platformId, b3Body_GetPosition( m_boxIds[i] ) );
+			}
+			m_started = true;
+		}
+
+		float radius[2];
+		for ( int i = 0; i < 2; ++i )
+		{
+			Vec4 color = i == 0 ? MakeColor( b3_colorOrange ) : MakeColor( b3_colorDodgerBlue );
+			b3Pos center = b3Body_GetPosition( m_boxIds[i] );
+			b3Vec3 local = b3Body_GetLocalPoint( m_platformId, center );
+			radius[i] = sqrtf( local.x * local.x + local.z * local.z );
+
+			DrawString3D( b3OffsetPos( center, { 0.0f, 0.75f, 0.0f } ), color, "%s",
+						  i == 0 ? "recycling on" : "recycling off" );
+
+			if ( m_started == false )
+			{
+				continue;
+			}
+
+			b3Vec3 offset = b3Sub( local, m_start[i] );
+			offset.y = 0.0f;
+			m_slide[i] = b3Length( offset );
+
+			// Where the box settled, outlined on the platform's top, and the path back to it
+			float top = m_platformHalfThickness + 0.01f;
+			b3Vec3 mark = { m_start[i].x, top, m_start[i].z };
+			b3Vec3 corners[4] = {
+				{ mark.x - m_boxHalf, top, mark.z - m_boxHalf },
+				{ mark.x + m_boxHalf, top, mark.z - m_boxHalf },
+				{ mark.x + m_boxHalf, top, mark.z + m_boxHalf },
+				{ mark.x - m_boxHalf, top, mark.z + m_boxHalf },
+			};
+			for ( int j = 0; j < 4; ++j )
+			{
+				DrawLine( b3Body_GetWorldPoint( m_platformId, corners[j] ),
+						  b3Body_GetWorldPoint( m_platformId, corners[( j + 1 ) % 4] ), color );
+			}
+
+			b3Vec3 tip = { local.x, top, local.z };
+			DrawArrow( b3Body_GetWorldPoint( m_platformId, mark ), b3Body_GetWorldPoint( m_platformId, tip ), color );
+		}
+
+		float elapsed = b3MaxFloat( m_time - m_settleTime, 0.0f );
+		float expected = m_spinRate * m_radius * sinf( 5.0f * B3_PI / 180.0f );
+
+		DrawTextLine( "platform spins %.2f rad/s, boxes %.2f m from the axis, %.0f s since settling", m_spinRate,
+					  m_radius, elapsed );
+		DrawTextLine( "platform recycling %s, contacts recycled this step: %d", m_platformRecycling ? "on" : "off",
+					  b3World_GetCounters( m_worldId ).recycledContactCount );
+		DrawTextLine( "orange, recycling on : radius %.3f m, slid %6.1f cm", radius[0], 100.0f * m_slide[0] );
+		DrawTextLine( "blue,   recycling off: radius %.3f m, slid %6.1f cm", radius[1], 100.0f * m_slide[1] );
+		DrawTextLine( "predicted outward slip from a 5 deg mean anchor lag: omega * r * sin(5 deg) = %.1f mm/s",
+					  1000.0f * expected );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new TurningPlatform( context );
+	}
+
+	b3BodyId m_platformId;
+	b3BodyId m_boxIds[2];
+	b3Vec3 m_start[2];
+	float m_slide[2];
+	float m_spinRate;
+	float m_radius;
+	float m_time;
+	bool m_started;
+	bool m_platformRecycling;
+};
+
+static int sampleTurningPlatform = RegisterSample( "Issues", "Turning Platform", TurningPlatform::Create );
 
 // A car made of one dynamic box (the chassis) and four ray cast 'wheels'.
 // There are no wheel bodies and no joints.
@@ -3137,3 +3482,192 @@ public:
 
 static int sampleTranslationLockedPlatform =
 	RegisterSample( "Issues", "Translation Locked Platform", TranslationLockedPlatform::Create );
+
+// Issue #219: a small bullet sphere fired into a thin static plate at high speed must stay on the
+// approach side. A soft contact only removes about 95 percent of the approach speed in the first
+// substep, enough to carry a 1 cm sphere through a 2.5 cm plate. So time of impact stops rounded
+// shapes touching, and on the next step shallow overlap on the impacting body reads as a tiny
+// positive separation, which the solver handles as a rigid speculative contact. The near plate is a
+// hull, the far plate a mesh. A sphere marked red has crossed its plate.
+class BulletThinPlate : public Sample
+{
+public:
+	static constexpr float m_plateY = 1.0f;
+	static constexpr float m_plateHalfThickness = 0.0125f;
+	static constexpr float m_plateHalfLength = 5.0f;
+	static constexpr float m_plateHalfWidth = 0.5f;
+	static constexpr float m_dropHeight = 2.0f;
+	static constexpr int m_fireInterval = 60;
+
+	explicit BulletThinPlate( SampleContext* context )
+		: Sample( context )
+	{
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 30.0f, 20.0f, 6.0f, { 0.0f, m_plateY, 0.0f } );
+		}
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.0f;
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.name = "hull plate";
+		bodyDef.position = { 0.0f, m_plateY, -1.0f };
+		b3BodyId hullPlateId = b3CreateBody( m_worldId, &bodyDef );
+
+		// Top face at the body origin
+		b3Transform offset = b3Transform_identity;
+		offset.p.y = -m_plateHalfThickness;
+		b3BoxHull hull = b3MakeTransformedBoxHull( m_plateHalfLength, m_plateHalfThickness, m_plateHalfWidth, offset );
+		b3CreateHullShape( hullPlateId, &shapeDef, &hull.base );
+
+		bodyDef.name = "mesh plate";
+		bodyDef.position = { 0.0f, m_plateY, 1.0f };
+		b3BodyId meshPlateId = b3CreateBody( m_worldId, &bodyDef );
+
+		m_mesh = b3CreateBoxMesh( { 0.0f, -m_plateHalfThickness, 0.0f },
+								  { m_plateHalfLength, m_plateHalfThickness, m_plateHalfWidth }, true );
+		b3CreateMeshShape( meshPlateId, &shapeDef, m_mesh, b3Vec3_one );
+
+		for ( int i = 0; i < 2; ++i )
+		{
+			m_bulletIds[i] = b3_nullBodyId;
+			m_shotCount[i] = 0;
+			m_crossCount[i] = 0;
+			m_crossed[i] = false;
+		}
+
+		Fire();
+	}
+
+	~BulletThinPlate() override
+	{
+		b3DestroyMesh( m_mesh );
+	}
+
+	void Fire()
+	{
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.0f;
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.isBullet = true;
+		bodyDef.enableSleep = false;
+		bodyDef.linearVelocity = { m_lateralSpeed, -m_speed, 0.0f };
+
+		b3Sphere sphere = { b3Vec3_zero, m_radius };
+
+		for ( int i = 0; i < 2; ++i )
+		{
+			if ( B3_IS_NON_NULL( m_bulletIds[i] ) )
+			{
+				b3DestroyBody( m_bulletIds[i] );
+			}
+
+			bodyDef.position = { -m_plateHalfLength + 1.0f, m_plateY + m_dropHeight, i == 0 ? -1.0f : 1.0f };
+			m_bulletIds[i] = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateSphereShape( m_bulletIds[i], &shapeDef, &sphere );
+
+			m_shotCount[i] += 1;
+			m_crossed[i] = false;
+		}
+
+		m_firedRadius = m_radius;
+		m_stepsSinceFire = 0;
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::PushItemWidth( 6.0f * ImGui::GetFontSize() );
+
+		ImGui::SliderFloat( "Radius", &m_radius, 0.005f, 0.1f, "%.3f m" );
+		ImGui::SliderFloat( "Speed", &m_speed, 10.0f, 1000.0f, "%.0f m/s" );
+		ImGui::SliderFloat( "Lateral", &m_lateralSpeed, 0.0f, 100.0f, "%.0f m/s" );
+		ImGui::Checkbox( "Auto Fire", &m_autoFire );
+
+		if ( ImGui::Button( "Fire" ) )
+		{
+			Fire();
+		}
+
+		ImGui::SameLine();
+		if ( ImGui::Button( "Clear Counts" ) )
+		{
+			for ( int i = 0; i < 2; ++i )
+			{
+				m_shotCount[i] = 0;
+				m_crossCount[i] = 0;
+			}
+		}
+
+		ImGui::PopItemWidth();
+		return true;
+	}
+
+	void Step() override
+	{
+		Sample::Step();
+
+		if ( m_didStep == false )
+		{
+			return;
+		}
+
+		float plateBottom = m_plateY - 2.0f * m_plateHalfThickness;
+		for ( int i = 0; i < 2; ++i )
+		{
+			float y = (float)b3Body_GetPosition( m_bulletIds[i] ).y;
+
+			// A sphere that slid off the far end falls past the plate legitimately
+			float x = (float)b3Body_GetPosition( m_bulletIds[i] ).x;
+			if ( m_crossed[i] == false && x < m_plateHalfLength && y + m_firedRadius < plateBottom )
+			{
+				m_crossed[i] = true;
+				m_crossCount[i] += 1;
+			}
+		}
+
+		m_stepsSinceFire += 1;
+		if ( m_autoFire && m_stepsSinceFire >= m_fireInterval )
+		{
+			Fire();
+		}
+	}
+
+	void Render() override
+	{
+		const char* names[2] = { "hull", "mesh" };
+		for ( int i = 0; i < 2; ++i )
+		{
+			b3Pos p = b3Body_GetPosition( m_bulletIds[i] );
+			DrawPoint( p, 10.0f, MakeColor( m_crossed[i] ? b3_colorRed : b3_colorLime ) );
+
+			DrawTextLine( "%s plate: %s, crossed %d of %d shots", names[i], m_crossed[i] ? "CROSSED" : "ok", m_crossCount[i],
+						  m_shotCount[i] );
+		}
+
+		float substepTime = 1.0f / ( m_context->hertz * m_context->subStepCount );
+		DrawTextLine( "plate thickness %.3f m, travel per substep %.3f m", 2.0f * m_plateHalfThickness,
+					  m_speed * substepTime );
+	}
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new BulletThinPlate( context );
+	}
+
+	b3MeshData* m_mesh;
+	b3BodyId m_bulletIds[2];
+	int m_shotCount[2];
+	int m_crossCount[2];
+	bool m_crossed[2];
+	int m_stepsSinceFire = 0;
+	float m_firedRadius = 0.01f;
+	float m_radius = 0.01f;
+	float m_speed = 300.0f;
+	float m_lateralSpeed = 30.0f;
+	bool m_autoFire = true;
+};
+
+static int sampleBulletThinPlate = RegisterSample( "Issues", "Bullet Thin Plate", BulletThinPlate::Create );
