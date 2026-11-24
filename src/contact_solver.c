@@ -103,8 +103,8 @@ void b3PrepareContacts_Overflow( b3StepContext* context )
 			simFlags |= simB->flags;
 		}
 
-		// todo comment
-		float separationFloor = ( simFlags & b3_hadTimeOfImpact ) != 0 ? B3_TOI_SEPARATION_FLOOR : -FLT_MAX;
+		// When a body has a TOI event, we make the contact rigid by putting it slightly into the speculative band.
+		float separationFloor = ( simFlags & b3_hadTimeOfImpact ) != 0 ? B3_TOI_RIGID_SEPARATION : -FLT_MAX;
 
 		int manifoldCount = contact->manifoldCount;
 		contactConstraint->contact = contact;
@@ -183,7 +183,7 @@ void b3PrepareContacts_Overflow( b3StepContext* context )
 				cp->rB = mp->anchorB;
 
 				float s = mp->separation;
-				if ( s > B3_TOI_SEPARATION_LIMIT )
+				if ( s > B3_TOI_RIGID_SEPARATION_LIMIT )
 				{
 					s = b3MaxFloat( s, separationFloor );
 				}

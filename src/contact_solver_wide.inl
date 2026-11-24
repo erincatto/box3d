@@ -574,7 +574,7 @@ B3_FORCE_INLINE bool b3PrepareConstraintW( b3ContactConstraintWide* c, b3Contact
 	b3FloatW invTau = b3SplatW( 1.0f / B3_SPECULATIVE_DISTANCE );
 	b3FloatW minFrictionWeight = b3SplatW( B3_MIN_FRICTION_WEIGHT );
 	b3FloatW minDet = b3SplatW( 1000.0f * FLT_MIN );
-	b3FloatW separationLimit = b3SplatW( B3_TOI_SEPARATION_LIMIT );
+	b3FloatW separationLimit = b3SplatW( B3_TOI_RIGID_SEPARATION_LIMIT );
 
 	const b3Contact* contactLanes[B3_SIMD_WIDTH];
 	const b3BodySim* simLanesA[B3_SIMD_WIDTH];
@@ -610,9 +610,9 @@ B3_FORCE_INLINE bool b3PrepareConstraintW( b3ContactConstraintWide* c, b3Contact
 			simLanesB[lane] = indexB == B3_NULL_INDEX ? &b3_zeroBodySim : sims + indexB;
 			hitEventLanes |= ( contact->flags & b3_simEnableHitEvent ) != 0 ? 1 << lane : 0;
 
-			// todo comment
+			// When a body has a TOI event, we make the contact rigid by putting it slightly into the speculative band.
 			uint32_t simFlags = simLanesA[lane]->flags | simLanesB[lane]->flags;
-			separationFloors[lane] = ( simFlags & b3_hadTimeOfImpact ) != 0 ? B3_TOI_SEPARATION_FLOOR : -FLT_MAX;
+			separationFloors[lane] = ( simFlags & b3_hadTimeOfImpact ) != 0 ? B3_TOI_RIGID_SEPARATION : -FLT_MAX;
 			maxManifoldCount = b3MaxInt( maxManifoldCount, contact->manifoldCount );
 		}
 		else
