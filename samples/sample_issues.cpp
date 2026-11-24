@@ -427,6 +427,128 @@ public:
 
 static int sampleHullCrash = RegisterSample( "Issues", "Hull Crash", HullCrash::Create );
 
+// Issue #225: hull of random points in a thin slab used to hang. Thin input may now fail and return null.
+class ThinSlabHull : public Sample
+{
+public:
+	explicit ThinSlabHull( SampleContext* context )
+		: Sample( context )
+	{
+		m_hull = nullptr;
+		m_pointSet = 0;
+		m_thickness = 0.05f;
+		m_maxVertexCount = 32;
+
+		CreateHull();
+
+		if ( m_context->restart == false )
+		{
+			m_camera->SetView( 0.0f, 15.0f, 20.0f, b3Pos_zero );
+		}
+	}
+
+	~ThinSlabHull() override
+	{
+		if ( m_hull != nullptr )
+		{
+			b3DestroyHull( m_hull );
+		}
+	}
+
+	static float SlabRandom( uint32_t* state )
+	{
+		*state = *state * 1664525u + 1013904223u;
+		return (float)( *state >> 8 ) / 16777216.0f;
+	}
+
+	void CreateHull()
+	{
+		if ( m_hull != nullptr )
+		{
+			b3DestroyHull( m_hull );
+			m_hull = nullptr;
+		}
+
+		// Point set zero is the one from the issue
+		uint32_t state = 12345u + (uint32_t)m_pointSet;
+		for ( int i = 0; i < m_pointCount; ++i )
+		{
+			m_points[i].x = SlabRandom( &state ) * 10.0f - 5.0f;
+			m_points[i].y = ( SlabRandom( &state ) - 0.5f ) * m_thickness;
+			m_points[i].z = SlabRandom( &state ) * 10.0f - 5.0f;
+		}
+
+		m_hull = b3CreateHull( m_points, m_pointCount, m_maxVertexCount );
+	}
+
+	bool DrawControls() override
+	{
+		if ( m_hull != nullptr )
+		{
+			DrawTextLine( "hull: vertices = %d, edges = %d, faces = %d", m_hull->vertexCount, m_hull->edgeCount / 2,
+						  m_hull->faceCount );
+		}
+		else
+		{
+			DrawTextLine( "hull creation failed" );
+		}
+
+		if ( ImGui::SliderInt( "Point Set", &m_pointSet, 0, 99 ) )
+		{
+			CreateHull();
+		}
+
+		float thicknessCm = 100.0f * m_thickness;
+		if ( ImGui::SliderFloat( "Thickness", &thicknessCm, 0.01f, 100.0f, "%.2f cm",
+								 ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_AlwaysClamp ) )
+		{
+			m_thickness = 0.01f * thicknessCm;
+			CreateHull();
+		}
+
+		if ( ImGui::SliderInt( "Max Vertices", &m_maxVertexCount, 4, B3_MAX_HULL_VERTICES ) )
+		{
+			CreateHull();
+		}
+
+		return true;
+	}
+
+	void Render() override
+	{
+		DrawGroundGrid( 20 );
+
+		if ( m_hull != nullptr )
+		{
+			DrawHull( b3WorldTransform_identity, m_hull, MakeColor( b3_colorYellow ) );
+		}
+
+		b3HexColor pointColor = m_hull != nullptr ? b3_colorWhite : b3_colorRed;
+		for ( int i = 0; i < m_pointCount; ++i )
+		{
+			DrawPoint( b3ToPos( m_points[i] ), 5.0f, MakeColor( pointColor ) );
+		}
+
+		DrawAxes( b3WorldTransform_identity, 1.0f );
+
+		Sample::Render();
+	}
+
+	static Sample* Create( SampleContext* sampleContext )
+	{
+		return new ThinSlabHull( sampleContext );
+	}
+
+	static constexpr int m_pointCount = 400;
+	b3Vec3 m_points[m_pointCount];
+	b3HullData* m_hull;
+	int m_pointSet;
+	float m_thickness;
+	int m_maxVertexCount;
+};
+
+static int sampleThinSlabHull = RegisterSample( "Issues", "Thin Slab Hull", ThinSlabHull::Create );
+
 class ConvexJitter : public Sample
 {
 public:

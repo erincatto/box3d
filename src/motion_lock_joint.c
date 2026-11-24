@@ -22,7 +22,18 @@ void b3MotionLockJoint_EnableLinearLock( b3JointId jointId, int axis, bool flag 
 	if ( flag != joint->lockLinear[axis] )
 	{
 		joint->lockLinear[axis] = flag;
-		( &joint->linearImpulse.x )[axis] = 0.0f;
+		if ( axis == 0 )
+		{
+			joint->linearImpulse.x = 0.0f;
+		}
+		else if ( axis == 1 )
+		{
+			joint->linearImpulse.y = 0.0f;
+		}
+		else
+		{
+			joint->linearImpulse.z = 0.0f;
+		}
 	}
 }
 
@@ -301,7 +312,7 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 		b3Vec3 sA[3];
 		b3Vec3 sB[3];
 		float rhs[3];
-		float* oldImpulses = &joint->linearImpulse.x;
+		float oldImpulses[3] = { joint->linearImpulse.x, joint->linearImpulse.y, joint->linearImpulse.z };
 		float impulses[3] = { 0.0f, 0.0f, 0.0f };
 
 		for ( int i = 0; i < count; ++i )
@@ -384,6 +395,8 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 			LA = b3MulAdd( LA, impulses[i], sA[i] );
 			LB = b3MulAdd( LB, impulses[i], sB[i] );
 		}
+
+		joint->linearImpulse = (b3Vec3){ oldImpulses[0], oldImpulses[1], oldImpulses[2] };
 
 		vA = b3MulSub( vA, mA, P );
 		vB = b3MulAdd( vB, mB, P );

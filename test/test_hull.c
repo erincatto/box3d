@@ -546,6 +546,82 @@ static int CreateHullDegenerateTest( void )
 	return 0;
 }
 
+static float SlabRandom( uint32_t* state )
+{
+	*state = *state * 1664525u + 1013904223u;
+	return (float)( *state >> 8 ) / 16777216.0f;
+}
+
+// Issue #225: a slab only a few merge tolerances thick used to hang, crash, or return a hull that missed its
+// input by meters. Thin input must return NULL.
+static int CreateHullThinSlabTest( void )
+{
+	enum
+	{
+		pointCount = 400
+	};
+
+	b3Vec3 points[pointCount];
+	float thicknesses[] = { 2e-5f, 4e-5f, 8e-5f, 1e-4f, 1.5e-4f, 2e-4f, 3e-4f, 1e-3f, 5e-3f, 0.05f, 0.2f, 1.0f };
+	int thicknessCount = sizeof( thicknesses ) / sizeof( thicknesses[0] );
+
+	for ( int i = 0; i < thicknessCount; ++i )
+	{
+		bool thin = thicknesses[i] < 0.01f;
+
+		// Fewer points keep the thick slabs under the half edge limit
+		int count = thin ? pointCount : 40;
+
+		for ( uint32_t seed = 1; seed <= 40; ++seed )
+		{
+			uint32_t state = seed;
+			for ( int j = 0; j < count; ++j )
+			{
+				points[j].x = SlabRandom( &state ) * 10.0f - 5.0f;
+				points[j].y = ( SlabRandom( &state ) - 0.5f ) * thicknesses[i];
+				points[j].z = SlabRandom( &state ) * 10.0f - 5.0f;
+			}
+
+			b3HullData* hull = b3CreateHull( points, count, B3_MAX_HULL_VERTICES );
+			if ( thin )
+			{
+				ENSURE( hull == NULL );
+				continue;
+			}
+
+			ENSURE( hull != NULL );
+			ENSURE( hull->faceCount >= 4 );
+			ENSURE( hull->vertexCount - hull->edgeCount / 2 + hull->faceCount == 2 );
+			b3DestroyHull( hull );
+		}
+	}
+
+	// Wide enough relative to its size, but thinner than linear slop
+	float halfThicknesses[] = { 0.4f * B3_LINEAR_SLOP, 0.6f * B3_LINEAR_SLOP };
+	for ( int i = 0; i < 2; ++i )
+	{
+		float h = halfThicknesses[i];
+		b3Vec3 box[8] = {
+			{ -0.5f, -h, -0.5f }, { 0.5f, -h, -0.5f }, { 0.5f, -h, 0.5f }, { -0.5f, -h, 0.5f },
+			{ -0.5f, h, -0.5f },  { 0.5f, h, -0.5f },  { 0.5f, h, 0.5f },  { -0.5f, h, 0.5f },
+		};
+
+		b3HullData* hull = b3CreateHull( box, 8, 8 );
+		if ( i == 0 )
+		{
+			ENSURE( hull == NULL );
+		}
+		else
+		{
+			ENSURE( hull != NULL );
+			ENSURE( hull->faceCount == 6 );
+			b3DestroyHull( hull );
+		}
+	}
+
+	return 0;
+}
+
 static void FillPoints2D( b3Point2D* pts, const b3Vec2* input, int count )
 {
 	for ( int i = 0; i < count; ++i )
@@ -891,6 +967,7 @@ int HullTest( void )
 	RUN_SUBTEST( CreateHullSphereStressTest );
 	RUN_SUBTEST( CreateHullMergeChurnStressTest );
 	RUN_SUBTEST( CreateHullDegenerateTest );
+	RUN_SUBTEST( CreateHullThinSlabTest );
 	RUN_SUBTEST( TransformedBoxHullTest );
 	RUN_SUBTEST( Hull2DSquareTest );
 	RUN_SUBTEST( Hull2DCollinearTest );
