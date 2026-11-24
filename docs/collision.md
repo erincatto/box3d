@@ -98,18 +98,25 @@ For arbitrary convex geometry, provide a point cloud and let Box3D compute the h
 
 ```c
 b3HullData* data = b3CreateHull(points, pointCount, maxVertexCount);
-if (data == NULL)
+if (data != NULL)
 {
-    // degenerate input: coincident or coplanar points, or insufficient volume
+    b3CreateHullShape(bodyId, &shapeDef, data);
+
+    // The world keeps its own copy, so you may free yours immediately
+    b3DestroyHull(data);
 }
-b3CreateHullShape(bodyId, &shapeDef, data);
-// The world keeps its own copy, so you may free yours immediately
-b3DestroyHull(data);
 ```
 
 `maxVertexCount` limits the output complexity; pass the same value as `pointCount`
-to allow the full hull. `b3CreateHull` returns `NULL` on degenerate input (e.g. fewer
-than four non-coplanar points, or nearly-zero volume). Always check before using it.
+to allow the full hull. `b3CreateHull` returns `NULL` on degenerate input:
+
+- fewer than four points, or points that are coincident or coplanar
+- a hull that is too thin, meaning thinner than the larger of the linear slop (5 mm by default)
+  and 0.1% of its largest extent. For example, a 10 meter wide plate must be at least 1 cm thick.
+- a result that exceeds `B3_MAX_HULL_VERTICES`, `B3_MAX_HULL_FACES`, or `B3_MAX_HULL_EDGES`
+
+Always check the result before using it. For a thin box use `b3MakeBoxHull`, which allows half
+widths down to 20% of the linear slop.
 
 Box3D also provides helpers to create cylindrical and conical hulls:
 

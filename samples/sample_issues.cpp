@@ -2146,7 +2146,7 @@ public:
 
 			// >>>>>>>>>>>>>>>>>>>>> THIS IS THE FIX <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 			bodyDef.enableContactRecycling = false;
-			
+
 			m_deckId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3BoxHull box = b3MakeBoxHull( m_deckHalfLength, m_deckHalfThickness, m_deckHalfWidth );
@@ -2367,6 +2367,9 @@ static int sampleRollingDeck = RegisterSample( "Issues", "Rolling Deck", Rolling
 // point up to 10 degrees behind on the arc. The orange box spirals outward, about omega * r * sin(5 deg)
 // on average, and the slide grows with the spin rate and the radius. The blue box stays put. Same
 // mechanism as the Rolling Deck sample, about a vertical axis instead of a horizontal one.
+//
+// The fix is to disable recycling on the platform, which stops both boxes from recycling. The
+// Platform Recycling checkbox turns it back on to show the drift.
 class TurningPlatform : public Sample
 {
 public:
@@ -2387,6 +2390,7 @@ public:
 
 		m_spinRate = 0.12f;
 		m_radius = 1.75f;
+		m_platformRecycling = false;
 		m_platformId = {};
 		m_boxIds[0] = {};
 		m_boxIds[1] = {};
@@ -2409,10 +2413,7 @@ public:
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_kinematicBody;
 			bodyDef.angularVelocity = omega;
-
-			// >>>>>>>>>>>>>>>>>>>>> THIS IS THE FIX <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-			bodyDef.enableContactRecycling = false;
-
+			bodyDef.enableContactRecycling = m_platformRecycling;
 			m_platformId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3BoxHull box = b3MakeBoxHull( m_platformHalfLength, m_platformHalfThickness, m_platformHalfWidth );
@@ -2460,6 +2461,11 @@ public:
 
 		ImGui::SliderFloat( "Radius (m)", &m_radius, 0.0f, 3.5f, "%.2f" );
 		if ( ImGui::IsItemDeactivatedAfterEdit() )
+		{
+			CreateScene();
+		}
+
+		if ( ImGui::Checkbox( "Platform Recycling", &m_platformRecycling ) )
 		{
 			CreateScene();
 		}
@@ -2537,7 +2543,7 @@ public:
 
 		DrawTextLine( "platform spins %.2f rad/s, boxes %.2f m from the axis, %.0f s since settling", m_spinRate,
 					  m_radius, elapsed );
-		DrawTextLine( "contacts recycled this step: %d (only the orange box's can be)",
+		DrawTextLine( "platform recycling %s, contacts recycled this step: %d", m_platformRecycling ? "on" : "off",
 					  b3World_GetCounters( m_worldId ).recycledContactCount );
 		DrawTextLine( "orange, recycling on : radius %.3f m, slid %6.1f cm", radius[0], 100.0f * m_slide[0] );
 		DrawTextLine( "blue,   recycling off: radius %.3f m, slid %6.1f cm", radius[1], 100.0f * m_slide[1] );
@@ -2558,6 +2564,7 @@ public:
 	float m_radius;
 	float m_time;
 	bool m_started;
+	bool m_platformRecycling;
 };
 
 static int sampleTurningPlatform = RegisterSample( "Issues", "Turning Platform", TurningPlatform::Create );

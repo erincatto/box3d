@@ -2701,6 +2701,11 @@ b3HullData* b3CloneAndTransformHull( const b3HullData* original, b3Transform tra
 
 void b3DestroyHull( b3HullData* hull )
 {
+	if ( hull == NULL )
+	{
+		return;
+	}
+
 	b3Free( hull, hull->byteCount );
 }
 

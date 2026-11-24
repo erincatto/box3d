@@ -112,7 +112,12 @@ public:
 
 	void Render() override
 	{
-		DrawHull( b3WorldTransform_identity, m_hull, MakeColor( b3_colorYellow ) );
+		// Thin scales make hull creation fail
+		if ( m_hull != nullptr )
+		{
+			DrawHull( b3WorldTransform_identity, m_hull, MakeColor( b3_colorYellow ) );
+		}
+
 		DrawHull( b3WorldTransform_identity, &m_box.base, MakeColor( b3_colorCyan ) );
 
 		DrawAxes( b3WorldTransform_identity, 1.0f );
