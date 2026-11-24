@@ -2098,6 +2098,9 @@ static int sampleThinWallPushOut = RegisterSample( "Issues", "Thin Wall Push Out
 // across the deck roll by roll. The angular tolerance doesn't stop that: at 12 or 15 degrees the
 // contact is made again more often and the crate walks all the same. The blue crate rides with the
 // deck. The slide arrows on the deck are drawn ten times longer.
+//
+// The fix is to disable recycling on the deck, which stops both crates from recycling. The Deck
+// Recycling checkbox turns it back on to show the walk.
 class RollingDeck : public Sample
 {
 public:
@@ -2120,6 +2123,7 @@ public:
 
 		m_rollDegrees = 8.0f;
 		m_period = 6.0f;
+		m_deckRecycling = false;
 		m_deckId = {};
 		m_crateIds[0] = {};
 		m_crateIds[1] = {};
@@ -2143,10 +2147,7 @@ public:
 		{
 			b3BodyDef bodyDef = b3DefaultBodyDef();
 			bodyDef.type = b3_kinematicBody;
-
-			// >>>>>>>>>>>>>>>>>>>>> THIS IS THE FIX <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-			bodyDef.enableContactRecycling = false;
-
+			bodyDef.enableContactRecycling = m_deckRecycling;
 			m_deckId = b3CreateBody( m_worldId, &bodyDef );
 
 			b3BoxHull box = b3MakeBoxHull( m_deckHalfLength, m_deckHalfThickness, m_deckHalfWidth );
@@ -2212,6 +2213,11 @@ public:
 
 		ImGui::SliderFloat( "Period (s)", &m_period, 2.0f, 12.0f, "%.1f" );
 		if ( ImGui::IsItemDeactivatedAfterEdit() )
+		{
+			CreateScene();
+		}
+
+		if ( ImGui::Checkbox( "Deck Recycling", &m_deckRecycling ) )
 		{
 			CreateScene();
 		}
@@ -2322,7 +2328,7 @@ public:
 					  m_rollDegrees, m_period, roll, m_crateOffset, m_friction );
 		DrawTextLine( "a contact is recycled while each body turns < 10 deg from where it was made "
 					  "(B3_CONTACT_RECYCLE_ANGULAR_DISTANCE)" );
-		DrawTextLine( "contacts recycled this step: %d (only the orange crate's can be)",
+		DrawTextLine( "deck recycling %s, contacts recycled this step: %d", m_deckRecycling ? "on" : "off",
 					  b3World_GetCounters( m_worldId ).recycledContactCount );
 		DrawTextLine( "orange, recycling on : normal %4.1f deg off the deck's up (most %4.1f), "
 					  "slid %5.1f mm (most %5.1f)",
@@ -2353,6 +2359,7 @@ public:
 	float m_period;
 	float m_time;
 	bool m_started;
+	bool m_deckRecycling;
 };
 
 static int sampleRollingDeck = RegisterSample( "Issues", "Rolling Deck", RollingDeck::Create );
