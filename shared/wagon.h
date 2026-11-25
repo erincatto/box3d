@@ -106,6 +106,13 @@ typedef struct WagonTuning
 
 	// Steeper cast hits are walls, not ground, radians from the chassis up axis
 	float maxGroundAngle;
+
+	// A soft parallel joint that holds the chassis level across the ground under its wheels, for a
+	// wagon that should never tip over. The torque cap is a multiple of weight times half track,
+	// the moment gravity already gives against tipping. Zero turns it off.
+	float rollHertz;
+	float rollDampingRatio;
+	float maxRollTorque;
 } WagonTuning;
 
 WagonTuning GetDefaultWagonTuning( void );
@@ -189,6 +196,12 @@ typedef struct Wagon
 	float axleRadius;
 
 	WagonWheel wheels[e_wagonWheelCount];
+
+	// Anti roll joint to a static anchor and the up axis it last aimed for
+	b3BodyId rollAnchorId;
+	b3JointId rollJointId;
+	b3Vec3 rollUp;
+	float rollTorque;
 
 	WagonGait gait;
 	bool brake;

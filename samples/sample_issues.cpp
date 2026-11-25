@@ -3672,6 +3672,7 @@ public:
 
 static int sampleBulletThinPlate = RegisterSample( "Issues", "Bullet Thin Plate", BulletThinPlate::Create );
 
+// This isse
 class BollardTwistSpring : public Sample
 {
 public:
@@ -3700,7 +3701,7 @@ public:
 			m_camera->SetView( 20.0f, 20.0f, 0.9f * m_spacing * m_count + 10.0f, { 0.0f, 0.5f, 0.0f } );
 		}
 
-		AddGroundBox( 0.5f * m_spacing * m_count + 12.0f );
+		// AddGroundBox( 0.5f * m_spacing * m_count + 12.0f );
 
 		b3BodyDef anchorDef = b3DefaultBodyDef();
 		b3BodyId anchorId = b3CreateBody( m_worldId, &anchorDef );
@@ -3714,14 +3715,14 @@ public:
 		b3ShapeDef shapeDef = b3DefaultShapeDef();
 		shapeDef.baseMaterial.friction = 0.5f;
 
-		for ( int i = 0; i < m_count; ++i )
+		for ( int i = 0; i < 1; ++i )
 		{
 			Bollard& bollard = m_bollards[i];
 			bollard.pivot = { m_firstX + i * m_spacing, 0.15f, 0.0f };
 
 			// 180 degrees at the first bollard down to 0 at the last. The spherical joint twist limit tops out at
 			// 0.99 pi, so the pinned twist is capped just below 180.
-			float twist = 180.0f * ( 1.0f - (float)i / (float)( m_count - 1 ) );
+			float twist = 180.0f * ( 1.0f - (float)10 / (float)( m_count - 1 ) );
 			bollard.twistDegrees = b3MinFloat( twist, 176.0f );
 
 			// twist about the bollard's own axis, applied in the body frame
@@ -3737,6 +3738,17 @@ public:
 
 			b3Vec3 p = { (float)bollard.pivot.x, (float)bollard.pivot.y, (float)bollard.pivot.z };
 
+#if 0
+			b3WeldJointDef jointDef = b3DefaultWeldJointDef();
+			jointDef.base.bodyIdA = anchorId;
+			jointDef.base.bodyIdB = bollard.bodyId;
+			jointDef.base.localFrameA.p = p;
+			jointDef.base.localFrameA.q = m_frameQ;
+			jointDef.base.drawScale = 0.3f;
+			jointDef.angularHertz = s_hertz;
+			jointDef.angularDampingRatio = s_dampingRatio;
+			bollard.jointId = b3CreateWeldJoint( m_worldId, &jointDef );
+#else
 			b3SphericalJointDef jointDef = b3DefaultSphericalJointDef();
 			jointDef.base.bodyIdA = anchorId;
 			jointDef.base.bodyIdB = bollard.bodyId;
@@ -3748,14 +3760,21 @@ public:
 			jointDef.dampingRatio = s_dampingRatio;
 			jointDef.targetRotation = b3Quat_identity;
 			jointDef.enableTwistLimit = true;
+			jointDef.lowerTwistAngle = B3_DEG_TO_RAD * ( bollard.twistDegrees - 1.0f );
+			jointDef.upperTwistAngle = B3_DEG_TO_RAD * ( bollard.twistDegrees + 1.0f );
+			jointDef.lowerTwistAngle = -B3_DEG_TO_RAD * ( bollard.twistDegrees );
+			jointDef.upperTwistAngle = B3_DEG_TO_RAD * ( bollard.twistDegrees );
+			//jointDef.lowerTwistAngle = -0.5f * B3_PI;
+			//jointDef.upperTwistAngle = 0.5f * B3_PI;
 			bollard.jointId = b3CreateSphericalJoint( m_worldId, &jointDef );
 
 			// A narrow limit window around the initial twist pins the twist
-			b3SphericalJoint_SetTwistLimits( bollard.jointId, B3_DEG_TO_RAD * ( bollard.twistDegrees - 1.0f ),
-											 B3_DEG_TO_RAD * ( bollard.twistDegrees + 1.0f ) );
+			//b3SphericalJoint_SetTwistLimits( bollard.jointId, B3_DEG_TO_RAD * ( bollard.twistDegrees - 1.0f ),
+			//								 B3_DEG_TO_RAD * ( bollard.twistDegrees + 1.0f ) );
+#endif
 		}
 
-		CreateCar( m_firstX - 5.0f );
+		//CreateCar( m_firstX - 5.0f );
 	}
 
 	// A box on four driven wheels. The chassis rides high enough that a bollard pushed flat fits under it.
@@ -3811,6 +3830,7 @@ public:
 		b3DestroyHull( wheelHull );
 	}
 
+#if 0
 	// Stop the car after it has passed the last bollard so it does not drive off the ground.
 	void Step() override
 	{
@@ -3834,7 +3854,9 @@ public:
 		DrawTextLine( "Press R to restart with these settings." );
 		return true;
 	}
+#endif
 
+#if 0
 	void Render() override
 	{
 		DrawTextLine( "A car drives over bollards on sprung spherical joints. Spring target: upright." );
@@ -3861,6 +3883,7 @@ public:
 			DrawString3D( labelPoint, MakeColor( color ), "tilt %.0f", tilt );
 		}
 	}
+#endif
 
 	static Sample* Create( SampleContext* context )
 	{

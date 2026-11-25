@@ -77,6 +77,10 @@ WagonTuning GetDefaultWagonTuning( void )
 	// A wheel first touches a log as tall as its hub at a normal near level. Rejecting that lets the
 	// wheel sink in until the normal is shallow, and then the bump stop kicks.
 	tuning.maxGroundAngle = 85.0f * B3_PI / 180.0f;
+
+	tuning.rollHertz = 0.5f;
+	tuning.rollDampingRatio = 1.0f;
+	tuning.maxRollTorque = 0.5f;
 	return tuning;
 }
 
@@ -140,6 +144,8 @@ Wagon CreateWagon( b3WorldId worldId, const WagonDef* def )
 	bodyDef.rotation = def->rotation;
 	bodyDef.name = "wagon";
 	wagon.chassisId = b3CreateBody( worldId, &bodyDef );
+	wagon.rollAnchorId = b3_nullBodyId;
+	wagon.rollJointId = b3_nullJointId;
 
 	float volume = 8.0f * bedHalfLength * bedHalfHeight * bedHalfWidth;
 	b3ShapeDef shapeDef = b3DefaultShapeDef();
@@ -204,8 +210,22 @@ Wagon CreateWagon( b3WorldId worldId, const WagonDef* def )
 	return wagon;
 }
 
+static void DestroyRollJoint( Wagon* wagon )
+{
+	if ( b3Body_IsValid( wagon->rollAnchorId ) )
+	{
+		b3DestroyBody( wagon->rollAnchorId );
+	}
+
+	wagon->rollAnchorId = b3_nullBodyId;
+	wagon->rollJointId = b3_nullJointId;
+	wagon->rollTorque = 0.0f;
+}
+
 void DestroyWagon( Wagon* wagon )
 {
+	DestroyRollJoint( wagon );
+
 	if ( b3Body_IsValid( wagon->chassisId ) )
 	{
 		b3DestroyBody( wagon->chassisId );
@@ -474,6 +494,82 @@ static void UpdateWheelJoint( Wagon* wagon, WagonWheel* wheel, WheelContact cont
 	wheel->jointBrake = brakeForce;
 }
 
+// The target up is the ground normal with its component along the chassis forward axis removed. That
+// leaves pitch free, so the wagon still follows a hill, and it holds the wagon level across a camber
+// rather than toward world up, which would load the downhill wheels and help it tip.
+static void UpdateRollJoint( Wagon* wagon, b3WorldTransform transform )
+{
+	const WagonTuning* tuning = &wagon->tuning;
+	if ( tuning->maxRollTorque <= 0.0f || tuning->rollHertz <= 0.0f )
+	{
+		DestroyRollJoint( wagon );
+		return;
+	}
+
+	b3Vec3 groundUp = b3Vec3_zero;
+	for ( int i = 0; i < e_wagonWheelCount; ++i )
+	{
+		if ( wagon->wheels[i].grounded )
+		{
+			groundUp = b3Add( groundUp, wagon->wheels[i].contactNormal );
+		}
+	}
+
+	// A wagon lying on its side has no wheel on the ground, so it rights toward world up
+	if ( b3LengthSquared( groundUp ) == 0.0f )
+	{
+		groundUp = b3Neg( b3World_GetGravity( wagon->worldId ) );
+	}
+
+	b3Vec3 forward = b3RotateVector( transform.q, b3Vec3_axisX );
+	float length;
+	b3Vec3 up = b3GetLengthAndNormalize( &length, b3MulSub( groundUp, b3Dot( groundUp, forward ), forward ) );
+	if ( length < 0.1f )
+	{
+		// Pointing straight up or down a cliff, roll is undefined
+		up = wagon->rollUp;
+	}
+
+	float maxTorque = tuning->maxRollTorque * wagon->weight * wagon->halfTrack;
+
+	if ( b3Joint_IsValid( wagon->rollJointId ) == false )
+	{
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.position = transform.p;
+		bodyDef.name = "wagon roll anchor";
+		wagon->rollAnchorId = b3CreateBody( wagon->worldId, &bodyDef );
+
+		// The joint holds frame A's z axis on frame B's, so frame B turns z onto the chassis up axis
+		b3ParallelJointDef def = b3DefaultParallelJointDef();
+		def.base.bodyIdA = wagon->rollAnchorId;
+		def.base.bodyIdB = wagon->chassisId;
+		def.base.localFrameA.q = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, up );
+		def.base.localFrameB.p = b3Body_GetMassData( wagon->chassisId ).center;
+		def.base.localFrameB.q = b3MakeQuatFromAxisAngle( b3Vec3_axisX, -0.5f * B3_PI );
+		def.hertz = tuning->rollHertz;
+		def.dampingRatio = tuning->rollDampingRatio;
+		def.maxTorque = maxTorque;
+		wagon->rollJointId = b3CreateParallelJoint( wagon->worldId, &def );
+		wagon->rollUp = up;
+		return;
+	}
+
+	if ( wagon->tuningChanged )
+	{
+		b3ParallelJoint_SetSpringHertz( wagon->rollJointId, tuning->rollHertz );
+		b3ParallelJoint_SetSpringDampingRatio( wagon->rollJointId, tuning->rollDampingRatio );
+		b3ParallelJoint_SetMaxTorque( wagon->rollJointId, maxTorque );
+	}
+
+	// Skip tiny changes so a wagon on flat ground records nothing
+	if ( b3Dot( up, wagon->rollUp ) < 0.99999f )
+	{
+		b3Transform frameA = { b3Vec3_zero, b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, up ) };
+		b3Joint_SetLocalFrameA( wagon->rollJointId, frameA );
+		wagon->rollUp = up;
+	}
+}
+
 void UpdateWagon( Wagon* wagon, WagonInput input, float timeStep )
 {
 	const WagonTuning* tuning = &wagon->tuning;
@@ -538,6 +634,8 @@ void UpdateWagon( Wagon* wagon, WagonInput input, float timeStep )
 		UpdateWheelJoint( wagon, wheel, contact, wheelSteer, brakeForce );
 	}
 
+	UpdateRollJoint( wagon, transform );
+
 	wagon->tuningChanged = false;
 
 	b3Vec3 heading = GetWagonHeading( wagon );
@@ -580,6 +678,12 @@ void UpdateWagonResults( Wagon* wagon, float timeStep )
 {
 	bool awake = b3Body_IsAwake( wagon->chassisId );
 	b3WorldTransform transform = b3Body_GetTransform( wagon->chassisId );
+
+	wagon->rollTorque = 0.0f;
+	if ( b3Joint_IsValid( wagon->rollJointId ) )
+	{
+		wagon->rollTorque = b3Length( b3Joint_GetConstraintTorque( wagon->rollJointId ) );
+	}
 
 	for ( int i = 0; i < e_wagonWheelCount; ++i )
 	{

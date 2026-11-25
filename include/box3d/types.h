@@ -1045,7 +1045,8 @@ typedef struct b3SphericalJointDef
 	/// Base joint definition
 	b3JointDef base;
 
-	/// Enable a rotational spring that attempts to align the two joint frames.
+	/// Enable a rotational spring that attempts to align the two joint frames. Avoid creating a conflict
+	/// between the spring and the limits. A conflict can lead to undesirable rotation.
 	bool enableSpring;
 
 	/// The spring stiffness Hertz, cycles per second. This may be clamped internally

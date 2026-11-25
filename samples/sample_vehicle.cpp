@@ -430,6 +430,14 @@ public:
 		}
 		ImGui::SetItemTooltip( "Steepest wheel hit treated as ground the wheel can climb. Steeper hits are walls." );
 
+		changed |= ImGui::SliderFloat( "Anti Roll Torque", &m_tuning.maxRollTorque, 0.0f, 4.0f, "%.2f W*T" );
+		ImGui::SetItemTooltip( "Cap on the parallel joint that holds the wagon level across the ground, as a multiple "
+							   "of weight times half track, the moment gravity gives against tipping. Zero is off." );
+		changed |= ImGui::SliderFloat( "Anti Roll Hertz", &m_tuning.rollHertz, 0.1f, 10.0f, "%.1f" );
+		ImGui::SetItemTooltip( "Stiffness of the anti roll joint as a natural frequency." );
+		changed |= ImGui::SliderFloat( "Anti Roll Damping", &m_tuning.rollDampingRatio, 0.0f, 2.0f, "%.2f" );
+		ImGui::SetItemTooltip( "Damping ratio of the anti roll joint. It damps pitch rate as well as roll." );
+
 		for ( int gait = e_wagonBack; gait < e_wagonGaitCount; ++gait )
 		{
 			if ( gait == e_wagonHalt )
@@ -594,6 +602,11 @@ public:
 					  m_wagon.draftForce / m_wagon.weight, m_wagon.brake ? "on" : "off", awake ? "awake" : "asleep" );
 		DrawTextLine( "strain = %.0f%%, used %.1f of %.1f s%s", 100.0f * m_wagon.strain, m_wagon.strainTime,
 					  m_tuning.strainDuration, m_wagon.strainSpent ? ", spent" : "" );
+		if ( b3Joint_IsValid( m_wagon.rollJointId ) )
+		{
+			float maxTorque = m_tuning.maxRollTorque * m_wagon.weight * m_wagon.halfTrack;
+			DrawTextLine( "anti roll torque = %.0f of %.0f N*m", m_wagon.rollTorque, maxTorque );
+		}
 
 		const char* names[e_wagonWheelCount] = { "front left", "front right", "rear left", "rear right" };
 		for ( int i = 0; i < e_wagonWheelCount; ++i )
