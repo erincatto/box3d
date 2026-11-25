@@ -689,6 +689,7 @@ typedef enum b3JointType
 	b3_moverJoint,
 	b3_pogoJoint,
 	b3_motionLockJoint,
+	b3_tireJoint,
 } b3JointType;
 
 /// Base joint definition used by all joint types. The local frames are measured from the
@@ -1085,6 +1086,78 @@ typedef struct b3SphericalJointDef
 /// Use this to initialize your joint definition.
 /// @ingroup spherical_joint
 B3_API b3SphericalJointDef b3DefaultSphericalJointDef( void );
+
+/// Tire joint definition.
+/// @ingroup tire_joint
+typedef struct b3TireJointDef
+{
+	/// Base joint definition.
+	b3JointDef base;
+
+	/// The contact normal.
+	b3Vec3 normal;
+
+	/// The wheel radius.
+	float radius;
+
+	/// The wheel half width.
+	float halfWidth;
+
+	/// The maximum suspension length.
+	float maxSuspensionLength;
+
+	/// The rest length can be longer than the suspension length to preload the spring.
+	float restLength;
+
+	/// The supension stiffness in Hertz.
+	float suspensionHertz;
+
+	/// The suspension damping ratio during extension. 1 for critical damping.
+	float suspensionDampingRatio;
+
+	/// The suspension damping ratio under compression.
+	float bumpDampingRatio;
+
+	/// Used to clamp the suspension force.
+	float maxSuspensionForce;
+
+	/// The bottom-out stiffness.
+	float bumpStopHertz;
+
+	/// The bottom-out damping ratio.
+	float bumpStopDampingRatio;
+
+	/// The lateral friction coeffiction.
+	float lateralFriction;
+
+	/// The longitudinal friction coefficient.
+	float rollingFriction;
+
+	/// The tire rolling resistance.
+	float rollingResistance;
+
+	/// The current break force.
+	float brakeForce;
+
+	/// Used to offset the friction force vertically to reduce the chance of roll-over.
+	float tireForceHeight;
+
+	/// The suspension impulse brought forward from the previous tire joint.
+	float suspensionImpulse;
+
+	/// The bottom-out impulse brought forward from the previous tire joint.
+	float stopImpulse;
+
+	/// The lateral friction impulse brought forward from the previous tire joint.
+	float lateralImpulse;
+
+	/// The longitudinal friction impulse brought forward from the previous tire joint.
+	float rollingImpulse;
+} b3TireJointDef;
+
+/// Use this to initialize your joint definition.
+/// @ingroup tire_joint
+B3_API b3TireJointDef b3DefaultTireJointDef( void );
 
 /// Weld joint definition
 /// Connects two bodies together rigidly. This constraint provides springs to mimic

@@ -9,6 +9,7 @@
 #include "recording.h"
 #include "simd.h"
 #include "test_macros.h"
+#include "wagon.h"
 
 #include "box3d/box3d.h"
 #include "box3d/collision.h"
@@ -2524,6 +2525,100 @@ static int SleepAfterRestore( void )
 	return 0;
 }
 
+// A wagon drives across two ground bodies while steering and then brakes. The tire joints are
+// created as the wheels land, moved each step, rebuilt where the ground body changes and given a
+// new brake force, so every tire joint op and its state in the keyframes is replayed.
+static int TireJointReplay( void )
+{
+	b3WorldDef worldDef = b3DefaultWorldDef();
+	worldDef.workerCount = 1;
+	b3WorldId worldId = b3CreateWorld( &worldDef );
+
+	for ( int i = 0; i < 2; ++i )
+	{
+		b3BodyDef groundDef = b3DefaultBodyDef();
+		groundDef.position = (b3Pos){ i == 0 ? -45.0f : 55.0f, -1.0f, 0.0f };
+		b3BodyId groundId = b3CreateBody( worldId, &groundDef );
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		b3BoxHull box = b3MakeBoxHull( 50.0f, 1.0f, 50.0f );
+		b3CreateHullShape( groundId, &shapeDef, &box.base );
+	}
+
+	WagonDef wagonDef = GetDefaultWagonDef();
+	wagonDef.position = (b3Pos){ 1.0f, 0.1f, 0.0f };
+	Wagon wagon = CreateWagon( worldId, &wagonDef );
+
+	b3Recording* rec = b3CreateRecording( 0 );
+	ENSURE( rec != NULL );
+	b3World_StartRecording( worldId, rec );
+
+	float timeStep = 1.0f / 60.0f;
+	int stepCount = 300;
+	b3BodyId firstGround = b3_nullBodyId;
+	bool groundChanged = false;
+	WagonInput input = { e_wagonTrot, 0.0f, false };
+	for ( int i = 0; i < stepCount; ++i )
+	{
+		input.steer = i < 120 ? 0.1f : -0.1f;
+		if ( i >= 240 )
+		{
+			input.gait = e_wagonHalt;
+			input.brake = true;
+		}
+
+		UpdateWagon( &wagon, input, timeStep );
+		b3World_Step( worldId, timeStep, 4 );
+		UpdateWagonResults( &wagon, timeStep );
+
+		b3BodyId groundId = wagon.wheels[e_wagonRearLeft].groundId;
+		if ( B3_IS_NULL( firstGround ) )
+		{
+			firstGround = groundId;
+		}
+		groundChanged = groundChanged || ( B3_IS_NON_NULL( groundId ) && B3_ID_EQUALS( groundId, firstGround ) == false );
+	}
+
+	ENSURE( B3_IS_NON_NULL( firstGround ) );
+	ENSURE( groundChanged );
+	ENSURE( b3TireJoint_GetBrakeForce( wagon.wheels[e_wagonRearLeft].jointId ) > 0.0f );
+
+	b3World_StopRecording( worldId );
+	DestroyWagon( &wagon );
+	b3DestroyWorld( worldId );
+
+	const uint8_t* data = b3Recording_GetData( rec );
+	int size = b3Recording_GetSize( rec );
+	ENSURE( size > 0 );
+
+	ENSURE( b3ValidateReplay( data, size, 1 ) );
+	ENSURE( b3ValidateReplay( data, size, 4 ) );
+
+	// Keyframes hold the tire joints mid drive, so a seek restores them from the snapshot
+	b3RecPlayer* player = b3CreatePlayer( data, size, 1 );
+	ENSURE( player != NULL );
+	b3RecPlayer_SetKeyframePolicy( player, b3RecPlayer_GetKeyframeBudget( player ), 30 );
+	while ( b3RecPlayer_StepFrame( player ) )
+	{
+	}
+	ENSURE( b3RecPlayer_GetFrame( player ) == stepCount );
+	ENSURE( b3RecPlayer_HasDiverged( player ) == false );
+
+	int seekTargets[] = { 95, 200, 250 };
+	for ( int k = 0; k < 3; ++k )
+	{
+		b3RecPlayer_SeekFrame( player, seekTargets[k] );
+		ENSURE( b3RecPlayer_GetFrame( player ) == seekTargets[k] );
+		while ( b3RecPlayer_StepFrame( player ) )
+		{
+		}
+		ENSURE( b3RecPlayer_HasDiverged( player ) == false );
+	}
+
+	b3DestroyPlayer( player );
+	b3DestroyRecording( rec );
+	return 0;
+}
+
 int RecordingTest( void )
 {
 	RUN_SUBTEST( SleepAfterRestore );
@@ -2546,6 +2641,7 @@ int RecordingTest( void )
 	RUN_SUBTEST( TransformedHullRoundTrip );
 	RUN_SUBTEST( GeometryMutatorReplay );
 	RUN_SUBTEST( AllOps );
+	RUN_SUBTEST( TireJointReplay );
 	RUN_SUBTEST( ReservedHeaderBytes );
 	RUN_SUBTEST( CorruptCompound );
 	return 0;

@@ -672,6 +672,33 @@ b3PogoJointDef b3RecR_POGOJOINTDEF( b3RecReader* rdr )
 	return def;
 }
 
+b3TireJointDef b3RecR_TIREJOINTDEF( b3RecReader* rdr )
+{
+	b3TireJointDef def = b3DefaultTireJointDef();
+	b3RecR_JointBase( rdr, &def.base );
+	def.normal = b3RecR_VEC3( rdr );
+	def.radius = b3RecR_F32( rdr );
+	def.halfWidth = b3RecR_F32( rdr );
+	def.maxSuspensionLength = b3RecR_F32( rdr );
+	def.restLength = b3RecR_F32( rdr );
+	def.suspensionHertz = b3RecR_F32( rdr );
+	def.suspensionDampingRatio = b3RecR_F32( rdr );
+	def.bumpDampingRatio = b3RecR_F32( rdr );
+	def.maxSuspensionForce = b3RecR_F32( rdr );
+	def.bumpStopHertz = b3RecR_F32( rdr );
+	def.bumpStopDampingRatio = b3RecR_F32( rdr );
+	def.lateralFriction = b3RecR_F32( rdr );
+	def.rollingFriction = b3RecR_F32( rdr );
+	def.rollingResistance = b3RecR_F32( rdr );
+	def.brakeForce = b3RecR_F32( rdr );
+	def.tireForceHeight = b3RecR_F32( rdr );
+	def.suspensionImpulse = b3RecR_F32( rdr );
+	def.stopImpulse = b3RecR_F32( rdr );
+	def.lateralImpulse = b3RecR_F32( rdr );
+	def.rollingImpulse = b3RecR_F32( rdr );
+	return def;
+}
+
 // Outliner body tracking. Defined after the player struct; forward declared here because the
 // create/destroy dispatch sits above that struct.
 static void b3RecTrackBodyCreate( b3RecPlayer* player, b3BodyId id );
@@ -1324,6 +1351,15 @@ static void b3RecDispatch_CreatePogoJoint( const b3RecArgs_CreatePogoJoint* a, b
 	b3RecCheckJointId( rdr, b3CreatePogoJoint( rdr->replayWorldId, &def ), recId );
 }
 
+static void b3RecDispatch_CreateTireJoint( const b3RecArgs_CreateTireJoint* a, b3RecReader* rdr )
+{
+	b3JointId recId = b3RecR_JOINTID( rdr );
+	b3TireJointDef def = a->def;
+	def.base.bodyIdA = b3RecMakeBodyId( rdr, def.base.bodyIdA );
+	def.base.bodyIdB = b3RecMakeBodyId( rdr, def.base.bodyIdB );
+	b3RecCheckJointId( rdr, b3CreateTireJoint( rdr->replayWorldId, &def ), recId );
+}
+
 static void b3RecDispatch_DestroyJoint( const b3RecArgs_DestroyJoint* a, b3RecReader* rdr )
 {
 	b3DestroyJoint( b3RecMakeJointId( rdr, a->joint ), a->wakeAttached );
@@ -1775,6 +1811,16 @@ static void b3RecDispatch_PogoJointSetMaxCompressionForce(
 static void b3RecDispatch_PogoJointSetNormal( const b3RecArgs_PogoJointSetNormal* a, b3RecReader* rdr )
 {
 	b3PogoJoint_SetNormal( b3RecMakeJointId( rdr, a->joint ), a->normal );
+}
+
+static void b3RecDispatch_TireJointSetContact( const b3RecArgs_TireJointSetContact* a, b3RecReader* rdr )
+{
+	b3TireJoint_SetContact( b3RecMakeJointId( rdr, a->joint ), a->localPoint, a->normal );
+}
+
+static void b3RecDispatch_TireJointSetBrakeForce( const b3RecArgs_TireJointSetBrakeForce* a, b3RecReader* rdr )
+{
+	b3TireJoint_SetBrakeForce( b3RecMakeJointId( rdr, a->joint ), a->force );
 }
 
 static void b3RecDispatch_StateHash( const b3RecArgs_StateHash* a, b3RecReader* rdr )

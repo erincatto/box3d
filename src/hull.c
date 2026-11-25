@@ -1482,7 +1482,7 @@ static bool b3HullBuilder_IsConsistent( const b3HullBuilder* b )
 	return true;
 }
 
-// todo comment
+// Determine if this hull is too thin to be usable as a collision shape.
 static bool b3HullBuilder_IsThin( const b3HullBuilder* b )
 {
 	b3QHVertex* first = (b3QHVertex*)b->vertexList.link.next;

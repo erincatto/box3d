@@ -19,6 +19,8 @@ set(BOX3D_SHARED_FILES
 	stability.h
 	utils.c
 	utils.h
+	wagon.c
+	wagon.h
 )
 
 add_library(shared STATIC ${BOX3D_SHARED_FILES})

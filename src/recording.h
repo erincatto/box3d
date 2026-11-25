@@ -198,6 +198,7 @@ typedef b3WeldJointDef b3RecCType_WELDJOINTDEF;
 typedef b3WheelJointDef b3RecCType_WHEELJOINTDEF;
 typedef b3MoverJointDef b3RecCType_MOVERJOINTDEF;
 typedef b3PogoJointDef b3RecCType_POGOJOINTDEF;
+typedef b3TireJointDef b3RecCType_TIREJOINTDEF;
 
 // Codegen pass 1a: arg structs. Generated here so call sites (body.c, shape.c, etc.) can see them.
 #define ARG( TAG, field ) b3RecCType_##TAG field;
@@ -270,6 +271,7 @@ void b3RecW_WELDJOINTDEF( b3RecBuffer* buf, b3WeldJointDef v );
 void b3RecW_WHEELJOINTDEF( b3RecBuffer* buf, b3WheelJointDef v );
 void b3RecW_MOVERJOINTDEF( b3RecBuffer* buf, b3MoverJointDef v );
 void b3RecW_POGOJOINTDEF( b3RecBuffer* buf, b3PogoJointDef v );
+void b3RecW_TIREJOINTDEF( b3RecBuffer* buf, b3TireJointDef v );
 
 // Record framing
 void b3RecBeginRecord( b3Recording* rec, uint8_t opcode );

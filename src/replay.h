@@ -248,6 +248,7 @@ b3WeldJointDef b3RecR_WELDJOINTDEF( b3RecReader* rdr );
 b3WheelJointDef b3RecR_WHEELJOINTDEF( b3RecReader* rdr );
 b3MoverJointDef b3RecR_MOVERJOINTDEF( b3RecReader* rdr );
 b3PogoJointDef b3RecR_POGOJOINTDEF( b3RecReader* rdr );
+b3TireJointDef b3RecR_TIREJOINTDEF( b3RecReader* rdr );
 b3QueryFilter b3RecR_QUERYFILTER( b3RecReader* rdr );
 b3ShapeProxy b3RecR_SHAPEPROXY( b3RecReader* rdr );
 b3TreeStats b3RecR_TREESTATS( b3RecReader* rdr );
