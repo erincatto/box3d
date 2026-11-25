@@ -404,7 +404,8 @@ void b3SolveTireJoint( b3JointSim* base, b3StepContext* context, bool useBias )
 	}
 
 	// Friction
-	if ( useBias == false )
+	// Technically shouldn't eval during bias, but testing shows it works better with it.
+	//if ( useBias == false )
 	{
 		b3Vec3 frictionAnchorB = joint->frictionAnchorB;
 		b3Vec3 lateral = joint->lateralAxis;
