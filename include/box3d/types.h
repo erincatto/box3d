@@ -1088,7 +1088,7 @@ typedef struct b3SphericalJointDef
 /// @ingroup spherical_joint
 B3_API b3SphericalJointDef b3DefaultSphericalJointDef( void );
 
-/// Tire joint definition.
+/// Tire joint definition. The axle is along the local z-axis in body B.
 /// @ingroup tire_joint
 typedef struct b3TireJointDef
 {

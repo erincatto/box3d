@@ -78,9 +78,12 @@ WagonTuning GetDefaultWagonTuning( void )
 	// wheel sink in until the normal is shallow, and then the bump stop kicks.
 	tuning.maxGroundAngle = 85.0f * B3_PI / 180.0f;
 
-	tuning.rollHertz = 0.5f;
+	tuning.rollHertz = 1.0f;
 	tuning.rollDampingRatio = 1.0f;
-	tuning.maxRollTorque = 0.5f;
+	tuning.maxRollTorque = 1.0f;
+
+	tuning.horsePitchHertz = 3.0f;
+	tuning.horsePitchDampingRatio = 1.0f;
 	return tuning;
 }
 
@@ -93,6 +96,135 @@ WagonDef GetDefaultWagonDef( void )
 	def.categoryBits = 0x4000000000000000ull;
 	def.tuning = GetDefaultWagonTuning();
 	return def;
+}
+
+static b3Pos GetKingbolt( const Wagon* wagon )
+{
+	return b3Body_GetWorldPoint( wagon->chassisId, wagon->kingbolt );
+}
+
+// Horizontal heading of the front gear
+static b3Vec3 GetHeading( const Wagon* wagon )
+{
+	b3Quat q = b3Body_GetRotation( wagon->chassisId );
+	b3Vec3 heading =
+		b3RotateVector( b3MulQuat( q, b3MakeQuatFromAxisAngle( b3Vec3_axisY, wagon->steer ) ), b3Vec3_axisX );
+	heading.y = 0.0f;
+	return b3Normalize( heading );
+}
+
+// The ground under a hoof, straight down along up
+static bool CastHoof( const Wagon* wagon, b3Pos point, b3Vec3 up, b3Pos* hoof )
+{
+	b3QueryFilter filter = b3DefaultQueryFilter();
+	filter.categoryBits = wagon->categoryBits;
+	filter.maskBits = ~wagon->categoryBits;
+
+	// Start well above the tugs so a hoof on a rising slope begins outside the ground
+	float above = 2.0f * wagon->tugHeight;
+	float below = 2.0f * wagon->tugHeight + wagon->tugDistance;
+	b3Pos origin = b3OffsetPos( point, b3MulSV( above, up ) );
+	b3RayResult ray = b3World_CastRayClosest( wagon->worldId, origin, b3MulSV( -( above + below ), up ), filter );
+	if ( ray.hit == false || ray.fraction <= 0.0f )
+	{
+		return false;
+	}
+
+	*hoof = ray.point;
+	return true;
+}
+
+// Implicit Euler on a damped spring, stable at any step. A zero step snaps to the target.
+static void SpringToward( float* value, float* rate, float target, float hertz, float dampingRatio, float timeStep )
+{
+	if ( timeStep == 0.0f || hertz <= 0.0f )
+	{
+		*value = target;
+		*rate = 0.0f;
+		return;
+	}
+
+	float omega = 2.0f * B3_PI * hertz;
+	float h = timeStep;
+	*rate = ( *rate + h * omega * omega * ( target - *value ) ) /
+			( 1.0f + 2.0f * dampingRatio * omega * h + omega * omega * h * h );
+	*value += h * *rate;
+}
+
+// The shafts hinge at the front gear and rest on the horse, so their pitch is where the tugs sit at the
+// horse's back height over the ground under its hooves. The hooves move as the pitch changes, so this
+// iterates. The horse stays upright and does not roll with a camber.
+static void UpdateHorse( Wagon* wagon, float timeStep )
+{
+	b3Vec3 up = b3Normalize( b3Neg( b3World_GetGravity( wagon->worldId ) ) );
+	b3Pos kingbolt = GetKingbolt( wagon );
+	b3Vec3 heading = GetHeading( wagon );
+	float maxSine = sinf( wagon->maxShaftPitch );
+
+	float pitch = wagon->targetShaftPitch;
+	float groundHeight = -wagon->tugHeight;
+	float fore = groundHeight, hind = groundHeight;
+	b3Pos hooves[2];
+	bool grounded[2] = { false, false };
+
+	for ( int iteration = 0; iteration < 3; ++iteration )
+	{
+		float reach = wagon->tugDistance * cosf( pitch );
+		b3Pos under = b3OffsetPos( kingbolt, b3MulSV( reach, heading ) );
+		b3Pos feet[2] = {
+			b3OffsetPos( under, b3MulSV( wagon->halfStride, heading ) ),
+			b3OffsetPos( under, b3MulSV( -wagon->halfStride, heading ) ),
+		};
+
+		float heights[2];
+		for ( int i = 0; i < 2; ++i )
+		{
+			grounded[i] = CastHoof( wagon, feet[i], up, hooves + i );
+			heights[i] = grounded[i] ? b3Dot( b3SubPos( hooves[i], kingbolt ), up ) : 0.0f;
+		}
+
+		if ( grounded[0] == false && grounded[1] == false )
+		{
+			break;
+		}
+
+		fore = grounded[0] ? heights[0] : heights[1];
+		hind = grounded[1] ? heights[1] : heights[0];
+		groundHeight = 0.5f * ( fore + hind );
+
+		float sine = b3ClampFloat( ( groundHeight + wagon->tugHeight ) / wagon->tugDistance, -maxSine, maxSine );
+		pitch = asinf( sine );
+	}
+
+	const WagonTuning* tuning = &wagon->tuning;
+	wagon->targetShaftPitch = pitch;
+	SpringToward( &wagon->shaftPitch, &wagon->shaftPitchRate, pitch, tuning->horsePitchHertz,
+				  tuning->horsePitchDampingRatio, timeStep );
+	pitch = b3ClampFloat( wagon->shaftPitch, -wagon->maxShaftPitch, wagon->maxShaftPitch );
+	wagon->shaftDirection = b3Blend2( cosf( pitch ), heading, sinf( pitch ), up );
+
+	// The body hangs from the sprung tugs and the legs reach the hooves
+	float reach = wagon->tugDistance * cosf( pitch );
+	float rootHeight = wagon->tugDistance * sinf( pitch ) - wagon->tugHeight;
+	b3Pos root = b3OffsetPos( kingbolt, b3MulAdd( b3MulSV( reach, heading ), rootHeight, up ) );
+
+	// Yaw about y to the heading, then pitch the body to its hooves
+	float yaw = atan2f( -heading.z, heading.x );
+	float bodyPitch = atan2f( fore - hind, 2.0f * wagon->halfStride );
+	SpringToward( &wagon->horsePitch, &wagon->horsePitchRate, bodyPitch, tuning->horsePitchHertz,
+				  tuning->horsePitchDampingRatio, timeStep );
+	b3Quat q = b3MulQuat( b3MakeQuatFromAxisAngle( b3Vec3_axisY, yaw ),
+						  b3MakeQuatFromAxisAngle( b3Vec3_axisZ, wagon->horsePitch ) );
+	wagon->horseTransform = (b3WorldTransform){ root, q };
+
+	for ( int i = 0; i < 2; ++i )
+	{
+		float side = i == 0 ? 1.0f : -1.0f;
+		float height = i == 0 ? fore : hind;
+		wagon->hooves[i] =
+			b3OffsetPos( kingbolt, b3MulAdd( b3MulSV( reach + side * wagon->halfStride, heading ), height, up ) );
+		wagon->hoofGrounded[i] = grounded[i];
+	}
 }
 
 // Frame B of a wheel joint, x up the suspension and z along the axle, turned by the front gear
@@ -124,6 +256,12 @@ Wagon CreateWagon( b3WorldId worldId, const WagonDef* def )
 	wagon.tuning = def->tuning;
 	wagon.halfTrack = 0.725f;
 	wagon.shaftLength = 2.75f;
+
+	// A draft horse about 16 hands, the saddle tug a little below the withers
+	wagon.tugDistance = 1.65f;
+	wagon.tugHeight = 1.1f;
+	wagon.halfStride = 0.7f;
+	wagon.maxShaftPitch = 0.25f * B3_PI;
 	wagon.gait = e_wagonHalt;
 	wagon.brake = true;
 
@@ -207,6 +345,8 @@ Wagon CreateWagon( b3WorldId worldId, const WagonDef* def )
 		wheel->suspensionLength = travel;
 	}
 
+	UpdateHorse( &wagon, 0.0f );
+
 	return wagon;
 }
 
@@ -242,15 +382,17 @@ void SetWagonTuning( Wagon* wagon, const WagonTuning* tuning )
 
 b3Vec3 GetWagonHeading( const Wagon* wagon )
 {
-	b3Quat q = b3Body_GetRotation( wagon->chassisId );
-	b3Vec3 heading = b3RotateVector( b3MulQuat( q, b3MakeQuatFromAxisAngle( b3Vec3_axisY, wagon->steer ) ), b3Vec3_axisX );
-	heading.y = 0.0f;
-	return b3Normalize( heading );
+	return GetHeading( wagon );
 }
 
 b3Pos GetWagonKingbolt( const Wagon* wagon )
 {
-	return b3Body_GetWorldPoint( wagon->chassisId, wagon->kingbolt );
+	return GetKingbolt( wagon );
+}
+
+b3Pos GetWagonTug( const Wagon* wagon )
+{
+	return b3OffsetPos( GetKingbolt( wagon ), b3MulSV( wagon->tugDistance, wagon->shaftDirection ) );
 }
 
 typedef struct WheelCastContext
@@ -303,27 +445,23 @@ static WheelContact CastWheel( const Wagon* wagon, const WagonWheel* wheel, b3Wo
 	// hub with a tilted normal, so the wheel climbs it instead of snapping up.
 	float ringRadius = wheel->radius - wheel->halfWidth;
 	b3Vec3 points[WAGON_RING_COUNT];
-	for ( int i = 0; i < WAGON_RING_COUNT; ++i )
-	{
-		float angle = 2.0f * B3_PI * (float)i / (float)WAGON_RING_COUNT;
-		b3CosSin cs = b3ComputeCosSin( angle );
-		points[i] = b3MulAdd( b3MulSV( ringRadius * cs.cosine, up ), ringRadius * cs.sine, forward );
-	}
 
 	float deltaAngle = 2.0f * B3_PI / (float)WAGON_RING_COUNT;
+
+	// Compute the trig once here instead of in the loop.
 	b3CosSin cs = b3ComputeCosSin( deltaAngle );
-	float x1 = ringRadius, y1 = 0.0f;
+	b3Vec2 radial = { ringRadius, 0.0f };
 
 	for ( int i = 0; i < WAGON_RING_COUNT; ++i )
 	{
-		b3Vec3 p = b3Blend2( x1, up, y1, forward );
-		float d = b3Distance( p, points[i] );
-		(void)d;
+		b3Vec3 p = b3Blend2( radial.x, up, radial.y, forward );
 		points[i] = p;
-		float x2 = cs.cosine * x1 - cs.sine * y1;
-		float y2 = cs.sine * x1 + cs.cosine * y1;
-		x1 = x2;
-		y1 = y2;
+
+		// Rotate the frame for the next iteration.
+		radial = (b3Vec2){
+			cs.cosine * radial.x - cs.sine * radial.y,
+			cs.sine * radial.x + cs.cosine * radial.y,
+		};
 	}
 
 	b3ShapeProxy proxy = { points, WAGON_RING_COUNT, wheel->halfWidth };
@@ -638,8 +776,11 @@ void UpdateWagon( Wagon* wagon, WagonInput input, float timeStep )
 
 	wagon->tuningChanged = false;
 
-	b3Vec3 heading = GetWagonHeading( wagon );
-	b3Pos kingbolt = GetWagonKingbolt( wagon );
+	UpdateHorse( wagon, timeStep );
+
+	// The horse pulls along the shafts, so it lifts the front gear up a rise and presses it down a dip
+	b3Vec3 heading = wagon->shaftDirection;
+	b3Pos kingbolt = GetKingbolt( wagon );
 	wagon->speed = b3Dot( b3Body_GetWorldPointVelocity( wagon->chassisId, kingbolt ), heading );
 	wagon->draftForce = 0.0f;
 

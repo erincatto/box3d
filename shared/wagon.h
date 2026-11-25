@@ -18,7 +18,8 @@ extern "C"
 // The chassis is the only body. Each wheel is a shape cast and, while it finds ground, a tire joint
 // between the ground body and the chassis. The front axle is a turntable: it turns about the kingbolt,
 // so steering moves the front wheel mounts as well as turning the wheels. The horse is not simulated.
-// It pulls with a capped force at the kingbolt along the front gear heading.
+// It stands on the ground between the shafts, which hinge at the front gear and rest on its back, and
+// it pulls with a capped force at the kingbolt along the shafts.
 //
 // Chassis frame: +x forward, +y up, +z to the right, the axles along z. A tire joint's frame B has
 // its x axis along the suspension, pointing up into the chassis, and its z axis along the axle. The
@@ -113,6 +114,11 @@ typedef struct WagonTuning
 	float rollHertz;
 	float rollDampingRatio;
 	float maxRollTorque;
+
+	// The horse's legs take up the ground, so the shaft and body pitch follow the hooves through a
+	// spring rather than snapping to a step
+	float horsePitchHertz;
+	float horsePitchDampingRatio;
 } WagonTuning;
 
 WagonTuning GetDefaultWagonTuning( void );
@@ -195,6 +201,13 @@ typedef struct Wagon
 	float shaftLength;
 	float axleRadius;
 
+	// Horse geometry along the shafts. The shafts rest in the tugs on the horse's back, the tug
+	// distance from the kingbolt and the tug height above the ground under the hooves.
+	float tugDistance;
+	float tugHeight;
+	float halfStride;
+	float maxShaftPitch;
+
 	WagonWheel wheels[e_wagonWheelCount];
 
 	// Anti roll joint to a static anchor and the up axis it last aimed for
@@ -221,6 +234,22 @@ typedef struct Wagon
 
 	// Wheel casts that started inside the ground and fell back to a ray
 	int overlapCastCount;
+
+	// Shaft pitch above the horizontal heading and the shaft direction the draft acts along. The pitch
+	// springs toward the target where the tugs sit over the hooves.
+	float shaftPitch;
+	float shaftPitchRate;
+	float targetShaftPitch;
+	b3Vec3 shaftDirection;
+
+	float horsePitch;
+	float horsePitchRate;
+
+	// Horse root on the ground under the tugs, x forward and y up, pitched to its fore and hind hooves.
+	// Hooves 0 and 1 are fore and hind. A hoof that found no ground takes the other's height.
+	b3WorldTransform horseTransform;
+	b3Pos hooves[2];
+	bool hoofGrounded[2];
 } Wagon;
 
 Wagon CreateWagon( b3WorldId worldId, const WagonDef* def );
@@ -240,6 +269,9 @@ void UpdateWagonResults( Wagon* wagon, float timeStep );
 b3Vec3 GetWagonHeading( const Wagon* wagon );
 
 b3Pos GetWagonKingbolt( const Wagon* wagon );
+
+// Where the shafts rest on the horse, from the kingbolt along the shaft direction
+b3Pos GetWagonTug( const Wagon* wagon );
 
 // Hub transform for drawing. The rotation carries steering and spin, its y axis along the axle.
 b3WorldTransform GetWagonWheelTransform( const Wagon* wagon, int wheelIndex );

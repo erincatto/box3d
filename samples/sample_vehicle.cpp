@@ -16,8 +16,9 @@
 
 // A horse drawn wagon on tire joints. The chassis is the only body. Each wheel casts a disc at the
 // ground and, where it finds some, holds a tire joint between that ground body and the chassis. The
-// front axle is a turntable that swings about the kingbolt. The horse is a box that goes where the
-// shafts point. It pulls with a capped force at the kingbolt.
+// front axle is a turntable that swings about the kingbolt. The horse is a box standing on the ground
+// between the shafts, which hinge at the front gear and rest on its back. It pulls with a capped force
+// at the kingbolt along the shafts.
 //
 // W/S change gait, A/D steer, Space brakes. With the gait at halt the brake is on. S at halt backs the
 // wagon. T toggles a camera that follows the wagon.
@@ -438,6 +439,12 @@ public:
 		changed |= ImGui::SliderFloat( "Anti Roll Damping", &m_tuning.rollDampingRatio, 0.0f, 2.0f, "%.2f" );
 		ImGui::SetItemTooltip( "Damping ratio of the anti roll joint. It damps pitch rate as well as roll." );
 
+		changed |= ImGui::SliderFloat( "Horse Pitch Hertz", &m_tuning.horsePitchHertz, 0.0f, 10.0f, "%.1f" );
+		ImGui::SetItemTooltip( "How fast the shafts and the horse's body follow the ground under its hooves. "
+							   "Zero snaps to the ground." );
+		changed |= ImGui::SliderFloat( "Horse Pitch Damping", &m_tuning.horsePitchDampingRatio, 0.0f, 2.0f, "%.2f" );
+		ImGui::SetItemTooltip( "Damping ratio of the horse pitch. Below one the shafts bob after a step." );
+
 		for ( int gait = e_wagonBack; gait < e_wagonGaitCount; ++gait )
 		{
 			if ( gait == e_wagonHalt )
@@ -528,9 +535,6 @@ public:
 
 	void DrawWagon()
 	{
-		b3WorldTransform transform = b3Body_GetTransform( m_wagon.chassisId );
-		b3Vec3 up = b3RotateVector( transform.q, b3Vec3_axisY );
-
 		for ( int i = 0; i < e_wagonWheelCount; ++i )
 		{
 			const WagonWheel& wheel = m_wagon.wheels[i];
@@ -562,29 +566,36 @@ public:
 		b3Pos kingbolt = GetWagonKingbolt( &m_wagon );
 		DrawCross( kingbolt, 0.15f, MakeColor( b3_colorOrange ) );
 
-		// Shafts run forward from the front axle along the front gear heading
-		b3Quat gear = b3MulQuat( transform.q, b3MakeQuatFromAxisAngle( b3Vec3_axisY, m_wagon.steer ) );
-		b3Vec3 heading = b3RotateVector( gear, b3Vec3_axisX );
-		b3Vec3 side = b3RotateVector( gear, b3Vec3_axisZ );
+		// Shafts hinge at the front gear and rest in the tugs on the horse's back
+		b3WorldTransform horse = m_wagon.horseTransform;
+		b3Vec3 side = b3RotateVector( horse.q, b3Vec3_axisZ );
 		float shaftSpacing = 0.35f;
-		float shaftLength = m_wagon.shaftLength;
 		for ( int i = 0; i < 2; ++i )
 		{
 			float s = i == 0 ? shaftSpacing : -shaftSpacing;
 			b3Pos a = b3OffsetPos( kingbolt, b3MulSV( s, side ) );
-			b3Pos b = b3OffsetPos( a, b3MulAdd( b3MulSV( shaftLength, heading ), 0.3f, up ) );
+			b3Pos b = b3OffsetPos( a, b3MulSV( m_wagon.shaftLength, m_wagon.shaftDirection ) );
 			DrawLine( a, b, MakeColor( b3_colorSienna ) );
 		}
 
-		// A box where the horse stands between the shafts
+		b3Pos tug = GetWagonTug( &m_wagon );
+		DrawCross( tug, 0.1f, MakeColor( b3_colorOrange ) );
+
+		// The horse's body on legs about 0.8 m long, pitched to its hooves
 		b3Vec3 horseSize = { 2.2f, 1.5f, 0.6f };
-		b3Pos horseCenter = b3OffsetPos( kingbolt, b3MulAdd( b3MulSV( 0.6f * shaftLength, heading ), 0.9f, up ) );
-		DrawCube( { horseCenter, gear }, horseSize, MakeColorAlpha( b3_colorTan, 0.6f ) );
+		b3Pos horseCenter = b3TransformWorldPoint( horse, { 0.0f, 0.8f + 0.5f * horseSize.y, 0.0f } );
+		DrawCube( { horseCenter, horse.q }, horseSize, MakeColorAlpha( b3_colorTan, 0.6f ) );
+
+		for ( int i = 0; i < 2; ++i )
+		{
+			b3HexColor color = m_wagon.hoofGrounded[i] ? b3_colorYellow : b3_colorGray;
+			DrawPoint( m_wagon.hooves[i], 6.0f, MakeColor( color ) );
+		}
 
 		// Draft force at the kingbolt, scaled by the wagon weight
 		if ( m_wagon.draftForce != 0.0f )
 		{
-			b3Vec3 draft = b3MulSV( 2.0f * m_wagon.draftForce / m_wagon.weight, heading );
+			b3Vec3 draft = b3MulSV( 2.0f * m_wagon.draftForce / m_wagon.weight, m_wagon.shaftDirection );
 			DrawArrow( kingbolt, b3OffsetPos( kingbolt, draft ), MakeColor( b3_colorCyan ) );
 		}
 	}
@@ -602,6 +613,9 @@ public:
 					  m_wagon.draftForce / m_wagon.weight, m_wagon.brake ? "on" : "off", awake ? "awake" : "asleep" );
 		DrawTextLine( "strain = %.0f%%, used %.1f of %.1f s%s", 100.0f * m_wagon.strain, m_wagon.strainTime,
 					  m_tuning.strainDuration, m_wagon.strainSpent ? ", spent" : "" );
+		DrawTextLine( "shaft pitch = %.1f deg (target %.1f)%s", m_wagon.shaftPitch * degrees,
+					  m_wagon.targetShaftPitch * degrees,
+					  m_wagon.hoofGrounded[0] || m_wagon.hoofGrounded[1] ? "" : ", horse off the ground" );
 		if ( b3Joint_IsValid( m_wagon.rollJointId ) )
 		{
 			float maxTorque = m_tuning.maxRollTorque * m_wagon.weight * m_wagon.halfTrack;
