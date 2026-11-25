@@ -338,6 +338,8 @@ _Static_assert( sizeof( void* ) != 8 || sizeof( b3MoverJointDef ) == 128,
 				"b3MoverJointDef changed: update b3RecW_MOVERJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3PogoJointDef ) == 152,
 				"b3PogoJointDef changed: update b3RecW_POGOJOINTDEF and its reader together" );
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3TireJointDef ) == 200,
+				"b3TireJointDef changed: update b3RecW_TIREJOINTDEF and its reader together" );
 
 void b3RecW_EXPLOSIONDEF( b3RecBuffer* buf, b3ExplosionDef v )
 {
@@ -571,6 +573,31 @@ void b3RecW_POGOJOINTDEF( b3RecBuffer* buf, b3PogoJointDef v )
 	b3RecW_F32( buf, v.maxCompressionForce );
 	b3RecW_F32( buf, v.impulse );
 	b3RecW_F32( buf, v.velocity );
+}
+
+void b3RecW_TIREJOINTDEF( b3RecBuffer* buf, b3TireJointDef v )
+{
+	b3RecW_JointBase( buf, &v.base );
+	b3RecW_VEC3( buf, v.normal );
+	b3RecW_F32( buf, v.radius );
+	b3RecW_F32( buf, v.halfWidth );
+	b3RecW_F32( buf, v.maxSuspensionLength );
+	b3RecW_F32( buf, v.restLength );
+	b3RecW_F32( buf, v.suspensionHertz );
+	b3RecW_F32( buf, v.suspensionDampingRatio );
+	b3RecW_F32( buf, v.bumpDampingRatio );
+	b3RecW_F32( buf, v.maxSuspensionForce );
+	b3RecW_F32( buf, v.bumpStopHertz );
+	b3RecW_F32( buf, v.bumpStopDampingRatio );
+	b3RecW_F32( buf, v.lateralFriction );
+	b3RecW_F32( buf, v.rollingFriction );
+	b3RecW_F32( buf, v.rollingResistance );
+	b3RecW_F32( buf, v.brakeForce );
+	b3RecW_F32( buf, v.tireForceHeight );
+	b3RecW_F32( buf, v.suspensionImpulse );
+	b3RecW_F32( buf, v.stopImpulse );
+	b3RecW_F32( buf, v.lateralImpulse );
+	b3RecW_F32( buf, v.rollingImpulse );
 }
 
 // Query recording. A query collects a variable number of hits through a user callback, so the count

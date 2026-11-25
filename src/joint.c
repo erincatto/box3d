@@ -84,6 +84,25 @@ b3PogoJointDef b3DefaultPogoJointDef( void )
 	return def;
 }
 
+b3TireJointDef b3DefaultTireJointDef( void )
+{
+	b3TireJointDef def = { 0 };
+	def.base = b3DefaultJointDef();
+	def.normal = b3Vec3_axisY;
+	def.radius = 0.5f * b3GetLengthUnitsPerMeter();
+	def.maxSuspensionLength = 0.1f * b3GetLengthUnitsPerMeter();
+	def.restLength = def.maxSuspensionLength;
+	def.suspensionHertz = 2.0f;
+	def.suspensionDampingRatio = 0.5f;
+	def.bumpDampingRatio = 0.5f;
+	def.maxSuspensionForce = FLT_MAX;
+	def.bumpStopDampingRatio = 1.0f;
+	def.lateralFriction = 0.8f;
+	def.rollingFriction = 0.8f;
+	def.rollingResistance = 0.02f;
+	return def;
+}
+
 b3FilterJointDef b3DefaultFilterJointDef( void )
 {
 	b3FilterJointDef def = { 0 };
@@ -624,6 +643,77 @@ b3JointId b3CreatePogoJoint( b3WorldId worldId, const b3PogoJointDef* def )
 
 	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
 	B3_REC_CREATE( world, CreatePogoJoint, jointId, worldId, *def );
+	return jointId;
+}
+
+b3JointId b3CreateTireJoint( b3WorldId worldId, const b3TireJointDef* def )
+{
+	B3_CHECK_JOINT_DEF( def );
+	B3_CHECK_INPUT_RETURN( b3IsValidJointDef( &def->base ), (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidVec3( def->normal ) && b3IsNormalized( def->normal ), (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->radius ) && def->radius >= 0.0f, (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->halfWidth ) && 0.0f <= def->halfWidth && def->halfWidth <= def->radius,
+						   (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->maxSuspensionLength ) && def->maxSuspensionLength >= 0.0f,
+						   (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->restLength ) && def->restLength >= 0.0f, (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->suspensionHertz ) && def->suspensionHertz >= 0.0f, (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->suspensionDampingRatio ) && def->suspensionDampingRatio >= 0.0f,
+						   (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->bumpDampingRatio ) && def->bumpDampingRatio >= 0.0f, (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->maxSuspensionForce ) && def->maxSuspensionForce >= 0.0f,
+						   (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->bumpStopHertz ) && def->bumpStopHertz >= 0.0f, (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->bumpStopDampingRatio ) && def->bumpStopDampingRatio >= 0.0f,
+						   (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->lateralFriction ) && def->lateralFriction >= 0.0f, (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->rollingFriction ) && def->rollingFriction >= 0.0f, (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->rollingResistance ) && def->rollingResistance >= 0.0f,
+						   (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->brakeForce ) && def->brakeForce >= 0.0f, (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->tireForceHeight ), (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->suspensionImpulse ), (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->stopImpulse ), (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->lateralImpulse ), (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->rollingImpulse ), (b3JointId){ 0 } );
+
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return (b3JointId){ 0 };
+	}
+
+	b3JointPair pair = b3CreateJoint( world, &def->base, b3_tireJoint );
+	b3JointSim* joint = pair.jointSim;
+
+	b3Quat rotationA = b3GetBodyTransform( world, joint->bodyIdA ).q;
+
+	joint->tireJoint = (b3TireJoint){ 0 };
+	joint->tireJoint.localNormal = b3InvRotateVector( rotationA, def->normal );
+	joint->tireJoint.radius = def->radius;
+	joint->tireJoint.halfWidth = def->halfWidth;
+	joint->tireJoint.maxLength = def->maxSuspensionLength;
+	joint->tireJoint.restLength = def->restLength;
+	joint->tireJoint.hertz = def->suspensionHertz;
+	joint->tireJoint.dampingRatio = def->suspensionDampingRatio;
+	joint->tireJoint.bumpDampingRatio = def->bumpDampingRatio;
+	joint->tireJoint.maxSuspensionForce = def->maxSuspensionForce;
+	joint->tireJoint.stopHertz = def->bumpStopHertz;
+	joint->tireJoint.stopDampingRatio = def->bumpStopDampingRatio;
+	joint->tireJoint.lateralFriction = def->lateralFriction;
+	joint->tireJoint.rollingFriction = def->rollingFriction;
+	joint->tireJoint.rollingResistance = def->rollingResistance;
+	joint->tireJoint.brakeForce = def->brakeForce;
+	joint->tireJoint.forceHeight = def->tireForceHeight;
+	joint->tireJoint.suspensionImpulse = b3MaxFloat( def->suspensionImpulse, 0.0f );
+	joint->tireJoint.stopImpulse = b3MaxFloat( def->stopImpulse, 0.0f );
+	joint->tireJoint.lateralImpulse = def->lateralImpulse;
+	joint->tireJoint.rollingImpulse = def->rollingImpulse;
+	joint->tireJoint.indexA = B3_NULL_INDEX;
+	joint->tireJoint.indexB = B3_NULL_INDEX;
+
+	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	B3_REC_CREATE( world, CreateTireJoint, jointId, worldId, *def );
 	return jointId;
 }
 
@@ -1236,6 +1326,7 @@ static b3Vec3 b3GetJointSimTorque( b3World* world, b3JointSim* base )
 
 		case b3_moverJoint:
 		case b3_pogoJoint:
+		case b3_tireJoint:
 			return b3Vec3_zero;
 
 		case b3_motionLockJoint:
@@ -1311,6 +1402,18 @@ void b3GetJointReaction( b3World* world, b3JointSim* sim, float invTimeStep, flo
 			linearImpulse = b3AbsFloat( sim->pogoJoint.impulse );
 			break;
 
+		case b3_tireJoint:
+		{
+			b3TireJoint* joint = &sim->tireJoint;
+			b3Vec3 impulse = {
+				joint->suspensionImpulse + joint->stopImpulse,
+				joint->lateralImpulse,
+				joint->rollingImpulse,
+			};
+			linearImpulse = b3Length( impulse );
+		}
+		break;
+
 		case b3_motionLockJoint:
 			linearImpulse = b3Length( sim->motionLockJoint.linearImpulse );
 			break;
@@ -1363,6 +1466,9 @@ static b3Vec3 b3GetJointConstraintForce( b3World* world, b3Joint* joint )
 
 		case b3_pogoJoint:
 			return b3GetPogoJointForce( world, base );
+
+		case b3_tireJoint:
+			return b3GetTireJointForce( world, base );
 
 		case b3_motionLockJoint:
 			return b3GetMotionLockJointForce( world, base );
@@ -1444,6 +1550,9 @@ float b3Joint_GetLinearSeparation( b3JointId jointId )
 			return 0.0f;
 
 		case b3_pogoJoint:
+			return 0.0f;
+
+		case b3_tireJoint:
 			return 0.0f;
 
 		case b3_filterJoint:
@@ -1562,6 +1671,9 @@ float b3Joint_GetAngularSeparation( b3JointId jointId )
 			return 0.0f;
 
 		case b3_pogoJoint:
+			return 0.0f;
+
+		case b3_tireJoint:
 			return 0.0f;
 
 		case b3_filterJoint:
@@ -1736,6 +1848,10 @@ void b3PrepareJoint( b3JointSim* joint, b3StepContext* context )
 			b3PreparePogoJoint( joint, context );
 			break;
 
+		case b3_tireJoint:
+			b3PrepareTireJoint( joint, context );
+			break;
+
 		case b3_motionLockJoint:
 			b3PrepareMotionLockJoint( joint, context );
 			break;
@@ -1790,6 +1906,10 @@ void b3WarmStartJoint( b3JointSim* joint, b3StepContext* context )
 
 		case b3_pogoJoint:
 			b3WarmStartPogoJoint( joint, context );
+			break;
+
+		case b3_tireJoint:
+			b3WarmStartTireJoint( joint, context );
 			break;
 
 		case b3_motionLockJoint:
@@ -1848,6 +1968,10 @@ void b3SolveJoint( b3JointSim* joint, b3StepContext* context, bool useBias )
 
 		case b3_pogoJoint:
 			b3SolvePogoJoint( joint, context, useBias );
+			break;
+
+		case b3_tireJoint:
+			b3SolveTireJoint( joint, context, useBias );
 			break;
 
 		case b3_motionLockJoint:
@@ -1978,6 +2102,10 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 			b3DrawPogoJoint( draw, world, jointSim, transformA, transformB, scale );
 			break;
 
+		case b3_tireJoint:
+			b3DrawTireJoint( draw, world, jointSim, transformA, transformB, scale );
+			break;
+
 		case b3_motionLockJoint:
 			b3DrawMotionLockJoint( draw, jointSim, transformA, transformB, scale );
 			break;
@@ -2006,7 +2134,8 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 		}
 	}
 
-	if ( draw->drawJointExtras && joint->type != b3_moverJoint && joint->type != b3_pogoJoint )
+	if ( draw->drawJointExtras && joint->type != b3_moverJoint && joint->type != b3_pogoJoint &&
+		 joint->type != b3_tireJoint )
 	{
 		b3Vec3 force = b3GetJointConstraintForce( world, joint );
 		b3Vec3 torque = b3GetJointConstraintTorque( world, joint );

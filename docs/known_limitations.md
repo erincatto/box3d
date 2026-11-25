@@ -14,3 +14,10 @@ platformBodyDef.enableContactRecycling = false;
 ```
 
 See also: [Contact Recycling](simulation.md#contact-recycling).
+
+## Conflicting constraints
+
+Avoid creating conflicting constraints. For example, the thighs of a ragdoll can collide with each
+other in most setups because they are not connected to each other with a joint that would disable
+the collision. If the thigh collision overlaps close to the pivot then this will lead to
+jitter. This can be avoided by shrinking the collision.

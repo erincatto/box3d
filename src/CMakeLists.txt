@@ -93,6 +93,7 @@ set(BOX3D_SOURCE_FILES
 	table.c
 	table.h
 	timer.c
+	tire_joint.c
 	triangle_manifold.c
 	types.c
 	verstable.h

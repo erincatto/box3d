@@ -3671,3 +3671,239 @@ public:
 };
 
 static int sampleBulletThinPlate = RegisterSample( "Issues", "Bullet Thin Plate", BulletThinPlate::Create );
+
+// This isse
+class BollardTwistSpring : public Sample
+{
+public:
+	enum
+	{
+		e_maxBollards = 40
+	};
+
+	struct Bollard
+	{
+		b3BodyId bodyId;
+		b3JointId jointId;
+		b3Pos pivot;
+		float twistDegrees;
+	};
+
+	explicit BollardTwistSpring( SampleContext* context )
+		: Sample( context )
+	{
+		m_count = b3ClampInt( s_count, 2, e_maxBollards );
+		m_firstX = -0.5f * m_spacing * ( m_count - 1 );
+		m_lastX = m_firstX + m_spacing * ( m_count - 1 );
+
+		if ( context->restart == false )
+		{
+			m_camera->SetView( 20.0f, 20.0f, 0.9f * m_spacing * m_count + 10.0f, { 0.0f, 0.5f, 0.0f } );
+		}
+
+		// AddGroundBox( 0.5f * m_spacing * m_count + 12.0f );
+
+		b3BodyDef anchorDef = b3DefaultBodyDef();
+		b3BodyId anchorId = b3CreateBody( m_worldId, &anchorDef );
+
+		// The joint frame z-axis is the bollard's longitudinal axis. Rotate frame A so that z is world up.
+		// The spring target rotation is identity, which means the bollard stands upright.
+		m_frameQ = b3MakeQuatFromAxisAngle( b3Vec3_axisX, -0.5f * B3_PI );
+
+		// Capsule along the body z-axis, starting at the pivot.
+		b3Capsule capsule = { { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.9f }, 0.15f };
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.5f;
+
+		for ( int i = 0; i < 1; ++i )
+		{
+			Bollard& bollard = m_bollards[i];
+			bollard.pivot = { m_firstX + i * m_spacing, 0.15f, 0.0f };
+
+			// 180 degrees at the first bollard down to 0 at the last. The spherical joint twist limit tops out at
+			// 0.99 pi, so the pinned twist is capped just below 180.
+			float twist = 180.0f * ( 1.0f - (float)10 / (float)( m_count - 1 ) );
+			bollard.twistDegrees = b3MinFloat( twist, 176.0f );
+
+			// twist about the bollard's own axis, applied in the body frame
+			b3Quat twistQ = b3MakeQuatFromAxisAngle( b3Vec3_axisZ, B3_DEG_TO_RAD * bollard.twistDegrees );
+
+			b3BodyDef bodyDef = b3DefaultBodyDef();
+			bodyDef.type = b3_dynamicBody;
+			bodyDef.name = "bollard";
+			bodyDef.position = bollard.pivot;
+			bodyDef.rotation = b3MulQuat( m_frameQ, twistQ );
+			bollard.bodyId = b3CreateBody( m_worldId, &bodyDef );
+			b3CreateCapsuleShape( bollard.bodyId, &shapeDef, &capsule );
+
+			b3Vec3 p = { (float)bollard.pivot.x, (float)bollard.pivot.y, (float)bollard.pivot.z };
+
+#if 0
+			b3WeldJointDef jointDef = b3DefaultWeldJointDef();
+			jointDef.base.bodyIdA = anchorId;
+			jointDef.base.bodyIdB = bollard.bodyId;
+			jointDef.base.localFrameA.p = p;
+			jointDef.base.localFrameA.q = m_frameQ;
+			jointDef.base.drawScale = 0.3f;
+			jointDef.angularHertz = s_hertz;
+			jointDef.angularDampingRatio = s_dampingRatio;
+			bollard.jointId = b3CreateWeldJoint( m_worldId, &jointDef );
+#else
+			b3SphericalJointDef jointDef = b3DefaultSphericalJointDef();
+			jointDef.base.bodyIdA = anchorId;
+			jointDef.base.bodyIdB = bollard.bodyId;
+			jointDef.base.localFrameA.p = p;
+			jointDef.base.localFrameA.q = m_frameQ;
+			jointDef.base.drawScale = 0.3f;
+			jointDef.enableSpring = true;
+			jointDef.hertz = s_hertz;
+			jointDef.dampingRatio = s_dampingRatio;
+			jointDef.targetRotation = b3Quat_identity;
+			jointDef.enableTwistLimit = true;
+			jointDef.lowerTwistAngle = B3_DEG_TO_RAD * ( bollard.twistDegrees - 1.0f );
+			jointDef.upperTwistAngle = B3_DEG_TO_RAD * ( bollard.twistDegrees + 1.0f );
+			jointDef.lowerTwistAngle = -B3_DEG_TO_RAD * ( bollard.twistDegrees );
+			jointDef.upperTwistAngle = B3_DEG_TO_RAD * ( bollard.twistDegrees );
+			//jointDef.lowerTwistAngle = -0.5f * B3_PI;
+			//jointDef.upperTwistAngle = 0.5f * B3_PI;
+			bollard.jointId = b3CreateSphericalJoint( m_worldId, &jointDef );
+
+			// A narrow limit window around the initial twist pins the twist
+			//b3SphericalJoint_SetTwistLimits( bollard.jointId, B3_DEG_TO_RAD * ( bollard.twistDegrees - 1.0f ),
+			//								 B3_DEG_TO_RAD * ( bollard.twistDegrees + 1.0f ) );
+#endif
+		}
+
+		//CreateCar( m_firstX - 5.0f );
+	}
+
+	// A box on four driven wheels. The chassis rides high enough that a bollard pushed flat fits under it.
+	void CreateCar( float x0 )
+	{
+		const float wheelRadius = 0.55f;
+		const float wheelWidth = 0.2f;
+		const float chassisHeight = 0.35f;
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		shapeDef.baseMaterial.friction = 0.8f;
+
+		b3BodyDef bodyDef = b3DefaultBodyDef();
+		bodyDef.type = b3_dynamicBody;
+		bodyDef.name = "chassis";
+		bodyDef.position = { x0, wheelRadius + chassisHeight, 0.0f };
+		m_carId = b3CreateBody( m_worldId, &bodyDef );
+
+		b3BoxHull box = b3MakeBoxHull( 0.8f, 0.25f, 0.5f );
+		b3CreateHullShape( m_carId, &shapeDef, &box.base );
+
+		// b3CreateCylinder builds along the y-axis, so each wheel is rotated to put that axis along world z.
+		// The revolute joint spins about the z-axis of its frames.
+		b3HullData* wheelHull = b3CreateCylinder( wheelWidth, wheelRadius, -0.5f * wheelWidth, 16 );
+		b3Quat wheelQ = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisY, b3Vec3_axisZ );
+		b3Quat jointQ = b3ComputeQuatBetweenUnitVectors( b3Vec3_axisZ, b3Vec3_axisY );
+
+		for ( int i = 0; i < 4; ++i )
+		{
+			float dx = i < 2 ? 0.6f : -0.6f;
+			float dz = ( i % 2 == 0 ) ? 0.62f : -0.62f;
+
+			b3BodyDef wheelDef = b3DefaultBodyDef();
+			wheelDef.type = b3_dynamicBody;
+			wheelDef.name = "wheel";
+			wheelDef.position = { x0 + dx, wheelRadius, dz };
+			wheelDef.rotation = wheelQ;
+			b3BodyId wheelId = b3CreateBody( m_worldId, &wheelDef );
+			b3CreateHullShape( wheelId, &shapeDef, wheelHull );
+
+			b3RevoluteJointDef jointDef = b3DefaultRevoluteJointDef();
+			jointDef.base.bodyIdA = m_carId;
+			jointDef.base.bodyIdB = wheelId;
+			jointDef.base.localFrameA.p = { dx, -chassisHeight, dz };
+			jointDef.base.localFrameB.q = jointQ;
+			jointDef.base.drawScale = 0.4f;
+			jointDef.enableMotor = true;
+			jointDef.maxMotorTorque = 600.0f;
+			jointDef.motorSpeed = -s_driveSpeed / wheelRadius;
+			m_wheelJointIds[i] = b3CreateRevoluteJoint( m_worldId, &jointDef );
+		}
+
+		b3DestroyHull( wheelHull );
+	}
+
+#if 0
+	// Stop the car after it has passed the last bollard so it does not drive off the ground.
+	void Step() override
+	{
+		Sample::Step();
+
+		if ( b3Body_GetPosition( m_carId ).x > m_lastX + 3.0f )
+		{
+			for ( int i = 0; i < 4; ++i )
+			{
+				b3RevoluteJoint_SetMotorSpeed( m_wheelJointIds[i], 0.0f );
+			}
+		}
+	}
+
+	bool DrawControls() override
+	{
+		ImGui::SliderInt( "Bollards", &s_count, 2, e_maxBollards );
+		ImGui::SliderFloat( "Car speed", &s_driveSpeed, 1.0f, 8.0f, "%.1f m/s" );
+		ImGui::SliderFloat( "Hertz", &s_hertz, 0.5f, 10.0f, "%.1f" );
+		ImGui::SliderFloat( "Damping", &s_dampingRatio, 0.0f, 2.0f, "%.1f" );
+		DrawTextLine( "Press R to restart with these settings." );
+		return true;
+	}
+#endif
+
+#if 0
+	void Render() override
+	{
+		DrawTextLine( "A car drives over bollards on sprung spherical joints. Spring target: upright." );
+		DrawTextLine( "Bollard twist is pinned from 180 degrees (first) down to 0 (last)." );
+		DrawTextLine( "Expected: every bollard springs back up. Actual: the more twist, the less it recovers." );
+
+		for ( int i = 0; i < m_count; ++i )
+		{
+			const Bollard& bollard = m_bollards[i];
+
+			b3Quat q = b3Body_GetRotation( bollard.bodyId );
+
+			// tilt is the angle between the bollard axis and world up
+			b3Vec3 axis = b3RotateVector( q, b3Vec3_axisZ );
+			float tilt = B3_RAD_TO_DEG * acosf( b3ClampFloat( axis.y, -1.0f, 1.0f ) );
+			b3HexColor color = tilt < 5.0f ? b3_colorLimeGreen : b3_colorOrangeRed;
+
+			b3Pos top = { bollard.pivot.x, bollard.pivot.y + 1.2f, bollard.pivot.z };
+			DrawArrow( bollard.pivot, top, MakeColor( b3_colorLightGreen ) );
+
+			b3Pos labelPoint = { bollard.pivot.x, bollard.pivot.y + 1.6f, bollard.pivot.z };
+			DrawString3D( labelPoint, MakeColor( color ), "twist %.0f", bollard.twistDegrees );
+			labelPoint.y -= 0.25f;
+			DrawString3D( labelPoint, MakeColor( color ), "tilt %.0f", tilt );
+		}
+	}
+#endif
+
+	static Sample* Create( SampleContext* context )
+	{
+		return new BollardTwistSpring( context );
+	}
+
+	Bollard m_bollards[e_maxBollards];
+	b3BodyId m_carId;
+	b3JointId m_wheelJointIds[4];
+	b3Quat m_frameQ;
+	int m_count;
+	float m_firstX;
+	float m_lastX;
+	float m_spacing = 1.8f;
+
+	// kept across restarts so the sliders take effect when the sample is restarted
+	static inline int s_count = 19;
+	static inline float s_driveSpeed = 3.0f;
+	static inline float s_hertz = 1.5f;
+	static inline float s_dampingRatio = 0.3f;
+};
+
+static int sampleBollardTwistSpring = RegisterSample( "Issues", "Bollard Twist Spring", BollardTwistSpring::Create );

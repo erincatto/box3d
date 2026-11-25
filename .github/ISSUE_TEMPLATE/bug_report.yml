@@ -5,9 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Bug reports must come from practical use. Reports found by probing the source, fuzzing, or constructing hypothetical configurations will be closed without discussion.
+        Bug reports must come from practical use.
 
-        An LLM may help you write the report, but the bug must come from your application. One bug per issue.
+        An LLM may help you write the report. Please include context describing the scenario that triggered the bug.
 
         Check the [known limitations](https://github.com/erincatto/box3d/blob/main/docs/known_limitations.md) first. These are intentional trade-offs, not bugs.
 

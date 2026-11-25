@@ -1506,10 +1506,10 @@ B3_API void b3PogoJoint_SetMaxCompressionForce( b3JointId jointId, float force )
 /// Get the max compression force, usually in Newtons.
 B3_API float b3PogoJoint_GetMaxCompressionForce( b3JointId jointId );
 
-// Set the unit ground normal.
+/// Set the unit ground normal.
 B3_API void b3PogoJoint_SetNormal( b3JointId jointId, b3Vec3 normal );
 
-// Get the unit ground normal.
+/// Get the unit ground normal.
 B3_API b3Vec3 b3PogoJoint_GetNormal( b3JointId jointId );
 
 /// Get the current length of the pogo.
@@ -1792,6 +1792,58 @@ B3_API void b3SphericalJoint_SetMaxMotorTorque( b3JointId jointId, float torque 
 B3_API float b3SphericalJoint_GetMaxMotorTorque( b3JointId jointId );
 
 /**@}*/ // spherical_joint
+
+/**
+ * @defgroup tire_joint Tire Joint
+ * @brief Functions for the tire joint. Used for vehicle simulation.
+ *
+ * @warning Experimental. The tire joint may change in future versions.
+ * @{
+ */
+
+/// Create a tire joint.
+B3_API b3JointId b3CreateTireJoint( b3WorldId worldId, const b3TireJointDef* def );
+
+/// Update the tire contact point. Usually from a ray or shape cast.
+B3_API void b3TireJoint_SetContact( b3JointId jointId, b3Vec3 localPointA, b3Vec3 normal );
+
+/// Get the tire contact normal.
+B3_API b3Vec3 b3TireJoint_GetNormal( b3JointId jointId );
+
+/// Set the current brake force. Used to apply brakes.
+B3_API void b3TireJoint_SetBrakeForce( b3JointId jointId, float force );
+
+/// Get the current brake force.
+B3_API float b3TireJoint_GetBrakeForce( b3JointId jointId );
+
+/// Get the current suspension length.
+B3_API float b3TireJoint_GetSuspensionLength( b3JointId jointId );
+
+/// Get the suspension normal force.
+B3_API float b3TireJoint_GetNormalForce( b3JointId jointId );
+
+/// Get the friction lateral (side-ways) force.
+B3_API float b3TireJoint_GetLateralForce( b3JointId jointId );
+
+/// Get the rolling (grip) force.
+B3_API float b3TireJoint_GetRollingForce( b3JointId jointId );
+
+/// Is the tire friction at the limit?
+B3_API bool b3TireJoint_IsSaturated( b3JointId jointId );
+
+/// Get the suspension impulse.
+B3_API float b3TireJoint_GetSuspensionImpulse( b3JointId jointId );
+
+/// Get the stop impulse (bottom out).
+B3_API float b3TireJoint_GetStopImpulse( b3JointId jointId );
+
+/// Get the lateral friction impulse.
+B3_API float b3TireJoint_GetLateralImpulse( b3JointId jointId );
+
+/// Get the forward friction impulse.
+B3_API float b3TireJoint_GetRollingImpulse( b3JointId jointId );
+
+/**@}*/ // tire_joint
 
 /**
  * @defgroup weld_joint Weld Joint

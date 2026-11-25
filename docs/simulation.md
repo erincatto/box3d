@@ -1806,6 +1806,73 @@ separate constraint, so the center of mass can translate slightly as the solver 
 the constraints. The pivot can then move along \f$\mathbf{r}\f$, \f$k \geq m^{-1}\f$, and the
 conflict settles as a small error instead of exploding.
 
+### Tire Joint {#tire-joint}
+
+The tire joint holds a vehicle chassis on the ground under one wheel without a wheel body. Body A
+is the ground under the wheel, which may be static, kinematic or dynamic. Body B is the chassis.
+The joint does no collision. The caller casts the wheel against the world each step and gives the
+joint the contact point and normal, much like the pogo joint.
+
+- The origin of frame A is the contact point on the ground body. The contact normal is given in
+  world space.
+- The origin of frame B is the wheel mount, where the hub sits at full compression. The x-axis of
+  frame B is the suspension axis and points up into the chassis. The z-axis is the axle. Steering is
+  a rotation of frame B about its x-axis, set with `b3Joint_SetLocalFrameB()`.
+
+Each grounded wheel solves four rows inside the sub-steps:
+
+- a soft suspension spring along the normal that only pushes, using `suspensionHertz`, `restLength`
+  and `maxSuspensionForce`. It lets go once the wheel would hang past `maxSuspensionLength`. The
+  spring is damped with `bumpDampingRatio` while it compresses and `suspensionDampingRatio` while it
+  extends. Light bump damping with heavier rebound damping takes an edge without throwing the chassis
+  up and still settles quickly.
+- a bump stop along the normal at full compression. With `bumpStopHertz` at zero it acts like a rigid
+  contact. Otherwise it is a soft spring with `bumpStopDampingRatio` that lets the wheel sink past full
+  compression. A soft stop takes a fast hit on a rock or curb without throwing the chassis, so keep a
+  collision shape on the chassis near the wheel mount as the hard stop behind it.
+- lateral friction along the axle, limited by `lateralFriction` times the normal impulse.
+- rolling friction along the rolling direction. It is limited by `rollingFriction` times the normal
+  impulse, the tire grip, and by `brakeForce` plus `rollingResistance` times the normal force. With no
+  brake and a small rolling resistance the wheel rolls freely.
+
+The wheel is a ring of `radius` minus `halfWidth`, rounded by `halfWidth`, the shape a rounded disc
+cast finds. When the ground normal leans along the axle the wheel touches the ground closer to the hub
+than `radius`, and the joint uses that distance. A zero `halfWidth` is a thin disc.
+
+The two friction rows share an ellipse, so a locked wheel loses its side grip. `tireForceHeight` lifts
+the point where friction acts on the chassis from the contact toward the hub. Zero is physical. Raising
+it reduces the roll moment of the tire forces.
+
+```c
+b3TireJointDef jointDef = b3DefaultTireJointDef();
+jointDef.base.bodyIdA = groundBodyId;
+jointDef.base.bodyIdB = chassisBodyId;
+jointDef.base.localFrameA.p = b3Body_GetLocalPoint(groundBodyId, hitPoint);
+jointDef.base.localFrameB.p = wheelMount;
+jointDef.base.localFrameB.q = b3MakeQuatFromAxisAngle(b3Vec3_axisZ, 0.5f * B3_PI);
+jointDef.base.collideConnected = true;
+jointDef.normal = hitNormal;
+jointDef.radius = 0.55f;
+jointDef.maxSuspensionLength = 0.06f;
+jointDef.restLength = 0.06f;
+jointDef.suspensionHertz = 3.0f;
+jointDef.suspensionDampingRatio = 0.5f;
+
+b3JointId myJointId = b3CreateTireJoint(myWorldId, &jointDef);
+```
+
+Keep `collideConnected` true so the chassis still collides with the ground under it. While the
+wheel stays on the same ground body, update the joint in place each step with
+`b3TireJoint_SetContact()` and `b3TireJoint_SetBrakeForce()`. When the ground body changes, destroy
+the joint and create a new one, carrying the impulses from `b3TireJoint_GetSuspensionImpulse()` and
+the other impulse getters into the definition so the wheel does not drop. When the cast finds nothing,
+destroy the joint. A joint to a static body links no other island to the chassis, so a parked vehicle
+sleeps like any other body. Skip the casts while the chassis sleeps.
+
+The normal, lateral and rolling forces, the suspension length and whether the friction ellipse is
+saturated are available for wheel visuals, skid sounds and debugging. See `shared/wagon.c` and the
+`Vehicle / Wagon` sample for a horse drawn wagon built on this joint.
+
 ### Filter Joint {#filter-joint}
 
 The filter (or null) joint is used to disable collision between two specific bodies.

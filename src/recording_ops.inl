@@ -230,6 +230,12 @@ B3_REC_OP( 0x8B, CreateMotionLockJoint, RET_JOINTID, ARG( WORLDID, world ) ARG( 
 B3_REC_OP( 0x8C, MotionLockJointEnableLinearLock, RET_NONE, ARG( JOINTID, joint ) ARG( I32, axis ) ARG( BOOL, flag ) )
 B3_REC_OP( 0x8D, MotionLockJointEnableAngularLock, RET_NONE, ARG( JOINTID, joint ) ARG( BOOL, flag ) )
 
+// Tire joint
+B3_REC_OP( 0x8E, CreateTireJoint, RET_JOINTID, ARG( WORLDID, world ) ARG( TIREJOINTDEF, def ) )
+B3_REC_OP( 0x8F, TireJointSetContact, RET_NONE, ARG( JOINTID, joint ) ARG( VEC3, localPoint ) ARG( VEC3, normal ) )
+// Opcode scuffed due to space constraints
+B3_REC_OP( 0x71, TireJointSetBrakeForce, RET_NONE, ARG( JOINTID, joint ) ARG( F32, force ) )
+
 // Spatial queries. Inputs flow through the manifest (reader side). The hit tail and result are
 // hand-written in recording.c / recording_replay.c since they are variable length.
 B3_REC_OP( 0xE8, QueryOverlapAABB, RET_NONE, ARG( WORLDID, world ) ARG( AABB, aabb ) ARG( QUERYFILTER, filter ) )
