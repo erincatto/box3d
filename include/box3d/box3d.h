@@ -1506,10 +1506,10 @@ B3_API void b3PogoJoint_SetMaxCompressionForce( b3JointId jointId, float force )
 /// Get the max compression force, usually in Newtons.
 B3_API float b3PogoJoint_GetMaxCompressionForce( b3JointId jointId );
 
-// Set the unit ground normal.
+/// Set the unit ground normal.
 B3_API void b3PogoJoint_SetNormal( b3JointId jointId, b3Vec3 normal );
 
-// Get the unit ground normal.
+/// Get the unit ground normal.
 B3_API b3Vec3 b3PogoJoint_GetNormal( b3JointId jointId );
 
 /// Get the current length of the pogo.
@@ -1810,10 +1810,10 @@ B3_API void b3TireJoint_SetContact( b3JointId jointId, b3Vec3 localPointA, b3Vec
 /// Get the tire contact normal.
 B3_API b3Vec3 b3TireJoint_GetNormal( b3JointId jointId );
 
-/// Set the current break force. Used to apply brakes.
+/// Set the current brake force. Used to apply brakes.
 B3_API void b3TireJoint_SetBrakeForce( b3JointId jointId, float force );
 
-/// Get the current break force.
+/// Get the current brake force.
 B3_API float b3TireJoint_GetBrakeForce( b3JointId jointId );
 
 /// Get the current suspension length.

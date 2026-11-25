@@ -233,6 +233,7 @@ B3_REC_OP( 0x8D, MotionLockJointEnableAngularLock, RET_NONE, ARG( JOINTID, joint
 // Tire joint
 B3_REC_OP( 0x8E, CreateTireJoint, RET_JOINTID, ARG( WORLDID, world ) ARG( TIREJOINTDEF, def ) )
 B3_REC_OP( 0x8F, TireJointSetContact, RET_NONE, ARG( JOINTID, joint ) ARG( VEC3, localPoint ) ARG( VEC3, normal ) )
+// Opcode scuffed due to space constraints
 B3_REC_OP( 0x71, TireJointSetBrakeForce, RET_NONE, ARG( JOINTID, joint ) ARG( F32, force ) )
 
 // Spatial queries. Inputs flow through the manifest (reader side). The hit tail and result are

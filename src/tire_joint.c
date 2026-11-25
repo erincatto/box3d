@@ -403,9 +403,8 @@ void b3SolveTireJoint( b3JointSim* base, b3StepContext* context, bool useBias )
 		wB = b3Add( wB, b3MulMV( iB, b3Cross( anchorB, P ) ) );
 	}
 
-	// Friction
-	// Technically shouldn't eval during bias, but testing shows it works better with it.
-	//if ( useBias == false )
+	// Friction. Technically shouldn't eval during bias, but testing shows it works better with it and performance
+	// doesn't matter much for this joint.
 	{
 		b3Vec3 frictionAnchorB = joint->frictionAnchorB;
 		b3Vec3 lateral = joint->lateralAxis;
@@ -413,21 +412,9 @@ void b3SolveTireJoint( b3JointSim* base, b3StepContext* context, bool useBias )
 
 		float normalImpulse = joint->suspensionImpulse + joint->stopImpulse;
 
-		float massScale = 1.0f;
-		float impulseScale = 0.0f;
-
-		// todo remove this after testing
-		//if ( useBias )
-		//{
-		//	massScale = base->constraintSoftness.massScale;
-		//	impulseScale = base->constraintSoftness.impulseScale;
-		//}
-
 		b3Vec3 dv = b3Sub( b3Add( vB, b3Cross( wB, frictionAnchorB ) ), b3Add( vA, b3Cross( wA, anchorA ) ) );
-		float lateralImpulse = joint->lateralImpulse - massScale * joint->lateralMass * b3Dot( dv, lateral ) -
-							   impulseScale * joint->lateralImpulse;
-		float rollingImpulse = joint->rollingImpulse - massScale * joint->rollingMass * b3Dot( dv, rolling ) -
-							   impulseScale * joint->rollingImpulse;
+		float lateralImpulse = joint->lateralImpulse - joint->lateralMass * b3Dot( dv, lateral );
+		float rollingImpulse = joint->rollingImpulse - joint->rollingMass * b3Dot( dv, rolling );
 
 		// Braking.
 		float maxBrakeImpulse = context->h * joint->brakeForce + joint->rollingResistance * normalImpulse;

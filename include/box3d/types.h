@@ -1137,7 +1137,7 @@ typedef struct b3TireJointDef
 	/// The tire rolling resistance.
 	float rollingResistance;
 
-	/// The current break force.
+	/// The current brake force.
 	float brakeForce;
 
 	/// Used to offset the friction force vertically to reduce the chance of roll-over.
