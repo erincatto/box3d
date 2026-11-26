@@ -3,7 +3,9 @@
 
 #include "gfx/fonts.h"
 
+#include <sokol_app.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 // Copied from imgui_draw.cpp
 //
@@ -324,4 +326,25 @@ const unsigned char* GetFontBytes( int* outSize )
 const char* GetFontName( void )
 {
 	return "Proggy Forever";
+}
+
+float GetDisplayScale( void )
+{
+	float scale = sapp_dpi_scale();
+
+#if defined( __linux__ )
+	// sokol reads only Xft.dpi and assumes 1 without it. Some Wayland compositors leave it
+	// unset and hand XWayland windows unscaled pixels, publishing the scale in GDK_SCALE.
+	if ( scale == 1.0f )
+	{
+		const char* value = getenv( "GDK_SCALE" );
+		float gdkScale = value != NULL ? strtof( value, NULL ) : 0.0f;
+		if ( gdkScale > 1.0f )
+		{
+			scale = gdkScale;
+		}
+	}
+#endif
+
+	return scale;
 }
