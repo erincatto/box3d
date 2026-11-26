@@ -334,7 +334,7 @@ void WorldTextInit( void )
 		return;
 	}
 
-	s_text.pixelHeight = floorf( 13.0f * sapp_dpi_scale() );
+	s_text.pixelHeight = floorf( 13.0f * GetDisplayScale() );
 	s_text.haloPixels = 2.0f;
 
 	if ( BakeAtlas() == false )

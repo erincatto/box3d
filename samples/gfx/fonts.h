@@ -15,6 +15,9 @@ const unsigned char* GetFontBytes( int* outSize );
 // Short name for the ImGui atlas and logs.
 const char* GetFontName( void );
 
+// Physical pixels per logical pixel, used to size text and UI. Valid once sapp is running.
+float GetDisplayScale( void );
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

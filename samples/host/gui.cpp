@@ -30,7 +30,7 @@
 
 static bool s_uiInitialized = false;
 
-// Display scale (sapp_dpi_scale) latched once in InitUI. ImGui runs in
+// Display scale (GetDisplayScale) latched once in InitUI. ImGui runs in
 // physical framebuffer pixels, so panel code multiplies explicit pixel sizes
 // by this; the font atlas and the rest of the style are pre-scaled by it too.
 static float s_uiScale = 1.0f;
@@ -152,7 +152,7 @@ void InitUI( const sg_environment* env, DrawUiFcn* drawGuiFcn )
 	// ImGui 1:1 against the framebuffer with an integer-sized atlas is what
 	// keeps glyphs sharp; letting sokol_imgui scale a logical-pixel UI up by
 	// a fractional factor instead leaves every glyph on a sub-pixel boundary.
-	s_uiScale = sapp_dpi_scale();
+	s_uiScale = GetDisplayScale();
 
 	ImGuiIO& io = ImGui::GetIO();
 	io.Fonts->Clear();
