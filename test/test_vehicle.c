@@ -6,6 +6,7 @@
 
 #include "box3d/box3d.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -48,17 +49,6 @@ static void StepWagon( b3WorldId worldId, Wagon* wagon, WagonInput input )
 	UpdateWagonResults( wagon, timeStep );
 }
 
-static bool AllGrounded( const Wagon* wagon )
-{
-	for ( int i = 0; i < e_wagonWheelCount; ++i )
-	{
-		if ( wagon->wheels[i].grounded == false || wagon->wheels[i].normalForce <= 0.0f )
-		{
-			return false;
-		}
-	}
-	return true;
-}
 
 static int TireJointApi( void )
 {
@@ -112,15 +102,24 @@ static int SettleFlat( void )
 	CreateGround( worldId, 0.0f );
 	Wagon wagon = CreateTestWagon( worldId, 0.0f );
 
+	// The front wheels rest at full extension, so one reads no load now and then. Grounded means every
+	// wheel carried load in the last few steps before sleep.
 	WagonInput input = { e_wagonHalt, 0.0f, true };
 	bool grounded = false;
+	int lastLoaded[e_wagonWheelCount] = { -100, -100, -100, -100 };
 	int sleepStep = -1;
 	for ( int i = 0; i < 10 * 60 && sleepStep < 0; ++i )
 	{
 		StepWagon( worldId, &wagon, input );
 		if ( b3Body_IsAwake( wagon.chassisId ) )
 		{
-			grounded = AllGrounded( &wagon );
+			grounded = true;
+			for ( int j = 0; j < e_wagonWheelCount; ++j )
+			{
+				const WagonWheel* wheel = wagon.wheels + j;
+				lastLoaded[j] = wheel->grounded && wheel->normalForce > 0.0f ? i : lastLoaded[j];
+				grounded = grounded && wheel->grounded && i - lastLoaded[j] < 10;
+			}
 		}
 		else
 		{
@@ -163,6 +162,185 @@ static int SlopeSleep( void )
 	return 0;
 }
 
+static void CreateTree( b3WorldId worldId, float x, float z, float radius )
+{
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.position = (b3Pos){ x, 0.0f, z };
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3HullData* hull = b3CreateCylinder( 8.0f, radius, 0.0f, 16 );
+	b3CreateHullShape( bodyId, &shapeDef, hull );
+	b3DestroyHull( hull );
+}
+
+// Gap between a capsule and a tall tree in the horizontal plane, negative when they overlap. The
+// cylinder hull is a polygon inside the radius, so this is slightly pessimistic.
+static float CapsuleTreeGap( b3ShapeId shapeId, float x, float z, float radius )
+{
+	b3WorldTransform transform = b3Body_GetTransform( b3Shape_GetBody( shapeId ) );
+	b3Capsule capsule = b3Shape_GetCapsule( shapeId );
+	b3Pos p1 = b3TransformWorldPoint( transform, capsule.center1 );
+	b3Pos p2 = b3TransformWorldPoint( transform, capsule.center2 );
+
+	float ax = (float)p1.x - x, az = (float)p1.z - z;
+	float dx = (float)( p2.x - p1.x ), dz = (float)( p2.z - p1.z );
+	float lengthSquared = dx * dx + dz * dz;
+	float t = lengthSquared > 0.0f ? b3ClampFloat( -( ax * dx + az * dz ) / lengthSquared, 0.0f, 1.0f ) : 0.0f;
+	float cx = ax + t * dx, cz = az + t * dz;
+	return sqrtf( cx * cx + cz * cz ) - capsule.radius - radius;
+}
+
+// Gap between a hull and a tall tree down to a depth of the tolerance. GJK reports zero for any
+// overlap, so it measures against the tree shrunk by the tolerance.
+static float HullTreeGap( b3ShapeId shapeId, float x, float z, float radius )
+{
+	float tolerance = 0.1f;
+	const b3HullData* hull = b3Shape_GetHull( shapeId );
+	b3WorldTransform transform = b3Body_GetTransform( b3Shape_GetBody( shapeId ) );
+	b3Vec3 axis[2] = { { 0.0f, -10.0f, 0.0f }, { 0.0f, 10.0f, 0.0f } };
+
+	b3DistanceInput input = { 0 };
+	input.proxyA = (b3ShapeProxy){ b3GetHullPoints( hull ), hull->vertexCount, 0.0f };
+	input.proxyB = (b3ShapeProxy){ axis, 2, radius - tolerance };
+	input.transform = b3InvMulWorldTransforms( transform, (b3WorldTransform){ { x, 0.0f, z }, b3Quat_identity } );
+	input.useRadii = true;
+	b3SimplexCache cache = { 0 };
+	b3DistanceOutput output = b3ShapeDistance( &input, &cache, NULL, 0 );
+	return output.distance - tolerance;
+}
+
+// A fast approach can close past the speculative margin in one step and sink in for that step
+// before the contact pushes out
+#define MAX_TREE_DEPTH 0.05f
+
+typedef struct TreeRun
+{
+	// Step the whole wagon cleared the tree, or -1
+	int passStep;
+	float minHorseGap;
+	float minHullGap;
+	float maxHorseOffset;
+	float minUp;
+	int horseContactSteps;
+	int hullContactSteps;
+	bool asleep;
+} TreeRun;
+
+// The wagon starts at the origin heading along +x toward a tree. After the drive it halts with the
+// brake on for the rest of the run.
+static TreeRun DriveAtTree( float treeZ, float treeRadius, WagonGait gait, int driveSteps, int totalSteps )
+{
+	b3WorldId worldId = CreateVehicleWorld( 1 );
+	CreateGround( worldId, 0.0f );
+	float treeX = 12.0f;
+	CreateTree( worldId, treeX, treeZ, treeRadius );
+	Wagon wagon = CreateTestWagon( worldId, 0.0f );
+
+	TreeRun run = { -1, FLT_MAX, FLT_MAX, 0.0f, 1.0f, 0, 0, false };
+	float touch = 0.5f * B3_SPECULATIVE_DISTANCE;
+	for ( int i = 0; i < totalSteps; ++i )
+	{
+		WagonInput input = { gait, 0.0f, false };
+		if ( i >= driveSteps )
+		{
+			input = (WagonInput){ e_wagonHalt, 0.0f, true };
+		}
+
+		StepWagon( worldId, &wagon, input );
+
+		float horseGap = CapsuleTreeGap( wagon.horseShapeId, treeX, treeZ, treeRadius );
+		float hullGap = HullTreeGap( wagon.chassisShapeId, treeX, treeZ, treeRadius );
+		run.minHorseGap = b3MinFloat( run.minHorseGap, horseGap );
+		run.minHullGap = b3MinFloat( run.minHullGap, hullGap );
+		run.horseContactSteps += horseGap < touch ? 1 : 0;
+		run.hullContactSteps += hullGap < touch ? 1 : 0;
+		// The wagon starts in the air and the weightless horse lags the drop
+		if ( i >= 60 )
+		{
+			run.maxHorseOffset = b3MaxFloat( run.maxHorseOffset, wagon.horseOffset );
+		}
+
+		b3Vec3 up = b3RotateVector( b3Body_GetRotation( wagon.chassisId ), b3Vec3_axisY );
+		run.minUp = b3MinFloat( run.minUp, up.y );
+
+		// The back of the wagon
+		b3Pos back = b3Body_GetWorldPoint( wagon.chassisId, (b3Vec3){ -1.6f, 0.0f, 0.0f } );
+		if ( run.passStep < 0 && (float)back.x > treeX + treeRadius )
+		{
+			run.passStep = i;
+		}
+	}
+
+	run.asleep = b3Body_IsAwake( wagon.chassisId ) == false && b3Body_IsAwake( wagon.horseId ) == false;
+
+	DestroyWagon( &wagon );
+	b3DestroyWorld( worldId );
+	return run;
+}
+
+static void PrintTreeRun( const char* name, TreeRun run )
+{
+	printf( "  %s: pass step %d, gap horse %.4f hull %.4f, contact steps horse %d hull %d, horse offset %.4f, "
+			"min up %.3f, asleep %d\n",
+			name, run.passStep, run.minHorseGap, run.minHullGap, run.horseContactSteps, run.hullContactSteps,
+			run.maxHorseOffset, run.minUp, run.asleep ? 1 : 0 );
+}
+
+// The horse meets a trunk off center. The shafts turn the front gear away and the wagon slides past.
+static int TreeGlance( void )
+{
+	TreeRun run = DriveAtTree( 0.5f, 0.2f, e_wagonTrot, 15 * 60, 25 * 60 );
+	PrintTreeRun( "tree glance", run );
+	ENSURE( run.horseContactSteps > 0 );
+	ENSURE( run.passStep >= 0 );
+	ENSURE( run.minHorseGap > -MAX_TREE_DEPTH );
+	ENSURE( run.minHullGap > -MAX_TREE_DEPTH );
+	ENSURE( run.maxHorseOffset < 0.05f );
+	ENSURE( run.minUp > 0.9f );
+	ENSURE( run.asleep );
+	return 0;
+}
+
+// A trunk outside the horse slides along the side of the hull
+static int TreeSideSwipe( void )
+{
+	TreeRun run = DriveAtTree( 1.0f, 0.3f, e_wagonTrot, 15 * 60, 15 * 60 );
+	PrintTreeRun( "tree side swipe", run );
+	ENSURE( run.horseContactSteps == 0 );
+	ENSURE( run.hullContactSteps > 0 );
+	ENSURE( run.passStep >= 0 );
+	ENSURE( run.minHullGap > -MAX_TREE_DEPTH );
+	ENSURE( run.minUp > 0.9f );
+	return 0;
+}
+
+// Dead center the horse stalls against the trunk, straining until spent. It stays out of the trunk
+// and the shafts hold. Halted and braked against the trunk the wagon goes to sleep.
+static int TreeHeadOn( void )
+{
+	TreeRun run = DriveAtTree( 0.0f, 0.3f, e_wagonWalk, 15 * 60, 25 * 60 );
+	PrintTreeRun( "tree head on", run );
+	ENSURE( run.horseContactSteps > 0 );
+	ENSURE( run.minHorseGap > -MAX_TREE_DEPTH );
+	ENSURE( run.maxHorseOffset < 0.05f );
+	ENSURE( run.minUp > 0.9f );
+	ENSURE( run.asleep );
+	return 0;
+}
+
+// A gallop into a trunk. The light horse is squeezed between the wagon and the trunk and sinks in
+// for a few steps, so this only checks the wagon stays upright and settles.
+static int TreeCrash( void )
+{
+	TreeRun run = DriveAtTree( 0.0f, 0.3f, e_wagonGallop, 10 * 60, 20 * 60 );
+	PrintTreeRun( "tree crash", run );
+	ENSURE( run.horseContactSteps > 0 );
+	ENSURE( run.minUp > 0.9f );
+	ENSURE( run.asleep );
+	return 0;
+}
+
 static uint32_t HashBytes( uint32_t hash, const void* data, int size )
 {
 	const uint8_t* bytes = data;
@@ -173,8 +351,9 @@ static uint32_t HashBytes( uint32_t hash, const void* data, int size )
 	return hash;
 }
 
-// The wagon drives over a curb under its left wheels and through light crates while steering
-static uint32_t RunDeterminismScene( int workerCount )
+// The wagon drives over a curb under its left wheels and through light crates while steering, and the
+// horse brushes a trunk
+static uint32_t RunDeterminismScene( int workerCount, int* horseContactSteps )
 {
 	b3WorldId worldId = CreateVehicleWorld( workerCount );
 	CreateGround( worldId, 0.0f );
@@ -200,10 +379,13 @@ static uint32_t RunDeterminismScene( int workerCount )
 		b3CreateHullShape( boxId, &shapeDef, &box.base );
 	}
 
+	CreateTree( worldId, 13.0f, -1.5f, 0.25f );
+
 	Wagon wagon = CreateTestWagon( worldId, 0.0f );
 
 	WagonInput input = { e_wagonTrot, 0.0f, false };
 	uint32_t hash = 2166136261u;
+	*horseContactSteps = 0;
 	for ( int i = 0; i < 8 * 60; ++i )
 	{
 		input.steer = i < 240 ? 0.05f : -0.05f;
@@ -215,6 +397,10 @@ static uint32_t RunDeterminismScene( int workerCount )
 		hash = HashBytes( hash, &transform, sizeof( transform ) );
 		hash = HashBytes( hash, &v, sizeof( v ) );
 		hash = HashBytes( hash, &w, sizeof( w ) );
+
+		b3WorldTransform horse = b3Body_GetTransform( wagon.horseId );
+		hash = HashBytes( hash, &horse, sizeof( horse ) );
+		*horseContactSteps += wagon.horseContactCount > 0 ? 1 : 0;
 	}
 
 	DestroyWagon( &wagon );
@@ -224,16 +410,18 @@ static uint32_t RunDeterminismScene( int workerCount )
 
 static int MultithreadedDeterminism( void )
 {
-	uint32_t reference = RunDeterminismScene( 1 );
-	printf( "  determinism: workers 1 hash 0x%08X\n", reference );
+	int contactSteps;
+	uint32_t reference = RunDeterminismScene( 1, &contactSteps );
+	printf( "  determinism: workers 1 hash 0x%08X, horse contact steps %d\n", reference, contactSteps );
+	ENSURE( contactSteps > 0 );
 	for ( int workerCount = 2; workerCount <= 4; ++workerCount )
 	{
-		uint32_t hash = RunDeterminismScene( workerCount );
+		uint32_t hash = RunDeterminismScene( workerCount, &contactSteps );
 		printf( "  determinism: workers %d hash 0x%08X\n", workerCount, hash );
 		ENSURE( hash == reference );
 	}
 
-	ENSURE( RunDeterminismScene( 1 ) == reference );
+	ENSURE( RunDeterminismScene( 1, &contactSteps ) == reference );
 	return 0;
 }
 
@@ -242,6 +430,10 @@ int VehicleTest( void )
 	RUN_SUBTEST( TireJointApi );
 	RUN_SUBTEST( SettleFlat );
 	RUN_SUBTEST( SlopeSleep );
+	RUN_SUBTEST( TreeGlance );
+	RUN_SUBTEST( TreeSideSwipe );
+	RUN_SUBTEST( TreeHeadOn );
+	RUN_SUBTEST( TreeCrash );
 	RUN_SUBTEST( MultithreadedDeterminism );
 	return 0;
 }

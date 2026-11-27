@@ -14,18 +14,19 @@
 #include <math.h>
 #include <vector>
 
-// A horse drawn wagon on tire joints. The chassis is the only body. Each wheel casts a disc at the
-// ground and, where it finds some, holds a tire joint between that ground body and the chassis. The
-// front axle is a turntable that swings about the kingbolt. The horse is a box standing on the ground
-// between the shafts, which hinge at the front gear and rest on its back. It pulls with a capped force
-// at the kingbolt along the shafts.
+// A horse drawn wagon on tire joints. Each wheel casts a disc at the ground and, where it finds some,
+// holds a tire joint between that ground body and the chassis. The front axle is a turntable that
+// swings about the kingbolt. The horse stands on the ground between the shafts, which hinge at the
+// front gear and rest on its back. It pulls with a capped force at the kingbolt along the shafts. Its
+// body is a capsule held up by its legs and tied to the front gear by the shafts, so it and the wheel
+// rails slide around the trees in the grove behind and to the right of the start.
 //
 // W/S change gait, A/D steer, Space brakes. With the gait at halt the brake is on. S at halt backs the
 // wagon. T toggles a camera that follows the wagon.
 //
-// The axles are capsules on the chassis, so a tipped wagon lies on its running gear. The front axle
-// capsule stays straight ahead on the body and does not swing with the turntable. Rebuilding it
-// while steering would churn the shapes every step.
+// The chassis collides through one hull that covers the wheels from above. It stays straight ahead
+// on the body, so the front wheels swing out of it on the turntable. Rebuilding it while steering
+// would churn the shapes every step.
 //
 // The wagon itself lives in shared/wagon.c so the vehicle unit tests run the same code.
 class WagonSample : public Sample
@@ -45,6 +46,8 @@ public:
 		m_gait = e_wagonHalt;
 		m_steerInput = 0.0f;
 		m_mass = 700.0f;
+		m_horseMass = GetDefaultWagonDef().horseMass;
+		m_hull = GetDefaultWagonHull();
 
 		AddGroundBox( 200.0f );
 		CreateSlopes();
@@ -53,8 +56,9 @@ public:
 		CreateLooseBoxes();
 		CreateWaveTerrain();
 		CreateLogs();
+		CreateTrees();
 
-		CreateWagonBody();
+		CreateWagonBody( { 0.0f, 0.1f, 0.0f }, b3Quat_identity );
 
 		// Cylinders along their y axis, which the wheel transform turns onto the axle
 		const WagonWheel& front = m_wagon.wheels[e_wagonFrontLeft];
@@ -75,11 +79,14 @@ public:
 		}
 	}
 
-	void CreateWagonBody()
+	void CreateWagonBody( b3Pos position, b3Quat rotation )
 	{
 		WagonDef def = GetDefaultWagonDef();
-		def.position = { 0.0f, 0.1f, 0.0f };
+		def.position = position;
+		def.rotation = rotation;
 		def.mass = m_mass;
+		def.horseMass = m_horseMass;
+		def.hull = m_hull;
 		def.categoryBits = m_wagonBit;
 		def.tuning = m_tuning;
 		m_wagon = CreateWagon( m_worldId, &def );
@@ -323,6 +330,33 @@ public:
 		}
 	}
 
+	// A grove behind and to the right of the start, spaced so the wagon can weave through but brushes trunks
+	void CreateTrees()
+	{
+		g_randomSeed = 23;
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		float spacing = 5.0f;
+		for ( int ix = 0; ix < 8; ++ix )
+		{
+			for ( int iz = 0; iz < 6; ++iz )
+			{
+				float x = -38.0f + spacing * (float)ix + RandomFloatRange( -1.5f, 1.5f );
+				float z = 14.0f + spacing * (float)iz + RandomFloatRange( -1.5f, 1.5f );
+				float radius = RandomFloatRange( 0.15f, 0.4f );
+
+				b3BodyDef bodyDef = b3DefaultBodyDef();
+				bodyDef.name = "tree";
+				bodyDef.position = { x, 0.0f, z };
+				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+
+				b3HullData* hull = b3CreateCylinder( 8.0f, radius, 0.0f, 12 );
+				b3CreateHullShape( bodyId, &shapeDef, hull );
+				b3DestroyHull( hull );
+			}
+		}
+	}
+
 	void Keyboard( int key, int action, int mods ) override
 	{
 		if ( action != ACTION_PRESS )
@@ -444,6 +478,8 @@ public:
 							   "Zero snaps to the ground." );
 		changed |= ImGui::SliderFloat( "Horse Pitch Damping", &m_tuning.horsePitchDampingRatio, 0.0f, 2.0f, "%.2f" );
 		ImGui::SetItemTooltip( "Damping ratio of the horse pitch. Below one the shafts bob after a step." );
+		changed |= ImGui::SliderFloat( "Bumper Friction", &m_tuning.bumperFriction, 0.0f, 1.0f, "%.2f" );
+		ImGui::SetItemTooltip( "Friction of the horse and the wheel rails. Low lets them slide around a trunk." );
 
 		for ( int gait = e_wagonBack; gait < e_wagonGaitCount; ++gait )
 		{
@@ -471,12 +507,40 @@ public:
 		// The mass is fixed at creation, so a new mass rebuilds the wagon where it stands
 		rebuild |= ImGui::SliderFloat( "Mass", &m_mass, 200.0f, 4000.0f, "%.0f kg" );
 		ImGui::SetItemTooltip( "Wagon mass. Forces given in W scale with it. Rebuilds the wagon where it stands." );
+		rebuild |= ImGui::SliderFloat( "Horse Mass", &m_horseMass, 10.0f, 1000.0f, "%.0f kg" );
+		ImGui::SetItemTooltip( "Horse body mass. Its legs carry it, so it only adds inertia across the ground and sets "
+							   "how hard a trunk shoves it. Rebuilds the wagon." );
+
+		if ( ImGui::CollapsingHeader( "Hull" ) )
+		{
+			rebuild |= ImGui::SliderFloat( "Rear", &m_hull.rear, -3.0f, -1.0f, "%.2f m" );
+			ImGui::SetItemTooltip( "Back face. Behind the rear wheel rims at -1.55 m." );
+			rebuild |= ImGui::SliderFloat( "Shoulder", &m_hull.shoulder, 0.5f, 2.5f, "%.2f m" );
+			ImGui::SetItemTooltip( "Where the sides start to narrow toward the nose. Ahead of the front wheel rims at "
+								   "1.45 m." );
+			rebuild |= ImGui::SliderFloat( "Nose", &m_hull.nose, 1.0f, 3.0f, "%.2f m" );
+			ImGui::SetItemTooltip( "Point of the wedge. Inside the horse's tail cap, centered about 1.95 m ahead with "
+								   "the front gear straight." );
+			rebuild |= ImGui::SliderFloat( "Half Width", &m_hull.halfWidth, 0.5f, 1.2f, "%.2f m" );
+			ImGui::SetItemTooltip( "Outside the wheel faces at 0.765 m." );
+			rebuild |= ImGui::SliderFloat( "Bottom", &m_hull.bottom, 0.2f, 0.9f, "%.2f m" );
+			ImGui::SetItemTooltip( "Floor height above the ground at full extension. Kept below the front wheel mount "
+								   "so the casts start inside the hull." );
+			rebuild |= ImGui::SliderFloat( "Top", &m_hull.top, 1.0f, 2.5f, "%.2f m" );
+			rebuild |= ImGui::SliderFloat( "Nose Bottom", &m_hull.noseBottom, 0.3f, 2.4f, "%.2f m" );
+			ImGui::SetItemTooltip( "Lower end of the nose edge. The horse capsule spans about 1.15 to 1.95 m." );
+			if ( ImGui::Button( "Reset Hull" ) )
+			{
+				m_hull = GetDefaultWagonHull();
+				rebuild = true;
+			}
+		}
+
 		if ( rebuild )
 		{
 			b3WorldTransform transform = b3Body_GetTransform( m_wagon.chassisId );
 			DestroyWagon( &m_wagon );
-			CreateWagonBody();
-			b3Body_SetTransform( m_wagon.chassisId, transform.p, transform.q );
+			CreateWagonBody( transform.p, transform.q );
 		}
 
 		int gait = m_gait;
@@ -581,10 +645,12 @@ public:
 		b3Pos tug = GetWagonTug( &m_wagon );
 		DrawCross( tug, 0.1f, MakeColor( b3_colorOrange ) );
 
-		// The horse's body on legs about 0.8 m long, pitched to its hooves
-		b3Vec3 horseSize = { 2.2f, 1.5f, 0.6f };
-		b3Pos horseCenter = b3TransformWorldPoint( horse, { 0.0f, 0.8f + 0.5f * horseSize.y, 0.0f } );
-		DrawCube( { horseCenter, horse.q }, horseSize, MakeColorAlpha( b3_colorTan, 0.6f ) );
+		// The horse's body on legs about 0.8 m long, pitched to its hooves. Drawn where the body is, so
+		// a trunk shoving it off its pose shows.
+		//b3WorldTransform horseBody = b3Body_GetTransform( m_wagon.horseId );
+		//b3Vec3 horseSize = { 2.2f, 1.5f, 0.6f };
+		//b3Pos horseCenter = b3TransformWorldPoint( horseBody, { 0.0f, 0.8f + 0.5f * horseSize.y, 0.0f } );
+		//DrawCube( { horseCenter, horseBody.q }, horseSize, MakeColorAlpha( b3_colorTan, 0.6f ) );
 
 		for ( int i = 0; i < 2; ++i )
 		{
@@ -616,6 +682,8 @@ public:
 		DrawTextLine( "shaft pitch = %.1f deg (target %.1f)%s", m_wagon.shaftPitch * degrees,
 					  m_wagon.targetShaftPitch * degrees,
 					  m_wagon.hoofGrounded[0] || m_wagon.hoofGrounded[1] ? "" : ", horse off the ground" );
+		DrawTextLine( "horse off pose = %.1f cm, %.1f deg, contacts = %d", 100.0f * m_wagon.horseOffset,
+					  m_wagon.horseOffsetAngle * degrees, m_wagon.horseContactCount );
 		if ( b3Joint_IsValid( m_wagon.rollJointId ) )
 		{
 			float maxTorque = m_tuning.maxRollTorque * m_wagon.weight * m_wagon.halfTrack;
@@ -649,6 +717,8 @@ public:
 	WagonGait m_gait;
 	float m_steerInput;
 	float m_mass;
+	float m_horseMass;
+	WagonHull m_hull;
 	b3HullData* m_frontWheelHull;
 	b3HullData* m_rearWheelHull;
 	b3MeshData* m_waveMesh;

@@ -421,6 +421,24 @@ void b3SolveMotionLockJoint( b3JointSim* base, b3StepContext* context, bool useB
 	}
 }
 
+static void b3DrawRing( b3DebugDraw* draw, b3WorldTransform frame, float radius, b3HexColor color )
+{
+	enum
+	{
+		kSliceCount = 16
+	};
+
+	b3Vec3 v1 = { radius, 0.0f, 0.0f };
+	for ( int index = 1; index <= kSliceCount; ++index )
+	{
+		float alpha = 2.0f * B3_PI * (float)index / kSliceCount;
+		b3Vec3 v2 = { radius * b3Cos( alpha ), radius * b3Sin( alpha ), 0.0f };
+		draw->DrawSegmentFcn( b3TransformWorldPoint( frame, v1 ), b3TransformWorldPoint( frame, v2 ), color,
+							  draw->context );
+		v1 = v2;
+	}
+}
+
 void b3DrawMotionLockJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform transformA,
 							b3WorldTransform transformB, float scale )
 {
@@ -429,31 +447,73 @@ void b3DrawMotionLockJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransfor
 	b3WorldTransform frameA = b3MulWorldTransforms( transformA, base->localFrameA );
 	b3WorldTransform frameB = b3MulWorldTransforms( transformB, base->localFrameB );
 
-	float length = 0.1f * scale;
 	b3Matrix3 axesA = b3MakeMatrixFromQuat( frameA.q );
 	b3Vec3 axes[3] = { axesA.cx, axesA.cy, axesA.cz };
-	b3HexColor colors[3] = { b3_colorRed, b3_colorGreen, b3_colorBlue };
+	b3Vec3 delta = b3SubPos( frameB.p, frameA.p );
+
+	// todo comment
+	float margin = 0.25f * scale;
+	b3Vec3 freeAxes[3];
+	float lower[3];
+	float upper[3];
+	int freeCount = 0;
+	b3Vec3 freeDelta = b3Vec3_zero;
 
 	for ( int i = 0; i < 3; ++i )
 	{
-		if ( joint->lockLinear[i] == false )
+		if ( joint->lockLinear[i] )
 		{
 			continue;
 		}
 
-		b3Vec3 offset = b3MulSV( length, axes[i] );
-		draw->DrawSegmentFcn( b3OffsetPos( frameA.p, b3Neg( offset ) ), b3OffsetPos( frameA.p, offset ), colors[i],
-							  draw->context );
+		float d = b3Dot( delta, axes[i] );
+		freeAxes[freeCount] = axes[i];
+		lower[freeCount] = b3MinFloat( d, 0.0f ) - margin;
+		upper[freeCount] = b3MaxFloat( d, 0.0f ) + margin;
+		freeDelta = b3MulAdd( freeDelta, d, axes[i] );
+		freeCount += 1;
+	}
+
+	b3HexColor lockColor = b3_colorOrange;
+
+	if ( freeCount == 1 )
+	{
+		b3Pos p1 = b3OffsetPos( frameA.p, b3MulSV( lower[0], freeAxes[0] ) );
+		b3Pos p2 = b3OffsetPos( frameA.p, b3MulSV( upper[0], freeAxes[0] ) );
+		draw->DrawSegmentFcn( p1, p2, lockColor, draw->context );
+	}
+	else if ( freeCount == 2 )
+	{
+		b3Pos corners[4] = {
+			b3OffsetPos( frameA.p, b3Blend2( lower[0], freeAxes[0], lower[1], freeAxes[1] ) ),
+			b3OffsetPos( frameA.p, b3Blend2( upper[0], freeAxes[0], lower[1], freeAxes[1] ) ),
+			b3OffsetPos( frameA.p, b3Blend2( upper[0], freeAxes[0], upper[1], freeAxes[1] ) ),
+			b3OffsetPos( frameA.p, b3Blend2( lower[0], freeAxes[0], upper[1], freeAxes[1] ) ),
+		};
+
+		for ( int i = 0; i < 4; ++i )
+		{
+			draw->DrawSegmentFcn( corners[i], corners[( i + 1 ) % 4], lockColor, draw->context );
+		}
+	}
+
+	if ( freeCount < 3 )
+	{
+		// todo comment
+		draw->DrawPointFcn( frameA.p, 6.0f, lockColor, draw->context );
+		draw->DrawSegmentFcn( b3OffsetPos( frameA.p, freeDelta ), frameB.p, b3_colorRed, draw->context );
 	}
 
 	if ( joint->lockRotationXY )
 	{
+		float length = 0.2f * scale;
 		b3Vec3 axisB = b3RotateVector( frameB.q, b3Vec3_axisZ );
-		draw->DrawSegmentFcn( frameA.p, b3OffsetPos( frameA.p, b3MulSV( 2.0f * length, axes[2] ) ), b3_colorYellow,
+		draw->DrawSegmentFcn( frameA.p, b3OffsetPos( frameA.p, b3MulSV( length, axes[2] ) ), b3_colorYellow,
 							  draw->context );
-		draw->DrawSegmentFcn( frameB.p, b3OffsetPos( frameB.p, b3MulSV( 2.0f * length, axisB ) ), b3_colorOrange,
+		b3DrawRing( draw, frameA, 0.5f * length, b3_colorYellow );
+		draw->DrawSegmentFcn( frameB.p, b3OffsetPos( frameB.p, b3MulSV( length, axisB ) ), b3_colorViolet,
 							  draw->context );
 	}
 
-	draw->DrawSegmentFcn( frameA.p, frameB.p, b3_colorDarkSeaGreen, draw->context );
+	draw->DrawPointFcn( frameB.p, 8.0f, b3_colorViolet, draw->context );
 }

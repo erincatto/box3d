@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "box3d/collision.h"
 #include "box3d/id.h"
 #include "box3d/math_functions.h"
 
@@ -15,11 +16,18 @@ extern "C"
 #endif
 
 // A horse drawn four wheel wagon, shared by the Vehicle / Wagon sample and the vehicle unit tests.
-// The chassis is the only body. Each wheel is a shape cast and, while it finds ground, a tire joint
+// The wheels are not bodies. Each wheel is a shape cast and, while it finds ground, a tire joint
 // between the ground body and the chassis. The front axle is a turntable: it turns about the kingbolt,
-// so steering moves the front wheel mounts as well as turning the wheels. The horse is not simulated.
-// It stands on the ground between the shafts, which hinge at the front gear and rest on its back, and
-// it pulls with a capped force at the kingbolt along the shafts.
+// so steering moves the front wheel mounts as well as turning the wheels. The horse's legs are not
+// simulated. It stands on the ground between the shafts, which hinge at the front gear and rest on its
+// back, and it pulls with a capped force at the kingbolt along the shafts.
+//
+// The horse collides through a capsule on its own body. Its legs are a lock to a static anchor that
+// holds its height, pitch and roll where the hooves put them, so those loads go to the ground. The
+// shafts are two locks to the chassis that only act across the ground plane, one at the kingbolt and
+// one sideways at the tugs, so a tree that pushes the horse pushes the front gear and turns the wagon.
+// The chassis is one hull over the wheels with its nose wedged into the horse. The horse and the
+// hull have their own friction so they can slide past a trunk.
 //
 // Chassis frame: +x forward, +y up, +z to the right, the axles along z. A tire joint's frame B has
 // its x axis along the suspension, pointing up into the chassis, and its z axis along the axle. The
@@ -119,9 +127,41 @@ typedef struct WagonTuning
 	// spring rather than snapping to a step
 	float horsePitchHertz;
 	float horsePitchDampingRatio;
+
+	// Friction of the horse and the wheel rails, low so they slide around trunks
+	float bumperFriction;
 } WagonTuning;
 
 WagonTuning GetDefaultWagonTuning( void );
+
+// The chassis collision hull in the chassis frame, meters. From the side it is a box from the floor
+// to the top with its lower front cut away up to the nose. From above it is full width back of the
+// shoulder and narrows to a point at the nose. Fixed at creation.
+typedef struct WagonHull
+{
+	// Back face, behind the rear wheel rims
+	float rear;
+
+	// Where the sides start to narrow, ahead of the front wheel rims
+	float shoulder;
+
+	// The point of the wedge, inside the tail of the horse capsule
+	float nose;
+
+	// Outside the wheels
+	float halfWidth;
+
+	// Floor height, kept below the wheel mounts
+	float bottom;
+
+	float top;
+
+	// The nose edge runs from here up to the top. Above the shoulder floor, so the lower front slopes
+	// back from the horse to the front wheels.
+	float noseBottom;
+} WagonHull;
+
+WagonHull GetDefaultWagonHull( void );
 
 typedef struct WagonDef
 {
@@ -131,8 +171,14 @@ typedef struct WagonDef
 	// Chassis mass, kilograms
 	float mass;
 
+	// Mass of the horse body, kilograms. Its legs carry it, so it only adds to the wagon's inertia
+	// across the ground and decides how hard a collision shoves it. Light keeps the tuned handling.
+	float horseMass;
+
 	// Category of the wagon's own shapes, which the wheel casts skip
 	uint64_t categoryBits;
+
+	WagonHull hull;
 
 	WagonTuning tuning;
 } WagonDef;
@@ -195,11 +241,11 @@ typedef struct Wagon
 	float mass;
 	float weight;
 
+	// Local position of the king bolt.
 	b3Vec3 kingbolt;
 	float halfTrack;
 	float wheelbase;
 	float shaftLength;
-	float axleRadius;
 
 	// Horse geometry along the shafts. The shafts rest in the tugs on the horse's back, the tug
 	// distance from the kingbolt and the tug height above the ground under the hooves.
@@ -250,6 +296,29 @@ typedef struct Wagon
 	b3WorldTransform horseTransform;
 	b3Pos hooves[2];
 	bool hoofGrounded[2];
+
+	// Horse body, its legs on a static anchor and its shafts on the chassis. The capsule is in the
+	// horse body frame, whose origin is the horse root. The frames are the joint frames last set, so
+	// an unchanged frame records nothing.
+	b3BodyId horseId;
+	b3BodyId horseAnchorId;
+	b3JointId legJointId;
+	b3JointId shaftJointId;
+	b3JointId tugJointId;
+	b3ShapeId horseShapeId;
+	b3Capsule horseCapsule;
+	b3Transform legFrameA;
+	b3Transform shaftFrameB;
+	b3Transform tugFrameA;
+	b3Transform tugFrameB;
+
+	b3ShapeId chassisShapeId;
+
+	// How far the shafts give at the kingbolt and the horse's heading off the front gear, meters and
+	// radians, and the horse's touching contacts
+	float horseOffset;
+	float horseOffsetAngle;
+	int horseContactCount;
 } Wagon;
 
 Wagon CreateWagon( b3WorldId worldId, const WagonDef* def );
