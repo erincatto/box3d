@@ -48,7 +48,7 @@ typedef struct b3World b3World;
 
 // Major recording version is bumped when writers change.
 // Major version 7 for the motion lock change.
-#define B3_REC_VERSION_MAJOR 7
+#define B3_REC_VERSION_MAJOR 8
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.
 // Minor version 7 made the contact body sim locators persistent
