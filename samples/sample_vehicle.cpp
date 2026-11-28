@@ -14,18 +14,19 @@
 #include <math.h>
 #include <vector>
 
-// A horse drawn wagon on tire joints. The chassis is the only body. Each wheel casts a disc at the
-// ground and, where it finds some, holds a tire joint between that ground body and the chassis. The
-// front axle is a turntable that swings about the kingbolt. The horse is a box standing on the ground
-// between the shafts, which hinge at the front gear and rest on its back. It pulls with a capped force
-// at the kingbolt along the shafts.
+// A horse drawn wagon on tire joints. Each wheel casts a disc at the ground and, where it finds some,
+// holds a tire joint between that ground body and the chassis. The front axle is a turntable that
+// swings about the kingbolt. The horse stands on the ground between the shafts, which hinge at the
+// front gear and rest on its back. It pulls with a capped force at the kingbolt along the shafts. Its
+// body is a capsule held up by its legs and tied to the front gear by the shafts, so it and the wheel
+// rails slide around the trees in the grove behind and to the right of the start.
 //
 // W/S change gait, A/D steer, Space brakes. With the gait at halt the brake is on. S at halt backs the
 // wagon. T toggles a camera that follows the wagon.
 //
-// The axles are capsules on the chassis, so a tipped wagon lies on its running gear. The front axle
-// capsule stays straight ahead on the body and does not swing with the turntable. Rebuilding it
-// while steering would churn the shapes every step.
+// The chassis collides through one hull that covers the wheels from above. It stays straight ahead
+// on the body, so the front wheels swing out of it on the turntable. Rebuilding it while steering
+// would churn the shapes every step.
 //
 // The wagon itself lives in shared/wagon.c so the vehicle unit tests run the same code.
 class WagonSample : public Sample
@@ -45,6 +46,8 @@ public:
 		m_gait = e_wagonHalt;
 		m_steerInput = 0.0f;
 		m_mass = 700.0f;
+		m_horseMass = GetDefaultWagonDef().horseMass;
+		m_hull = GetDefaultWagonHull();
 
 		AddGroundBox( 200.0f );
 		CreateSlopes();
@@ -53,8 +56,9 @@ public:
 		CreateLooseBoxes();
 		CreateWaveTerrain();
 		CreateLogs();
+		CreateTrees();
 
-		CreateWagonBody();
+		CreateWagonBody( { 0.0f, 0.1f, 0.0f }, b3Quat_identity );
 
 		// Cylinders along their y axis, which the wheel transform turns onto the axle
 		const WagonWheel& front = m_wagon.wheels[e_wagonFrontLeft];
@@ -75,11 +79,14 @@ public:
 		}
 	}
 
-	void CreateWagonBody()
+	void CreateWagonBody( b3Pos position, b3Quat rotation )
 	{
 		WagonDef def = GetDefaultWagonDef();
-		def.position = { 0.0f, 0.1f, 0.0f };
+		def.position = position;
+		def.rotation = rotation;
 		def.mass = m_mass;
+		def.horseMass = m_horseMass;
+		def.hull = m_hull;
 		def.categoryBits = m_wagonBit;
 		def.tuning = m_tuning;
 		m_wagon = CreateWagon( m_worldId, &def );
@@ -323,6 +330,33 @@ public:
 		}
 	}
 
+	// A grove behind and to the right of the start, spaced so the wagon can weave through but brushes trunks
+	void CreateTrees()
+	{
+		g_randomSeed = 23;
+
+		b3ShapeDef shapeDef = b3DefaultShapeDef();
+		float spacing = 5.0f;
+		for ( int ix = 0; ix < 8; ++ix )
+		{
+			for ( int iz = 0; iz < 6; ++iz )
+			{
+				float x = -38.0f + spacing * (float)ix + RandomFloatRange( -1.5f, 1.5f );
+				float z = 14.0f + spacing * (float)iz + RandomFloatRange( -1.5f, 1.5f );
+				float radius = RandomFloatRange( 0.15f, 0.4f );
+
+				b3BodyDef bodyDef = b3DefaultBodyDef();
+				bodyDef.name = "tree";
+				bodyDef.position = { x, 0.0f, z };
+				b3BodyId bodyId = b3CreateBody( m_worldId, &bodyDef );
+
+				b3HullData* hull = b3CreateCylinder( 8.0f, radius, 0.0f, 12 );
+				b3CreateHullShape( bodyId, &shapeDef, hull );
+				b3DestroyHull( hull );
+			}
+		}
+	}
+
 	void Keyboard( int key, int action, int mods ) override
 	{
 		if ( action != ACTION_PRESS )
@@ -356,128 +390,17 @@ public:
 	{
 		bool changed = false;
 		bool rebuild = false;
-
-		// The wheel mounts and axles are placed from the travel, so a new travel rebuilds the wagon
-		rebuild |= ImGui::SliderFloat( "Travel", &m_tuning.suspensionTravel, 0.01f, 0.4f, "%.3f m" );
-		ImGui::SetItemTooltip( "Suspension travel from full compression to full extension. Rebuilds the wagon." );
-		changed |= ImGui::SliderFloat( "Rest Length", &m_tuning.suspensionRestLength, 0.0f, 0.5f, "%.3f m" );
-		ImGui::SetItemTooltip( "Spring length at zero force, measured like the travel. Longer than the travel preloads "
-							   "the spring, so the wagon rides higher on a softer spring." );
-		changed |= ImGui::SliderFloat( "Spring Hertz", &m_tuning.suspensionHertz, 0.5f, 10.0f, "%.1f" );
-		ImGui::SetItemTooltip( "Suspension spring stiffness as a natural frequency. Lower is softer over bumps." );
-		changed |= ImGui::SliderFloat( "Rebound Damping", &m_tuning.suspensionDampingRatio, 0.0f, 2.0f, "%.2f" );
-		ImGui::SetItemTooltip( "Damping ratio while the wheel extends. Higher stops the wagon bouncing after a bump." );
-		changed |= ImGui::SliderFloat( "Bump Damping", &m_tuning.bumpDampingRatio, 0.0f, 2.0f, "%.2f" );
-		ImGui::SetItemTooltip( "Damping ratio while the wheel compresses. Lower lets a wheel climb an edge without "
-							   "slamming the chassis up." );
-		changed |= ImGui::SliderFloat( "Max Spring Force", &m_tuning.maxSuspensionForce, 0.1f, 4.0f, "%.2f W" );
-		ImGui::SetItemTooltip( "Cap on each wheel's spring and damper force, as a multiple of the wagon weight." );
-		changed |= ImGui::SliderFloat( "Stop Hertz", &m_tuning.bumpStopHertz, 0.0f, 30.0f, "%.1f" );
-		ImGui::SetItemTooltip( "Bump stop stiffness past full compression. Zero is a rigid stop. Softer lets a wheel "
-							   "sink into a rock on a hard hit instead of throwing the wagon." );
-		changed |= ImGui::SliderFloat( "Stop Damping", &m_tuning.bumpStopDampingRatio, 0.0f, 2.0f, "%.2f" );
-		ImGui::SetItemTooltip( "Damping ratio of the soft bump stop. Unused when Stop Hertz is zero." );
-		changed |= ImGui::SliderFloat( "Lateral Friction", &m_tuning.lateralFriction, 0.0f, 1.5f, "%.2f" );
-		ImGui::SetItemTooltip( "Tire grip along the axle. Lower slides sooner in a turn instead of tipping." );
-		changed |= ImGui::SliderFloat( "Rolling Friction", &m_tuning.rollingFriction, 0.0f, 1.5f, "%.2f" );
-		ImGui::SetItemTooltip( "Tire grip along the rolling direction. Limits braking." );
-		changed |= ImGui::SliderFloat( "Rolling Resistance", &m_tuning.rollingResistance, 0.0f, 0.2f, "%.3f" );
-		ImGui::SetItemTooltip( "Drag of a free rolling wheel as a fraction of its load." );
-		changed |= ImGui::SliderFloat( "Brake Force", &m_tuning.brakeForce, 0.0f, 1.0f, "%.2f W" );
-		ImGui::SetItemTooltip( "Brake on each rear wheel, as a multiple of the wagon weight. The tire grip still caps it." );
-		changed |= ImGui::SliderFloat( "Tire Force Height", &m_tuning.tireForceHeight, 0.0f, 0.6f, "%.2f m" );
-		ImGui::SetItemTooltip( "Height above the contact where tire friction acts on the chassis. Zero is physical. "
-							   "Raising it reduces body roll in turns." );
-		changed |= ImGui::SliderFloat( "Draft Gain", &m_tuning.draftGain, 0.5f, 20.0f, "%.1f" );
-		ImGui::SetItemTooltip( "How hard the horse pulls per m/s of speed short of the gait speed." );
-		changed |= ImGui::SliderFloat( "Holdback", &m_tuning.holdback, 0.0f, 0.5f, "%.2f W" );
-		ImGui::SetItemTooltip( "Most the horse can hold back or push the wagon backward, as a multiple of the wagon "
-							   "weight." );
-		changed |= ImGui::SliderFloat( "Strain Draft", &m_tuning.strainDraft, 0.0f, 1.5f, "%.2f W" );
-		ImGui::SetItemTooltip( "Pull of a horse that digs in when the wagon stalls, as a multiple of the wagon weight. "
-							   "Below the gait draft it does nothing." );
-		changed |= ImGui::SliderFloat( "Strain Speed", &m_tuning.strainSpeed, 0.0f, 3.0f, "%.2f m/s" );
-		ImGui::SetItemTooltip( "Pulling forward below this speed counts as stalled and the horse strains." );
-		changed |= ImGui::SliderFloat( "Strain Duration", &m_tuning.strainDuration, 0.0f, 10.0f, "%.1f s" );
-		ImGui::SetItemTooltip( "How long the horse can strain before it is spent. Zero turns straining off." );
-		changed |= ImGui::SliderFloat( "Strain Recovery", &m_tuning.strainRecovery, 0.0f, 30.0f, "%.1f s" );
-		ImGui::SetItemTooltip( "Rest time to recover a full strain. A spent horse cannot strain again until fully "
-							   "recovered." );
-		changed |= ImGui::SliderFloat( "Max Lateral Accel", &m_tuning.maxLateralAcceleration, 0.05f, 2.0f, "%.2f g" );
-		ImGui::SetItemTooltip( "Hardest turn the horse will take. Narrows the steering limit as speed rises." );
-
 		float degrees = 180.0f / B3_PI;
-		float steerRate = m_tuning.steerRate * degrees;
-		if ( ImGui::SliderFloat( "Steer Rate", &steerRate, 5.0f, 180.0f, "%.0f deg/s" ) )
-		{
-			m_tuning.steerRate = steerRate / degrees;
-			changed = true;
-		}
-		ImGui::SetItemTooltip( "How fast the front gear turns toward the steering input." );
 
-		float maxSteer = m_tuning.maxSteer * degrees;
-		if ( ImGui::SliderFloat( "Cramp Limit", &maxSteer, 5.0f, 80.0f, "%.0f deg" ) )
-		{
-			m_tuning.maxSteer = maxSteer / degrees;
-			changed = true;
-		}
-		ImGui::SetItemTooltip( "Most the front gear can turn about the kingbolt, at low speed." );
-
-		float groundAngle = m_tuning.maxGroundAngle * degrees;
-		if ( ImGui::SliderFloat( "Max Ground Angle", &groundAngle, 10.0f, 89.0f, "%.0f deg" ) )
-		{
-			m_tuning.maxGroundAngle = groundAngle / degrees;
-			changed = true;
-		}
-		ImGui::SetItemTooltip( "Steepest wheel hit treated as ground the wheel can climb. Steeper hits are walls." );
-
-		changed |= ImGui::SliderFloat( "Anti Roll Torque", &m_tuning.maxRollTorque, 0.0f, 4.0f, "%.2f W*T" );
-		ImGui::SetItemTooltip( "Cap on the parallel joint that holds the wagon level across the ground, as a multiple "
-							   "of weight times half track, the moment gravity gives against tipping. Zero is off." );
-		changed |= ImGui::SliderFloat( "Anti Roll Hertz", &m_tuning.rollHertz, 0.1f, 10.0f, "%.1f" );
-		ImGui::SetItemTooltip( "Stiffness of the anti roll joint as a natural frequency." );
-		changed |= ImGui::SliderFloat( "Anti Roll Damping", &m_tuning.rollDampingRatio, 0.0f, 2.0f, "%.2f" );
-		ImGui::SetItemTooltip( "Damping ratio of the anti roll joint. It damps pitch rate as well as roll." );
-
-		changed |= ImGui::SliderFloat( "Horse Pitch Hertz", &m_tuning.horsePitchHertz, 0.0f, 10.0f, "%.1f" );
-		ImGui::SetItemTooltip( "How fast the shafts and the horse's body follow the ground under its hooves. "
-							   "Zero snaps to the ground." );
-		changed |= ImGui::SliderFloat( "Horse Pitch Damping", &m_tuning.horsePitchDampingRatio, 0.0f, 2.0f, "%.2f" );
-		ImGui::SetItemTooltip( "Damping ratio of the horse pitch. Below one the shafts bob after a step." );
-
-		for ( int gait = e_wagonBack; gait < e_wagonGaitCount; ++gait )
-		{
-			if ( gait == e_wagonHalt )
+		auto sliderDegrees = [degrees]( const char* label, float* radians, float lower, float upper, const char* format ) {
+			float value = *radians * degrees;
+			if ( ImGui::SliderFloat( label, &value, lower, upper, format ) )
 			{
-				continue;
+				*radians = value / degrees;
+				return true;
 			}
-
-			ImGui::PushID( gait );
-			ImGui::Text( "%s", g_wagonGaitNames[gait] );
-			float minSpeed = gait == e_wagonBack ? -3.0f : 0.5f;
-			float maxSpeed = gait == e_wagonBack ? -0.2f : 20.0f;
-			changed |= ImGui::SliderFloat( "Speed", &m_tuning.gaitSpeed[gait], minSpeed, maxSpeed, "%.1f m/s" );
-			ImGui::SetItemTooltip( "Speed the horse holds at this gait." );
-			changed |= ImGui::SliderFloat( "Draft", &m_tuning.draft[gait], 0.0f, 1.0f, "%.2f W" );
-			ImGui::SetItemTooltip( "Most the horse pulls forward at this gait, as a multiple of the wagon weight." );
-			ImGui::PopID();
-		}
-
-		if ( changed )
-		{
-			SetWagonTuning( &m_wagon, &m_tuning );
-		}
-
-		// The mass is fixed at creation, so a new mass rebuilds the wagon where it stands
-		rebuild |= ImGui::SliderFloat( "Mass", &m_mass, 200.0f, 4000.0f, "%.0f kg" );
-		ImGui::SetItemTooltip( "Wagon mass. Forces given in W scale with it. Rebuilds the wagon where it stands." );
-		if ( rebuild )
-		{
-			b3WorldTransform transform = b3Body_GetTransform( m_wagon.chassisId );
-			DestroyWagon( &m_wagon );
-			CreateWagonBody();
-			b3Body_SetTransform( m_wagon.chassisId, transform.p, transform.q );
-		}
+			return false;
+		};
 
 		int gait = m_gait;
 		if ( ImGui::Combo( "Gait", &gait, g_wagonGaitNames, e_wagonGaitCount ) )
@@ -492,6 +415,177 @@ public:
 			ToggleThirdPerson();
 		}
 		ImGui::SetItemTooltip( "Camera follows the wagon and the keys drive it." );
+
+		if ( ImGui::CollapsingHeader( "Suspension" ) )
+		{
+			// The wheel mounts and axles are placed from the travel, so a new travel rebuilds the wagon
+			rebuild |= ImGui::SliderFloat( "Travel", &m_tuning.suspensionTravel, 0.01f, 0.4f, "%.3f m" );
+			ImGui::SetItemTooltip( "Suspension travel from full compression to full extension. Rebuilds the wagon." );
+			changed |= ImGui::SliderFloat( "Rest Length", &m_tuning.suspensionRestLength, 0.0f, 0.5f, "%.3f m" );
+			ImGui::SetItemTooltip( "Spring length at zero force, measured like the travel. Longer than the travel "
+								   "preloads the spring, so the wagon rides higher on a softer spring." );
+			changed |= ImGui::SliderFloat( "Spring Hertz", &m_tuning.suspensionHertz, 0.5f, 10.0f, "%.1f" );
+			ImGui::SetItemTooltip( "Suspension spring stiffness as a natural frequency. Lower is softer over bumps." );
+			changed |= ImGui::SliderFloat( "Rebound Damping", &m_tuning.suspensionDampingRatio, 0.0f, 2.0f, "%.2f" );
+			ImGui::SetItemTooltip( "Damping ratio while the wheel extends. Higher stops the wagon bouncing after a "
+								   "bump." );
+			changed |= ImGui::SliderFloat( "Bump Damping", &m_tuning.bumpDampingRatio, 0.0f, 2.0f, "%.2f" );
+			ImGui::SetItemTooltip( "Damping ratio while the wheel compresses. Lower lets a wheel climb an edge without "
+								   "slamming the chassis up." );
+			changed |= ImGui::SliderFloat( "Max Spring Force", &m_tuning.maxSuspensionForce, 0.1f, 4.0f, "%.2f W" );
+			ImGui::SetItemTooltip( "Cap on each wheel's spring and damper force, as a multiple of the wagon weight." );
+			changed |= ImGui::SliderFloat( "Stop Hertz", &m_tuning.bumpStopHertz, 0.0f, 30.0f, "%.1f" );
+			ImGui::SetItemTooltip( "Bump stop stiffness past full compression. Zero is a rigid stop. Softer lets a "
+								   "wheel sink into a rock on a hard hit instead of throwing the wagon." );
+			changed |= ImGui::SliderFloat( "Stop Damping", &m_tuning.bumpStopDampingRatio, 0.0f, 2.0f, "%.2f" );
+			ImGui::SetItemTooltip( "Damping ratio of the soft bump stop. Unused when Stop Hertz is zero." );
+		}
+
+		if ( ImGui::CollapsingHeader( "Tires" ) )
+		{
+			changed |= ImGui::SliderFloat( "Lateral Friction", &m_tuning.lateralFriction, 0.0f, 1.5f, "%.2f" );
+			ImGui::SetItemTooltip( "Tire grip along the axle. Lower slides sooner in a turn instead of tipping." );
+			changed |= ImGui::SliderFloat( "Rolling Friction", &m_tuning.rollingFriction, 0.0f, 1.5f, "%.2f" );
+			ImGui::SetItemTooltip( "Tire grip along the rolling direction. Limits braking." );
+			changed |= ImGui::SliderFloat( "Rolling Resistance", &m_tuning.rollingResistance, 0.0f, 0.2f, "%.3f" );
+			ImGui::SetItemTooltip( "Drag of a free rolling wheel as a fraction of its load." );
+			changed |= ImGui::SliderFloat( "Brake Force", &m_tuning.brakeForce, 0.0f, 1.0f, "%.2f W" );
+			ImGui::SetItemTooltip( "Brake on each rear wheel, as a multiple of the wagon weight. The tire grip still "
+								   "caps it." );
+			changed |= ImGui::SliderFloat( "Tire Force Height", &m_tuning.tireForceHeight, 0.0f, 0.6f, "%.2f m" );
+			ImGui::SetItemTooltip( "Height above the contact where tire friction acts on the chassis. Zero is physical. "
+								   "Raising it reduces body roll in turns." );
+			changed |= sliderDegrees( "Max Ground Angle", &m_tuning.maxGroundAngle, 10.0f, 89.0f, "%.0f deg" );
+			ImGui::SetItemTooltip( "Steepest wheel hit treated as ground the wheel can climb. Steeper hits are walls." );
+		}
+
+		if ( ImGui::CollapsingHeader( "Steering" ) )
+		{
+			changed |= sliderDegrees( "Steer Rate", &m_tuning.steerRate, 5.0f, 180.0f, "%.0f deg/s" );
+			ImGui::SetItemTooltip( "How fast the front gear turns toward the steering input." );
+			changed |= sliderDegrees( "Cramp Limit", &m_tuning.maxSteer, 5.0f, 80.0f, "%.0f deg" );
+			ImGui::SetItemTooltip( "Most the front gear can turn about the kingbolt, at low speed." );
+			changed |= ImGui::SliderFloat( "Max Lateral Accel", &m_tuning.maxLateralAcceleration, 0.05f, 2.0f, "%.2f g" );
+			ImGui::SetItemTooltip( "Hardest turn the horse will take. Narrows the steering limit as speed rises." );
+		}
+
+		if ( ImGui::CollapsingHeader( "Anti Roll" ) )
+		{
+			changed |= ImGui::SliderFloat( "Anti Roll Torque", &m_tuning.maxRollTorque, 0.0f, 4.0f, "%.2f W*T" );
+			ImGui::SetItemTooltip( "Cap on the parallel joint that holds the wagon level across the ground, as a "
+								   "multiple of weight times half track, the moment gravity gives against tipping. "
+								   "Zero is off." );
+			changed |= ImGui::SliderFloat( "Anti Roll Hertz", &m_tuning.rollHertz, 0.1f, 10.0f, "%.1f" );
+			ImGui::SetItemTooltip( "Stiffness of the anti roll joint as a natural frequency." );
+			changed |= ImGui::SliderFloat( "Anti Roll Damping", &m_tuning.rollDampingRatio, 0.0f, 2.0f, "%.2f" );
+			ImGui::SetItemTooltip( "Damping ratio of the anti roll joint. It damps pitch rate as well as roll." );
+		}
+
+		if ( ImGui::CollapsingHeader( "Draft" ) )
+		{
+			changed |= ImGui::SliderFloat( "Draft Gain", &m_tuning.draftGain, 0.5f, 20.0f, "%.1f" );
+			ImGui::SetItemTooltip( "How hard the horse pulls per m/s of speed short of the gait speed." );
+			changed |= ImGui::SliderFloat( "Holdback", &m_tuning.holdback, 0.0f, 0.5f, "%.2f W" );
+			ImGui::SetItemTooltip( "Most the horse can hold back or push the wagon backward, as a multiple of the "
+								   "wagon weight." );
+			changed |= ImGui::SliderFloat( "Strain Draft", &m_tuning.strainDraft, 0.0f, 1.5f, "%.2f W" );
+			ImGui::SetItemTooltip( "Pull of a horse that digs in when the wagon stalls, as a multiple of the wagon "
+								   "weight. Below the gait draft it does nothing." );
+			changed |= ImGui::SliderFloat( "Strain Speed", &m_tuning.strainSpeed, 0.0f, 3.0f, "%.2f m/s" );
+			ImGui::SetItemTooltip( "Pulling forward below this speed counts as stalled and the horse strains." );
+			changed |= ImGui::SliderFloat( "Strain Duration", &m_tuning.strainDuration, 0.0f, 10.0f, "%.1f s" );
+			ImGui::SetItemTooltip( "How long the horse can strain before it is spent. Zero turns straining off." );
+			changed |= ImGui::SliderFloat( "Strain Recovery", &m_tuning.strainRecovery, 0.0f, 30.0f, "%.1f s" );
+			ImGui::SetItemTooltip( "Rest time to recover a full strain. A spent horse cannot strain again until fully "
+								   "recovered." );
+		}
+
+		if ( ImGui::CollapsingHeader( "Gaits" ) )
+		{
+			for ( int index = e_wagonBack; index < e_wagonGaitCount; ++index )
+			{
+				if ( index == e_wagonHalt )
+				{
+					continue;
+				}
+
+				ImGui::PushID( index );
+				ImGui::Text( "%s", g_wagonGaitNames[index] );
+				float minSpeed = index == e_wagonBack ? -3.0f : 0.5f;
+				float maxSpeed = index == e_wagonBack ? -0.2f : 20.0f;
+				changed |= ImGui::SliderFloat( "Speed", &m_tuning.gaitSpeed[index], minSpeed, maxSpeed, "%.1f m/s" );
+				ImGui::SetItemTooltip( "Speed the horse holds at this gait." );
+				changed |= ImGui::SliderFloat( "Draft", &m_tuning.draft[index], 0.0f, 1.0f, "%.2f W" );
+				ImGui::SetItemTooltip( "Most the horse pulls forward at this gait, as a multiple of the wagon weight." );
+				ImGui::PopID();
+			}
+		}
+
+		if ( ImGui::CollapsingHeader( "Horse" ) )
+		{
+			changed |= ImGui::SliderFloat( "Pitch Hertz", &m_tuning.horsePitchHertz, 0.0f, 10.0f, "%.1f" );
+			ImGui::SetItemTooltip( "How fast the shafts and the horse's body follow the ground under its hooves. "
+								   "Zero snaps to the ground." );
+			changed |= ImGui::SliderFloat( "Pitch Damping", &m_tuning.horsePitchDampingRatio, 0.0f, 2.0f, "%.2f" );
+			ImGui::SetItemTooltip( "Damping ratio of the horse pitch. Below one the shafts bob after a step." );
+			changed |= sliderDegrees( "Min Shaft Pitch", &m_tuning.minShaftPitch, -60.0f, 0.0f, "%.0f deg" );
+			ImGui::SetItemTooltip( "Lowest the shafts reach below level. A horse stepping into a deeper drop floats. "
+								   "Much below -25 deg the horse tucks under the default hull." );
+			changed |= sliderDegrees( "Max Shaft Pitch", &m_tuning.maxShaftPitch, 0.0f, 60.0f, "%.0f deg" );
+			ImGui::SetItemTooltip( "Highest the shafts reach above level, for the horse climbing ahead of the wagon." );
+			changed |= sliderDegrees( "Min Body Pitch", &m_tuning.minHorsePitch, -60.0f, 0.0f, "%.0f deg" );
+			ImGui::SetItemTooltip( "Steepest nose down pitch of the horse's body. A fore hoof lower than this allows "
+								   "floats." );
+			changed |= sliderDegrees( "Max Body Pitch", &m_tuning.maxHorsePitch, 0.0f, 60.0f, "%.0f deg" );
+			ImGui::SetItemTooltip( "Steepest nose up pitch of the horse's body, for climbing. A hind hoof lower than "
+								   "this allows floats." );
+
+			// The mass is fixed at creation, so a new mass rebuilds the wagon where it stands
+			rebuild |= ImGui::SliderFloat( "Horse Mass", &m_horseMass, 10.0f, 1000.0f, "%.0f kg" );
+			ImGui::SetItemTooltip( "Horse body mass. Its legs carry it, so it only adds inertia across the ground and "
+								   "sets how hard a trunk shoves it. Rebuilds the wagon." );
+		}
+
+		if ( ImGui::CollapsingHeader( "Hull" ) )
+		{
+			rebuild |= ImGui::SliderFloat( "Mass", &m_mass, 200.0f, 4000.0f, "%.0f kg" );
+			ImGui::SetItemTooltip( "Wagon mass. Forces given in W scale with it. Rebuilds the wagon where it stands." );
+			changed |= ImGui::SliderFloat( "Bumper Friction", &m_tuning.bumperFriction, 0.0f, 1.0f, "%.2f" );
+			ImGui::SetItemTooltip( "Friction of the horse and the hull. Low lets them slide around a trunk." );
+			rebuild |= ImGui::SliderFloat( "Rear", &m_hull.rear, -3.0f, -1.0f, "%.2f m" );
+			ImGui::SetItemTooltip( "Back face. Behind the rear wheel rims at -1.55 m." );
+			rebuild |= ImGui::SliderFloat( "Shoulder", &m_hull.shoulder, 0.5f, 2.5f, "%.2f m" );
+			ImGui::SetItemTooltip( "Where the sides start to narrow toward the nose. Ahead of the front wheel rims at "
+								   "1.45 m." );
+			rebuild |= ImGui::SliderFloat( "Nose", &m_hull.nose, 1.0f, 3.0f, "%.2f m" );
+			ImGui::SetItemTooltip( "Point of the wedge. Inside the horse's tail cap, centered about 1.95 m ahead with "
+								   "the front gear straight." );
+			rebuild |= ImGui::SliderFloat( "Half Width", &m_hull.halfWidth, 0.5f, 1.2f, "%.2f m" );
+			ImGui::SetItemTooltip( "Outside the wheel faces at 0.765 m." );
+			rebuild |= ImGui::SliderFloat( "Bottom", &m_hull.bottom, 0.2f, 0.9f, "%.2f m" );
+			ImGui::SetItemTooltip( "Floor height above the ground at full extension. Kept below the front wheel mount "
+								   "so the casts start inside the hull." );
+			rebuild |= ImGui::SliderFloat( "Top", &m_hull.top, 1.0f, 2.5f, "%.2f m" );
+			rebuild |= ImGui::SliderFloat( "Nose Bottom", &m_hull.noseBottom, 0.3f, 2.4f, "%.2f m" );
+			ImGui::SetItemTooltip( "Lower end of the nose edge. The horse capsule spans about 1.15 to 1.95 m." );
+			if ( ImGui::Button( "Reset Hull" ) )
+			{
+				m_hull = GetDefaultWagonHull();
+				rebuild = true;
+			}
+		}
+
+		if ( changed )
+		{
+			SetWagonTuning( &m_wagon, &m_tuning );
+		}
+
+		if ( rebuild )
+		{
+			b3WorldTransform transform = b3Body_GetTransform( m_wagon.chassisId );
+			DestroyWagon( &m_wagon );
+			CreateWagonBody( transform.p, transform.q );
+		}
 
 		return true;
 	}
@@ -581,11 +675,6 @@ public:
 		b3Pos tug = GetWagonTug( &m_wagon );
 		DrawCross( tug, 0.1f, MakeColor( b3_colorOrange ) );
 
-		// The horse's body on legs about 0.8 m long, pitched to its hooves
-		b3Vec3 horseSize = { 2.2f, 1.5f, 0.6f };
-		b3Pos horseCenter = b3TransformWorldPoint( horse, { 0.0f, 0.8f + 0.5f * horseSize.y, 0.0f } );
-		DrawCube( { horseCenter, horse.q }, horseSize, MakeColorAlpha( b3_colorTan, 0.6f ) );
-
 		for ( int i = 0; i < 2; ++i )
 		{
 			b3HexColor color = m_wagon.hoofGrounded[i] ? b3_colorYellow : b3_colorGray;
@@ -616,6 +705,8 @@ public:
 		DrawTextLine( "shaft pitch = %.1f deg (target %.1f)%s", m_wagon.shaftPitch * degrees,
 					  m_wagon.targetShaftPitch * degrees,
 					  m_wagon.hoofGrounded[0] || m_wagon.hoofGrounded[1] ? "" : ", horse off the ground" );
+		DrawTextLine( "horse off pose = %.1f cm, %.1f deg, contacts = %d", 100.0f * m_wagon.horseOffset,
+					  m_wagon.horseOffsetAngle * degrees, m_wagon.horseContactCount );
 		if ( b3Joint_IsValid( m_wagon.rollJointId ) )
 		{
 			float maxTorque = m_tuning.maxRollTorque * m_wagon.weight * m_wagon.halfTrack;
@@ -649,6 +740,8 @@ public:
 	WagonGait m_gait;
 	float m_steerInput;
 	float m_mass;
+	float m_horseMass;
+	WagonHull m_hull;
 	b3HullData* m_frontWheelHull;
 	b3HullData* m_rearWheelHull;
 	b3MeshData* m_waveMesh;

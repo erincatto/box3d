@@ -47,12 +47,10 @@ typedef struct b3World b3World;
 #define B3_REC_MAGIC 0x43523342u
 
 // Major recording version is bumped when writers change.
-// Major version 7 for the motion lock change.
-#define B3_REC_VERSION_MAJOR 7
+#define B3_REC_VERSION_MAJOR 8 // maxSpringTorque
 
 // Minor tracks op-stream additions that keep the 48 byte header shape.
-// Minor version 7 made the contact body sim locators persistent
-#define B3_REC_VERSION_MINOR 11
+#define B3_REC_VERSION_MINOR 11 // I forget
 
 // File header, fixed 48 bytes. Contains the registry locator so the player
 // can load geometry before replaying any ops.

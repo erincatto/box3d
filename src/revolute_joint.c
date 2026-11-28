@@ -174,6 +174,22 @@ float b3RevoluteJoint_GetSpringDampingRatio( b3JointId jointId )
 	return base->revoluteJoint.dampingRatio;
 }
 
+void b3RevoluteJoint_SetMaxSpringTorque( b3JointId jointId, float torque )
+{
+	B3_CHECK_INPUT( b3IsValidFloat( torque ) && torque >= 0.0f );
+
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointSetMaxSpringTorque, jointId, torque );
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
+	base->revoluteJoint.maxSpringTorque = torque;
+}
+
+float b3RevoluteJoint_GetMaxSpringTorque( b3JointId jointId )
+{
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
+	return base->revoluteJoint.maxSpringTorque;
+}
+
 void b3RevoluteJoint_EnableMotor( b3JointId jointId, bool enableMotor )
 {
 	b3World* world = b3GetWorld( jointId.world0 );
@@ -438,9 +454,16 @@ void b3SolveRevoluteJoint( b3JointSim* base, b3StepContext* context, bool useBia
 			float massScale = joint->springSoftness.massScale;
 			float impulseScale = joint->springSoftness.impulseScale;
 
-			float deltaImpulse =
-				-massScale * joint->axialMass * ( axialCdot + bias ) - impulseScale * joint->springImpulse;
-			joint->springImpulse += deltaImpulse;
+			float maxImpulse = context->h * joint->maxSpringTorque;
+			float oldImpulse = joint->springImpulse;
+			float deltaImpulse = -massScale * joint->axialMass * ( axialCdot + bias ) - impulseScale * oldImpulse;
+			float newImpulse = oldImpulse + deltaImpulse;
+			if ( newImpulse < -maxImpulse || maxImpulse < newImpulse )
+			{
+				newImpulse = b3ClampFloat( newImpulse, -maxImpulse, maxImpulse );
+				deltaImpulse = newImpulse - oldImpulse;
+			}
+			joint->springImpulse = newImpulse;
 
 			axialCdot += k * deltaImpulse;
 			axialImpulse += deltaImpulse;

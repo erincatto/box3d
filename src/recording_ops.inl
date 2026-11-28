@@ -236,6 +236,9 @@ B3_REC_OP( 0x8F, TireJointSetContact, RET_NONE, ARG( JOINTID, joint ) ARG( VEC3,
 // Opcode scuffed due to space constraints
 B3_REC_OP( 0x71, TireJointSetBrakeForce, RET_NONE, ARG( JOINTID, joint ) ARG( F32, force ) )
 
+// Revolute joint, continued
+B3_REC_OP( 0x72, RevoluteJointSetMaxSpringTorque, RET_NONE, ARG( JOINTID, joint ) ARG( F32, torque ) )
+
 // Spatial queries. Inputs flow through the manifest (reader side). The hit tail and result are
 // hand-written in recording.c / recording_replay.c since they are variable length.
 B3_REC_OP( 0xE8, QueryOverlapAABB, RET_NONE, ARG( WORLDID, world ) ARG( AABB, aabb ) ARG( QUERYFILTER, filter ) )

@@ -1456,6 +1456,7 @@ static int AllOps( void )
 	revDef.base.bodyIdB = jb[1];
 	revDef.base.localFrameA.p = (b3Vec3){ 1.0f, 0.0f, 0.0f };
 	revDef.base.localFrameB.p = (b3Vec3){ -1.0f, 0.0f, 0.0f };
+	revDef.maxSpringTorque = 20.0f;
 	b3JointId revId = b3CreateRevoluteJoint( worldId, &revDef );
 	ENSURE( b3Joint_IsValid( revId ) );
 	b3RevoluteJoint_EnableLimit( revId, true );
@@ -1467,6 +1468,7 @@ static int AllOps( void )
 	b3RevoluteJoint_SetSpringHertz( revId, 2.0f );
 	b3RevoluteJoint_SetSpringDampingRatio( revId, 0.5f );
 	b3RevoluteJoint_SetTargetAngle( revId, 0.25f );
+	b3RevoluteJoint_SetMaxSpringTorque( revId, 5.0f );
 	b3Joint_SetLocalFrameA( revId, (b3Transform){ (b3Vec3){ 1.0f, 0.0f, 0.0f }, b3Quat_identity } );
 	b3Joint_SetLocalFrameB( revId,
 							(b3Transform){ (b3Vec3){ -1.0f, 0.0f, 0.0f }, b3Quat_identity } );

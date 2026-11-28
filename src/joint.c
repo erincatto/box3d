@@ -121,6 +121,7 @@ b3RevoluteJointDef b3DefaultRevoluteJointDef( void )
 {
 	b3RevoluteJointDef def = { 0 };
 	def.base = b3DefaultJointDef();
+	def.maxSpringTorque = FLT_MAX;
 	return def;
 }
 
@@ -838,6 +839,7 @@ b3JointId b3CreateRevoluteJoint( b3WorldId worldId, const b3RevoluteJointDef* de
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->targetAngle ), (b3JointId){ 0 } );
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->hertz ), (b3JointId){ 0 } );
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->dampingRatio ), (b3JointId){ 0 } );
+	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->maxSpringTorque ), (b3JointId){ 0 } );
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->lowerAngle ), (b3JointId){ 0 } );
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->upperAngle ), (b3JointId){ 0 } );
 	B3_CHECK_INPUT_RETURN( b3IsValidFloat( def->maxMotorTorque ), (b3JointId){ 0 } );
@@ -856,6 +858,7 @@ b3JointId b3CreateRevoluteJoint( b3WorldId worldId, const b3RevoluteJointDef* de
 	joint->revoluteJoint = (b3RevoluteJoint){ 0 };
 	joint->revoluteJoint.hertz = def->hertz;
 	joint->revoluteJoint.dampingRatio = def->dampingRatio;
+	joint->revoluteJoint.maxSpringTorque = b3MaxFloat( 0.0f, def->maxSpringTorque );
 	joint->revoluteJoint.targetAngle = b3ClampFloat( def->targetAngle, -B3_PI, B3_PI );
 
 	float lowerAngle = b3MinFloat( def->lowerAngle, def->upperAngle );

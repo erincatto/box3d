@@ -1652,6 +1652,12 @@ B3_API void b3RevoluteJoint_SetSpringDampingRatio( b3JointId jointId, float damp
 /// Get the revolute joint spring damping ratio, non-dimensional
 B3_API float b3RevoluteJoint_GetSpringDampingRatio( b3JointId jointId );
 
+/// Set the maximum spring torque. Usually in newton-meters.
+B3_API void b3RevoluteJoint_SetMaxSpringTorque( b3JointId jointId, float torque );
+
+/// Get the maximum spring torque. Usually in newton-meters.
+B3_API float b3RevoluteJoint_GetMaxSpringTorque( b3JointId jointId );
+
 /// Set the revolute joint target angle in radians
 B3_API void b3RevoluteJoint_SetTargetAngle( b3JointId jointId, float targetRadians );
 

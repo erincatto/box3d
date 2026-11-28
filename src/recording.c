@@ -326,7 +326,7 @@ _Static_assert( sizeof( void* ) != 8 || sizeof( b3MotorJointDef ) == 168,
 				"b3MotorJointDef changed: update b3RecW_MOTORJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3PrismaticJointDef ) == 152,
 				"b3PrismaticJointDef changed: update b3RecW_PRISMATICJOINTDEF and its reader together" );
-_Static_assert( sizeof( void* ) != 8 || sizeof( b3RevoluteJointDef ) == 152,
+_Static_assert( sizeof( void* ) != 8 || sizeof( b3RevoluteJointDef ) == 160,
 				"b3RevoluteJointDef changed: update b3RecW_REVOLUTEJOINTDEF and its reader together" );
 _Static_assert( sizeof( void* ) != 8 || sizeof( b3SphericalJointDef ) == 184,
 				"b3SphericalJointDef changed: update b3RecW_SPHERICALJOINTDEF and its reader together" );
@@ -499,6 +499,7 @@ void b3RecW_REVOLUTEJOINTDEF( b3RecBuffer* buf, b3RevoluteJointDef v )
 	b3RecW_BOOL( buf, v.enableSpring );
 	b3RecW_F32( buf, v.hertz );
 	b3RecW_F32( buf, v.dampingRatio );
+	b3RecW_F32( buf, v.maxSpringTorque );
 	b3RecW_BOOL( buf, v.enableLimit );
 	b3RecW_F32( buf, v.lowerAngle );
 	b3RecW_F32( buf, v.upperAngle );

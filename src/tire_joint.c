@@ -331,14 +331,18 @@ void b3SolveTireJoint( b3JointSim* base, b3StepContext* context, bool useBias )
 	b3Vec3 dp = b3Sub( stateB->deltaPosition, stateA->deltaPosition );
 	b3Vec3 separation = b3Add( b3Add( dp, joint->deltaCenter ), b3Sub( mountB, originA ) );
 	float clearance = b3Dot( separation, normal ) - joint->contactRadius;
-	float length = clearance / joint->cosine;
 
 	// Suspension
 	{
 		float oldImpulse = joint->suspensionImpulse;
 		float newImpulse = 0.0f;
 
-		if ( joint->hertz > 0.0f && length <= joint->maxLength )
+		// Compute extension for speculative suspension.
+		float band = B3_LINEAR_SLOP;
+		float extension = clearance - joint->maxLength * joint->cosine;
+
+		// Require a small amount of compression to engage the suspension fully.
+		if ( joint->hertz > 0.0f && extension <= -band )
 		{
 			float c = clearance - joint->restLength * joint->cosine;
 			float vn =
@@ -350,6 +354,39 @@ void b3SolveTireJoint( b3JointSim* base, b3StepContext* context, bool useBias )
 							softness.impulseScale * oldImpulse;
 			float maxImpulse = context->h * joint->maxSuspensionForce;
 			newImpulse = b3ClampFloat( oldImpulse + impulse, 0.0f, maxImpulse );
+		}
+		else if ( joint->hertz > 0.0f )
+		{
+			// The suspension is extended. Use a speculative spring. Don't apply more force than the preload.
+			float omega = 2.0f * B3_PI * joint->hertz;
+			float preload =
+				joint->normalMass * omega * omega * ( ( joint->restLength - joint->maxLength ) * joint->cosine + band );
+			float maxImpulse = context->h * b3MinFloat( preload, joint->maxSuspensionForce );
+
+			if ( maxImpulse > 0.0f )
+			{
+				float bias = 0.0f;
+				float massScale = 1.0f;
+				float impulseScale = 0.0f;
+
+				if ( extension > 0.0f )
+				{
+					bias = extension * context->inv_h;
+				}
+				else if ( useBias )
+				{
+					b3Softness softness =
+						joint->indexA == B3_NULL_INDEX ? context->staticSoftness : context->contactSoftness;
+					bias = b3MaxFloat( softness.massScale * softness.biasRate * extension, -context->world->contactSpeed );
+					massScale = softness.massScale;
+					impulseScale = softness.impulseScale;
+				}
+
+				float vn =
+					b3Dot( b3Sub( b3Add( vB, b3Cross( wB, anchorB ) ), b3Add( vA, b3Cross( wA, anchorA ) ) ), normal );
+				float impulse = -joint->normalMass * ( massScale * vn + bias ) - impulseScale * oldImpulse;
+				newImpulse = b3ClampFloat( oldImpulse + impulse, 0.0f, maxImpulse );
+			}
 		}
 
 		joint->suspensionImpulse = newImpulse;
