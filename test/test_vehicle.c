@@ -341,6 +341,127 @@ static int TreeCrash( void )
 	return 0;
 }
 
+// The leg force along the axes the shafts lock, as a multiple of the wagon weight. Anything here is the
+// world holding the wagon through the horse.
+static float LegDrag( const Wagon* wagon )
+{
+	b3Vec3 force = b3Joint_GetConstraintForce( wagon->legJointId );
+	b3Quat q = b3Body_GetRotation( wagon->chassisId );
+	float forward = b3Dot( force, b3RotateVector( q, b3Vec3_axisX ) );
+	float lateral = b3Dot( force, b3RotateVector( q, b3Vec3_axisZ ) );
+	return sqrtf( forward * forward + lateral * lateral ) / wagon->weight;
+}
+
+// A deck with its top at the given height that ends in a drop to the ground at x = 10
+static void CreateLedge( b3WorldId worldId, float height )
+{
+	b3BodyDef bodyDef = b3DefaultBodyDef();
+	bodyDef.position = (b3Pos){ -10.0f, 0.5f * height, 0.0f };
+	b3BodyId bodyId = b3CreateBody( worldId, &bodyDef );
+
+	b3ShapeDef shapeDef = b3DefaultShapeDef();
+	b3BoxHull box = b3MakeBoxHull( 20.0f, 0.5f * height, 5.0f );
+	b3CreateHullShape( bodyId, &shapeDef, &box.base );
+}
+
+// The wagon canters off the end of a deck. The horse floats into the drop instead of pitching down to
+// the ground below or tucking under the bed, and its legs do not hold the wagon back while the wagon is
+// still on the deck. Once the wagon tips over the edge the chassis turns within a step and the legs
+// pass it a little load.
+static int LedgeDrop( void )
+{
+	float height = 1.5f;
+	b3WorldId worldId = CreateVehicleWorld( 1 );
+	CreateGround( worldId, 0.0f );
+	CreateLedge( worldId, height );
+
+	WagonDef def = GetDefaultWagonDef();
+	def.position = (b3Pos){ -5.0f, height + 0.1f, 0.0f };
+	Wagon wagon = CreateWagon( worldId, &def );
+
+	float minPitch = 0.0f, maxPitch = 0.0f, maxDrop = 0.0f, deckDrag = 0.0f, fallDrag = 0.0f;
+	for ( int i = 0; i < 6 * 60; ++i )
+	{
+		StepWagon( worldId, &wagon, (WagonInput){ e_wagonCanter, 0.0f, false } );
+
+		// The wagon starts in the air
+		if ( i < 60 )
+		{
+			continue;
+		}
+
+		b3WorldTransform horse = b3Body_GetTransform( wagon.horseId );
+		b3Vec3 forward = b3RotateVector( horse.q, b3Vec3_axisX );
+		float pitch = asinf( b3ClampFloat( forward.y, -1.0f, 1.0f ) );
+		minPitch = b3MinFloat( minPitch, pitch );
+		maxPitch = b3MaxFloat( maxPitch, pitch );
+
+		b3Pos kingbolt = GetWagonKingbolt( &wagon );
+		maxDrop = b3MaxFloat( maxDrop, (float)( kingbolt.y - horse.p.y ) );
+
+		if ( kingbolt.x < 9.5f )
+		{
+			deckDrag = b3MaxFloat( deckDrag, LegDrag( &wagon ) );
+		}
+		else
+		{
+			fallDrag = b3MaxFloat( fallDrag, LegDrag( &wagon ) );
+		}
+	}
+
+	float dropLimit = wagon.tugHeight - wagon.tugDistance * sinf( wagon.minShaftPitch );
+	printf( "  ledge drop: horse pitch %.1f to %.1f deg, drop below kingbolt %.2f m (limit %.2f), "
+			"leg drag %.4f W on the deck, %.4f W falling\n",
+			minPitch * 180.0f / B3_PI, maxPitch * 180.0f / B3_PI, maxDrop, dropLimit, deckDrag, fallDrag );
+
+	ENSURE( minPitch > wagon.minHorsePitch - 0.05f );
+	ENSURE( maxPitch < wagon.maxHorsePitch + 0.05f );
+	ENSURE( maxDrop < dropLimit + 0.05f );
+	ENSURE( deckDrag < 1.0e-3f );
+
+	DestroyWagon( &wagon );
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
+// The wagon canters up a hill. The horse pitches with it and its legs never hold the wagon back.
+static int HillClimb( void )
+{
+	float slope = -0.12f;
+	b3WorldId worldId = CreateVehicleWorld( 1 );
+	CreateGround( worldId, slope );
+	Wagon wagon = CreateTestWagon( worldId, slope );
+
+	float maxDrag = 0.0f, maxShaftForce = 0.0f, maxPitch = 0.0f, speed = 0.0f;
+	for ( int i = 0; i < 10 * 60; ++i )
+	{
+		StepWagon( worldId, &wagon, (WagonInput){ e_wagonCanter, 0.0f, false } );
+		if ( i < 120 )
+		{
+			continue;
+		}
+
+		maxDrag = b3MaxFloat( maxDrag, LegDrag( &wagon ) );
+		maxShaftForce =
+			b3MaxFloat( maxShaftForce, b3Length( b3Joint_GetConstraintForce( wagon.shaftJointId ) ) / wagon.weight );
+		b3Vec3 forward = b3RotateVector( b3Body_GetRotation( wagon.horseId ), b3Vec3_axisX );
+		maxPitch = b3MaxFloat( maxPitch, asinf( b3ClampFloat( forward.y, -1.0f, 1.0f ) ) );
+		speed = wagon.speed;
+	}
+
+	float hill = atanf( -slope );
+	printf( "  hill climb: speed %.2f m/s, horse pitch %.1f deg (hill %.1f), leg drag %.4f W, shaft force %.4f W\n",
+			speed, maxPitch * 180.0f / B3_PI, hill * 180.0f / B3_PI, maxDrag, maxShaftForce );
+
+	ENSURE( speed > 0.5f * wagon.tuning.gaitSpeed[e_wagonCanter] );
+	ENSURE( b3AbsFloat( maxPitch - hill ) < 0.05f );
+	ENSURE( maxDrag < 1.0e-3f );
+
+	DestroyWagon( &wagon );
+	b3DestroyWorld( worldId );
+	return 0;
+}
+
 static uint32_t HashBytes( uint32_t hash, const void* data, int size )
 {
 	const uint8_t* bytes = data;
@@ -434,6 +555,8 @@ int VehicleTest( void )
 	RUN_SUBTEST( TreeSideSwipe );
 	RUN_SUBTEST( TreeHeadOn );
 	RUN_SUBTEST( TreeCrash );
+	RUN_SUBTEST( HillClimb );
+	RUN_SUBTEST( LedgeDrop );
 	RUN_SUBTEST( MultithreadedDeterminism );
 	return 0;
 }

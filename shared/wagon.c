@@ -178,7 +178,11 @@ static void UpdateHorse( Wagon* wagon, float timeStep )
 	b3Vec3 up = b3Normalize( b3Neg( b3World_GetGravity( wagon->worldId ) ) );
 	b3Pos kingbolt = GetKingbolt( wagon );
 	b3Vec3 heading = GetHeading( wagon );
+	float minSine = sinf( wagon->minShaftPitch );
 	float maxSine = sinf( wagon->maxShaftPitch );
+	float stride = 2.0f * wagon->halfStride;
+	float minRise = stride * tanf( wagon->minHorsePitch );
+	float maxRise = stride * tanf( wagon->maxHorsePitch );
 
 	float pitch = wagon->targetShaftPitch;
 	float groundHeight = -wagon->tugHeight;
@@ -209,9 +213,22 @@ static void UpdateHorse( Wagon* wagon, float timeStep )
 
 		fore = grounded[0] ? heights[0] : heights[1];
 		hind = grounded[1] ? heights[1] : heights[0];
+
+		// A hoof further down than the body can pitch has stepped into a drop. It floats rather than
+		// tipping the horse onto its nose.
+		float rise = fore - hind;
+		if ( rise < minRise )
+		{
+			fore = hind + minRise;
+		}
+		else if ( rise > maxRise )
+		{
+			hind = fore - maxRise;
+		}
+
 		groundHeight = 0.5f * ( fore + hind );
 
-		float sine = b3ClampFloat( ( groundHeight + wagon->tugHeight ) / wagon->tugDistance, -maxSine, maxSine );
+		float sine = b3ClampFloat( ( groundHeight + wagon->tugHeight ) / wagon->tugDistance, minSine, maxSine );
 		pitch = asinf( sine );
 	}
 
@@ -219,7 +236,7 @@ static void UpdateHorse( Wagon* wagon, float timeStep )
 	wagon->targetShaftPitch = pitch;
 	SpringToward( &wagon->shaftPitch, &wagon->shaftPitchRate, pitch, tuning->horsePitchHertz,
 				  tuning->horsePitchDampingRatio, timeStep );
-	pitch = b3ClampFloat( wagon->shaftPitch, -wagon->maxShaftPitch, wagon->maxShaftPitch );
+	pitch = b3ClampFloat( wagon->shaftPitch, wagon->minShaftPitch, wagon->maxShaftPitch );
 	wagon->shaftDirection = b3Blend2( cosf( pitch ), heading, sinf( pitch ), up );
 
 	// The body hangs from the sprung tugs and the legs reach the hooves
@@ -229,7 +246,7 @@ static void UpdateHorse( Wagon* wagon, float timeStep )
 
 	// Yaw about y to the heading, then pitch the body to its hooves
 	float yaw = atan2f( -heading.z, heading.x );
-	float bodyPitch = atan2f( fore - hind, 2.0f * wagon->halfStride );
+	float bodyPitch = atan2f( fore - hind, stride );
 	SpringToward( &wagon->horsePitch, &wagon->horsePitchRate, bodyPitch, tuning->horsePitchHertz,
 				  tuning->horsePitchDampingRatio, timeStep );
 	b3Quat q = b3MulQuat( b3MakeQuatFromAxisAngle( b3Vec3_axisY, yaw ),
@@ -271,12 +288,13 @@ static b3Vec3 GetWheelMount( const Wagon* wagon, const WagonWheel* wheel, float 
 typedef struct HorseFrames
 {
 	b3Transform legA;
+	b3Transform legB;
 	b3Transform shaftB;
 	b3Transform tugA;
 	b3Transform tugB;
 } HorseFrames;
 
-// The leg lock turns only about frame z, so the horse frames put z on the horse's up axis
+// The leg lock turns only about frame z, so the leg frames put z on the chassis up axis
 static b3Quat GetHorseUpright( void )
 {
 	return b3MakeQuatFromAxisAngle( b3Vec3_axisX, -0.5f * B3_PI );
@@ -288,13 +306,18 @@ static HorseFrames ComputeHorseFrames( const Wagon* wagon )
 	b3WorldTransform chassis = b3Body_GetTransform( wagon->chassisId );
 	b3WorldTransform anchor = b3Body_GetTransform( wagon->horseAnchorId );
 
+	// The legs hold the horse along the chassis up axis, the one direction the shafts leave free, so the
+	// two never fight over the horse. Along the pitched body axis they would hold the horse back when it
+	// pitches into a drop and drag on the wagon. Along world up they would fight the shafts on a hill.
+	// Frame B on the horse carries the body pitch.
 	HorseFrames frames;
-	b3WorldTransform upright = { horse.p, b3MulQuat( horse.q, GetHorseUpright() ) };
-	frames.legA = b3InvMulWorldTransforms( anchor, upright );
+	b3Quat steer = b3MakeQuatFromAxisAngle( b3Vec3_axisY, wagon->steer );
+	b3Quat legQ = b3MulQuat( b3MulQuat( chassis.q, steer ), GetHorseUpright() );
+	frames.legA = b3InvMulWorldTransforms( anchor, (b3WorldTransform){ horse.p, legQ } );
+	frames.legB = (b3Transform){ b3Vec3_zero, b3InvMulQuat( horse.q, legQ ) };
 	frames.shaftB = (b3Transform){ b3InvTransformWorldPoint( horse, GetKingbolt( wagon ) ), b3Quat_identity };
 
 	// A push across the shafts at the tugs turns the front gear, and with it the wagon
-	b3Quat steer = b3MakeQuatFromAxisAngle( b3Vec3_axisY, wagon->steer );
 	b3Vec3 tug = b3MulAdd( wagon->kingbolt, wagon->tugDistance, b3RotateVector( steer, b3Vec3_axisX ) );
 	frames.tugA = (b3Transform){ tug, steer };
 	frames.tugB =
@@ -336,18 +359,19 @@ static void CreateHorse( Wagon* wagon, float horseMass )
 
 	HorseFrames frames = ComputeHorseFrames( wagon );
 	wagon->legFrameA = frames.legA;
+	wagon->legFrameB = frames.legB;
 	wagon->shaftFrameB = frames.shaftB;
 	wagon->tugFrameA = frames.tugA;
 	wagon->tugFrameB = frames.tugB;
 
 	// The legs hold the height, pitch and roll the hooves give, leaving the horse free to move across
 	// the ground and turn about its up axis.
-	// 
+	// This is a planar joint on the ground with normal along the horse up direction.
 	b3MotionLockJointDef legDef = b3DefaultMotionLockJointDef();
 	legDef.base.bodyIdA = wagon->horseAnchorId;
 	legDef.base.bodyIdB = wagon->horseId;
 	legDef.base.localFrameA = frames.legA;
-	legDef.base.localFrameB = (b3Transform){ b3Vec3_zero, GetHorseUpright() };
+	legDef.base.localFrameB = frames.legB;
 	legDef.lockLinearZ = true;
 	legDef.lockAngularXY = true;
 	wagon->legJointId = b3CreateMotionLockJoint( wagon->worldId, &legDef );
@@ -364,7 +388,6 @@ static void CreateHorse( Wagon* wagon, float horseMass )
 	shaftDef.lockLinearX = true;
 	shaftDef.lockLinearZ = true;
 	wagon->shaftJointId = b3CreateMotionLockJoint( wagon->worldId, &shaftDef );
-	//wagon->shaftJointId = b3_nullJointId;
 
 	// This creates the yaw angle between the chassis and the horse. It creates a point-on-plane
 	// constraint where the plane is the 
@@ -376,7 +399,6 @@ static void CreateHorse( Wagon* wagon, float horseMass )
 	tugDef.base.collideConnected = false;
 	tugDef.lockLinearZ = true;
 	wagon->tugJointId = b3CreateMotionLockJoint( wagon->worldId, &tugDef );
-	//wagon->tugJointId = b3_nullJointId;
 }
 
 Wagon CreateWagon( b3WorldId worldId, const WagonDef* def )
@@ -392,7 +414,10 @@ Wagon CreateWagon( b3WorldId worldId, const WagonDef* def )
 	wagon.tugDistance = 1.65f;
 	wagon.tugHeight = 1.1f;
 	wagon.halfStride = 0.7f;
+	wagon.minShaftPitch = -25.0f * B3_PI / 180.0f;
 	wagon.maxShaftPitch = 0.25f * B3_PI;
+	wagon.minHorsePitch = -25.0f * B3_PI / 180.0f;
+	wagon.maxHorsePitch = 35.0f * B3_PI / 180.0f;
 	wagon.gait = e_wagonHalt;
 	wagon.brake = true;
 
@@ -871,6 +896,12 @@ static void UpdateHorseJoints( Wagon* wagon )
 	{
 		b3Joint_SetLocalFrameA( wagon->legJointId, frames.legA );
 		wagon->legFrameA = frames.legA;
+	}
+
+	if ( FrameChanged( frames.legB, wagon->legFrameB ) )
+	{
+		b3Joint_SetLocalFrameB( wagon->legJointId, frames.legB );
+		wagon->legFrameB = frames.legB;
 	}
 
 	if ( FrameChanged( frames.shaftB, wagon->shaftFrameB ) && B3_IS_NON_NULL( wagon->shaftJointId ) )

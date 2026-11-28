@@ -252,7 +252,15 @@ typedef struct Wagon
 	float tugDistance;
 	float tugHeight;
 	float halfStride;
+
+	// The shafts drop less than they rise, so a horse stepping into a drop floats rather than tucking
+	// under the bed
+	float minShaftPitch;
 	float maxShaftPitch;
+
+	// Body pitch limits. A hoof lower than these allow floats.
+	float minHorsePitch;
+	float maxHorsePitch;
 
 	WagonWheel wheels[e_wagonWheelCount];
 
@@ -308,6 +316,7 @@ typedef struct Wagon
 	b3ShapeId horseShapeId;
 	b3Capsule horseCapsule;
 	b3Transform legFrameA;
+	b3Transform legFrameB;
 	b3Transform shaftFrameB;
 	b3Transform tugFrameA;
 	b3Transform tugFrameB;
