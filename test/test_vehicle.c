@@ -409,13 +409,13 @@ static int LedgeDrop( void )
 		}
 	}
 
-	float dropLimit = wagon.tugHeight - wagon.tugDistance * sinf( wagon.minShaftPitch );
+	float dropLimit = wagon.tugHeight - wagon.tugDistance * sinf( wagon.tuning.minShaftPitch );
 	printf( "  ledge drop: horse pitch %.1f to %.1f deg, drop below kingbolt %.2f m (limit %.2f), "
 			"leg drag %.4f W on the deck, %.4f W falling\n",
 			minPitch * 180.0f / B3_PI, maxPitch * 180.0f / B3_PI, maxDrop, dropLimit, deckDrag, fallDrag );
 
-	ENSURE( minPitch > wagon.minHorsePitch - 0.05f );
-	ENSURE( maxPitch < wagon.maxHorsePitch + 0.05f );
+	ENSURE( minPitch > wagon.tuning.minHorsePitch - 0.05f );
+	ENSURE( maxPitch < wagon.tuning.maxHorsePitch + 0.05f );
 	ENSURE( maxDrop < dropLimit + 0.05f );
 	ENSURE( deckDrag < 1.0e-3f );
 

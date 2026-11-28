@@ -128,7 +128,17 @@ typedef struct WagonTuning
 	float horsePitchHertz;
 	float horsePitchDampingRatio;
 
-	// Friction of the horse and the wheel rails, low so they slide around trunks
+	// Shaft pitch limits above the level heading, radians. The shafts drop less than they rise, so a
+	// horse stepping into a drop floats rather than tucking under the bed. How far they can drop
+	// before the horse reaches the hull depends on the hull.
+	float minShaftPitch;
+	float maxShaftPitch;
+
+	// Body pitch limits of the horse, radians. A hoof lower than these allow floats.
+	float minHorsePitch;
+	float maxHorsePitch;
+
+	// Friction of the horse and the hull, low so they slide around trunks
 	float bumperFriction;
 } WagonTuning;
 
@@ -252,15 +262,6 @@ typedef struct Wagon
 	float tugDistance;
 	float tugHeight;
 	float halfStride;
-
-	// The shafts drop less than they rise, so a horse stepping into a drop floats rather than tucking
-	// under the bed
-	float minShaftPitch;
-	float maxShaftPitch;
-
-	// Body pitch limits. A hoof lower than these allow floats.
-	float minHorsePitch;
-	float maxHorsePitch;
 
 	WagonWheel wheels[e_wagonWheelCount];
 

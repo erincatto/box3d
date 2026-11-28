@@ -85,7 +85,14 @@ WagonTuning GetDefaultWagonTuning( void )
 	tuning.horsePitchHertz = 3.0f;
 	tuning.horsePitchDampingRatio = 1.0f;
 
-	tuning.bumperFriction = 0.0f;
+	// Steep enough to climb any hill the draft can, and a drop shallow enough that the horse stays clear
+	// of the default hull
+	tuning.minShaftPitch = -25.0f * B3_PI / 180.0f;
+	tuning.maxShaftPitch = 0.25f * B3_PI;
+	tuning.minHorsePitch = -25.0f * B3_PI / 180.0f;
+	tuning.maxHorsePitch = 35.0f * B3_PI / 180.0f;
+
+	tuning.bumperFriction = 0.1f;
 	return tuning;
 }
 
@@ -178,11 +185,12 @@ static void UpdateHorse( Wagon* wagon, float timeStep )
 	b3Vec3 up = b3Normalize( b3Neg( b3World_GetGravity( wagon->worldId ) ) );
 	b3Pos kingbolt = GetKingbolt( wagon );
 	b3Vec3 heading = GetHeading( wagon );
-	float minSine = sinf( wagon->minShaftPitch );
-	float maxSine = sinf( wagon->maxShaftPitch );
+	const WagonTuning* tuning = &wagon->tuning;
+	float minSine = sinf( tuning->minShaftPitch );
+	float maxSine = sinf( tuning->maxShaftPitch );
 	float stride = 2.0f * wagon->halfStride;
-	float minRise = stride * tanf( wagon->minHorsePitch );
-	float maxRise = stride * tanf( wagon->maxHorsePitch );
+	float minRise = stride * tanf( tuning->minHorsePitch );
+	float maxRise = stride * tanf( tuning->maxHorsePitch );
 
 	float pitch = wagon->targetShaftPitch;
 	float groundHeight = -wagon->tugHeight;
@@ -232,11 +240,10 @@ static void UpdateHorse( Wagon* wagon, float timeStep )
 		pitch = asinf( sine );
 	}
 
-	const WagonTuning* tuning = &wagon->tuning;
 	wagon->targetShaftPitch = pitch;
 	SpringToward( &wagon->shaftPitch, &wagon->shaftPitchRate, pitch, tuning->horsePitchHertz,
 				  tuning->horsePitchDampingRatio, timeStep );
-	pitch = b3ClampFloat( wagon->shaftPitch, wagon->minShaftPitch, wagon->maxShaftPitch );
+	pitch = b3ClampFloat( wagon->shaftPitch, tuning->minShaftPitch, tuning->maxShaftPitch );
 	wagon->shaftDirection = b3Blend2( cosf( pitch ), heading, sinf( pitch ), up );
 
 	// The body hangs from the sprung tugs and the legs reach the hooves
@@ -414,10 +421,6 @@ Wagon CreateWagon( b3WorldId worldId, const WagonDef* def )
 	wagon.tugDistance = 1.65f;
 	wagon.tugHeight = 1.1f;
 	wagon.halfStride = 0.7f;
-	wagon.minShaftPitch = -25.0f * B3_PI / 180.0f;
-	wagon.maxShaftPitch = 0.25f * B3_PI;
-	wagon.minHorsePitch = -25.0f * B3_PI / 180.0f;
-	wagon.maxHorsePitch = 35.0f * B3_PI / 180.0f;
 	wagon.gait = e_wagonHalt;
 	wagon.brake = true;
 

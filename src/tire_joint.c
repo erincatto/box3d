@@ -337,7 +337,7 @@ void b3SolveTireJoint( b3JointSim* base, b3StepContext* context, bool useBias )
 		float oldImpulse = joint->suspensionImpulse;
 		float newImpulse = 0.0f;
 
-		// todo comment
+		// Compute extension for speculative suspension.
 		float band = B3_LINEAR_SLOP;
 		float extension = clearance - joint->maxLength * joint->cosine;
 
