@@ -451,7 +451,6 @@ void b3DrawMotionLockJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransfor
 	b3Vec3 axes[3] = { axesA.cx, axesA.cy, axesA.cz };
 	b3Vec3 delta = b3SubPos( frameB.p, frameA.p );
 
-	// todo comment
 	float margin = 0.25f * scale;
 	b3Vec3 freeAxes[3];
 	float lower[3];
@@ -499,7 +498,6 @@ void b3DrawMotionLockJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransfor
 
 	if ( freeCount < 3 )
 	{
-		// todo comment
 		draw->DrawPointFcn( frameA.p, 6.0f, lockColor, draw->context );
 		draw->DrawSegmentFcn( b3OffsetPos( frameA.p, freeDelta ), frameB.p, b3_colorRed, draw->context );
 	}

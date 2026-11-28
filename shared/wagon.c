@@ -95,8 +95,8 @@ WagonHull GetDefaultWagonHull( void )
 {
 	WagonHull hull;
 	hull.rear = -1.6f;
-	hull.shoulder = 1.45f;
-	hull.nose = 2.85f;
+	hull.shoulder = 1.25f;
+	hull.nose = 3.00f;
 	hull.halfWidth = 0.8f;
 	hull.bottom = 0.57f;
 	hull.top = 1.75f;
