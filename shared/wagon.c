@@ -397,7 +397,8 @@ static void CreateHorse( Wagon* wagon, float horseMass )
 	wagon->shaftJointId = b3CreateMotionLockJoint( wagon->worldId, &shaftDef );
 
 	// This creates the yaw angle between the chassis and the horse. It creates a point-on-plane
-	// constraint where the plane is the 
+	// constraint where the plane normal is the front axle as it steers and it passes through the king bolt.
+	// The horse is constrained at the tug point.
 	b3MotionLockJointDef tugDef = b3DefaultMotionLockJointDef();
 	tugDef.base.bodyIdA = wagon->chassisId;
 	tugDef.base.bodyIdB = wagon->horseId;
@@ -892,6 +893,14 @@ static void UpdateHorseJoints( Wagon* wagon )
 		float friction = wagon->tuning.bumperFriction;
 		b3Shape_SetFriction( wagon->horseShapeId, friction );
 		b3Shape_SetFriction( wagon->chassisShapeId, friction );
+	}
+
+	// The leg frame on the anchor is a float offset to the horse, so it loses precision as the wagon
+	// travels. Bring the anchor along. The joint holds the same world frame, so the horse never feels it.
+	b3Pos anchor = b3Body_GetPosition( wagon->horseAnchorId );
+	if ( b3Length( b3SubPos( wagon->horseTransform.p, anchor ) ) > 10.0f )
+	{
+		b3Body_SetTransform( wagon->horseAnchorId, wagon->horseTransform.p, b3Quat_identity );
 	}
 
 	HorseFrames frames = ComputeHorseFrames( wagon );

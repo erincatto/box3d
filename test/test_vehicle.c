@@ -432,10 +432,13 @@ static int HillClimb( void )
 	CreateGround( worldId, slope );
 	Wagon wagon = CreateTestWagon( worldId, slope );
 
-	float maxDrag = 0.0f, maxShaftForce = 0.0f, maxPitch = 0.0f, speed = 0.0f;
+	float maxDrag = 0.0f, maxShaftForce = 0.0f, maxPitch = 0.0f, speed = 0.0f, maxAnchorGap = 0.0f;
+	b3Pos startAnchor = b3Body_GetPosition( wagon.horseAnchorId );
 	for ( int i = 0; i < 10 * 60; ++i )
 	{
 		StepWagon( worldId, &wagon, (WagonInput){ e_wagonCanter, 0.0f, false } );
+		b3Vec3 anchorGap = b3SubPos( b3Body_GetPosition( wagon.horseAnchorId ), wagon.horseTransform.p );
+		maxAnchorGap = b3MaxFloat( maxAnchorGap, b3Length( anchorGap ) );
 		if ( i < 120 )
 		{
 			continue;
@@ -453,9 +456,16 @@ static int HillClimb( void )
 	printf( "  hill climb: speed %.2f m/s, horse pitch %.1f deg (hill %.1f), leg drag %.4f W, shaft force %.4f W\n",
 			speed, maxPitch * 180.0f / B3_PI, hill * 180.0f / B3_PI, maxDrag, maxShaftForce );
 
+	float anchorTravel = b3Length( b3SubPos( b3Body_GetPosition( wagon.horseAnchorId ), startAnchor ) );
+	printf( "  hill climb: anchor gap %.2f m, anchor travel %.2f m\n", maxAnchorGap, anchorTravel );
+
 	ENSURE( speed > 0.5f * wagon.tuning.gaitSpeed[e_wagonCanter] );
 	ENSURE( b3AbsFloat( maxPitch - hill ) < 0.05f );
 	ENSURE( maxDrag < 1.0e-3f );
+
+	// The anchor follows the horse so the leg frame offset stays small
+	ENSURE( anchorTravel > 10.0f );
+	ENSURE( maxAnchorGap < 11.0f );
 
 	DestroyWagon( &wagon );
 	b3DestroyWorld( worldId );

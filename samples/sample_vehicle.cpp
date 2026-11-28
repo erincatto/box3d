@@ -675,13 +675,6 @@ public:
 		b3Pos tug = GetWagonTug( &m_wagon );
 		DrawCross( tug, 0.1f, MakeColor( b3_colorOrange ) );
 
-		// The horse's body on legs about 0.8 m long, pitched to its hooves. Drawn where the body is, so
-		// a trunk shoving it off its pose shows.
-		//b3WorldTransform horseBody = b3Body_GetTransform( m_wagon.horseId );
-		//b3Vec3 horseSize = { 2.2f, 1.5f, 0.6f };
-		//b3Pos horseCenter = b3TransformWorldPoint( horseBody, { 0.0f, 0.8f + 0.5f * horseSize.y, 0.0f } );
-		//DrawCube( { horseCenter, horseBody.q }, horseSize, MakeColorAlpha( b3_colorTan, 0.6f ) );
-
 		for ( int i = 0; i < 2; ++i )
 		{
 			b3HexColor color = m_wagon.hoofGrounded[i] ? b3_colorYellow : b3_colorGray;
